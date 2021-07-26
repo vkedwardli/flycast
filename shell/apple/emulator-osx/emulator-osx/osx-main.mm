@@ -136,7 +136,12 @@ int emu_single_frame(int w, int h)
     return (int)mainui_rend_frame();
 }
 
-void emu_gles_init(int width, int height)
+void emu_vulkan_present()
+{
+    theVulkanContext.Instance()->Present();
+}
+
+void emu_gles_init(int width, int height, CAMetalLayer* layer)
 {
     char *home = getenv("HOME");
     if (home != NULL)
@@ -221,6 +226,7 @@ void emu_gles_init(int width, int height)
 	screen_width = width;
 	screen_height = height;
 
+    theVulkanContext.SetWindow((__bridge void *)layer, NULL);
 	InitRenderApi();
 	mainui_init();
 	mainui_enabled = true;

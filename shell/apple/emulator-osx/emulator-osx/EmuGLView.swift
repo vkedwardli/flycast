@@ -53,7 +53,7 @@ class EmuGLView: NSOpenGLView, NSWindowDelegate {
         
         openGLContext!.makeCurrentContext()
 		let rect = convertToBacking(frame)
-        emu_gles_init(Int32(rect.width), Int32(rect.height))
+        emu_gles_init(Int32(rect.width), Int32(rect.height), nil)
 		
 		if (emu_reicast_init() != 0) {
 			let alert = NSAlert()

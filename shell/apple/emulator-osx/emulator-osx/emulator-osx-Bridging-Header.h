@@ -14,12 +14,15 @@
 extern "C" {
 #endif
 
+@class CAMetalLayer;
+
 void emu_dc_exit();
 void emu_dc_term();
 void emu_gui_open_settings();
 bool emu_renderer_enabled();
 int emu_single_frame(int w, int h);
-void emu_gles_init(int width, int height);
+void emu_vulkan_present();
+void emu_gles_init(int width, int height, CAMetalLayer* layer);
 int emu_reicast_init();
 void emu_key_input(UInt16 keyCode, bool pressed, UInt32 modifierFlags);
 void emu_character_input(const char *characters);

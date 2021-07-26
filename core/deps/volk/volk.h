@@ -10,6 +10,21 @@
 #ifndef VOLK_H_
 #define VOLK_H_
 
+#ifdef __APPLE__
+#    ifndef __mvk_vulkan_h_
+#        define __mvk_vulkan_h_ 1
+#        include <Availability.h>
+#        define VK_USE_PLATFORM_METAL_EXT                1
+#        define VK_ENABLE_BETA_EXTENSIONS                1        // VK_KHR_portability_subset
+#        ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+#            define VK_USE_PLATFORM_IOS_MVK                1
+#        endif
+#        ifdef __MAC_OS_X_VERSION_MAX_ALLOWED
+#            define VK_USE_PLATFORM_MACOS_MVK            1
+#        endif
+#    endif
+#endif
+
 #if defined(VULKAN_H_) && !defined(VK_NO_PROTOTYPES)
 #	error To use volk, you need to define VK_NO_PROTOTYPES before including vulkan.h
 #endif

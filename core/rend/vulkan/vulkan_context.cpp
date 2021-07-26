@@ -696,7 +696,7 @@ bool VulkanContext::Init()
 {
 	std::vector<const char *> extensions;
 	extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-#if defined(USE_SDL)
+#if defined(USE_SDL) && !defined(__APPLE__)
 	if (!sdl_recreate_window(SDL_WINDOW_VULKAN))
 		return false;
     uint32_t extensionsCount = 0;
@@ -708,7 +708,7 @@ bool VulkanContext::Init()
     CreateMainWindow();
 	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(__APPLE__)
-	extensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+    extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #elif defined(SUPPORT_X11)
 	extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #elif defined(__ANDROID__)
@@ -717,7 +717,7 @@ bool VulkanContext::Init()
 	if (!InitInstance(&extensions[0], extensions.size()))
 		return false;
 
-#if defined(USE_SDL)
+#if defined(USE_SDL) && !defined(__APPLE__)
     VkSurfaceKHR surface;
     if (SDL_Vulkan_CreateSurface((SDL_Window *)window, (VkInstance)*instance, &surface) == 0)
     	return false;
@@ -731,6 +731,17 @@ bool VulkanContext::Init()
 #elif defined(__ANDROID__)
 	vk::AndroidSurfaceCreateInfoKHR createInfo(vk::AndroidSurfaceCreateFlagsKHR(), (struct ANativeWindow*)window);
 	surface = instance->createAndroidSurfaceKHRUnique(createInfo);
+#elif defined(__APPLE__)
+
+    VkMetalSurfaceCreateInfoEXT pCreateInfo = {};
+    pCreateInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+    pCreateInfo.pNext = NULL;
+    pCreateInfo.flags = 0;
+    pCreateInfo.pLayer = window;
+    
+    VkSurfaceKHR surface;
+    vkCreateMetalSurfaceEXT((VkInstance)*instance, &pCreateInfo, NULL, &surface);
+    this->surface.reset(vk::SurfaceKHR(surface));
 #endif
 	overlay = std::unique_ptr<VulkanOverlay>(new VulkanOverlay());
 

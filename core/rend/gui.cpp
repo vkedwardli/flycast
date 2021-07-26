@@ -1354,7 +1354,7 @@ static void gui_display_settings()
 			}
 
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, normal_padding);
-#if !defined(__APPLE__)
+
 			bool has_per_pixel = false;
 			if (renderApi == 0)
 				has_per_pixel = !theGLContext.IsGLES() && theGLContext.GetMajorVersion() >= 4;
@@ -1362,9 +1362,7 @@ static void gui_display_settings()
 			else
 				has_per_pixel = VulkanContext::Instance()->SupportsFragmentShaderStoresAndAtomics();
 #endif
-#else
-			bool has_per_pixel = false;
-#endif
+            
 		    header("Transparent Sorting");
 		    {
 		    	int renderer = perPixel ? 2 : config::PerStripSorting ? 1 : 0;

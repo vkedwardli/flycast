@@ -313,7 +313,7 @@ public:
 #ifdef _WIN32
 		: Option<RenderType>("pvr.rend", RenderType::DirectX9) {}
 #else
-		: Option<RenderType>("pvr.rend", RenderType::OpenGL) {}
+		: Option<RenderType>("pvr.rend", RenderType::Vulkan) {}
 #endif
 
 	bool isOpenGL() const {
