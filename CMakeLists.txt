@@ -202,6 +202,18 @@ if(NOT LIBRETRO)
 endif()
 
 if(USE_OPENMP)
+	set(OpenMP_C "${CMAKE_C_COMPILER}")
+	set(OpenMP_C_FLAGS "-Xclang -fopenmp -I/usr/local/Cellar/libomp/14.0.0/include")
+	set(OpenMP_C_LIB_NAMES "libomp")
+	set(OpenMP_libomp_LIBRARY "omp")
+	
+	set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
+	set(OpenMP_CXX_FLAGS "-Xclang -fopenmp -I/usr/local/Cellar/libomp/14.0.0/include")
+	set(OpenMP_CXX_LIB_NAMES "libomp")
+	set(OpenMP_libomp_LIBRARY "omp")
+
+	link_directories("/usr/local/Cellar/libomp/14.0.0/lib/")
+	
     find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
         if(MINGW)
@@ -214,6 +226,7 @@ if(USE_OPENMP)
         else()
             target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
         endif()
+        target_link_directories(${PROJECT_NAME} PRIVATE "/usr/local/Cellar/libomp/14.0.0/lib/")
     endif()
 endif()
 
