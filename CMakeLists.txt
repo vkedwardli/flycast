@@ -29,7 +29,7 @@ if(APPLE)
 		set(USE_VULKAN OFF CACHE BOOL "Force vulkan off" FORCE)
 	else()
 		set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Minimum macOS deployment version")
-		set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "")
+		set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "")
 	endif()
 endif()
 
