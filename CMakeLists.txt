@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
