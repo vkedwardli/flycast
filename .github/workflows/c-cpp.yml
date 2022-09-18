@@ -160,5 +160,5 @@ jobs:
           files: artifact/bin/${{ matrix.config.packageName }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: github.repository == 'inada-s/flycast' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/gdxsv-') && matrix.config.packageName != ''
+        if: github.repository == 'vkedwardli/flycast' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/test-gdxsv-') && matrix.config.packageName != ''
 
