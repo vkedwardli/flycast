@@ -5,7 +5,7 @@ on:
     branches:
       - 'gdxsv-master'
     tags:
-      - 'gdxsv-*'
+      - 'test-gdxsv-*'
   pull_request:
     branches:
       - '**'
