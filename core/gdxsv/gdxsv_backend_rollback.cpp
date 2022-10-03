@@ -17,6 +17,7 @@
 #include "network/net_platform.h"
 #include "rend/gui.h"
 #include "rend/gui_util.h"
+#include "rend/transform_matrix.h"
 
 namespace {
 u8 DummyGameParam[640] = {0x00, 0x00, 0x01, 0x00, 0x03, 0x00, 0x02, 0x00, 0x05, 0x00, 0x04,
@@ -52,12 +53,26 @@ u16 convertInput(MapleInputState input) {
     return r;
 }
 
-ImVec2 fromCenter(float x, float y) {
+float scale() {
     const auto W = ImGui::GetIO().DisplaySize.x;
     const auto H = ImGui::GetIO().DisplaySize.y;
-    const auto S = std::min(W / 640.f, H / 480.f);
-    const auto CX = W / 2.f;
-    const auto CY = H / 2.f;
+    float renderAR = getOutputFramebufferAspectRatio();
+    float screenAR = W / H;
+    float dx = 0;
+    float dy = 0;
+    if (renderAR > screenAR)
+        dy = H * (1 - screenAR / renderAR) / 2;
+    else
+        dx = W * (1 - renderAR / screenAR) / 2;
+
+    return std::min((W - dx * 2) / 640.f, (H - dy * 2) / 480.f);
+}
+
+ImVec2 fromCenter(float x, float y) {
+    const auto S = scale();
+    const auto CX = ImGui::GetIO().DisplaySize.x / 2.f;
+    const auto CY = ImGui::GetIO().DisplaySize.y / 2.f;
+
     return ImVec2(CX + (x * S), CY + (y * S));
 }
 
@@ -72,26 +87,43 @@ static void screenToNative(int& x, int& y, int width, int height) {
 }
 
 float scaled(float size) {
-    const auto W = ImGui::GetIO().DisplaySize.x;
-    const auto H = ImGui::GetIO().DisplaySize.y;
-    const auto S = std::min(W / 640.f, H / 480.f);
+    const auto S = scale();
     return S * size;
 }
 
+ImColor fadeColor(ImColor color, int elapsed) {
+    if (elapsed <= 1800)
+        color.Value.w *= (elapsed - 1550) / 250.0;
+    else if ( elapsed >= 6600 && elapsed < 6900)
+        color.Value.w *= 1.0 - (elapsed - 6600) / 300.0;
+    
+    return color;
+}
+
 ImColor msColor(int ms) {
-    if (ms <= 30) return ImColor(87, 213, 213);
-    if (ms <= 60) return ImColor(0, 255, 149);
-    if (ms <= 90) return ImColor(255, 255, 0);
-    if (ms <= 120) return ImColor(255, 170, 0);
-    if (ms <= 150) return ImColor(255, 0, 0);
-    return ImColor(128, 128, 128);
+    if (ms <= 30) return ImColor(63, 166, 214);
+    if (ms <= 60) return ImColor(0, 168, 0);
+    if (ms <= 90) return ImColor(255, 207, 0);
+    if (ms <= 120) return ImColor(240, 105, 0);
+    if (ms <= 150) return ImColor(173, 31, 0);
+    return ImColor(36, 36, 36);
+}
+
+ImColor barColor(int ms, int n) {
+    if (ms <= 30) return msColor(30);
+    if (ms <= 60 && n < 4) return msColor(60);
+    if (ms <= 90 && n < 3) return msColor(90);
+    if (ms <= 120 && n < 2) return msColor(120);
+    if (ms <= 150 && n < 1) return msColor(150);
+    return msColor(999);
 }
 
 }  // namespace
 
+// Designed by zetaeddie
 void GdxsvBackendRollback::DisplayOSD() {
     const auto ms = ping_pong_.ElapsedMs();
-    if (2000 < ms && ms < 6500) {
+    if (1550 < ms && ms < 6900) {
         uint8_t matrix[4][4];
         ping_pong_.GetRttMatrix(matrix);
 
@@ -108,11 +140,155 @@ void GdxsvBackendRollback::DisplayOSD() {
                          ImGuiWindowFlags_NoInputs);
 
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        ImVec2 points[] = {fromCenter(-48, -55), fromCenter(48, -55), fromCenter(-48, 55), fromCenter(48, 55)};
+        
+        // Draw latency background
+        draw_list->AddRectFilled(fromCenter(-45, -97), fromCenter(45.25, -51.875), fadeColor(ImColor(0, 0, 0), ms));
+        draw_list->AddRectFilled(fromCenter(-45, 53.125), fromCenter(45.25, 98.25), fadeColor(ImColor(0, 0, 0), ms));
+        
+        // Peer circle
+        ImVec2 points[] = {fromCenter(-35.25, -87.5), fromCenter(35.5, -87.5), fromCenter(-35.25, 88.75), fromCenter(35.5, 88.75)};
+        
+        // Latency bars, bars[peer][target][bar][quad_4points]
+        ImVec2 bars[][4][5][4] = {
+            {
+                //P1~P1
+                {},
+                //P1~P2
+                {
+                    {fromCenter(-25.75, -89.25), fromCenter(-23.25, -89.25), fromCenter(-23.25, -85.25), fromCenter(-25.75, -85.25)},
+                    {fromCenter(-21.375, -90.238), fromCenter(-18.625, -90.238), fromCenter(-18.625, -84.238), fromCenter(-21.375, -84.238)},
+                    {fromCenter(-16.75, -91.25), fromCenter(-13.75, -91.25), fromCenter(-13.75, -83.25), fromCenter(-16.75, -83.25)},
+                    {fromCenter(-11.875, -92.75), fromCenter(-8.625, -92.75), fromCenter(-8.625, -81.75), fromCenter(-11.875, -81.75)},
+                    {fromCenter(-6.75, -94.75), fromCenter(-3.25, -94.75), fromCenter(-3.25, -79.75), fromCenter(-6.75, -79.75)}
+                },
+                //P1~P3
+                {
+                    {fromCenter(-37.25, -78), fromCenter(-33.25, -78), fromCenter(-33.25, -75.5), fromCenter(-37.25, -75.5)},
+                    {fromCenter(-38.262, -73.625), fromCenter(-32.262, -73.625), fromCenter(-32.262, -70.875), fromCenter(-38.262, -70.875)},
+                    {fromCenter(-39.25, -69), fromCenter(-31.25, -69), fromCenter(-31.25, -66), fromCenter(-39.25, -66)},
+                    {fromCenter(-40.75, -64.125), fromCenter(-29.75, -64.125), fromCenter(-29.75, -60.875), fromCenter(-40.75, -60.875)},
+                    {fromCenter(-42.75, -59), fromCenter(-27.75, -59), fromCenter(-27.75, -55.5), fromCenter(-42.75, -55.5)}
+                },
+                //P1~P4
+                {
+                    {fromCenter(-28.654, -78.075), fromCenter(-25.825, -80.904), fromCenter(-24.058, -79.136), fromCenter(-26.886, -76.308)},
+                    {fromCenter(-26.276, -74.266), fromCenter(-22.034, -78.508), fromCenter(-20.089, -76.564), fromCenter(-24.332, -72.321)},
+                    {fromCenter(-23.704, -70.297), fromCenter(-18.047, -75.954), fromCenter(-15.926, -73.833), fromCenter(-21.583, -68.176)},
+                    {fromCenter(-21.318, -65.789), fromCenter(-13.539, -73.568), fromCenter(-11.241, -71.269), fromCenter(-19.019, -63.491)},
+                    {fromCenter(-19.108, -60.751), fromCenter(-8.501, -71.358), fromCenter(-6.026, -68.883), fromCenter(-16.633, -58.276)}
+                }
+            },
+            {
+                //P2~P1
+                {
+                    {fromCenter(23.5, -89.25), fromCenter(26.0, -89.25), fromCenter(26.0, -85.25), fromCenter(23.5, -85.25)},
+                    {fromCenter(18.875, -90.238), fromCenter(21.625, -90.238), fromCenter(21.625, -84.238), fromCenter(18.875, -84.238)},
+                    {fromCenter(14.0, -91.25), fromCenter(17.0, -91.25), fromCenter(17.0, -83.25), fromCenter(14.0, -83.25)},
+                    {fromCenter(8.875, -92.75), fromCenter(12.125, -92.75), fromCenter(12.125, -81.75), fromCenter(8.875, -81.75)},
+                    {fromCenter(3.5, -94.75), fromCenter(7.0, -94.75), fromCenter(7.0, -79.75), fromCenter(3.5, -79.75)}
+                },
+                //P2~P2
+                {},
+                //P2~P3
+                {
+                    {fromCenter(28.904, -78.075), fromCenter(26.075, -80.904), fromCenter(24.308, -79.136), fromCenter(27.136, -76.308)},
+                    {fromCenter(26.526, -74.266), fromCenter(22.284, -78.508), fromCenter(20.339, -76.564), fromCenter(24.582, -72.321)},
+                    {fromCenter(23.954, -70.297), fromCenter(18.297, -75.954), fromCenter(16.176, -73.833), fromCenter(21.833, -68.176)},
+                    {fromCenter(21.568, -65.789), fromCenter(13.789, -73.568), fromCenter(11.491, -71.269), fromCenter(19.269, -63.491)},
+                    {fromCenter(19.358, -60.751), fromCenter(8.751, -71.358), fromCenter(6.276, -68.883), fromCenter(16.883, -58.276)}
+                },
+                //P2~P4
+                {
+                    {fromCenter(33.5, -78), fromCenter(37.5, -78), fromCenter(37.5, -75.5), fromCenter(33.5, -75.5)},
+                    {fromCenter(32.512, -73.625), fromCenter(38.512, -73.625), fromCenter(38.512, -70.875), fromCenter(32.512, -70.875)},
+                    {fromCenter(31.5, -69), fromCenter(39.5, -69), fromCenter(39.5, -66), fromCenter(31.5, -66)},
+                    {fromCenter(30.0, -64.125), fromCenter(41.0, -64.125), fromCenter(41.0, -60.875), fromCenter(30.0, -60.875)},
+                    {fromCenter(28.0, -59), fromCenter(43.0, -59), fromCenter(43.0, -55.5), fromCenter(28.0, -55.5)}
+                }
+            },
+            {
+                //P3~P1
+                {
+                    {fromCenter(-37.25, 76.75), fromCenter(-33.25, 76.75), fromCenter(-33.25, 79.25), fromCenter(-37.25, 79.25)},
+                    {fromCenter(-38.262, 72.125), fromCenter(-32.262, 72.125), fromCenter(-32.262, 74.875), fromCenter(-38.262, 74.875)},
+                    {fromCenter(-39.25, 67.25), fromCenter(-31.25, 67.25), fromCenter(-31.25, 70.25), fromCenter(-39.25, 70.25)},
+                    {fromCenter(-40.75, 62.125), fromCenter(-29.75, 62.125), fromCenter(-29.75, 65.375), fromCenter(-40.75, 65.375)},
+                    {fromCenter(-42.75, 56.75), fromCenter(-27.75, 56.75), fromCenter(-27.75, 60.25), fromCenter(-42.75, 60.25)}
+                },
+                //P3~P2
+                {
+                    {fromCenter(-28.654, 79.325), fromCenter(-25.825, 82.154), fromCenter(-24.058, 80.386), fromCenter(-26.886, 77.558)},
+                    {fromCenter(-26.276, 75.516), fromCenter(-22.034, 79.758), fromCenter(-20.089, 77.814), fromCenter(-24.332, 73.571)},
+                    {fromCenter(-23.704, 71.547), fromCenter(-18.047, 77.204), fromCenter(-15.926, 75.083), fromCenter(-21.583, 69.426)},
+                    {fromCenter(-21.318, 67.039), fromCenter(-13.539, 74.818), fromCenter(-11.241, 72.519), fromCenter(-19.019, 64.741)},
+                    {fromCenter(-19.108, 62.001), fromCenter(-8.501, 72.608), fromCenter(-6.026, 70.133), fromCenter(-16.633, 59.526)}
+                },
+                //P3~P3
+                {},
+                //P3~P4
+                {
+                    {fromCenter(-25.75, 86.5), fromCenter(-23.25, 86.5), fromCenter(-23.25, 90.5), fromCenter(-25.75, 90.5)},
+                    {fromCenter(-21.375, 85.488), fromCenter(-18.625, 85.488), fromCenter(-18.625, 91.488), fromCenter(-21.375, 91.488)},
+                    {fromCenter(-16.75, 84.5), fromCenter(-13.75, 84.5), fromCenter(-13.75, 92.5), fromCenter(-16.75, 92.5)},
+                    {fromCenter(-11.875, 83.0), fromCenter(-8.625, 83.0), fromCenter(-8.625, 94.0), fromCenter(-11.875, 94.0)},
+                    {fromCenter(-6.75, 81.0), fromCenter(-3.25, 81.0), fromCenter(-3.25, 96.0), fromCenter(-6.75, 96.0)}
+                }
+            },
+            {
+                //P4~P1
+                {
+                    {fromCenter(28.904, 79.325), fromCenter(26.075, 82.154), fromCenter(24.308, 80.386), fromCenter(27.136, 77.558)},
+                    {fromCenter(26.526, 75.516), fromCenter(22.284, 79.758), fromCenter(20.339, 77.814), fromCenter(24.582, 73.571)},
+                    {fromCenter(23.954, 71.547), fromCenter(18.297, 77.204), fromCenter(16.176, 75.083), fromCenter(21.833, 69.426)},
+                    {fromCenter(21.568, 67.039), fromCenter(13.789, 74.818), fromCenter(11.491, 72.519), fromCenter(19.269, 64.741)},
+                    {fromCenter(19.358, 62.001), fromCenter(8.751, 72.608), fromCenter(6.276, 70.133), fromCenter(16.883, 59.526)}
+                },
+                //P4~P2
+                {
+                    {fromCenter(33.5, 76.75), fromCenter(37.5, 76.75), fromCenter(37.5, 79.25), fromCenter(33.5, 79.25)},
+                    {fromCenter(32.512, 72.125), fromCenter(38.512, 72.125), fromCenter(38.512, 74.875), fromCenter(32.512, 74.875)},
+                    {fromCenter(31.5, 67.25), fromCenter(39.5, 67.25), fromCenter(39.5, 70.25), fromCenter(31.5, 70.25)},
+                    {fromCenter(30.0, 62.125), fromCenter(41.0, 62.125), fromCenter(41.0, 65.375), fromCenter(30.0, 65.375)},
+                    {fromCenter(28.0, 56.75), fromCenter(43, 56.75), fromCenter(43.0, 60.25), fromCenter(28.0, 60.25)}
+                },
+                //P4~P3
+                {
+                    {fromCenter(23.5, 86.5), fromCenter(26.0, 86.5), fromCenter(26.0, 90.5), fromCenter(23.5, 90.5)},
+                    {fromCenter(18.875, 85.488), fromCenter(21.625, 85.488), fromCenter(21.625, 91.488), fromCenter(18.875, 91.488)},
+                    {fromCenter(14.0, 84.5), fromCenter(17.0, 84.5), fromCenter(17.0, 92.5), fromCenter(14.0, 92.5)},
+                    {fromCenter(8.875, 83.0), fromCenter(12.125, 83.0), fromCenter(12.125, 94.0), fromCenter(8.875, 94.0)},
+                    {fromCenter(3.5, 81.0), fromCenter(7.0, 81.0), fromCenter(7.0, 96.0), fromCenter(3.5, 96.0)}
+                },
+                //P4~P4
+                {}
+            }
+        };
+        
+        // Draw peer circles
         for (int i = 0; i < 4; ++i) {
-            auto ms = matrix[matching_.peer_id()][i];
-            draw_list->AddCircleFilled(points[i], scaled(15), ImColor(0, 0, 0, 128), 20);
-            draw_list->AddCircleFilled(points[i], scaled(12), msColor(ms), 20);
+            //ignore 0 latency, choose lowest value to display
+            std::vector<uint8_t> v(std::begin(matrix[i]), std::end(matrix[i]));
+            std::sort(v.begin(), v.end(), std::greater<>());
+            while(v.back() == 0 && v.size() > 1){
+                v.pop_back();
+            }
+            draw_list->AddCircleFilled(points[i], scaled(4.5125), fadeColor(msColor(v.back()), ms), 20);
+        }
+        
+        // Draw latency bars
+        for (int peer = 0; peer < 4; ++peer) {
+            for (int target = 0; target < 4; ++target) {
+                if ( peer == target ) continue;
+                for (int bar = 0; bar < 5; ++bar) {
+                    draw_list->AddQuadFilled(
+                        bars[peer][target][bar][0],
+                        bars[peer][target][bar][1],
+                        bars[peer][target][bar][2],
+                        bars[peer][target][bar][3],
+                        fadeColor(barColor(matrix[peer][target], bar), ms)
+                    );
+                }
+            }
         }
 
         ImGui::End();
