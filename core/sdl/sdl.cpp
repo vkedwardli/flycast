@@ -642,6 +642,8 @@ void sdl_window_create()
 	// ImGui copy & paste
 	ImGui::GetIO().GetClipboardTextFn = getClipboardText;
 	ImGui::GetIO().SetClipboardTextFn = setClipboardText;
+	
+	SDL_SetHint("SDL_IME_SHOW_UI", "1");
 #ifdef TARGET_UWP
 	// Must be fast so an event filter is required
 	SDL_SetEventFilter(suspendEventFilter, nullptr);
