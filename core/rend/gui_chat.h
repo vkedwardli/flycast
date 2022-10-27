@@ -87,7 +87,8 @@ public:
 		if (ImGui::Begin("Chat", &visible, ImGuiWindowFlags_NoScrollbar))
 		{
 			ImGui::BeginChild(ImGui::GetID("log"), ImVec2(0, -ImGui::GetStyle().ItemSpacing.x - ImGui::GetFontSize() - ImGui::GetStyle().FramePadding.x * 2),
-					true, ImGuiWindowFlags_DragScrolling);
+					true, ImGuiWindowFlags_None);
+			enableDragScrollingOverlay();
 			ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
 			for (const auto& p : lines)
 				ImGui::TextColored(p.first, "%s", p.second.c_str());

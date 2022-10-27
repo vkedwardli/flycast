@@ -611,7 +611,7 @@ static void gui_display_commands()
 inline static void header(const char *title)
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f)); // Left
-	ImGui::ButtonEx(title, ImVec2(-1, 0), ImGuiButtonFlags_Disabled);
+	ImGui::ButtonEx(title, ImVec2(-1, 0), ImGuiItemFlags_Disabled);
 	ImGui::PopStyleVar();
 }
 
@@ -1067,7 +1067,8 @@ static void controller_mapping_popup(const std::shared_ptr<GamepadDevice>& gamep
 
 		char key_id[32];
 
-		ImGui::BeginChildFrame(ImGui::GetID("buttons"), ImVec2(0, 0), ImGuiWindowFlags_DragScrolling);
+		ImGui::BeginChildFrame(ImGui::GetID("buttons"), ImVec2(0, 0), 0);
+		enableDragScrollingOverlay();
 
 		for (; systemMapping->name != nullptr; systemMapping++)
 		{
@@ -1224,8 +1225,10 @@ static void gui_display_settings()
 	fullScreenWindow(false);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 
-    ImGui::Begin("Settings", NULL, ImGuiWindowFlags_DragScrolling | ImGuiWindowFlags_NoResize
+    ImGui::Begin("Settings", NULL, ImGuiWindowFlags_NoResize
     		| ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+	enableDragScrollingOverlay();
+	
 	ImVec2 normal_padding = ImGui::GetStyle().FramePadding;
 
     if (ImGui::Button("Done", ScaledVec2(100, 30)))
@@ -2409,8 +2412,10 @@ static void gui_display_content()
     scanner.fetch_game_list();
 
 	// Only if Filter and Settings aren't focused... ImGui::SetNextWindowFocus();
-	ImGui::BeginChild(ImGui::GetID("library"), ImVec2(0, 0), true, ImGuiWindowFlags_DragScrolling);
+	ImGui::BeginChild(ImGui::GetID("library"), ImVec2(0, 0), true, ImGuiWindowFlags_None);
     {
+		enableDragScrollingOverlay();
+		
 		const int itemsPerLine = std::max<int>(ImGui::GetContentRegionMax().x / (200 * settings.display.uiScale + ImGui::GetStyle().ItemSpacing.x), 1);
 		const int responsiveBoxSize = ImGui::GetContentRegionMax().x / itemsPerLine - ImGui::GetStyle().FramePadding.x * 2;
 		const ImVec2 responsiveBoxVec2 = ImVec2(responsiveBoxSize, responsiveBoxSize);

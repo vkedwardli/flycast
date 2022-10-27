@@ -235,7 +235,8 @@ void select_file_popup(const char *prompt, StringCallback callback,
 
 		ImGui::Text("%s", error_message.empty() ? select_current_directory.c_str() : error_message.c_str());
 		ImGui::BeginChild(ImGui::GetID("dir_list"), ImVec2(0, - 30 * settings.display.uiScale - ImGui::GetStyle().ItemSpacing.y),
-				true, ImGuiWindowFlags_DragScrolling);
+				true, ImGuiWindowFlags_None);
+		enableDragScrollingOverlay();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(8, 20));
 
@@ -343,6 +344,39 @@ void select_file_popup(const char *prompt, StringCallback callback,
 	ImGui::PopStyleVar();
 }
 
+void enableDragScrollingOverlay()
+{
+	ImGuiContext& g = *ImGui::GetCurrentContext();
+	ImGuiWindow* window = g.CurrentWindow;
+	window->DC.StateStorage->SetBool(window->GetID("##scrolldraggingoverlay"), true);
+}
+
+bool isDragScrollingOverlayEnabled(ImGuiWindow* window)
+{
+	return window->DC.StateStorage->GetBool(window->GetID("##scrolldraggingoverlay"));
+}
+
+bool getDragScrolling(ImGuiWindow* window)
+{
+	return window->DC.StateStorage->GetBool(window->GetID("##scrolldraggingbool"));
+}
+
+void setDragScrolling(ImGuiWindow* window, bool enabled)
+{
+	window->DC.StateStorage->SetBool(window->GetID("##scrolldraggingbool"), enabled);
+}
+
+ImVec2 getScrollSpeed(ImGuiWindow* window)
+{
+	return ImVec2(window->DC.StateStorage->GetFloat(window->GetID("##scrolldraggingspeedx")), window->DC.StateStorage->GetFloat(window->GetID("##scrolldraggingspeedy")));
+}
+
+void setScrollSpeed(ImGuiWindow* window, ImVec2 delta)
+{
+	window->DC.StateStorage->SetFloat(window->GetID("##scrolldraggingspeedx"), delta.x);
+	window->DC.StateStorage->SetFloat(window->GetID("##scrolldraggingspeedy"), delta.y);
+}
+
 // See https://github.com/ocornut/imgui/issues/3379
 void scrollWhenDraggingOnVoid(ImGuiMouseButton mouse_button)
 {
@@ -350,23 +384,26 @@ void scrollWhenDraggingOnVoid(ImGuiMouseButton mouse_button)
 	ImGuiWindow* window = g.CurrentWindow;
 	while (window != nullptr
 			&& (window->Flags & ImGuiWindowFlags_ChildWindow)
-			&& !(window->Flags & ImGuiWindowFlags_DragScrolling)
+			&& !isDragScrollingOverlayEnabled(window)
 			&& window->ScrollMax.x == 0.0f
 			&& window->ScrollMax.y == 0.0f)
 		window = window->ParentWindow;
-	if (window == nullptr || !(window->Flags & ImGuiWindowFlags_DragScrolling))
+	if (window == nullptr || !isDragScrollingOverlayEnabled(window))
 		return;
     bool hovered = false;
     bool held = false;
     ImGuiButtonFlags button_flags = (mouse_button == ImGuiMouseButton_Left) ? ImGuiButtonFlags_MouseButtonLeft
     		: (mouse_button == ImGuiMouseButton_Right) ? ImGuiButtonFlags_MouseButtonRight : ImGuiButtonFlags_MouseButtonMiddle;
     if (g.HoveredId == 0) // If nothing hovered so far in the frame (not same as IsAnyItemHovered()!)
+	{
         ImGui::ButtonBehavior(window->Rect(), window->GetID("##scrolldraggingoverlay"), &hovered, &held, button_flags);
+		ImGui::KeepAliveID(window->GetID("##scrolldraggingoverlay"));
+	}
     const ImVec2& delta = ImGui::GetIO().MouseDelta;
     if (held && delta != ImVec2())
     {
-    	window->DragScrolling = true;
-    	window->ScrollSpeed = delta;
+		setDragScrolling(window, true);
+		setScrollSpeed(window, delta);
     }
 }
 
@@ -691,7 +728,7 @@ bool OptionArrowButtons(const char *name, config::Option<int>& option, int min, 
 	ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_FrameBg]);
 	float width = ImGui::CalcItemWidth() - innerSpacing * 2.0f - ImGui::GetFrameHeight() * 2.0f;
 	std::string id = "##" + std::string(name);
-	ImGui::ButtonEx((std::to_string((int)option) + id).c_str(), ImVec2(width, 0), ImGuiButtonFlags_Disabled);
+	ImGui::ButtonEx((std::to_string((int)option) + id).c_str(), ImVec2(width, 0), ImGuiItemFlags_Disabled);
 	ImGui::PopStyleColor();
 	ImGui::PopStyleVar();
 
@@ -839,15 +876,17 @@ static void computeScrollSpeed(float &v)
 void windowDragScroll()
 {
 	ImGuiWindow *window = ImGui::GetCurrentWindow();
-	if (window->DragScrolling)
+	if (getDragScrolling(window))
 	{
 		if (!ImGui::GetIO().MouseDown[ImGuiMouseButton_Left])
 		{
-			computeScrollSpeed(window->ScrollSpeed.x);
-			computeScrollSpeed(window->ScrollSpeed.y);
-			if (window->ScrollSpeed == ImVec2())
+			ImVec2 scrollSpeed = getScrollSpeed(window);
+			computeScrollSpeed(scrollSpeed.x);
+			computeScrollSpeed(scrollSpeed.y);
+			setScrollSpeed(window, scrollSpeed);
+			if (scrollSpeed == ImVec2())
 			{
-				window->DragScrolling = false;
+				setDragScrolling(window, false);
 				// FIXME we should really move the mouse off-screen after a touch up and this wouldn't be necessary
 				// the only problem is tool tips
 				gui_set_mouse_position(-1, -1);
@@ -858,12 +897,13 @@ void windowDragScroll()
 			ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
 			if (delta != ImVec2())
 				ImGui::ResetMouseDragDelta();
-			window->ScrollSpeed = delta;
+			setScrollSpeed(window, delta);
 		}
-		if (window->DragScrolling)
+		if (getDragScrolling(window))
 		{
-			ImGui::SetScrollX(window, window->Scroll.x - window->ScrollSpeed.x);
-			ImGui::SetScrollY(window, window->Scroll.y - window->ScrollSpeed.y);
+			ImVec2 scrollSpeed = getScrollSpeed(window);
+			ImGui::SetScrollX(window, window->Scroll.x - scrollSpeed.x);
+			ImGui::SetScrollY(window, window->Scroll.y - scrollSpeed.y);
 		}
 	}
 }
