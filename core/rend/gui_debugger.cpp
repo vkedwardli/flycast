@@ -171,8 +171,8 @@ void gui_debugger_disasm()
 
 		u16 instr = ReadMem16_nommu(addr);
 
-		auto it = debugAgent.breakpoints.find(addr);
-		const bool isBreakpoint = it != debugAgent.breakpoints.end();
+		auto it = debugAgent.breakpoints[DebugAgent::Breakpoint::Type::BP_TYPE_SOFTWARE_BREAK].find(addr);
+		const bool isBreakpoint = it != debugAgent.breakpoints[DebugAgent::Breakpoint::Type::BP_TYPE_SOFTWARE_BREAK].end();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0,2));
 		if (isBreakpoint) {
@@ -323,9 +323,9 @@ void gui_debugger_breakpoints()
 	ImGui::PushFont(defaultFont);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8,2));
 
-	auto it = debugAgent.breakpoints.begin();
+	auto it = debugAgent.breakpoints[DebugAgent::Breakpoint::Type::BP_TYPE_SOFTWARE_BREAK].begin();
 
-	while (it != debugAgent.breakpoints.end())
+	while (it != debugAgent.breakpoints[DebugAgent::Breakpoint::Type::BP_TYPE_SOFTWARE_BREAK].end())
     {
 		ImGui::Text("0x%08x", it->first);
 

@@ -763,14 +763,6 @@ void Emulator::stepRange(u32 from, u32 to)
 	stop();
 }
 
-void Emulator::stepRange(u32 from, u32 to)
-{
-	stepRangeFrom = from;
-	stepRangeTo = to;
-	start();
-	stop();
-}
-
 void dc_loadstate(Deserializer& deser)
 {
 	custom_texture.Terminate();

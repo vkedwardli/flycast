@@ -1,3 +1,4 @@
+/*
 #include "InMemoryListener.h"
 
 void InMemoryListener::Log(LogTypes::LOG_LEVELS, const char* msg) {
@@ -33,3 +34,4 @@ std::list<std::string> InMemoryListener::GetLines(int start_line_no, int* tail_l
 }
 
 InMemoryListener inMemoryListener;
+*/
