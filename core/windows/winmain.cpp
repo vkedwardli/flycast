@@ -993,6 +993,7 @@ void os_DoEvents()
 #endif
 }
 
+static HWND hWnd;
 void os_LaunchFromURL(const std::string& url)
 {
     ShellExecuteA(hWnd, "open", url.c_str(), nullptr, nullptr, SW_SHOW);
