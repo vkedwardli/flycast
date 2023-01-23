@@ -156,10 +156,6 @@ LogManager::LogManager()
 	RegisterListener(LogListener::IN_MEMORY_LISTENER, new InMemoryListener());
 	EnableListener(LogListener::IN_MEMORY_LISTENER, true);
 
-	RegisterListener(LogListener::IN_MEMORY_LISTENER, &inMemoryListener);
-	EnableListener(LogListener::IN_MEMORY_LISTENER, true);
-	inMemoryListener.SetMaxLines(100);
-
 	for (LogContainer& container : m_log)
 	{
 		container.m_enable = cfgLoadBool("log", container.m_short_name, true);

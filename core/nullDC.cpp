@@ -62,6 +62,9 @@ int flycast_init(int argc, char* argv[])
 	if(config::ProfilerEnabled)
 		LogManager::GetInstance()->SetEnable(LogTypes::PROFILER, true);
 
+	if(config::ProfilerEnabled)
+		LogManager::GetInstance()->SetEnable(LogTypes::PROFILER, true);
+
 	return 0;
 }
 
