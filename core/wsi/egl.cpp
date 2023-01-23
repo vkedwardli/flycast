@@ -69,8 +69,6 @@ bool EGLGraphicsContext::init()
 		EGLint pi32ConfigAttribs[]  = {
 				EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 				EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-				EGL_DEPTH_SIZE, 24,
-				EGL_STENCIL_SIZE, 8,
 				EGL_RED_SIZE, 8,
 				EGL_GREEN_SIZE, 8,
 				EGL_BLUE_SIZE, 8,
@@ -192,9 +190,9 @@ void EGLGraphicsContext::term()
 		eglDestroyContext(display, context);
 	if (surface != EGL_NO_SURFACE)
 		eglDestroySurface(display, surface);
-#ifdef TARGET_PANDORA
 	if (display != EGL_NO_DISPLAY)
 		eglTerminate(display);
+#ifdef TARGET_PANDORA
 	if (fbdev >= 0)
 		close(fbdev);
 	fbdev = -1;

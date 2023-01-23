@@ -26,6 +26,10 @@
 #include "cfg/option.h"
 #include "emulator.h"
 #include "imgui_driver.h"
+#include "profiler/fc_profiler.h"
+#include <chrono>
+
+// gdxsv
 #include "sleep.h"
 #include "../gdxsv/gdxsv_emu_hooks.h"
 
@@ -56,6 +60,8 @@ int64_t get_period() {
 
 bool mainui_rend_frame()
 {
+	FC_PROFILE_SCOPE;
+
 	os_DoEvents();
 	UpdateInputState();
 
@@ -68,7 +74,7 @@ bool mainui_rend_frame()
 	{
 		gui_display_ui();
 		// TODO refactor android vjoy out of renderer
-		if (gui_state == GuiState::VJoyEdit && renderer != NULL)
+		if (gui_state == GuiState::VJoyEdit && renderer != nullptr)
 			renderer->DrawOSD(true);
 #ifndef TARGET_IPHONE
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
@@ -79,6 +85,8 @@ bool mainui_rend_frame()
 		try {
 			if (!emu.render())
 				return false;
+			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
+				gui_display_profiler();
 		} catch (const FlycastException& e) {
 			emu.unloadGame();
 			gui_stop_game(e.what());
@@ -92,8 +100,10 @@ bool mainui_rend_frame()
 
 void mainui_init()
 {
-	rend_init_renderer();
-	rend_resize_renderer();
+	if (!rend_init_renderer()) {
+		ERROR_LOG(RENDERER, "Renderer initialization failed");
+		gui_error("Renderer initialization failed.\nPlease select a different graphics API");
+	}
 }
 
 void mainui_term()
@@ -112,6 +122,8 @@ void mainui_loop()
 
 	while (mainui_enabled)
 	{
+		fc_profiler::startThread("main");
+
 		if (mainui_rend_frame())
 		{
 			if (config::FixedFrequency && !gui_is_open() && !settings.input.fastForwardMode) {
@@ -141,6 +153,8 @@ void mainui_loop()
 		}
 
 		gdxsv_mainui_loop();
+
+		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
 
 	reset_timer_resolution();

@@ -29,6 +29,8 @@
 
 const WidescreenCheat CheatManager::widescreen_cheats[] =
 {
+		{ "T36803N",	nullptr,	{ 0xBC2CC }, { 0xC00 } },			// 102 Dalmatians (USA)
+		{ "T36813D 50",	nullptr,	{ 0xBDE8C }, { 0xC00 } },			// 102 Dalmatians (PAL)
 		{ "MK-51064",   nullptr,    { 0x39EFF4 }, { 0x43700000 } },		// 18 wheeler (USA)
 		{ "MK-5106450", nullptr,    { 0x39EFF4 }, { 0x43700000 } },		// 18 wheeler (PAL)
 		{ "HDR-0080",   nullptr,    { 0x6625C0 }, { 0x43700000 } },		// 18 wheeler (JP)
@@ -105,6 +107,7 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 		{ "HDR-0100",   nullptr,    { 0x3235D4 }, { 0x00004000 } },		// Ferrari F355 Challenge (JP) vga mode only
 		{ "MK-5115450", nullptr,    { 0x3D3B10 }, { 0x43700000 } },		// Fighting Vipers 2 (PAL)
 		{ "HDR-0133",   nullptr,    { 0x3D3AF0 }, { 0x43700000 } },		// Fighting Vipers 2 (JP)
+		{ "T18805M",	nullptr,	{ 0x1A39C0 }, { 0x3F400000 } },		// Fire Pro Wrestling D (JP)
 		{ "MK-51114",   nullptr,    { 0x132DD8, 0xA26CA8, 0xA26738, 0xA275B8, 0xA26AD8, 0xA26908 },
 				{ 0x3F400000, 0x3F400000, 0x3F400000, 0x3F400000, 0x3F400000, 0x3F400000 } },	// Floigan Bros. Ep. 1 (PAL)
 		{ "T34201M",    nullptr,    { 0x586290, 0x586260 }, { 0x3F400000, 0x43F00000 } },	// Frame Gride (JP)
@@ -120,9 +123,10 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 //		{ "T11001N",    nullptr,    { 0xC3D6BC, 0xD204A8, 0xD32FC8, 0xC7CF84, 0xD20548 },
 //				{ 0x00363031, 0x00000356, 0x00000280, 0x00000280, 0x00000280 } },		// Half-Life. Not working
 		{ "MK-5104150", nullptr,    { 0x23FCC4 }, { 0x44558000 } },		// Headhunter (PAL)
-		{ "MK-5100250", nullptr,    { 0x4C6708 }, { 0x43700000 } },		// House of the Dead 2, The (PAL)
-		{ "MK-51002",   nullptr,    { 0x4C6088 }, { 0x43700000 } },		// House of the Dead 2, The (USA)
-		{ "T38706M",    nullptr,    { 0xC0CFA0 }, { 0x3F400000 } },		// Ikaruga (JP)
+		// gun coords issue
+		//{ "MK-5100250", nullptr,    { 0x4C6708 }, { 0x43700000 } },		// House of the Dead 2, The (PAL)
+		//{ "MK-51002",   nullptr,    { 0x4C6088 }, { 0x43700000 } },		// House of the Dead 2, The (USA)
+		//not working { "T38706M",    nullptr,    { 0xC0CFA0 }, { 0x3F400000 } },		// Ikaruga (JP)
 		{ "T46001N",    nullptr,    { 0x1C8A98 }, { 0x3F400000 } },		// Illbleed (USA)
 		{ "T44904D 50", nullptr,    { 0x18C15C, 0x18C18C }, { 0x43F00000, 0x3F400000 } },	// Iron Aces (PAL)
 		{ "MK-51058",   nullptr,    { 0x32E0FC, 0x32E12C }, { 0x43F00000, 0x3F400000 } },	// Jet Grind Radio (USA)
@@ -198,9 +202,15 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 				{ 0x3F400000, 0x43F00000, 0, 0x43F00000, 0 } },
 		// Resident Evil: Code Veronica (USA)
 		// Code 1-4 removes the black bars on top and bottom in FMV
-		{ "T1204N",     "RESIDENT EVIL CODE VERONICA                                                                                                     ",
+		{ "T1204N", "RESIDENT EVIL CODE VERONICA                                                                                                     ",
 				{ 0x329E40, 0x3838D8, 0x3838F8, 0x383918, 0x383938 },
 				{ 0x3F400000, 0x43F00000, 0, 0x43F00000, 0 } },
+		// Biohazard: Code Veronica: Kanzenban (JP)
+		{ "T1240M", "BIOHAZARD CODE VERONICA PLUS                                                                                                    ",
+				{ 0x344AE1 }, { 0x003F6000 } },
+		// Resident Evil: Code Veronica X Kanzenban (Eng. translation)
+		{ "T1204N", "RESIDENT EVIL CODE VERONICA X                                                                                                   ",
+				{ 0x344AE1 }, { 0x003F6000 } },
 		{ "T8107D  50", nullptr,    { 0x0464FC, 0x046210 }, { 0x3A888889, 0x44200000 } },	// Re-Volt (PAL) Code 1 is a render fix
 		{ "MK-5119250", nullptr,    { 0x0C5EB4 }, { 0x3A888889 } },		// Rez (PAL)
 		{ "T15122N",    nullptr,    { 0x8E7A80, 0x8E7AB4 }, { 0x43E10000, 0x3FAAAAAB } },	// Ring, The - Terror's Realm (USA)
@@ -275,6 +285,7 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 		{ "T-8110D-50", nullptr,    { 0x0C6B90, 0x0C6B94 }, { 0x43F00000, 0x43870000 } },	// Vanishing Point (PAL)
 //		{ "MK-5109450", nullptr,    { 0x244134, 0x7A73B8, 0x7830D8, 0x7A74B8, 0x783138, 0x7A85A0, 0x6C7928, 0x6C7930, 0x6C7948, 0x6C7950 },
 //crash				{ 0x43F00000, 0x3F9C932E, 0x3F9C932E, 0x3F9C932E, 0x3F9C932E, 0x3F400000, 0, 0, 0, 0 } },	// Virtua Athlete 2K (PAL)
+		{ "MK-51001",	nullptr,	{ 0x19D518 }, { 0x43700000 } },		// Virtua Fighter 3 TB (NTSC)
 		{ "MK-5100150", nullptr,    { 0x19D718 }, { 0x43700000 } },		// Virtua Fighter 3 TB (PAL)
 		{ "HDR-0002",   nullptr,    { 0x199FB0 }, { 0x43700000 } },		// Virtua Fighter 3 TB (JP)
 		{ "MK-5105450", nullptr,    { 0x456378 }, { 0x43700000 } },		// Virtua Tennis (v1.001) (PAL)
@@ -310,11 +321,29 @@ const WidescreenCheat CheatManager::naomi_widescreen_cheats[] =
 		{ "  18WHEELER", "18wheelr", { 0x5C64A8 }, { 0x43700000 } },
 		{ "BEACH SPIKERS JAPAN", nullptr, { 0x065A7C }, { 0x44558000 } },
 		{ "GUN SPIKE", nullptr, { 0x21A94 }, { 0x3FE38E39 } },
+		{ "INITIAL D", "initd", { 0x155434 }, { 0x3FE38E39 } },
+		{ "INITIAL D", "initdexp", { 0x159674 }, { 0x3FE38E39 } },
+		{ "INITIAL D", "initdexpo", { 0x159634 }, { 0x3FE38E39 } },
+		{ "INITIAL D", "initdo", { 0x14F5F4 }, { 0x3FE38E39 } },
+		{ "INITIAL D Ver.2", "initdv2e", { 0x1B4F74 }, { 0x3FE38E39 } },
+		{ "INITIAL D Ver.2", "initdv2j", { 0x1B4F34 }, { 0x3FE38E39 } },
+		{ "INITIAL D Ver.2", "initdv2jo", { 0x1AD1F4 }, { 0x3FE38E39 } },
 		{ "INITIAL D Ver.3", "initdv3e", { 0x1D0B34 }, { 0x3FE38E39 } },
+		{ "INITIAL D Ver.3", "initdv3j", { 0x1D7C74 }, { 0x3FE38E39 } },
+		{ "INITIAL D Ver.3", "initdv3jb", { 0x1D7774 }, { 0x3FE38E39 } },
 		{ "AIRLINE PILOTS IN JAPAN", "alpilotj", { 0x1D62550 }, { 0x43700000 } },
 		{ "MONKEY BALL JAPAN VERSION", nullptr, { 0x345B4, 0x45244, 0x454CC }, { 0x3FE38E39, 0x3FE38E39, 0x3FE38E39 } },
 		{ "ZOMBIE REVENGE IN JAPAN", "zombrvn", { 0x7A4808 }, { 0x43700000 } },
 		{ "ZOMBIE REVENGE IN JAPAN", "zombrvno", { 0x7A2E50 }, { 0x43700000 } },
+		{ " BIOHAZARD  GUN SURVIVOR2", "gunsur2", { 0x42EE80 }, { 0x3F400000 } },
+		{ " BIOHAZARD  GUN SURVIVOR2", "gunsur2j", { 0x42EBE0 }, { 0x3F400000 } },
+		{ "SPAWN JAPAN", nullptr, { 0x02DEF8, 0x02E1C0 }, { 0x3A99999A, 0x3A99999A } },
+		// gun coords problem with these 2 cheats
+		// { " CONFIDENTIAL MISSION ---------", nullptr, { 0x24F798 }, { 0x43700000 } },
+		// { "hotd2", nullptr, { 0x9C2AD8 }, { 0x43700000 } },
+		{ "GUN SPIKE", nullptr, { 0xBACD7C }, { 0x440A7C9A } },
+		{ " JAMBO SAFARI ------------", nullptr, { 0x2B1DE0 }, { 0x3FE38E39 } },
+		{ "SOUL SURFER IN JAPAN", nullptr, { 0x8962C8 }, { 0x3FE38E39 } },
 
 		{ nullptr },
 };
@@ -600,200 +629,206 @@ void CheatManager::addGameSharkCheat(const std::string& name, const std::string&
 	Cheat conditionCheat;
 	unsigned conditionLimit = 0;
 
-	for (unsigned i = 0; i < codes.size(); i++)
-	{
-		if (i < conditionLimit)
-			cheats.push_back(conditionCheat);
-		Cheat cheat{};
-		cheat.description = name;
-		u32 code = (codes[i] & 0xff000000) >> 24;
-		switch (code)
+	const size_t prevSize = cheats.size();
+	try {
+		for (unsigned i = 0; i < codes.size(); i++)
 		{
-		case 0:
-		case 1:
-		case 2:
+			if (i < conditionLimit)
+				cheats.push_back(conditionCheat);
+			Cheat cheat{};
+			cheat.description = name;
+			u32 code = (codes[i] & 0xff000000) >> 24;
+			switch (code)
 			{
-				// 8/16/32-bit write
-				if (i + 1 >= codes.size())
-					throw FlycastException("Missing value");
-				cheat.type = Cheat::Type::setValue;
-				cheat.size = code == 0 ? 8 : code == 1 ? 16 : 32;
-				cheat.address = codes[i] & 0x00ffffff;
-				cheat.value = codes[++i];
-				cheats.push_back(cheat);
-			}
-			break;
-		case 3:
-			{
-				u32 subcode = (codes[i] & 0x00ff0000) >> 16;
-				switch (subcode)
+			case 0:
+			case 1:
+			case 2:
 				{
-				case 0:
+					// 8/16/32-bit write
+					if (i + 1 >= codes.size())
+						throw FlycastException("Missing value");
+					cheat.type = Cheat::Type::setValue;
+					cheat.size = code == 0 ? 8 : code == 1 ? 16 : 32;
+					cheat.address = codes[i] & 0x00ffffff;
+					cheat.value = codes[++i];
+					cheats.push_back(cheat);
+				}
+				break;
+			case 3:
+				{
+					u32 subcode = (codes[i] & 0x00ff0000) >> 16;
+					switch (subcode)
 					{
-						// Group write
-						int count = codes[i] & 0xffff;
-						if (i + count + 1 >= codes.size())
-							throw FlycastException("Missing values");
-						cheat.type = Cheat::Type::setValue;
-						cheat.size = 32;
-						cheat.address = codes[++i] & 0x00ffffff;
-						for (int j = 0; j < count; j++)
+					case 0:
 						{
-							if (j == 1)
-								cheat.description += " (cont'd)";
+							// Group write
+							int count = codes[i] & 0xffff;
+							if (i + count + 1 >= codes.size())
+								throw FlycastException("Missing values");
+							cheat.type = Cheat::Type::setValue;
+							cheat.size = 32;
+							cheat.address = codes[++i] & 0x00ffffff;
+							for (int j = 0; j < count; j++)
+							{
+								if (j == 1)
+									cheat.description += " (cont'd)";
+								cheat.value = codes[++i];
+								cheats.push_back(cheat);
+								cheat.address += 4;
+								if (j < count - 1 && i < conditionLimit)
+									cheats.push_back(conditionCheat);
+							}
+						}
+						break;
+					case 1:
+					case 2:
+						{
+							// 8-bit inc/decrement
+							if (i + 1 >= codes.size())
+								throw FlycastException("Missing value");
+							cheat.type = subcode == 1 ? Cheat::Type::increase : Cheat::Type::decrease;
+							cheat.size = 8;
+							cheat.value = codes[i] & 0xff;
+							cheat.address = codes[++i] & 0x00ffffff;
+							cheats.push_back(cheat);
+						}
+						break;
+					case 3:
+					case 4:
+						{
+							// 16-bit inc/decrement
+							if (i + 1 >= codes.size())
+								throw FlycastException("Missing value");
+							cheat.type = subcode == 3 ? Cheat::Type::increase : Cheat::Type::decrease;
+							cheat.size = 16;
+							cheat.value = codes[i] & 0xffff;
+							cheat.address = codes[++i] & 0x00ffffff;
+							cheats.push_back(cheat);
+						}
+						break;
+					case 5:
+					case 6:
+						{
+							// 32-bit inc/decrement
+							if (i + 2 >= codes.size())
+								throw FlycastException("Missing address or value");
+							cheat.type = subcode == 5 ? Cheat::Type::increase : Cheat::Type::decrease;
+							cheat.size = 32;
+							cheat.address = codes[++i] & 0x00ffffff;
 							cheat.value = codes[++i];
 							cheats.push_back(cheat);
-							cheat.address += 4;
-							if (j < count - 1 && i < conditionLimit)
-								cheats.push_back(conditionCheat);
 						}
+						break;
+					default:
+						throw FlycastException("Unsupported cheat type");
 					}
-					break;
-				case 1:
-				case 2:
-					{
-						// 8-bit inc/decrement
-						if (i + 1 >= codes.size())
-							throw FlycastException("Missing value");
-						cheat.type = subcode == 1 ? Cheat::Type::increase : Cheat::Type::decrease;
-						cheat.size = 8;
-						cheat.value = codes[i] & 0xff;
-						cheat.address = codes[++i] & 0x00ffffff;
-						cheats.push_back(cheat);
-					}
-					break;
-				case 3:
-				case 4:
-					{
-						// 16-bit inc/decrement
-						if (i + 1 >= codes.size())
-							throw FlycastException("Missing value");
-						cheat.type = subcode == 3 ? Cheat::Type::increase : Cheat::Type::decrease;
-						cheat.size = 16;
-						cheat.value = codes[i] & 0xffff;
-						cheat.address = codes[++i] & 0x00ffffff;
-						cheats.push_back(cheat);
-					}
-					break;
-				case 5:
-				case 6:
-					{
-						// 32-bit inc/decrement
-						if (i + 2 >= codes.size())
-							throw FlycastException("Missing address or value");
-						cheat.type = subcode == 5 ? Cheat::Type::increase : Cheat::Type::decrease;
-						cheat.size = 32;
-						cheat.address = codes[++i] & 0x00ffffff;
-						cheat.value = codes[++i];
-						cheats.push_back(cheat);
-					}
-					break;
-				default:
-					throw FlycastException("Unsupported cheat type");
 				}
-			}
-			break;
-		case 4:
-			{
-				// 32-bit repeat write
-				if (i + 2 >= codes.size())
-					throw FlycastException("Missing count or value");
-				cheat.type = Cheat::Type::setValue;
-				cheat.size = 32;
-				cheat.address = codes[i] & 0x00ffffff;
-				cheat.repeatCount = codes[++i] >> 16;
-				cheat.repeatAddressIncrement = codes[i] & 0xffff;
-				cheat.value = codes[++i];
-				cheats.push_back(cheat);
-			}
-			break;
-		case 5:
-			{
-				// copy bytes
-				if (i + 2 >= codes.size())
-					throw FlycastException("Missing count or destination address");
-				cheat.type = Cheat::Type::copy;
-				cheat.size = 8;
-				cheat.address = codes[i] & 0x00ffffff;
-				cheat.destAddress = codes[++i] & 0x00ffffff;
-				cheat.repeatCount = codes[++i];
-				cheats.push_back(cheat);
-			}
-			break;
-		// TODO 7 change decryption type
-		// TODO 0xb delay applying codes
-		// TODO 0xc global enable test
-		case 0xd:
-			{
-				// enable next code if eq/neq/lt/gt
-				if (i + 1 >= codes.size())
-					throw FlycastException("Missing count or destination address");
-				cheat.size = 16;
-				cheat.address = codes[i] & 0x00ffffff;
-				switch (codes[++i] >> 16)
+				break;
+			case 4:
 				{
-				case 0:
-					cheat.type = Cheat::Type::runNextIfEq;
-					break;
-				case 1:
-					cheat.type = Cheat::Type::runNextIfNeq;
-					break;
-				case 2:
-					cheat.type = Cheat::Type::runNextIfLt;
-					break;
-				case 3:
-					cheat.type = Cheat::Type::runNextIfGt;
-					break;
-				default:
-					throw FlycastException("Unsupported conditional code");
+					// 32-bit repeat write
+					if (i + 2 >= codes.size())
+						throw FlycastException("Missing count or value");
+					cheat.type = Cheat::Type::setValue;
+					cheat.size = 32;
+					cheat.address = codes[i] & 0x00ffffff;
+					cheat.repeatCount = codes[++i] >> 16;
+					cheat.repeatAddressIncrement = codes[i] & 0xffff;
+					cheat.value = codes[++i];
+					cheats.push_back(cheat);
 				}
-				cheat.value = codes[i] & 0xffff;
-				cheats.push_back(cheat);
-			}
-			break;
-		case 0xe:
-			{
-				// multiline enable codes if eq/neq/lt/gt
-				if (i + 1 >= codes.size())
-					throw FlycastException("Missing test address");
-				cheat.size = 16;
-				cheat.value = codes[i] & 0xffff;
-				conditionLimit = i + 1 + ((codes[i] >> 16) & 0xff);
-				switch (codes[++i] >> 24)
+				break;
+			case 5:
 				{
-				case 0:
-					cheat.type = Cheat::Type::runNextIfEq;
-					break;
-				case 1:
-					cheat.type = Cheat::Type::runNextIfNeq;
-					break;
-				case 2:
-					cheat.type = Cheat::Type::runNextIfLt;
-					break;
-				case 3:
-					cheat.type = Cheat::Type::runNextIfGt;
-					break;
-				default:
-					throw FlycastException("Unsupported conditional code");
+					// copy bytes
+					if (i + 2 >= codes.size())
+						throw FlycastException("Missing count or destination address");
+					cheat.type = Cheat::Type::copy;
+					cheat.size = 8;
+					cheat.address = codes[i] & 0x00ffffff;
+					cheat.destAddress = codes[++i] & 0x00ffffff;
+					cheat.repeatCount = codes[++i];
+					cheats.push_back(cheat);
 				}
-				cheat.address = codes[i] & 0x00ffffff;
-				conditionCheat = cheat;
+				break;
+			// TODO 7 change decryption type
+			// TODO 0xb delay applying codes
+			// TODO 0xc global enable test
+			case 0xd:
+				{
+					// enable next code if eq/neq/lt/gt
+					if (i + 1 >= codes.size())
+						throw FlycastException("Missing count or destination address");
+					cheat.size = 16;
+					cheat.address = codes[i] & 0x00ffffff;
+					switch (codes[++i] >> 16)
+					{
+					case 0:
+						cheat.type = Cheat::Type::runNextIfEq;
+						break;
+					case 1:
+						cheat.type = Cheat::Type::runNextIfNeq;
+						break;
+					case 2:
+						cheat.type = Cheat::Type::runNextIfLt;
+						break;
+					case 3:
+						cheat.type = Cheat::Type::runNextIfGt;
+						break;
+					default:
+						throw FlycastException("Unsupported conditional code");
+					}
+					cheat.value = codes[i] & 0xffff;
+					cheats.push_back(cheat);
+				}
+				break;
+			case 0xe:
+				{
+					// multiline enable codes if eq/neq/lt/gt
+					if (i + 1 >= codes.size())
+						throw FlycastException("Missing test address");
+					cheat.size = 16;
+					cheat.value = codes[i] & 0xffff;
+					conditionLimit = i + 1 + ((codes[i] >> 16) & 0xff);
+					switch (codes[++i] >> 24)
+					{
+					case 0:
+						cheat.type = Cheat::Type::runNextIfEq;
+						break;
+					case 1:
+						cheat.type = Cheat::Type::runNextIfNeq;
+						break;
+					case 2:
+						cheat.type = Cheat::Type::runNextIfLt;
+						break;
+					case 3:
+						cheat.type = Cheat::Type::runNextIfGt;
+						break;
+					default:
+						throw FlycastException("Unsupported conditional code");
+					}
+					cheat.address = codes[i] & 0x00ffffff;
+					conditionCheat = cheat;
+				}
+				break;
+			default:
+				throw FlycastException("Unsupported cheat type");
 			}
-			break;
-		default:
-			throw FlycastException("Unsupported cheat type");
 		}
-	}
-	setActive(!cheats.empty());
 #ifndef LIBRETRO
-	std::string path = cfgLoadStr("cheats", gameId, "");
-	if (path == "")
-	{
-		path = get_game_save_prefix() + ".cht";
-		cfgSaveStr("cheats", gameId, path);
-	}
-	saveCheatFile(path);
+		std::string path = cfgLoadStr("cheats", gameId, "");
+		if (path == "")
+		{
+			path = get_game_save_prefix() + ".cht";
+			cfgSaveStr("cheats", gameId, path);
+		}
+		saveCheatFile(path);
 #endif
+		setActive(!cheats.empty());
+	} catch (...) {
+		cheats.erase(cheats.begin() + prevSize, cheats.end());
+		throw;
+	}
 }
 
 void CheatManager::saveCheatFile(const std::string& filename)

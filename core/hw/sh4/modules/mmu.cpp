@@ -512,6 +512,8 @@ void mmu_set_state()
 	SetMemoryHandlers();
 }
 
+u32 mmuAddressLUT[0x100000];
+
 void MMU_init()
 {
 	memset(ITLB_LRU_USE, 0xFF, sizeof(ITLB_LRU_USE));
@@ -529,9 +531,11 @@ void MMU_init()
 		}
 	}
 	mmu_set_state();
+#ifdef FAST_MMU
 	// pre-fill kernel memory
 	for (u32 vpn = ARRAY_SIZE(mmuAddressLUT) / 2; vpn < ARRAY_SIZE(mmuAddressLUT); vpn++)
 		mmuAddressLUT[vpn] = vpn << 12;
+#endif
 }
 
 
@@ -559,7 +563,6 @@ void mmu_flush_table()
 
 	for (u32 i = 0; i < 64; i++)
 		UTLB[i].Data.V = 0;
-	mmuAddressLUTFlush(true);
 }
 #endif
 

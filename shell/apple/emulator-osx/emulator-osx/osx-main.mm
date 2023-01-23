@@ -21,6 +21,7 @@
 #include "oslib/oslib.h"
 #include "emulator.h"
 #include "rend/mainui.h"
+#include <future>
 
 #import <SystemConfiguration/SystemConfiguration.h>
 
@@ -105,9 +106,7 @@ extern "C" int SDL_main(int argc, char *argv[])
     char *home = getenv("HOME");
     if (home != NULL)
     {
-        std::string config_dir = std::string(home) + "/.reicast/";
-        if (!file_exists(config_dir))
-            config_dir = std::string(home) + "/.flycast/";
+        std::string config_dir = std::string(home) + "/.flycast/";
 		if (!file_exists(config_dir))
 			config_dir = std::string(home) + "/Library/Application Support/Flycast/";
 
@@ -141,7 +140,11 @@ extern "C" int SDL_main(int argc, char *argv[])
     CFRelease(mainBundle);
 
 	emu_flycast_init();
-
+/* Comment out original Flycast Sentry upload
+#ifdef USE_BREAKPAD
+	auto async = std::async(std::launch::async, uploadCrashes, "/tmp");
+#endif
+*/
 	mainui_loop();
 
 	sdl_window_destroy();

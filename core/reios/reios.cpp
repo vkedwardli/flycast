@@ -63,12 +63,12 @@ static void reios_pre_init()
 
 static bool reios_locate_bootfile(const char* bootfile)
 {
-	reios_pre_init();
-	if (ip_meta.wince == '1' && descrambl)
+	if (disc == nullptr)
 	{
-		ERROR_LOG(REIOS, "Unsupported CDI: wince == '1'");
+		ERROR_LOG(REIOS, "No disk loaded");
 		return false;
 	}
+	reios_pre_init();
 
 	// Load IP.BIN bootstrap
 	libGDR_ReadSector(GetMemPtr(0x8c008000, 0), base_fad, 16, 2048);
@@ -90,7 +90,7 @@ static bool reios_locate_bootfile(const char* bootfile)
 
 	u32 offset = 0;
 	u32 size = bootFile->getSize();
-	if (ip_meta.wince == '1')
+	if (ip_meta.wince == '1' && !descrambl)
 	{
 		bootFile->read(GetMemPtr(0x8ce01000, 2048), 2048);
 		offset = 2048;
@@ -120,7 +120,8 @@ static bool reios_locate_bootfile(const char* bootfile)
 
 	// system settings
 	flash_syscfg_block syscfg{};
-	verify(static_cast<DCFlashChip*>(flashrom)->ReadBlock(FLASH_PT_USER, FLASH_USER_SYSCFG, &syscfg));
+	int rc = static_cast<DCFlashChip*>(flashrom)->ReadBlock(FLASH_PT_USER, FLASH_USER_SYSCFG, &syscfg);
+	verify(rc != 0);
 	memcpy(&data[16], &syscfg.time_lo, 8);
 
 	memcpy(GetMemPtr(0x8c000068, sizeof(data)), data, sizeof(data));
@@ -387,6 +388,14 @@ static void reios_setup_state(u32 boot_addr)
 	aicaWriteReg(SCILV0_addr, (u8)0x18);
 	aicaWriteReg(SCILV1_addr, (u8)0x50);
 	aicaWriteReg(SCILV2_addr, (u8)0x08);
+
+	// KOS seems to expect this
+	DMAC_DMAOR.full = 0x8201;
+
+	// WinCE needs this to detect PAL
+	if (config::Broadcast == 1)
+		BSC_PDTRA.full = 4;
+	BSC_PCTRA.full = 0x000A03F0;
 
 	/*
 	Post Boot registers from actual bios boot
@@ -658,7 +667,13 @@ void DYNACALL reios_trap(u32 op) {
 
 	//debugf("dispatch %08X -> %08X", pc, mapd);
 
-	hooks[mapd]();
+	auto it = hooks.find(mapd);
+	if (it == hooks.end()) {
+		ERROR_LOG(REIOS, "Unknown trap vector %08x pc %08x", mapd, pc);
+		return;
+	}
+
+	it->second();
 
 	// Return from syscall, except if pc was modified
 	if (pc == next_pc - 2)

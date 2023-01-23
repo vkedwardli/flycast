@@ -379,7 +379,7 @@ extern Option<bool> BoxartDisplayMode;
 
 // Sound
 
-extern Option<bool> LimitFPS;
+constexpr bool LimitFPS = true;
 extern Option<bool> DSPEnabled;
 extern Option<int> AudioBufferSize;	//In samples ,*4 for bytes
 extern Option<bool> AutoLatency;
@@ -417,7 +417,7 @@ public:
 	RendererOption()
 #ifdef USE_DX9
 		: Option<RenderType>("pvr.rend", RenderType::DirectX9) {}
-#elif defined(TARGET_UWP)
+#elif defined(USE_DX11)
 		: Option<RenderType>("pvr.rend", RenderType::DirectX11) {}
 #else
 		: Option<RenderType>("pvr.rend", RenderType::OpenGL) {}
@@ -466,12 +466,16 @@ extern Option<int> TextureFiltering; // 0: default, 1: force nearest, 2: force l
 extern Option<bool> ThreadedRendering;
 extern Option<bool> DupeFrames;
 extern Option<bool> NativeDepthInterpolation;
+extern Option<bool> EmulateFramebuffer;
 extern Option<int> FixedFrequency;
 
 // Misc
 
 extern Option<bool> SerialConsole;
 extern Option<bool> SerialPTY;
+extern Option<bool> GDB;
+extern Option<int> GDBPort;
+extern Option<bool> GDBWaitForConnection;
 extern Option<bool> UseReios;
 extern Option<bool> FastGDRomLoad;
 extern Option<bool> DisplayDebuggerMenu;
@@ -481,6 +485,13 @@ extern Option<bool> OpenGlChecks;
 
 extern Option<std::vector<std::string>, false> ContentPath;
 extern Option<bool, false> HideLegacyNaomiRoms;
+extern Option<bool> UploadCrashLogs;
+
+// Profiling
+extern Option<bool> ProfilerEnabled;
+extern Option<bool> ProfilerDrawToGUI;
+extern Option<bool> ProfilerOutputTTY;
+extern Option<float> ProfilerFrameWarningTime;
 
 // Gdxsv
 

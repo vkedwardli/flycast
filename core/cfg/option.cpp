@@ -18,6 +18,7 @@
 */
 #include "option.h"
 #include "network/naomi_network.h"
+#include "debug/gdb_server.h"
 
 namespace config {
 
@@ -105,12 +106,16 @@ Option<bool> ThreadedRendering("rend.ThreadedRendering", true);
 Option<bool> DupeFrames("rend.DupeFrames", false);
 Option<int> PerPixelLayers("rend.PerPixelLayers", 32);
 Option<bool> NativeDepthInterpolation("rend.NativeDepthInterpolation", false);
+Option<bool> EmulateFramebuffer("rend.EmulateFramebuffer", false);
 Option<int> FixedFrequency("rend.FixedFrequency", 0);
 
 // Misc
 
 Option<bool> SerialConsole("Debug.SerialConsoleEnabled");
 Option<bool> SerialPTY("Debug.SerialPTY");
+Option<bool> GDB("Debug.GDBEnabled");
+Option<int> GDBPort("Debug.GDBPort", debugger::DEFAULT_PORT);
+Option<bool> GDBWaitForConnection("Debug.GDBWaitForConnection");
 Option<bool> UseReios("UseReios");
 Option<bool> FastGDRomLoad("FastGDRomLoad", false);
 Option<bool> DisplayDebuggerMenu("DisplayDebuggerMenu", false);
@@ -120,6 +125,13 @@ Option<bool> OpenGlChecks("OpenGlChecks", false, "validate");
 
 Option<std::vector<std::string>, false> ContentPath("Dreamcast.ContentPath");
 Option<bool, false> HideLegacyNaomiRoms("Dreamcast.HideLegacyNaomiRoms", true);
+Option<bool> UploadCrashLogs("UploadCrashLogs", true);
+
+// Profiler
+Option<bool> ProfilerEnabled("Profiler.Enabled");
+Option<bool> ProfilerDrawToGUI("Profiler.DrawGUI");
+Option<bool> ProfilerOutputTTY("Profiler.OutputTTY");
+Option<float> ProfilerFrameWarningTime("Profiler.FrameWarningTime", 1.0f / 55.0f);
 
 // Gdxsv
 

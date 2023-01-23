@@ -738,8 +738,8 @@ static pico_device *pico_eth_create()
         return nullptr;
 
     const u8 mac_addr[6] = { 0xc, 0xa, 0xf, 0xe, 0, 1 };
-    if (0 != pico_device_init(eth, "ETHPEER", mac_addr))
-        return nullptr;
+	if (0 != pico_device_init(eth, "ETHPEER", mac_addr))
+		return nullptr;
 
 	DEBUG_LOG(NETWORK, "Device %s created", eth->name);
 
@@ -908,7 +908,8 @@ static void *pico_thread_func(void *)
 	memcpy(&dnsaddr.addr, &addr, sizeof(addr));
 
 	// Create ppp/eth device
-	if (!config::EmulateBBA)
+	const bool usingPPP = !config::EmulateBBA;
+	if (usingPPP)
 	{
 		// PPP
 		pico_dev = pico_ppp_create();
@@ -938,6 +939,7 @@ static void *pico_thread_func(void *)
 			return nullptr;
 		pico_dev->send = &send_eth_frame;
 		pico_dev->proxied = 1;
+		pico_queue_protect(pico_dev->q_in);
 
 		pico_string_to_ipv4("192.168.169.1", &addr);
 		pico_ip4 ipaddr;
@@ -1045,15 +1047,15 @@ static void *pico_thread_func(void *)
 		PICO_IDLE();
     }
 
-    for (auto it = tcp_listening_sockets.begin(); it != tcp_listening_sockets.end(); it++)
-    	closesocket(it->second);
+	for (auto it = tcp_listening_sockets.begin(); it != tcp_listening_sockets.end(); it++)
+		closesocket(it->second);
 	close_native_sockets();
 	pico_socket_close(pico_tcp_socket);
 	pico_socket_close(pico_udp_socket);
 
 	if (pico_dev)
 	{
-		if (!config::EmulateBBA)
+		if (usingPPP)
 		{
 			pico_ppp_destroy(pico_dev);
 		}
@@ -1090,4 +1092,25 @@ void stop_pico()
 	emu.setNetworkState(false);
 	pico_thread_running = false;
 	pico_thread.WaitToEnd();
+}
+
+// picotcp mutex implementation
+extern "C" {
+
+void *pico_mutex_init(void) {
+	return new std::mutex();
+}
+
+void pico_mutex_lock(void *mux) {
+	((std::mutex *)mux)->lock();
+}
+
+void pico_mutex_unlock(void *mux) {
+	((std::mutex *)mux)->unlock();
+}
+
+void pico_mutex_deinit(void *mux) {
+	delete (std::mutex *)mux;
+}
+
 }
