@@ -18,12 +18,17 @@
 #include "oslib/oslib.h"
 #include "reios/reios.h"
 #include "version.h"
+#include "gdxsv_key_display.h"
 
 bool Gdxsv::InGame() const { return enabled && (netmode == NetMode::McsUdp || netmode == NetMode::McsRollback); }
 
 bool Gdxsv::Enabled() const { return enabled; }
 
-void Gdxsv::DisplayOSD() { rollback_net.DisplayOSD(); }
+void Gdxsv::DisplayOSD()
+{
+    rollback_net.DisplayOSD();
+	key_display.DisplayOSD();
+}
 
 void Gdxsv::Reset() {
 	lbs_net.Reset();

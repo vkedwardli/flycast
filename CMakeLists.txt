@@ -1957,6 +1957,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_patch.inc
 		core/gdxsv/gdxsv_emu_hooks.cpp
 		core/gdxsv/gdxsv_emu_hooks.h
+		core/gdxsv/gdxsv_key_display.cpp
+		core/gdxsv/gdxsv_key_display.h
 		core/gdxsv/gdxsv_translation.h
 		core/gdxsv/gdxsv_translation.cpp
 		core/gdxsv/gdxsv_translation_patch.inc

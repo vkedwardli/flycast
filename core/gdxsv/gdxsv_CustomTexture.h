@@ -14,6 +14,8 @@
 class GdxsvCustomTexture : public CustomTexture {
    public:
 	bool Init() override;
+	u8* LoadExtraTexture(const char* name, bool v_flip, int& width, int& height);
+
 #ifdef _WIN32
 	u8* LoadCustomTexture(u32 hash, int& width, int& height) override;
 

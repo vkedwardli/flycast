@@ -8,6 +8,7 @@
 #include "gdxsv_backend_rollback.h"
 #include "gdxsv_backend_tcp.h"
 #include "gdxsv_backend_udp.h"
+#include "gdxsv_key_display.h"
 #include "network/miniupnp.h"
 #include "types.h"
 
@@ -114,6 +115,8 @@ class Gdxsv {
 	GdxsvBackendUdp udp_net;
 	GdxsvBackendReplay replay_net;
 	GdxsvBackendRollback rollback_net;
+
+	GdxsvKeyDisplay key_display;
 
 	std::atomic<bool> gcp_ping_test_finished;
 	std::map<std::string, int> gcp_ping_test_result;
