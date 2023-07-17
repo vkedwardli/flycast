@@ -84,6 +84,7 @@ class Gdxsv {
 	GdxsvBackendUdp udp_net_;
 	GdxsvBackendReplay replay_net_;
 	GdxsvBackendRollback rollback_net_;
+	bool prevent_window_blocking_ = false;
 };
 
 extern Gdxsv gdxsv;

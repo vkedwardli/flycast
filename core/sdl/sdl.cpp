@@ -18,6 +18,7 @@
 #include "emulator.h"
 #include "stdclass.h"
 #include "imgui/imgui.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(__SWITCH__)
 #include "linux-dist/icon.h"
 #endif
@@ -245,6 +246,18 @@ void input_sdl_handle()
 	{
 		switch (event.type)
 		{
+			case SDL_GDXSV_PREVENT_WINDOW_BLOCKING:
+				SDL_SetWindowResizable(window, SDL_FALSE);
+#ifndef TARGET_MAC
+				SDL_SetWindowBordered(window, SDL_FALSE);
+#endif
+				break;
+			case SDL_GDXSV_RESUME_WINDOW_BLOCKING:
+				SDL_SetWindowResizable(window, SDL_TRUE);
+#ifndef TARGET_MAC
+				SDL_SetWindowBordered(window, SDL_TRUE);
+#endif
+				break;
 			case SDL_QUIT:
 				dc_exit();
 				break;

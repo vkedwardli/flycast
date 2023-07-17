@@ -22,6 +22,10 @@
 #include "rend/boxart/http_client.h"
 #include "rend/gui.h"
 #include "version.h"
+#include "gdxsv_emu_hooks.h"
+#if defined(USE_SDL)
+#include "sdl/sdl.h"
+#endif
 
 bool encode_zlib_deflate(const char *data, int len, std::vector<u8> &out) {
 	z_stream z{};
@@ -232,6 +236,22 @@ void Gdxsv::HookMainUiLoop() {
 
 	if (InGame()) {
 		settings.input.fastForwardMode = false;
+#if defined(USE_SDL)
+		if (!prevent_window_blocking_)
+		{
+			SDL_Event event;
+			event.type = SDL_GDXSV_PREVENT_WINDOW_BLOCKING;
+			SDL_PushEvent(&event);
+			prevent_window_blocking_ = true;
+		}
+	} else {
+		if (prevent_window_blocking_)
+		{
+			SDL_Event event;
+			event.type = SDL_GDXSV_RESUME_WINDOW_BLOCKING;
+			SDL_PushEvent(&event);
+		}
+#endif
 	}
 
 	if (netmode_ == NetMode::McsRollback) {
