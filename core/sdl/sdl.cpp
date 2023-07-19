@@ -258,6 +258,7 @@ void input_sdl_handle()
 				SDL_SetWindowBordered(window, SDL_TRUE);
 #endif
 				break;
+
 			case SDL_QUIT:
 				dc_exit();
 				break;
@@ -300,12 +301,24 @@ void input_sdl_handle()
 				gui_keyboard_inputUTF8(event.text.text);
 				break;
 
+#ifdef _WIN32
+			case SDL_SYSWMEVENT:
+				if (event.syswm.msg->msg.win.msg == WM_CAPTURECHANGED)
+				{
+					gdxsv_window_blocked();
+				}
+				break;
+
+#endif
 			case SDL_WINDOWEVENT:
 				if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED
 						|| event.window.event == SDL_WINDOWEVENT_RESTORED
 						|| event.window.event == SDL_WINDOWEVENT_MINIMIZED
 						|| event.window.event == SDL_WINDOWEVENT_MAXIMIZED)
 				{
+#ifdef TARGET_MAC
+					gdxsv_window_blocked();
+#endif
 #ifdef USE_VULKAN
 					if (windowFlags & SDL_WINDOW_VULKAN)
 						SDL_Vulkan_GetDrawableSize(window, &settings.display.width, &settings.display.height);

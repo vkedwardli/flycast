@@ -237,19 +237,24 @@ void Gdxsv::HookMainUiLoop() {
 	if (InGame()) {
 		settings.input.fastForwardMode = false;
 #if defined(USE_SDL)
-		if (!prevent_window_blocking_)
+		if (!monitor_system_event_)
 		{
-			SDL_Event event;
-			event.type = SDL_GDXSV_PREVENT_WINDOW_BLOCKING;
-			SDL_PushEvent(&event);
-			prevent_window_blocking_ = true;
+			SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+			monitor_system_event_ = true;
 		}
 	} else {
+		if (monitor_system_event_)
+		{
+			SDL_EventState(SDL_SYSWMEVENT, SDL_DISABLE);
+			monitor_system_event_ = false;
+			prevent_window_blocking_counter_ = 0;
+		}
 		if (prevent_window_blocking_)
 		{
 			SDL_Event event;
 			event.type = SDL_GDXSV_RESUME_WINDOW_BLOCKING;
 			SDL_PushEvent(&event);
+			prevent_window_blocking_ = false;
 		}
 #endif
 	}
@@ -266,6 +271,21 @@ void Gdxsv::HookMainUiLoop() {
 		if (netmode_ == NetMode::Lbs && lbs_net_.IsConnected()) {
 			// Prevent disconnection from lobby server
 			lbs_net_.OnSockPoll();
+		}
+	}
+}
+
+void Gdxsv::WindowBlocked()
+{
+	if (gdxsv.InGame())
+	{
+		prevent_window_blocking_counter_++;
+		if (prevent_window_blocking_counter_ >= 10)
+		{
+			SDL_Event event;
+			event.type = SDL_GDXSV_PREVENT_WINDOW_BLOCKING;
+			SDL_PushEvent(&event);
+			prevent_window_blocking_ = true;
 		}
 	}
 }

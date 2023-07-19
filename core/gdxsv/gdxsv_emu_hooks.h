@@ -52,5 +52,7 @@ void gdxsv_crash_append_log(FILE* f);
 
 void gdxsv_crash_append_tag(const std::string& logfile, std::vector<http::PostField>& post_fields);
 
+void gdxsv_window_blocked();
+
 const uint32_t SDL_GDXSV_PREVENT_WINDOW_BLOCKING = 0x9000;
 const uint32_t SDL_GDXSV_RESUME_WINDOW_BLOCKING = 0x9001;

@@ -103,6 +103,8 @@ bool gdxsv_emu_menu_open() {
 	return true;
 }
 
+void gdxsv_window_blocked() { gdxsv.WindowBlocked(); }
+
 bool gdxsv_widescreen_hack_enabled() { return gdxsv.Enabled() && config::WidescreenGameHacks; }
 
 static void gui_header(const char* title) {

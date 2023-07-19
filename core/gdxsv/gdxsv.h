@@ -37,6 +37,7 @@ class Gdxsv {
 	bool HookOpenMenu();
 	void HookVBlank();
 	void HookMainUiLoop();
+	void WindowBlocked();
 	void HandleRPC();
 	void RestoreOnlinePatch();
 	void StartPingTest();
@@ -84,7 +85,10 @@ class Gdxsv {
 	GdxsvBackendUdp udp_net_;
 	GdxsvBackendReplay replay_net_;
 	GdxsvBackendRollback rollback_net_;
+	
+	bool monitor_system_event_ = false;
 	bool prevent_window_blocking_ = false;
+	int prevent_window_blocking_counter_ = 0;
 };
 
 extern Gdxsv gdxsv;
