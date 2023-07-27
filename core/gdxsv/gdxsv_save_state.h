@@ -7,10 +7,13 @@
 class GdxsvSaveState {
    public:
 	bool Enabled() { return enabled; }
+	size_t SavedFrames() { return buffers.size(); }
+	int LastSavedFrame() { return buffers.empty() ? -1 : buffers.rbegin()->first; }
 	void StartUsing();
 	void EndUsing();
 	bool SaveState(int frame);
 	bool LoadState(int frame);
+	bool LoadStateFirstFrame(int& frame);
 	void Clear();
 	void Reset();
 
@@ -29,9 +32,8 @@ class GdxsvSaveState {
 	};
 
 	bool enabled = false;
-	std::unordered_map<int, MemPages> deltaStates;
-	std::unordered_map<int, std::pair<int, unsigned char *>> buffers;
-	int lastSavedFrame = -1;
+	std::map<int, MemPages> deltaStates;
+	std::map<int, std::pair<int, unsigned char *>> buffers;
 };
 
 extern GdxsvSaveState gdxsv_save_state;

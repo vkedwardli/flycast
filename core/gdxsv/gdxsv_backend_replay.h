@@ -63,6 +63,7 @@ class GdxsvBackendReplay {
 	int seek_frames_;
 	int me_;
 	std::atomic<int> key_msg_count_;
+	std::atomic<bool> start_msg_received_;
 	std::atomic<int> ctrl_play_speed_;
 	std::atomic<bool> ctrl_pause_;
 	std::atomic<bool> ctrl_step_frame_;

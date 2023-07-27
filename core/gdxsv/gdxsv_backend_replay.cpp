@@ -112,6 +112,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 }
 
 void GdxsvBackendReplay::OnVBlank() {
+	constexpr int save_interval = 180;
 	static int prev_key_msg_count_ = 0;
 	bool game_scene = false;
 	bool current_frame_saved = false;
@@ -121,23 +122,27 @@ void GdxsvBackendReplay::OnVBlank() {
 		game_scene = gdxsv_ReadMem8(0x0c3d16d4) == 2 && (gdxsv_ReadMem8(0x0c3d16d5) == 5 || gdxsv_ReadMem8(0x0c3d16d5) == 7);
 	}
 
-	constexpr int SAVE_INTERVAL_FRAME = 180;
-
-	if (key_msg_count_ % SAVE_INTERVAL_FRAME == 0 && key_msg_count_ != prev_key_msg_count_ && recv_buf_.empty()) {
+	if (start_msg_received_) {
+		// Save StartMsg frame as first save_state
+		verify(recv_buf_.empty());
+		verify(gdxsv_save_state.SavedFrames() == 0);
+		gdxsv_save_state.SaveState(key_msg_count_);
+		start_msg_received_ = false;
+	}
+	else if (key_msg_count_ % save_interval == 0 && recv_buf_.empty() && key_msg_count_ != gdxsv_save_state.LastSavedFrame()) {
 		if (game_scene) {
 			gdxsv_save_state.SaveState(key_msg_count_);
-			current_frame_saved = true;
 		}
 	}
 
 	if (ctrl_some_frame_backward_ && recv_buf_.empty()) {
 		ctrl_some_frame_backward_ = false;
 		if (game_scene) {
-			if (!current_frame_saved) {
+			if (key_msg_count_ != gdxsv_save_state.LastSavedFrame()) {
 				gdxsv_save_state.SaveState(key_msg_count_);
 			}
 
-			int target_frame = (key_msg_count_ - 60) / SAVE_INTERVAL_FRAME * SAVE_INTERVAL_FRAME;
+			int target_frame = (key_msg_count_ - 60) / save_interval * save_interval;
 			if (gdxsv_save_state.LoadState(target_frame)) {
 				key_msg_count_ = target_frame;
 				NOTICE_LOG(COMMON, "LoadState ok");
@@ -649,6 +654,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 		}
 
 		gdxsv_save_state.Clear();
+		start_msg_received_ = true;
 		KillTex = true;
 		gdxsv.maxlag_ = 1;	// StartMsg needs this
 		for (int i = 0; i < log_file_.users_size(); ++i) {

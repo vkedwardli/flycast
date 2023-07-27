@@ -7,7 +7,6 @@ void GdxsvSaveState::StartUsing() { enabled = true; }
 void GdxsvSaveState::EndUsing() { enabled = false; }
 
 bool GdxsvSaveState::SaveState(int frame) {
-	lastSavedFrame = frame;
 	// TODO this is way too much memory
 	size_t allocSize = (settings.platform.isNaomi() ? 20 : 10) * 1024 * 1024;
 	auto buffer = (unsigned char*)malloc(allocSize);
@@ -53,7 +52,8 @@ bool GdxsvSaveState::LoadState(int frame) {
 	deser >> frame_;
 	verify(frame == frame_);
 	memwatch::unprotect();
-	for (int f = lastSavedFrame - 1; f >= frame; f--) {
+	// TODO use iterator, merge frames
+	for (int f = LastSavedFrame() - 1; f >= frame; f--) {
 		if (deltaStates.find(f) == deltaStates.end()) continue;
 		const MemPages& pages = deltaStates[f];
 		for (const auto& pair : pages.ram) memcpy(memwatch::ramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
@@ -90,7 +90,6 @@ void GdxsvSaveState::Clear() {
 	}
 	buffers.clear();
 	deltaStates.clear();
-	lastSavedFrame = -1;
 	if (has_save_state) {
 		memwatch::unprotect();
 	}
