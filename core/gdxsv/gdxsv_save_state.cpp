@@ -44,14 +44,10 @@ bool GdxsvSaveState::LoadStateMostRecent(int& frame) {
 		return false;
 	}
 	auto it = buffers.lower_bound(frame);
-	if (it == buffers.end()) {
-		return false;
-	}
-	if (it->first != frame && it != buffers.begin()) {
+	if (it != buffers.begin()) {
 		it = std::prev(it);
 	}
 	if (it == buffers.begin()) {
-		// begin is a special frame, so it is not loaded
 		return false;
 	}
 	frame = it->first;
@@ -59,6 +55,9 @@ bool GdxsvSaveState::LoadStateMostRecent(int& frame) {
 }
 
 bool GdxsvSaveState::LoadStateInternal(int frame) {
+	if (LastSavedFrame() == -1 || !SaveState(LastSavedFrame() + 1)) {
+		return false;
+	}
 	auto [len, buffer] = buffers[frame];
 	verify(buffer != nullptr);
 	rend_start_rollback();
