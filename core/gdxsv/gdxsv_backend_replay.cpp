@@ -63,19 +63,18 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		static u32 prev_kcode = 0;
 		if (prev_kcode == 0) prev_kcode = input.kcode;
 		u32 pressed_kcode = ~((input.kcode ^ prev_kcode) & ~input.kcode);
+		u32 unpressed_kcode = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
 		if (input.kcode != prev_kcode) {
-			if (~input.kcode & DC_BTN_X) {
-				if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSpeedUp();
-				if (~pressed_kcode & DC_DPAD_LEFT) CtrlSpeedDown();
-				if (~pressed_kcode & BTN_TRIGGER_RIGHT) CtrlNextRound();
-				if (~pressed_kcode & BTN_TRIGGER_LEFT) CtrlPrevRound();
-			} else {
-				if (~pressed_kcode & DC_BTN_B) CtrlTogglePause();
-				if (~pressed_kcode & DC_BTN_A) CtrlStepFrame();
-				if (~pressed_kcode & BTN_TRIGGER_LEFT) CtrlSomeFrameBackward();
-				if (~pressed_kcode & BTN_TRIGGER_RIGHT) CtrlSomeFrameForward();
-			}
+			if (~pressed_kcode & DC_BTN_B) CtrlSetSpeed(0), CtrlTogglePause();
+			if (~pressed_kcode & DC_BTN_A) CtrlSetSpeed(0), CtrlStepFrame();
+			if (~pressed_kcode & BTN_TRIGGER_RIGHT) CtrlSetSpeed(0), CtrlNextRound();
+			if (~pressed_kcode & BTN_TRIGGER_LEFT) CtrlSetSpeed(0), CtrlPrevRound();
+			if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(1);
+			if (~unpressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(0);
+			if (~pressed_kcode & DC_DPAD_LEFT) CtrlSetSpeed(0), CtrlSomeFrameBackward();
+			if (~pressed_kcode & DC_DPAD_UP) CtrlSpeedUp();
+			if (~pressed_kcode & DC_DPAD_DOWN) CtrlSpeedDown();
 		}
 		prev_kcode = input.kcode;
 	}
@@ -345,6 +344,12 @@ void GdxsvBackendReplay::CtrlSpeedUp() {
 void GdxsvBackendReplay::CtrlSpeedDown() {
 	ctrl_commands_.emplace_back(ReplayCtrlCommand{
 		ReplayCtrlCommand::ChangeSpeed, -1
+	});
+}
+
+void GdxsvBackendReplay::CtrlSetSpeed(int speed) {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::SetSpeed, speed,
 	});
 }
 
@@ -936,13 +941,13 @@ void GdxsvBackendReplay::RenderPauseMenu()
 	ImGui::Text("Menu: Toggle this menu");
 	ImGui::Text("B: Pause / Resume");
 	ImGui::Text("A: Step Frame (available during Pause)");
-	ImGui::Text("X+Right: Speed Up");
-	ImGui::Text("X+Left: Speed Down");
-	ImGui::Text("RT: Seek Forward");
-	ImGui::Text("LT: Seek Backward");
+	ImGui::Text("Up: Speed Up");
+	ImGui::Text("Down: Speed Down");
+	ImGui::Text("Right: Speed 2x (hold)");
+	ImGui::Text("Left: Seek Backward");
 	if (ChangeRoundAvailable()) {
-		ImGui::Text("X+RT: Next Round");
-		ImGui::Text("X+LT: Previous Round");
+		ImGui::Text("RT: Next Round");
+		ImGui::Text("LT: Previous Round");
 	}
 
 #ifdef NDEBUG

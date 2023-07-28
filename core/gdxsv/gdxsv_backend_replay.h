@@ -62,6 +62,7 @@ class GdxsvBackendReplay {
 	// Replay control
 	void CtrlSpeedUp();
 	void CtrlSpeedDown();
+	void CtrlSetSpeed(int speed);
 	void CtrlTogglePause();
 	void CtrlStepFrame();
 	void CtrlSomeFrameBackward();
