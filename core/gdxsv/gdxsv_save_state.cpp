@@ -83,6 +83,56 @@ bool GdxsvSaveState::LoadState(int frame) {
 	return true;
 }
 
+bool GdxsvSaveState::LoadStateMostRecent(int& frame) {
+	if (buffers.empty()) {
+		return false;
+	}
+
+	auto it = buffers.lower_bound(frame);
+	if (it == buffers.end()) {
+		return false;
+	}
+
+	if (it->first != frame && it != buffers.begin()) {
+		it = std::prev(it);
+	}
+
+	if (it == buffers.begin()) {
+		return false;
+	}
+
+	frame = it->first;
+	auto [len, buffer] = it->second;
+
+	rend_start_rollback();
+	Deserializer deser(buffer, len, true);
+	int frame_;
+	deser >> frame_;
+	verify(frame == frame_);
+	memwatch::unprotect();
+
+	for (auto rit = deltaStates.rbegin(); rit != deltaStates.rend() && rit->first >= frame;) {
+		const MemPages& pages = rit->second;
+		for (const auto& pair : pages.ram) memcpy(memwatch::ramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		for (const auto& pair : pages.vram) memcpy(memwatch::vramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		for (const auto& pair : pages.aram) memcpy(memwatch::aramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		for (const auto& pair : pages.elanram) memcpy(memwatch::elanWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		free(buffers[rit->first + 1].second);
+		buffers.erase(rit->first + 1);
+		deltaStates.erase(--rit.base());
+	}
+
+	dc_deserialize(deser);
+	if (deser.size() != (u32)len) {
+		ERROR_LOG(NETWORK, "load_game_state len %d used %d", len, (int)deser.size());
+		die("fatal");
+	}
+	rend_allow_rollback();	// ggpo might load another state right after this one
+	memwatch::reset();
+	memwatch::protect();
+	return true;
+}
+
 void GdxsvSaveState::Clear() {
 	const bool has_save_state = !buffers.empty();
 	for (const auto& buffer : buffers) {

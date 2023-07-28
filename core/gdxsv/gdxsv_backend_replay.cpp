@@ -113,37 +113,43 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 
 void GdxsvBackendReplay::OnVBlank() {
 	constexpr int save_interval = 180;
-	static int prev_key_msg_count_ = 0;
-	bool game_scene = false;
-	bool current_frame_saved = false;
-	if (gdxsv.Disk() == 1) {
-		game_scene = gdxsv_ReadMem8(0x0c336254) == 2 && (gdxsv_ReadMem8(0x0c336255) == 5 || gdxsv_ReadMem8(0x0c336255) == 7);
-	} else {
-		game_scene = gdxsv_ReadMem8(0x0c3d16d4) == 2 && (gdxsv_ReadMem8(0x0c3d16d5) == 5 || gdxsv_ReadMem8(0x0c3d16d5) == 7);
-	}
+	const bool in_game_scene = gdxsv.Disk() == 1 ?
+		gdxsv_ReadMem8(0x0c336254) == 2 && (gdxsv_ReadMem8(0x0c336255) == 5 || gdxsv_ReadMem8(0x0c336255) == 7):
+		gdxsv_ReadMem8(0x0c3d16d4) == 2 && (gdxsv_ReadMem8(0x0c3d16d5) == 5 || gdxsv_ReadMem8(0x0c3d16d5) == 7);
+	static bool prev_in_game = false;
+	const bool enter_in_game = in_game_scene && !prev_in_game;
+	prev_in_game = in_game_scene;
 
+	// Save StartMsg frame as first save_state
 	if (start_msg_received_) {
-		// Save StartMsg frame as first save_state
 		verify(recv_buf_.empty());
 		verify(gdxsv_save_state.SavedFrames() == 0);
 		gdxsv_save_state.SaveState(key_msg_count_);
 		start_msg_received_ = false;
 	}
-	else if (key_msg_count_ % save_interval == 0 && recv_buf_.empty() && key_msg_count_ != gdxsv_save_state.LastSavedFrame()) {
-		if (game_scene) {
+
+	// Save initial frame of in game scene
+	if (enter_in_game && recv_buf_.empty() && key_msg_count_ != gdxsv_save_state.LastSavedFrame()) {
+		gdxsv_save_state.SaveState(key_msg_count_);
+	}
+
+	// Regular save state
+	if (gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty()) {
+		if (in_game_scene) {
 			gdxsv_save_state.SaveState(key_msg_count_);
 		}
 	}
 
+	// Seek backward
 	if (ctrl_some_frame_backward_ && recv_buf_.empty()) {
 		ctrl_some_frame_backward_ = false;
-		if (game_scene) {
+		if (in_game_scene) {
 			if (key_msg_count_ != gdxsv_save_state.LastSavedFrame()) {
 				gdxsv_save_state.SaveState(key_msg_count_);
 			}
 
-			int target_frame = (key_msg_count_ - 60) / save_interval * save_interval;
-			if (gdxsv_save_state.LoadState(target_frame)) {
+			int target_frame = key_msg_count_ - 60;
+			if (gdxsv_save_state.LoadStateMostRecent(target_frame)) {
 				key_msg_count_ = target_frame;
 				NOTICE_LOG(COMMON, "LoadState ok");
 			} else {
@@ -152,6 +158,7 @@ void GdxsvBackendReplay::OnVBlank() {
 		}
 	}
 
+	// seek forward
 	if (ctrl_some_frame_forward_ && seek_frames_ == 0) {
 		ctrl_some_frame_forward_ = false;
 		seek_frames_ = 60;
