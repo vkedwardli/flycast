@@ -36,6 +36,7 @@ class GdxsvBackendReplay {
 	void CtrlStepFrame();
 	void CtrlSomeFrameBackward();
 	void CtrlSomeFrameForward();
+	void CtrlChangeRound(int round);
 
 	// Network Backend Interface
 	void Open();
@@ -57,11 +58,11 @@ class GdxsvBackendReplay {
 	bool pause_menu_opend_;
 	LbsMessageReader lbs_tx_reader_;
 	proto::BattleLogFile log_file_;
-	std::vector<int> start_msg_index_;
 	std::deque<u8> recv_buf_;
 	int recv_delay_;
 	int seek_frames_;
-	int me_;
+	int start_msg_count_;
+	int pov_;
 	std::atomic<int> key_msg_count_;
 	std::atomic<bool> start_msg_received_;
 	std::atomic<int> ctrl_play_speed_;
@@ -69,4 +70,6 @@ class GdxsvBackendReplay {
 	std::atomic<bool> ctrl_step_frame_;
 	std::atomic<bool> ctrl_some_frame_backward_;
 	std::atomic<bool> ctrl_some_frame_forward_;
+	std::atomic<int> ctrl_change_round_;
+	bool save_converted_log_;
 };
