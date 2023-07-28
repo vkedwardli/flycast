@@ -67,7 +67,8 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		else
 			input.kcode &= ~BTN_TRIGGER_LEFT;
 
-		static u32 prev_kcode = ~0;
+		static u32 prev_kcode = 0;
+		if (prev_kcode == 0) prev_kcode = input.kcode;
 		u32 pressed_kcode = ~((input.kcode ^ prev_kcode) & ~input.kcode);
 
 		if (input.kcode != prev_kcode) {
@@ -148,7 +149,7 @@ void GdxsvBackendReplay::OnVBlank() {
 				gdxsv_save_state.SaveState(key_msg_count_);
 			}
 
-			int target_frame = key_msg_count_ - 60;
+			int target_frame = key_msg_count_ - save_interval;
 			if (gdxsv_save_state.LoadStateMostRecent(target_frame)) {
 				key_msg_count_ = target_frame;
 				NOTICE_LOG(COMMON, "LoadState ok");

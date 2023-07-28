@@ -6,12 +6,12 @@
 
 class GdxsvSaveState {
    public:
+	void StartUsing();
+	void EndUsing();
 	bool Enabled() { return enabled; }
 	size_t SavedFrames() { return buffers.size(); }
 	int LastSavedFrame() { return buffers.empty() ? -1 : buffers.rbegin()->first; }
 	int FirstSavedFrame() { return buffers.empty() ? -1 : buffers.begin()->first; }
-	void StartUsing();
-	void EndUsing();
 	bool SaveState(int frame);
 	bool LoadState(int frame);
 	bool LoadStateMostRecent(int& frame);
@@ -19,6 +19,7 @@ class GdxsvSaveState {
 	void Reset();
 
    private:
+	bool LoadStateInternal(int frame);
 	struct MemPages {
 		void load() {
 			memwatch::ramWatcher.getPages(ram);
