@@ -916,9 +916,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		ImGui::Text("LT: Previous Round");
 	}
 
-#ifdef NDEBUG
-	ImGui::Checkbox("Save converted replay on end", &save_converted_log_);
-#endif
+	// ImGui::Checkbox("Save converted replay on end", &save_converted_log_);
 
 	ImGui::End();
 }
