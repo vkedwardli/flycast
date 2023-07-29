@@ -16,7 +16,36 @@ class GdxsvBackendReplay {
 		McsWaitJoin,
 		McsSessionExchange,
 		McsInBattle,
+		McsWaitStartMsg,
 		End,
+	};
+
+	struct ReplayCtrlCommand {
+		enum Command {
+			None,
+			// System used
+			SaveFirstFrame,
+			SetMaxLag,
+
+			// User control
+			TogglePauseMenu,
+			Pause,
+			Resume,
+			TogglePause,
+			StepFrame,
+			SomeFrameForward,
+			SomeFrameBackward,
+			SetSpeed,
+			ChangeSpeed,
+			SetRound,
+			ChangeRound,
+		};
+
+		Command cmd;
+		int arg1;
+		int arg2;
+		int var1;
+		int var2;
 	};
 
 	void Reset();
@@ -28,14 +57,19 @@ class GdxsvBackendReplay {
 	bool StartFile(const char *path, int pov);
 	bool StartBuffer(const std::vector<u8> &buf, int pov);
 	void Stop();
+	bool ChangeRoundAvailable() const;
 
 	// Replay control
 	void CtrlSpeedUp();
 	void CtrlSpeedDown();
+	void CtrlSetSpeed(int speed);
 	void CtrlTogglePause();
 	void CtrlStepFrame();
 	void CtrlSomeFrameBackward();
 	void CtrlSomeFrameForward();
+	void CtrlSetRound(int round);
+	void CtrlNextRound();
+	void CtrlPrevRound();
 
 	// Network Backend Interface
 	void Open();
@@ -57,15 +91,14 @@ class GdxsvBackendReplay {
 	bool pause_menu_opend_;
 	LbsMessageReader lbs_tx_reader_;
 	proto::BattleLogFile log_file_;
-	std::vector<int> start_msg_index_;
 	std::deque<u8> recv_buf_;
+	int pov_;
 	int recv_delay_;
-	int seek_frames_;
-	int me_;
-	std::atomic<int> key_msg_count_;
-	std::atomic<int> ctrl_play_speed_;
-	std::atomic<bool> ctrl_pause_;
-	std::atomic<bool> ctrl_step_frame_;
-	std::atomic<bool> ctrl_some_frame_backward_;
-	std::atomic<bool> ctrl_some_frame_forward_;
+	int start_msg_count_;
+	int key_msg_count_;
+	std::deque<ReplayCtrlCommand> ctrl_commands_;
+	bool ctrl_pause_;
+	int ctrl_play_speed_;
+	int ctrl_step_frame_;
+	bool save_converted_log_;
 };

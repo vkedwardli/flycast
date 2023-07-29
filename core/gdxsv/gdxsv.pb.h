@@ -1766,6 +1766,8 @@ class BattleLogFile PROTOBUF_FINAL :
     kUsersFieldNumber = 11,
     kBattleDataFieldNumber = 12,
     kInputsFieldNumber = 15,
+    kStartMsgIndexesFieldNumber = 16,
+    kStartMsgRandomsFieldNumber = 17,
     kGdxsvVersionDeprecatedFieldNumber = 2,
     kBattleCodeFieldNumber = 3,
     kGameDiskFieldNumber = 5,
@@ -1851,6 +1853,50 @@ class BattleLogFile PROTOBUF_FINAL :
       inputs() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
       mutable_inputs();
+
+  // repeated int32 start_msg_indexes = 16;
+  int start_msg_indexes_size() const;
+  private:
+  int _internal_start_msg_indexes_size() const;
+  public:
+  void clear_start_msg_indexes();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_start_msg_indexes(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_start_msg_indexes() const;
+  void _internal_add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_start_msg_indexes();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 start_msg_indexes(int index) const;
+  void set_start_msg_indexes(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      start_msg_indexes() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_start_msg_indexes();
+
+  // repeated uint64 start_msg_randoms = 17;
+  int start_msg_randoms_size() const;
+  private:
+  int _internal_start_msg_randoms_size() const;
+  public:
+  void clear_start_msg_randoms();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint64 _internal_start_msg_randoms(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+      _internal_start_msg_randoms() const;
+  void _internal_add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+      _internal_mutable_start_msg_randoms();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::uint64 start_msg_randoms(int index) const;
+  void set_start_msg_randoms(int index, ::PROTOBUF_NAMESPACE_ID::uint64 value);
+  void add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+      start_msg_randoms() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+      mutable_start_msg_randoms();
 
   // string gdxsv_version_deprecated = 2;
   void clear_gdxsv_version_deprecated();
@@ -1980,6 +2026,10 @@ class BattleLogFile PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleMessage > battle_data_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 > inputs_;
   mutable std::atomic<int> _inputs_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > start_msg_indexes_;
+  mutable std::atomic<int> _start_msg_indexes_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 > start_msg_randoms_;
+  mutable std::atomic<int> _start_msg_randoms_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr gdxsv_version_deprecated_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr game_disk_;
@@ -5286,6 +5336,100 @@ inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >
 BattleLogFile::mutable_inputs() {
   // @@protoc_insertion_point(field_mutable_list:proto.BattleLogFile.inputs)
   return _internal_mutable_inputs();
+}
+
+// repeated int32 start_msg_indexes = 16;
+inline int BattleLogFile::_internal_start_msg_indexes_size() const {
+  return start_msg_indexes_.size();
+}
+inline int BattleLogFile::start_msg_indexes_size() const {
+  return _internal_start_msg_indexes_size();
+}
+inline void BattleLogFile::clear_start_msg_indexes() {
+  start_msg_indexes_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 BattleLogFile::_internal_start_msg_indexes(int index) const {
+  return start_msg_indexes_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 BattleLogFile::start_msg_indexes(int index) const {
+  // @@protoc_insertion_point(field_get:proto.BattleLogFile.start_msg_indexes)
+  return _internal_start_msg_indexes(index);
+}
+inline void BattleLogFile::set_start_msg_indexes(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  start_msg_indexes_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.BattleLogFile.start_msg_indexes)
+}
+inline void BattleLogFile::_internal_add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  start_msg_indexes_.Add(value);
+}
+inline void BattleLogFile::add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_start_msg_indexes(value);
+  // @@protoc_insertion_point(field_add:proto.BattleLogFile.start_msg_indexes)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+BattleLogFile::_internal_start_msg_indexes() const {
+  return start_msg_indexes_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+BattleLogFile::start_msg_indexes() const {
+  // @@protoc_insertion_point(field_list:proto.BattleLogFile.start_msg_indexes)
+  return _internal_start_msg_indexes();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+BattleLogFile::_internal_mutable_start_msg_indexes() {
+  return &start_msg_indexes_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+BattleLogFile::mutable_start_msg_indexes() {
+  // @@protoc_insertion_point(field_mutable_list:proto.BattleLogFile.start_msg_indexes)
+  return _internal_mutable_start_msg_indexes();
+}
+
+// repeated uint64 start_msg_randoms = 17;
+inline int BattleLogFile::_internal_start_msg_randoms_size() const {
+  return start_msg_randoms_.size();
+}
+inline int BattleLogFile::start_msg_randoms_size() const {
+  return _internal_start_msg_randoms_size();
+}
+inline void BattleLogFile::clear_start_msg_randoms() {
+  start_msg_randoms_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint64 BattleLogFile::_internal_start_msg_randoms(int index) const {
+  return start_msg_randoms_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint64 BattleLogFile::start_msg_randoms(int index) const {
+  // @@protoc_insertion_point(field_get:proto.BattleLogFile.start_msg_randoms)
+  return _internal_start_msg_randoms(index);
+}
+inline void BattleLogFile::set_start_msg_randoms(int index, ::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  start_msg_randoms_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.BattleLogFile.start_msg_randoms)
+}
+inline void BattleLogFile::_internal_add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  start_msg_randoms_.Add(value);
+}
+inline void BattleLogFile::add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  _internal_add_start_msg_randoms(value);
+  // @@protoc_insertion_point(field_add:proto.BattleLogFile.start_msg_randoms)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+BattleLogFile::_internal_start_msg_randoms() const {
+  return start_msg_randoms_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+BattleLogFile::start_msg_randoms() const {
+  // @@protoc_insertion_point(field_list:proto.BattleLogFile.start_msg_randoms)
+  return _internal_start_msg_randoms();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+BattleLogFile::_internal_mutable_start_msg_randoms() {
+  return &start_msg_randoms_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+BattleLogFile::mutable_start_msg_randoms() {
+  // @@protoc_insertion_point(field_mutable_list:proto.BattleLogFile.start_msg_randoms)
+  return _internal_mutable_start_msg_randoms();
 }
 
 // int64 start_at = 20;

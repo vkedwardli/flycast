@@ -180,9 +180,11 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	ImGui::Text("Players: %d", users_size);
 
 	char buf[128] = {0};
-	std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&start_time));
-	ImGui::Text("StartAt: %s", buf);
-	if (end_time != 0) {
+	if (start_time != 0 && std::localtime(&start_time) != nullptr) {
+		std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&start_time));
+		ImGui::Text("StartAt: %s", buf);
+	}
+	if (end_time != 0 && std::localtime(&end_time) != nullptr) {
 		std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&end_time));
 		ImGui::Text("EndAt: %s", buf);
 	}

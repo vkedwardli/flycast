@@ -62,6 +62,8 @@
 #include <mutex>
 #include <algorithm>
 
+#include "hw/sh4/sh4_mem.h"
+
 static bool game_started;
 
 int insetLeft, insetRight, insetTop, insetBottom;
@@ -1397,8 +1399,16 @@ static inline void gui_debug_tab()
 		header("Misc");
 		{
 			if (ImGui::Button("Reset dynarec cache")) {
-				bm_ResetCache();
-				bm_ResetTempCache(true);
+				sh4_cpu.ResetCache();
+			}
+
+			if (ImGui::Button("Dump sh4 ram")) {
+				FILE* fp = fopen("sh4.bin", "wb");
+				for (u32 p = 0x0c000000; p < 0x0cffffff; p++) {
+					u8 b = ReadMem8_nommu(p);
+					fwrite(&b, 1, 1, fp);
+				}
+				fclose(fp);
 			}
 		}
 		ImGui::Spacing();

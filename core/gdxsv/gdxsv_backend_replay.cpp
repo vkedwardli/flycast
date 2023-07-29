@@ -16,17 +16,11 @@ void GdxsvBackendReplay::Reset() {
 	state_ = State::None;
 	lbs_tx_reader_.Clear();
 	log_file_.Clear();
-	start_msg_index_.clear();
 	recv_buf_.clear();
 	recv_delay_ = 0;
-	me_ = 0;
-	key_msg_count_ = 0;
-	ctrl_play_speed_ = 0;
-	ctrl_pause_ = false;
-	ctrl_step_frame_ = false;
-	ctrl_some_frame_backward_ = false;
-	ctrl_some_frame_forward_ = false;
-	seek_frames_ = false;
+	start_msg_count_ = 0;
+	pov_ = 0;
+	ctrl_commands_.clear();
 	gdxsv_save_state.Reset();
 }
 
@@ -50,7 +44,6 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_) {
-		constexpr int duration = 1000;
 		constexpr u32 BTN_TRIGGER_LEFT = DC_BTN_BITMAPPED_LAST << 1;
 		constexpr u32 BTN_TRIGGER_RIGHT = DC_BTN_BITMAPPED_LAST << 2;
 		auto input = mapleInputState[0];
@@ -67,38 +60,133 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		else
 			input.kcode &= ~BTN_TRIGGER_LEFT;
 
-		static u32 prev_kcode = ~0;
+		static u32 prev_kcode = 0;
+		if (prev_kcode == 0) prev_kcode = input.kcode;
 		u32 pressed_kcode = ~((input.kcode ^ prev_kcode) & ~input.kcode);
+		u32 unpressed_kcode = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
 		if (input.kcode != prev_kcode) {
-			if (~input.kcode & DC_BTN_X) {
-				if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSpeedUp();
-				if (~pressed_kcode & DC_DPAD_LEFT) CtrlSpeedDown();
-			}
-
-			if (~pressed_kcode & DC_BTN_B) {
-				CtrlTogglePause();
-				gui_display_notification(ctrl_pause_ ? "Paused" : "Resumed", duration);
-			}
-
-			if (~pressed_kcode & DC_BTN_A) {
-				CtrlStepFrame();
-			}
-
-			if (~pressed_kcode & BTN_TRIGGER_LEFT) {
-				gui_display_notification("SeekBackward", duration);
-				CtrlSomeFrameBackward();
-			}
-
-			if (~pressed_kcode & BTN_TRIGGER_RIGHT) {
-				gui_display_notification("SeekForward", duration);
-				CtrlSomeFrameForward();
-			}
+			if (~pressed_kcode & DC_BTN_B) CtrlSetSpeed(0), CtrlTogglePause();
+			if (~pressed_kcode & DC_BTN_A) CtrlSetSpeed(0), CtrlStepFrame();
+			if (~pressed_kcode & BTN_TRIGGER_RIGHT) CtrlSetSpeed(0), CtrlNextRound();
+			if (~pressed_kcode & BTN_TRIGGER_LEFT) CtrlSetSpeed(0), CtrlPrevRound();
+			if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(1);
+			if (~unpressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(0);
+			if (~pressed_kcode & DC_DPAD_LEFT) CtrlSetSpeed(0), CtrlSomeFrameBackward();
+			if (~pressed_kcode & DC_DPAD_UP) CtrlSpeedUp();
+			if (~pressed_kcode & DC_DPAD_DOWN) CtrlSpeedDown();
 		}
 		prev_kcode = input.kcode;
+	}
+}
 
-		static int prev_speed = 0;
-		if (prev_speed != ctrl_play_speed_) {
+void GdxsvBackendReplay::OnVBlank() {
+	constexpr int save_interval = 180;
+	auto in_game_scene = [disk = gdxsv.Disk()]() -> bool{
+		return disk == 1 ?
+			gdxsv_ReadMem8(0x0c336254) == 2 && (gdxsv_ReadMem8(0x0c336255) == 5 || gdxsv_ReadMem8(0x0c336255) == 7) :
+			gdxsv_ReadMem8(0x0c3d16d4) == 2 && (gdxsv_ReadMem8(0x0c3d16d5) == 5 || gdxsv_ReadMem8(0x0c3d16d5) == 7);
+	};
+
+	// Regular save state
+	if (in_game_scene() && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty()) {
+		gdxsv_save_state.SaveState(key_msg_count_);
+	}
+
+	while (!ctrl_commands_.empty()) {
+		constexpr int duration = 1000;
+		auto& ctrl = ctrl_commands_.front();
+
+		if (ctrl.cmd == ReplayCtrlCommand::TogglePauseMenu) {
+			pause_menu_opend_ = !pause_menu_opend_;
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::SaveFirstFrame) {
+			if (!recv_buf_.empty()) break;
+			gdxsv_save_state.Clear();
+			gdxsv_save_state.SaveState(key_msg_count_);
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::SetMaxLag) {
+			if (!recv_buf_.empty()) break;
+			gdxsv.maxlag_ = ctrl.arg1;
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::Pause) {
+			ctrl_pause_ = true;
+			ctrl_commands_.pop_front();
+			gui_display_notification("Paused", duration);
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::Resume) {
+			ctrl_pause_ = false;
+			ctrl_commands_.pop_front();
+			gui_display_notification("Resumed", duration);
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::TogglePause) {
+			ctrl_pause_ = !ctrl_pause_;
+			ctrl_commands_.pop_front();
+			if (ctrl_pause_) gui_display_notification("Paused", duration);
+			else gui_display_notification("Resumed", duration);
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::StepFrame) {
+			if (ctrl_pause_) {
+				ctrl_step_frame_ = true;
+				gui_display_notification(("StepFrame:" + std::to_string(key_msg_count_)).c_str(), duration);
+			}
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
+			if (ctrl.var1 == 0) {
+				ctrl.var1 = 1;
+				ctrl.var2 = 60;
+				settings.aica.muteAudio = true;
+				rend_enable_renderer(false);
+				gui_display_notification(">>", duration);
+			}
+			if (ctrl.var2-- == 0) {
+				settings.aica.muteAudio = false;
+				rend_enable_renderer(true);
+				ctrl_commands_.pop_front();
+			} else {
+				break;
+			}
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameBackward) {
+			if (in_game_scene()) {
+				const int ahead_frame = key_msg_count_ - gdxsv_save_state.LastSavedFrame();
+				int target_frame = key_msg_count_  - (60 < ahead_frame ? 0 : save_interval);
+				if (gdxsv_save_state.LoadStateMostRecent(target_frame)) {
+					key_msg_count_ = target_frame;
+					recv_buf_.clear();
+					if (!in_game_scene()) {
+						KillTex = true;
+					}
+					gui_display_notification("<<", duration);
+					NOTICE_LOG(COMMON, "LoadState ok");
+				} else {
+					NOTICE_LOG(COMMON, "LoadState failure");
+				}
+			}
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::SetSpeed || ctrl.cmd == ReplayCtrlCommand::ChangeSpeed) {
+			int speed = ctrl.cmd == ReplayCtrlCommand::SetSpeed ? ctrl.arg1 : ctrl_play_speed_ + ctrl.arg1;
+			speed = std::max<int>(-2, std::min<int>(2, speed));
+			if (speed != ctrl_play_speed_) {
+				ctrl_play_speed_ = speed;
+				if (0 <= ctrl_play_speed_) {
+					config::SkipFrame.override(ctrl_play_speed_);
+				}
+			}
 			std::string speed_text;
 			if (ctrl_play_speed_ == 0) speed_text = "Speed:100%";
 			if (ctrl_play_speed_ == 1) speed_text = "Speed:200%";
@@ -106,58 +194,41 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 			if (ctrl_play_speed_ == -1) speed_text = "Speed:50%";
 			if (ctrl_play_speed_ == -2) speed_text = "Speed:33%";
 			gui_display_notification(speed_text.c_str(), duration);
+			ctrl_commands_.pop_front();
 		}
-		prev_speed = ctrl_play_speed_;
-	}
-}
 
-void GdxsvBackendReplay::OnVBlank() {
-	static int prev_key_msg_count_ = 0;
-	bool game_scene = false;
-	bool current_frame_saved = false;
-	if (gdxsv.Disk() == 1) {
-		game_scene = gdxsv_ReadMem8(0x0c336254) == 2 && (gdxsv_ReadMem8(0x0c336255) == 5 || gdxsv_ReadMem8(0x0c336255) == 7);
-	} else {
-		game_scene = gdxsv_ReadMem8(0x0c3d16d4) == 2 && (gdxsv_ReadMem8(0x0c3d16d5) == 5 || gdxsv_ReadMem8(0x0c3d16d5) == 7);
-	}
+		if (ctrl.cmd == ReplayCtrlCommand::SetRound || ctrl.cmd == ReplayCtrlCommand::ChangeRound) {
+			const int round = ctrl.cmd == ReplayCtrlCommand::SetRound ? ctrl.arg1 : start_msg_count_ + ctrl.arg1;
+			if (0 < round && round != start_msg_count_ &&
+				round - 1 < log_file_.start_msg_indexes_size() &&
+				round - 1 < log_file_.start_msg_randoms_size() &&
+				gdxsv_save_state.FirstSavedFrame() != -1)
+			{
+				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame());
+				gdxsv_save_state.Clear();
+				KillTex = true;
+				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
+				start_msg_count_ = round;
+				const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
+				const int battle_count = gdxsv.Disk() == 1 ? 0x0c2f6919 : 0x0c392059;
+				const int net_battle_count = gdxsv.Disk() == 1 ? 0x0c2f5cab : 0x0c3913eb;
+				const int net_battle_count_copy = gdxsv.Disk() == 1 ? 0x0c336719 : 0x0c3d1b99;
+				const u16 random_data = log_file_.start_msg_randoms(round - 1) & 0xffffu;
+				gdxsv_WriteMem16(k_rnd0, random_data);
+				gdxsv_WriteMem8(battle_count, round - 1);
+				gdxsv_WriteMem8(net_battle_count, round - 1);
+				gdxsv_WriteMem8(net_battle_count_copy, round - 1);
 
-	constexpr int SAVE_INTERVAL_FRAME = 180;
-
-	if (key_msg_count_ % SAVE_INTERVAL_FRAME == 0 && key_msg_count_ != prev_key_msg_count_ && recv_buf_.empty()) {
-		if (game_scene) {
-			gdxsv_save_state.SaveState(key_msg_count_);
-			current_frame_saved = true;
-		}
-	}
-
-	if (ctrl_some_frame_backward_ && recv_buf_.empty()) {
-		ctrl_some_frame_backward_ = false;
-		if (game_scene) {
-			if (!current_frame_saved) {
 				gdxsv_save_state.SaveState(key_msg_count_);
+				recv_buf_.clear();
+				gdxsv.maxlag_ = 1; // for StartMsg
+				NOTICE_LOG(COMMON, "ctrl_change_round_:%d key_msg_count_:%d", round, key_msg_count_);
+				NOTICE_LOG(COMMON, "start_msg_randoms_size:%d", log_file_.start_msg_randoms_size());
+				gui_display_notification(("Round:#" + std::to_string(round)).c_str(), duration);
 			}
 
-			int target_frame = (key_msg_count_ - 60) / SAVE_INTERVAL_FRAME * SAVE_INTERVAL_FRAME;
-			if (gdxsv_save_state.LoadState(target_frame)) {
-				key_msg_count_ = target_frame;
-				NOTICE_LOG(COMMON, "LoadState ok");
-			} else {
-				NOTICE_LOG(COMMON, "LoadState failure");
-			}
+			ctrl_commands_.pop_front();
 		}
-	}
-
-	if (ctrl_some_frame_forward_ && seek_frames_ == 0) {
-		ctrl_some_frame_forward_ = false;
-		seek_frames_ = 60;
-		settings.aica.muteAudio = true;
-		rend_enable_renderer(false);
-	} else if (0 < seek_frames_) {
-		seek_frames_--;
-	} else {
-		seek_frames_ = 0;
-		settings.aica.muteAudio = false;
-		rend_enable_renderer(true);
 	}
 }
 
@@ -166,7 +237,10 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 		return false;
 	}
 
-	pause_menu_opend_ = !pause_menu_opend_;
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::TogglePauseMenu
+	});
+
 	return false;
 }
 
@@ -198,7 +272,7 @@ bool GdxsvBackendReplay::StartFile(const char *path, int pov) {
 		return false;
 	}
 
-	me_ = pov;
+	pov_ = pov;
 
 	return Start();
 }
@@ -214,7 +288,7 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8> &buf, int pov) {
 		return false;
 	}
 
-	me_ = pov;
+	pov_ = pov;
 
 	return Start();
 }
@@ -224,37 +298,102 @@ void GdxsvBackendReplay::Stop() {
 	config::SkipFrame.reset();
 	gdxsv_save_state.EndUsing();
 	state_ = State::End;
+
+	if (save_converted_log_) {
+		auto replay_dir = get_writable_data_path("replays");
+		if (!file_exists(replay_dir)) {
+			if (!make_directory(replay_dir)) {
+				ERROR_LOG(COMMON, "Failed to create replay directory");
+				return;
+			}
+		}
+
+		auto replay_file = replay_dir + "/" + log_file_.battle_code() + "_converted.pb";
+		FILE* f = nowide::fopen(replay_file.c_str(), "wb");
+		if (f == nullptr) {
+			ERROR_LOG(COMMON, "SaveReplay: fopen failure");
+			return;
+		}
+
+		int fd = fileno(f);
+		if (fd == -1) {
+			ERROR_LOG(COMMON, "SaveReplay: fileno failure");
+			return;
+		}
+
+		bool ok = log_file_.SerializeToFileDescriptor(fd);
+		fclose(f);
+
+		if (!ok) {
+			ERROR_LOG(COMMON, "SaveReplay: SerializeToFileDescriptor failure");
+		}
+		NOTICE_LOG(COMMON, "SaveReplay: Done"); 
+	}
+}
+
+bool GdxsvBackendReplay::ChangeRoundAvailable() const {
+	return 0 < log_file_.start_msg_indexes_size() && log_file_.start_msg_indexes_size() == log_file_.start_msg_randoms_size();
 }
 
 void GdxsvBackendReplay::CtrlSpeedUp() {
-	++ctrl_play_speed_;
-	ctrl_play_speed_ = std::min<int>(ctrl_play_speed_, 2);
-
-	if (0 <= ctrl_play_speed_) {
-		config::SkipFrame.override(ctrl_play_speed_);
-	}
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::ChangeSpeed, 1
+	});
 }
 
 void GdxsvBackendReplay::CtrlSpeedDown() {
-	--ctrl_play_speed_;
-	ctrl_play_speed_ = std::max<int>(ctrl_play_speed_, -2);
-
-	if (0 <= ctrl_play_speed_) {
-		config::SkipFrame.override(ctrl_play_speed_);
-	}
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::ChangeSpeed, -1
+	});
 }
 
-void GdxsvBackendReplay::CtrlTogglePause() { ctrl_pause_ = !ctrl_pause_; }
+void GdxsvBackendReplay::CtrlSetSpeed(int speed) {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::SetSpeed, speed,
+	});
+}
+
+void GdxsvBackendReplay::CtrlTogglePause() {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::TogglePause
+	});
+}
 
 void GdxsvBackendReplay::CtrlStepFrame() {
-	if (ctrl_pause_) {
-		ctrl_step_frame_ = true;
-	}
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::StepFrame
+	});
 }
 
-void GdxsvBackendReplay::CtrlSomeFrameBackward() { ctrl_some_frame_backward_ = true; }
+void GdxsvBackendReplay::CtrlSomeFrameBackward() {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::SomeFrameBackward
+	});
+}
 
-void GdxsvBackendReplay::CtrlSomeFrameForward() { ctrl_some_frame_forward_ = true; }
+void GdxsvBackendReplay::CtrlSomeFrameForward() {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::SomeFrameForward
+	});
+}
+
+void GdxsvBackendReplay::CtrlSetRound(int round) {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::SetRound, round
+	});
+}
+
+void GdxsvBackendReplay::CtrlNextRound() {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::ChangeRound, 1
+	});
+}
+
+void GdxsvBackendReplay::CtrlPrevRound() {
+	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+		ReplayCtrlCommand::ChangeRound, -1
+	});
+}
 
 void GdxsvBackendReplay::Open() {
 	recv_buf_.assign({0x0e, 0x61, 0x00, 0x22, 0x10, 0x31, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd});
@@ -275,6 +414,7 @@ void GdxsvBackendReplay::Close() {
 	config::SkipFrame.reset();
 	gdxsv_save_state.EndUsing();
 	state_ = State::End;
+
 }
 
 u32 GdxsvBackendReplay::OnSockWrite(u32 addr, u32 size) {
@@ -436,7 +576,7 @@ bool GdxsvBackendReplay::Start() {
 				min_t = std::min<int>(min_t, player_chunked_inputs[p][chunk].size());
 			}
 
-			start_msg_index_.push_back(log_file_.inputs_size());
+			log_file_.add_start_msg_indexes(log_file_.inputs_size());
 
 			for (int t = 0; t < min_t; t++) {
 				uint64_t input = 0;
@@ -454,8 +594,11 @@ bool GdxsvBackendReplay::Start() {
 	NOTICE_LOG(COMMON, "patch_size = %d", log_file_.patches_size());
 	NOTICE_LOG(COMMON, "inputs_size = %d", log_file_.inputs_size());
 	std::ostringstream ss;
-	for (const int a : start_msg_index_) ss << a << " ";
-	NOTICE_LOG(COMMON, "start_msg_index = %s", ss.str().c_str());
+	for (const int a : log_file_.start_msg_indexes()) ss << a << " ";
+	NOTICE_LOG(COMMON, "start_msg_indexes = %s", ss.str().c_str());
+	ss.str("");
+	for (const int a : log_file_.start_msg_randoms()) ss << a << " ";
+	NOTICE_LOG(COMMON, "start_msg_randoms = %s", ss.str().c_str());
 
 	state_ = State::Start;
 	gdxsv.maxlag_ = 0;
@@ -548,7 +691,7 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 
 		if (msg.command == LbsMessage::lbsAskPlayerSide) {
 			// camera player id
-			LbsMessage::SvAnswer(msg).Write8(me_ + 1)->Serialize(recv_buf_);
+			LbsMessage::SvAnswer(msg).Write8(pov_ + 1)->Serialize(recv_buf_);
 		}
 
 		if (msg.command == LbsMessage::lbsAskPlayerInfo) {
@@ -616,23 +759,23 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 		state_ = State::McsInBattle;
 	} else if (msg_type == McsMessage::MsgType::IntroMsg) {
 		for (int i = 0; i < log_file_.users_size(); ++i) {
-			if (i != me_) {
+			if (i != pov_) {
 				auto intro_msg = McsMessage::Create(McsMessage::MsgType::IntroMsg, i);
 				std::copy(intro_msg.body.begin(), intro_msg.body.end(), std::back_inserter(recv_buf_));
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::IntroMsgReturn) {
 		for (int i = 0; i < log_file_.users_size(); ++i) {
-			if (i != me_) {
+			if (i != pov_) {
 				auto intro_msg = McsMessage::Create(McsMessage::MsgType::IntroMsgReturn, i);
 				std::copy(intro_msg.body.begin(), intro_msg.body.end(), std::back_inserter(recv_buf_));
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::PingMsg) {
 		for (int i = 0; i < log_file_.users_size(); ++i) {
-			if (i != me_) {
+			if (i != pov_) {
 				auto pong_msg = McsMessage::Create(McsMessage::MsgType::PongMsg, i);
-				pong_msg.SetPongTo(me_);
+				pong_msg.SetPongTo(pov_);
 				pong_msg.PongCount(msg.PingCount());
 				std::copy(pong_msg.body.begin(), pong_msg.body.end(), std::back_inserter(recv_buf_));
 			}
@@ -640,19 +783,34 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 	} else if (msg_type == McsMessage::MsgType::PongMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::StartMsg) {
-		if (!start_msg_index_.empty()) {
-			const auto it = std::lower_bound(start_msg_index_.begin(), start_msg_index_.end(), key_msg_count_);
-			if (it != start_msg_index_.end()) {
-				NOTICE_LOG(COMMON, "key_msg_count updates %d -> %d", key_msg_count_.load(), *it);
+		start_msg_count_++;
+
+		if (start_msg_count_ - 1 < log_file_.start_msg_indexes_size()) {
+			const auto it = std::lower_bound(log_file_.start_msg_indexes().begin(), log_file_.start_msg_indexes().end(), key_msg_count_);
+			if (it != log_file_.start_msg_indexes().end()) {
+				NOTICE_LOG(COMMON, "key_msg_count updates %d -> %d", key_msg_count_, *it);
 				key_msg_count_ = *it;
 			}
+		} else {
+			log_file_.add_start_msg_indexes(key_msg_count_);
 		}
 
-		gdxsv_save_state.Clear();
-		KillTex = true;
-		gdxsv.maxlag_ = 1;	// StartMsg needs this
+		const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
+		const auto random_data = gdxsv_ReadMem16(k_rnd0);
+		if (start_msg_count_ - 1 < log_file_.start_msg_randoms_size()) {
+			verify(random_data == (log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu));
+		} else {
+			log_file_.add_start_msg_randoms(random_data);
+		}
+
+		ctrl_commands_.emplace_back(ReplayCtrlCommand{
+			ReplayCtrlCommand::SaveFirstFrame
+		});
+		ctrl_commands_.emplace_back(ReplayCtrlCommand{
+			ReplayCtrlCommand::SetMaxLag, 1
+		});
 		for (int i = 0; i < log_file_.users_size(); ++i) {
-			if (i != me_) {
+			if (i != pov_) {
 				auto start_msg = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
 				std::copy(start_msg.body.begin(), start_msg.body.end(), std::back_inserter(recv_buf_));
 			}
@@ -688,13 +846,13 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 		verify(false);
 	} else if (msg_type == McsMessage::MsgType::LoadEndMsg) {
 		for (int i = 0; i < log_file_.users_size(); ++i) {
-			if (i != me_) {
+			if (i != pov_) {
 				auto load_start_msg = McsMessage::Create(McsMessage::MsgType::LoadStartMsg, i);
 				std::copy(load_start_msg.body.begin(), load_start_msg.body.end(), std::back_inserter(recv_buf_));
 			}
 		}
 		for (int i = 0; i < log_file_.users_size(); ++i) {
-			if (i != me_) {
+			if (i != pov_) {
 				auto load_end_msg = McsMessage::Create(McsMessage::MsgType::LoadEndMsg, i);
 				std::copy(load_end_msg.body.begin(), load_end_msg.body.end(), std::back_inserter(recv_buf_));
 			}
@@ -771,7 +929,6 @@ void GdxsvBackendReplay::RenderPauseMenu()
 	}
 
 	ImGui::Columns(1, "usage", true);
-
 	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));
 	ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 1.0f);
 	ImGui::BeginDisabled();
@@ -782,10 +939,18 @@ void GdxsvBackendReplay::RenderPauseMenu()
 	ImGui::Text("Menu: Toggle this menu");
 	ImGui::Text("B: Pause / Resume");
 	ImGui::Text("A: Step Frame (available during Pause)");
-	ImGui::Text("X+Left: Speed Down");
-	ImGui::Text("X+Right: Speed Up");
-	ImGui::Text("LT: Seek Backward");
-	ImGui::Text("RT: Seek Forward");
+	ImGui::Text("Up: Speed Up");
+	ImGui::Text("Down: Speed Down");
+	ImGui::Text("Right: Speed 2x (hold)");
+	ImGui::Text("Left: Seek Backward");
+	if (ChangeRoundAvailable()) {
+		ImGui::Text("RT: Next Round");
+		ImGui::Text("LT: Previous Round");
+	}
+
+#ifdef NDEBUG
+	ImGui::Checkbox("Save converted replay on end", &save_converted_log_);
+#endif
 
 	ImGui::End();
 }
