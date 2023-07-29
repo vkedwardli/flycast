@@ -64,8 +64,7 @@ bool Gdxsv::IsReplaying() const { return netmode_ == NetMode::Replay; }
 
 bool Gdxsv::Enabled() const { return enabled_; }
 
-void Gdxsv::DisplayOSD()
-{
+void Gdxsv::DisplayOSD() {
 	rollback_net_.DisplayOSD();
 	replay_net_.DisplayOSD();
 }

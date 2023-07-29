@@ -35,7 +35,7 @@ class GdxsvSaveState {
 
 	bool enabled = false;
 	std::map<int, MemPages> deltaStates;
-	std::map<int, std::pair<int, unsigned char *>> buffers;
+	std::map<int, std::pair<int, unsigned char*>> buffers;
 };
 
 extern GdxsvSaveState gdxsv_save_state;
