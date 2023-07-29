@@ -60,4 +60,6 @@ class GdxsvBackendRollback {
 
 	int64_t start_at_ = 0;
 	std::vector<std::pair<int, u64>> input_logs_;
+	std::vector<std::pair<int, int>> start_msg_indexes_;
+	std::vector<std::pair<int, u32>> start_msg_randoms_;
 };

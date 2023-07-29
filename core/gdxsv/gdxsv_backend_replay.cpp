@@ -213,8 +213,8 @@ void GdxsvBackendReplay::OnVBlank() {
 				const int battle_count = gdxsv.Disk() == 1 ? 0x0c2f6919 : 0x0c392059;
 				const int net_battle_count = gdxsv.Disk() == 1 ? 0x0c2f5cab : 0x0c3913eb;
 				const int net_battle_count_copy = gdxsv.Disk() == 1 ? 0x0c336719 : 0x0c3d1b99;
-				const u32 random_data = log_file_.start_msg_randoms(round - 1);
-				gdxsv_WriteMem32(k_rnd0, random_data);
+				const u16 random_data = log_file_.start_msg_randoms(round - 1) & 0xffffu;
+				gdxsv_WriteMem16(k_rnd0, random_data);
 				gdxsv_WriteMem8(battle_count, round - 1);
 				gdxsv_WriteMem8(net_battle_count, round - 1);
 				gdxsv_WriteMem8(net_battle_count_copy, round - 1);
@@ -596,7 +596,7 @@ bool GdxsvBackendReplay::Start() {
 	std::ostringstream ss;
 	for (const int a : log_file_.start_msg_indexes()) ss << a << " ";
 	NOTICE_LOG(COMMON, "start_msg_indexes = %s", ss.str().c_str());
-	ss.clear();
+	ss.str("");
 	for (const int a : log_file_.start_msg_randoms()) ss << a << " ";
 	NOTICE_LOG(COMMON, "start_msg_randoms = %s", ss.str().c_str());
 
@@ -795,13 +795,11 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 			log_file_.add_start_msg_indexes(key_msg_count_);
 		}
 
+		const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
+		const auto random_data = gdxsv_ReadMem16(k_rnd0);
 		if (start_msg_count_ - 1 < log_file_.start_msg_randoms_size()) {
-			const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
-			const auto random_data = gdxsv_ReadMem32(k_rnd0);
-			verify(random_data == log_file_.start_msg_randoms(start_msg_count_ - 1));
+			verify(random_data == (log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu));
 		} else {
-			const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
-			const auto random_data = gdxsv_ReadMem32(k_rnd0);
 			log_file_.add_start_msg_randoms(random_data);
 		}
 

@@ -569,6 +569,20 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				auto a = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
 				std::copy(a.body.begin(), a.body.end(), std::back_inserter(recv_buf_));
 			}
+
+			while (!start_msg_indexes_.empty() && frame <= start_msg_indexes_.back().first) {
+				start_msg_indexes_.pop_back();
+			}
+			start_msg_indexes_.emplace_back(frame, input_logs_.size());
+
+			while (!start_msg_randoms_.empty() && frame <= start_msg_randoms_.back().first) {
+				start_msg_randoms_.pop_back();
+			}
+			const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
+			u16 rand_value = gdxsv_ReadMem16(k_rnd0);
+			start_msg_randoms_.emplace_back(frame, rand_value);
+
+			verify(start_msg_indexes_.size() == start_msg_randoms_.size());
 		}
 
 		if (ok && exInput == ExInputWaitLoadEnd) {
@@ -704,7 +718,7 @@ void GdxsvBackendRollback::SaveReplay() {
 	auto log = std::make_unique<proto::BattleLogFile>();
 	log->set_game_disk(gdxsv.Disk() == 1 ? "dc1" : "dc2");
 	log->set_battle_code(matching_.battle_code());
-	log->set_log_file_version(20230426);
+	log->set_log_file_version(20230729);
 	for (int i = 0; i < gdxsv.patch_list_.patches_size(); ++i) {
 		log->add_patches()->CopyFrom(gdxsv.patch_list_.patches(i));
 	}
@@ -713,6 +727,12 @@ void GdxsvBackendRollback::SaveReplay() {
 
 	for (const auto& kv : input_logs_) {
 		log->add_inputs(kv.second);
+	}
+	for (const auto& kv : start_msg_indexes_) {
+		log->add_start_msg_indexes(kv.second);
+	}
+	for (const auto& kv : start_msg_randoms_) {
+		log->add_start_msg_randoms(kv.second);
 	}
 
 	log->set_start_at(start_at_);
