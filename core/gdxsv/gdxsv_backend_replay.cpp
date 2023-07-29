@@ -63,18 +63,23 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		static u32 prev_kcode = 0;
 		if (prev_kcode == 0) prev_kcode = input.kcode;
 		u32 pressed_kcode = ~((input.kcode ^ prev_kcode) & ~input.kcode);
-		u32 unpressed_kcode = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
+		u32 released_kcode = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
 		if (input.kcode != prev_kcode) {
-			if (~pressed_kcode & DC_BTN_B) CtrlSetSpeed(0), CtrlTogglePause();
-			if (~pressed_kcode & DC_BTN_A) CtrlSetSpeed(0), CtrlStepFrame();
-			if (~pressed_kcode & BTN_TRIGGER_RIGHT) CtrlSetSpeed(0), CtrlNextRound();
-			if (~pressed_kcode & BTN_TRIGGER_LEFT) CtrlSetSpeed(0), CtrlPrevRound();
-			if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(1);
-			if (~unpressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(0);
-			if (~pressed_kcode & DC_DPAD_LEFT) CtrlSetSpeed(0), CtrlSomeFrameBackward();
-			if (~pressed_kcode & DC_DPAD_UP) CtrlSpeedUp();
-			if (~pressed_kcode & DC_DPAD_DOWN) CtrlSpeedDown();
+			if (~input.kcode & DC_BTN_X) {
+				if (~pressed_kcode & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) CtrlSomeFrameForward();
+				if (~pressed_kcode & (BTN_TRIGGER_LEFT | DC_BTN_C)) CtrlSomeFrameBackward();
+			} else {
+				if (~pressed_kcode & DC_BTN_B) CtrlSetSpeed(0), CtrlTogglePause();
+				if (~pressed_kcode & DC_BTN_A) CtrlSetSpeed(0), CtrlStepFrame();
+				if (~pressed_kcode & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) CtrlSetSpeed(0), CtrlNextRound();
+				if (~pressed_kcode & (BTN_TRIGGER_LEFT | DC_BTN_C)) CtrlSetSpeed(0), CtrlPrevRound();
+				if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(1);
+				if (~released_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(0);
+				if (~pressed_kcode & DC_DPAD_LEFT) CtrlSetSpeed(0), CtrlSomeFrameBackward();
+				if (~pressed_kcode & DC_DPAD_UP) CtrlSpeedUp();
+				if (~pressed_kcode & DC_DPAD_DOWN) CtrlSpeedDown();
+			}
 		}
 		prev_kcode = input.kcode;
 	}
@@ -144,9 +149,11 @@ void GdxsvBackendReplay::OnVBlank() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
+			static std::chrono::steady_clock::time_point t0;
 			if (ctrl.var1 == 0) {
+				t0 = std::chrono::high_resolution_clock::now();
 				ctrl.var1 = 1;
-				ctrl.var2 = 60;
+				ctrl.var2 = 300;
 				settings.aica.muteAudio = true;
 				rend_enable_renderer(false);
 				gui_display_notification(">>", duration);
@@ -154,6 +161,8 @@ void GdxsvBackendReplay::OnVBlank() {
 			if (ctrl.var2-- == 0) {
 				settings.aica.muteAudio = false;
 				rend_enable_renderer(true);
+				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0).count();
+				NOTICE_LOG(COMMON, "SomeFrameForward %ldms", ms);
 				ctrl_commands_.pop_front();
 			} else {
 				break;
