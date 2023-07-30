@@ -2095,6 +2095,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_replay_util.cpp
 		core/gdxsv/gdxsv_save_state.h
 		core/gdxsv/gdxsv_save_state.cpp
+		core/gdxsv/gdxsv_key_display.cpp
+		core/gdxsv/gdxsv_key_display.h
 		core/gdxsv/gdxsv_translation.h
 		core/gdxsv/gdxsv_translation.cpp
 		core/gdxsv/gdxsv_translation_patch.inc
