@@ -25,13 +25,34 @@ void GdxsvBackendReplay::Reset() {
 }
 
 void GdxsvBackendReplay::OnMainUiLoop() {
+	/*
+	if (emu.running()) {
+		const int disk = gdxsv.Disk();
+		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
+		const int ConnectionStatus = disk == 1 ? 0x0c310444 : 0x0c3abb84;
+		const int NetCountDown = disk == 1 ? 0x0c310202 : 0x0c3ab942;
+		const int DataStopCounter = 0x0c3ab51a;
+		NOTICE_LOG(COMMON, "DataStopCounter=%d ConnectionStatus=%d %d %d NetCountDown=%d",
+			gdxsv_ReadMem16(DataStopCounter),
+			gdxsv_ReadMem16(ConnectionStatus),
+			gdxsv_ReadMem16(ConnectionStatus + 2),
+			gdxsv_ReadMem16(ConnectionStatus + 4),
+			gdxsv_ReadMem16(NetCountDown));
+		NOTICE_LOG(COMMON, "COM_R_No0 %d %d", gdxsv_ReadMem8(COM_R_No0), gdxsv_ReadMem8(COM_R_No0 + 5));
+	}
+	*/
+
 	if (state_ == State::Start) {
 		kcode[0] = ~0x0004u;
+		ctrl_commands_.emplace_back(ReplayCtrlCommand{ ReplayCtrlCommand::SomeFrameForward, 60 });
 	}
 
 	if (state_ == State::McsInBattle) {
 		const int disk = gdxsv.Disk();
 		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
+		if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 1) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand{ ReplayCtrlCommand::SeekToGameScene, 60 });
+		}
 		if (gdxsv_ReadMem8(COM_R_No0) == 4 && (gdxsv_ReadMem8(COM_R_No0 + 5) == 3 || gdxsv_ReadMem8(COM_R_No0 + 5) == 4)) {
 			Stop();
 		}
@@ -150,7 +171,7 @@ void GdxsvBackendReplay::OnVBlank() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
 			static std::chrono::steady_clock::time_point t0;
-			constexpr int skip_frames = 300;
+			const int skip_frames = ctrl.arg1 != 0 ? ctrl.arg1 : 300;
 			if (ctrl.var1 == 0) {
 				t0 = std::chrono::high_resolution_clock::now();
 				ctrl.var1 = 1;
@@ -164,6 +185,27 @@ void GdxsvBackendReplay::OnVBlank() {
 				rend_enable_renderer(true);
 				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0).count();
 				NOTICE_LOG(COMMON, "SomeFrameForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skip_frames, ms, (float)ms/skip_frames);
+				ctrl_commands_.pop_front();
+			} else {
+				break;
+			}
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::SeekToGameScene) {
+			ctrl.var1++;
+			if (ctrl.var1 == 1) {
+				if (in_game_scene()) {
+					ctrl_commands_.pop_front();
+				} else {
+					ctrl_pause_ = false;
+					gui_display_notification("Loading...", duration);
+				}
+			} else if (ctrl.var1 == 3) {
+				settings.aica.muteAudio = true;
+				rend_enable_renderer(false);
+			} else if (in_game_scene()) {
+				settings.aica.muteAudio = false;
+				rend_enable_renderer(true);
 				ctrl_commands_.pop_front();
 			} else {
 				break;
@@ -232,7 +274,7 @@ void GdxsvBackendReplay::OnVBlank() {
 				gdxsv.maxlag_ = 1;	// for StartMsg
 				NOTICE_LOG(COMMON, "ctrl_change_round_:%d key_msg_count_:%d", round, key_msg_count_);
 				NOTICE_LOG(COMMON, "start_msg_randoms_size:%d", log_file_.start_msg_randoms_size());
-				gui_display_notification(("Round:#" + std::to_string(round)).c_str(), duration);
+				ctrl_commands_.emplace_back(ReplayCtrlCommand{ ReplayCtrlCommand::SeekToGameScene });
 			}
 
 			ctrl_commands_.pop_front();
@@ -787,6 +829,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 
 		ctrl_commands_.emplace_front(ReplayCtrlCommand{ReplayCtrlCommand::SetMaxLag, 1});
 		ctrl_commands_.emplace_front(ReplayCtrlCommand{ReplayCtrlCommand::SaveFirstFrame});
+		ctrl_commands_.emplace_back(ReplayCtrlCommand{ ReplayCtrlCommand::SeekToGameScene });
 		for (int i = 0; i < log_file_.users_size(); ++i) {
 			if (i != pov_) {
 				auto start_msg = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
