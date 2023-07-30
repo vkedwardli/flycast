@@ -170,7 +170,7 @@ void GdxsvBackendReplay::OnVBlank() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
-			static std::chrono::steady_clock::time_point t0;
+			static std::chrono::high_resolution_clock::time_point t0;
 			const int skip_frames = ctrl.arg1 != 0 ? ctrl.arg1 : 300;
 			if (ctrl.var1 == 0) {
 				t0 = std::chrono::high_resolution_clock::now();
