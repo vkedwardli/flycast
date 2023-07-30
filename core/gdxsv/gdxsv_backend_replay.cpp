@@ -150,10 +150,11 @@ void GdxsvBackendReplay::OnVBlank() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
 			static std::chrono::steady_clock::time_point t0;
+			constexpr int skip_frames = 300;
 			if (ctrl.var1 == 0) {
 				t0 = std::chrono::high_resolution_clock::now();
 				ctrl.var1 = 1;
-				ctrl.var2 = 300;
+				ctrl.var2 = skip_frames;
 				settings.aica.muteAudio = true;
 				rend_enable_renderer(false);
 				gui_display_notification(">>", duration);
@@ -162,7 +163,7 @@ void GdxsvBackendReplay::OnVBlank() {
 				settings.aica.muteAudio = false;
 				rend_enable_renderer(true);
 				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0).count();
-				NOTICE_LOG(COMMON, "SomeFrameForward %ldms", ms);
+				NOTICE_LOG(COMMON, "SomeFrameForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skip_frames, ms, (float)ms/skip_frames);
 				ctrl_commands_.pop_front();
 			} else {
 				break;
@@ -784,8 +785,8 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 			log_file_.add_start_msg_randoms(random_data);
 		}
 
-		ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SaveFirstFrame});
-		ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SetMaxLag, 1});
+		ctrl_commands_.emplace_front(ReplayCtrlCommand{ReplayCtrlCommand::SetMaxLag, 1});
+		ctrl_commands_.emplace_front(ReplayCtrlCommand{ReplayCtrlCommand::SaveFirstFrame});
 		for (int i = 0; i < log_file_.users_size(); ++i) {
 			if (i != pov_) {
 				auto start_msg = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
