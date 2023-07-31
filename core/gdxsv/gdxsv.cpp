@@ -10,6 +10,7 @@
 #include "cfg/option.h"
 #include "emulator.h"
 #include "gdx_rpc.h"
+#include "gdxsv_key_display.h"
 #include "gdxsv_translation.h"
 #include "hw/sh4/dyna/blockmanager.h"
 #include "imgui/imgui.h"
@@ -22,7 +23,6 @@
 #include "rend/boxart/http_client.h"
 #include "rend/gui.h"
 #include "version.h"
-#include "gdxsv_key_display.h"
 
 bool encode_zlib_deflate(const char *data, int len, std::vector<u8> &out) {
 	z_stream z{};
@@ -68,7 +68,7 @@ bool Gdxsv::Enabled() const { return enabled_; }
 void Gdxsv::DisplayOSD() {
 	rollback_net_.DisplayOSD();
 	replay_net_.DisplayOSD();
-	key_display.DisplayOSD();
+	key_display_.DisplayOSD();
 }
 
 const char *Gdxsv::NetModeString() const {

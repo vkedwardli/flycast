@@ -1,61 +1,58 @@
 #include "gdxsv_key_display.h"
 
 #include "gdxsv.h"
-#include "types.h"
-#include "libs.h"
+#include "gdxsv_CustomTexture.h"
 #include "imgui/imgui.h"
-#include "imgui/imgui_internal.h"
 #include "rend/imgui_driver.h"
 #include "rend/transform_matrix.h"
-#include "gdxsv_CustomTexture.h"
+#include "types.h"
 
 const char* ButtonsTextureName = "BUTTONS.png";
 const char* ArrowsTextureName = "ARROWS.png";
 ImTextureID buttonsTexture = ImTextureID{};
 ImTextureID arrowsTexture = ImTextureID{};
 
-
 namespace {
-	void getArrowsUV(int keyCode, ImVec2& uv0, ImVec2& uv1);
-	float getScale();
-}
+void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1);
+float getScale();
+}  // namespace
 
 void GdxsvKeyDisplay::DisplayOSD() {
+	if (!enabled_) return;
+
+	/*
 	static bool once = false;
 	if (!once) {
 		once = true;
-		AppendInput(0, KeyInput{RIGHT, 100});
-		AppendInput(0, KeyInput{LEFT, 200});
-		AppendInput(0, KeyInput{DOWN, 201});
-		AppendInput(0, KeyInput{UP, 300});
-		AppendInput(0, KeyInput{UP | RIGHT, 300});
-		AppendInput(0, KeyInput{UP | RIGHT | JUMP, 300});
-		AppendInput(0, KeyInput{UP | RIGHT | JUMP | COMBAT, 300});
+		AppendInput(0, McsKeyCode::RIGHT);
+		AppendInput(0, McsKeyCode::LEFT);
+		AppendInput(0, McsKeyCode::DOWN);
+		AppendInput(0, McsKeyCode::UP);
+		AppendInput(0, McsKeyCode::A);
+		AppendInput(0, McsKeyCode::B);
+		AppendInput(0, McsKeyCode::X);
+		AppendInput(0, McsKeyCode::Y);
+		AppendInput(0, McsKeyCode::RT);
+		AppendInput(0, McsKeyCode::LT);
+		AppendInput(0, McsKeyCode::START);
 	}
+	*/
 
-	if (gdxsv.Disk() == 2) {
-		if (gdxsv_ReadMem16(0x0c3d1cd4 + 0x0210 + 4)) {
-			AppendInput(0, KeyInput{ gdxsv_ReadMem16(0x0c3d1cd4 + 0x0210), 0 });
-		}
-	}
-
-	if (buttonsTexture == ImTextureID{} || buttonsTexture != imguiDriver->getTexture(ButtonsTextureName))
-	{
+	if (buttonsTexture == ImTextureID{} || buttonsTexture != imguiDriver->getTexture(ButtonsTextureName)) {
 		int w, h;
 		u8* imgData = gdx_custom_texture.LoadExtraTexture(ButtonsTextureName, false, w, h);
 
 		if (imgData) {
-            buttonsTexture = imguiDriver->updateTexture(ButtonsTextureName, imgData, w, h);
+			buttonsTexture = imguiDriver->updateTexture(ButtonsTextureName, imgData, w, h);
 		}
 	}
 
-	if (arrowsTexture == ImTextureID{} || arrowsTexture != imguiDriver->getTexture(ArrowsTextureName))
-	{
+	if (arrowsTexture == ImTextureID{} || arrowsTexture != imguiDriver->getTexture(ArrowsTextureName)) {
 		int w, h;
 		u8* imgData = gdx_custom_texture.LoadExtraTexture(ArrowsTextureName, false, w, h);
 
 		if (imgData) {
-            arrowsTexture = imguiDriver->updateTexture(ArrowsTextureName, imgData, w, h);
+			arrowsTexture = imguiDriver->updateTexture(ArrowsTextureName, imgData, w, h);
 		}
 	}
 
@@ -63,69 +60,102 @@ void GdxsvKeyDisplay::DisplayOSD() {
 	const float h = ImGui::GetIO().DisplaySize.y;
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f, ImGui::GetIO().DisplaySize.y / 2.f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f, ImGui::GetIO().DisplaySize.y / 2.f), ImGuiCond_Always,
+							ImVec2(0.5f, 0.5f));
 	ImGui::SetNextWindowSize(ImVec2(w, h));
 	ImGui::SetNextWindowBgAlpha(0.0f);
 	ImGui::Begin("##gdxsv_keydisplay", NULL,
-		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoScrollbar);
+				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs |
+					 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing);
 
-	float scale = getScale();
-	auto size = ImVec2(24 * scale, 24 * scale);
+	const float scale = getScale();
+	const auto button_size = ImVec2(16 * scale, 16 * scale);
 
-	for (const auto& e : history[0]) {
+	ImGui::SetCursorPosY(100 * scale);
+	for (const auto& e : history_[display_player_]) {
+		const auto cursor_y = ImGui::GetCursorPosY();
+		ImGui::GetWindowDrawList()->AddRectFilled({0, cursor_y - 3}, {button_size.x * 4, cursor_y - 1}, ImColor(255, 255, 255, 64));
+
+		int frame = e.frame;
+		if (99 < frame) frame = 99;
+		ImGui::TextColored(ImVec4(1, 1, 1, 1), "%02d", frame);
+		ImGui::SameLine();
+
 		ImVec2 uv0, uv1;
-
 		getArrowsUV(e.code, uv0, uv1);
-		ImGui::Image(arrowsTexture, size, uv0, uv1);
+		ImGui::Image(arrowsTexture, button_size, uv0, uv1);
 
-        uv0 = ImVec2{0, 0};
-        uv1 = ImVec2{0, 1};
-		if (e.code & SHOOT) {
-			uv0.x = 0.f / 6;
-			uv1.x = 1.f / 6;
+		uv0 = ImVec2{0, 0};
+		uv1 = ImVec2{0, 1};
+		if (e.code & McsKeyCode::A) {
+			uv0.x = 0.f / 7;
+			uv1.x = 1.f / 7;
 			ImGui::SameLine();
-            ImGui::Image(buttonsTexture, size, uv0, uv1);
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
-		if (e.code & COMBAT) {
-			uv0.x = 1.f / 6;
-			uv1.x = 2.f / 6;
+		if (e.code & McsKeyCode::B) {
+			uv0.x = 1.f / 7;
+			uv1.x = 2.f / 7;
 			ImGui::SameLine();
-            ImGui::Image(buttonsTexture, size, uv0, uv1);
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
-		if (e.code & JUMP) {
-			uv0.x = 2.f / 6;
-			uv1.x = 3.f / 6;
+		if (e.code & McsKeyCode::X) {
+			uv0.x = 2.f / 7;
+			uv1.x = 3.f / 7;
 			ImGui::SameLine();
-            ImGui::Image(buttonsTexture, size, uv0, uv1);
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
-		if (e.code & SEARCH) {
-			uv0.x = 3.f / 6;
-			uv1.x = 4.f / 6;
+		if (e.code & McsKeyCode::Y) {
+			uv0.x = 3.f / 7;
+			uv1.x = 4.f / 7;
 			ImGui::SameLine();
-            ImGui::Image(buttonsTexture, size, uv0, uv1);
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
-		if (e.code & COOP) {
-			uv0.x = 4.f / 6;
-			uv1.x = 5.f / 6;
+		if (e.code & McsKeyCode::RT) {
+			uv0.x = 4.f / 7;
+			uv1.x = 5.f / 7;
 			ImGui::SameLine();
-            ImGui::Image(buttonsTexture, size, uv0, uv1);
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
+		if (e.code & McsKeyCode::LT) {
+			uv0.x = 5.f / 7;
+			uv1.x = 6.f / 7;
+			ImGui::SameLine();
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+		}
+		if (e.code & McsKeyCode::START) {
+			uv0.x = 6.f / 7;
+			uv1.x = 7.f / 7;
+			ImGui::SameLine();
+			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+		}
+	}
+	if (!history_[display_player_].empty()) {
+		const auto cursor_y = ImGui::GetCursorPosY();
+		ImGui::GetWindowDrawList()->AddRectFilled({0, cursor_y - 3}, {button_size.x * 4, cursor_y - 1}, ImColor(255, 255, 255, 64));
 	}
 
 	ImGui::End();
 	ImGui::PopStyleVar();
 	ImGui::PopStyleVar();
-		
 }
 
-void GdxsvKeyDisplay::AppendInput(int player, KeyInput input) {
+void GdxsvKeyDisplay::AppendInput(int player, u16 mcs_key) {
 	verify(0 <= player && player < 4);
-	history[player].push_front(input);
-	if (20 <= history[player].size()) history[player].pop_back();
+	if (!history_[player].empty() && history_[player].front().code == mcs_key) {
+		history_[player].front().frame++;
+		return;
+	}
+	history_[player].emplace_front(McsPadInput{1, mcs_key});
+	if (15 <= history_[player].size()) history_[player].pop_back();
 }
 
-void GdxsvKeyDisplay::SetCurrentFrame(int frame) {
-	current_frame = frame;
+void GdxsvKeyDisplay::SetDisplayPlayer(int player) { display_player_ = player; }
+
+void GdxsvKeyDisplay::Clear() {
+	for (int i = 0; i < history_.size(); i++) {
+		history_[i].clear();
+	}
 }
 
 namespace {
@@ -144,41 +174,39 @@ float getScale() {
 	return std::min((w - dx * 2) / 640.f, (h - dy * 2) / 480.f);
 }
 
-void getArrowsUV(int keyCode, ImVec2& uv0, ImVec2& uv1) {
-    uv0 = ImVec2{ 1.f / 3, 1.f / 3 };
-    uv1 = ImVec2{ 2.f / 3, 2.f / 3 };
+void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1) {
+	uv0 = ImVec2{1.f / 3, 1.f / 3};
+	uv1 = ImVec2{2.f / 3, 2.f / 3};
 
-	if (keyCode & GdxsvKeyDisplay::UP) {
-		if (keyCode & GdxsvKeyDisplay::LEFT) {
-			uv0 = ImVec2{0.f/3, 0.f/3};
-			uv1 = ImVec2{1.f/3, 1.f/3};
-		} else if (keyCode & GdxsvKeyDisplay::RIGHT) {
-			uv0 = ImVec2{2.f/3, 0.f/3};
-			uv1 = ImVec2{3.f/3, 1.f/3};
+	if (mcs_key & McsKeyCode::UP) {
+		if (mcs_key & McsKeyCode::LEFT) {
+			uv0 = ImVec2{0.f / 3, 0.f / 3};
+			uv1 = ImVec2{1.f / 3, 1.f / 3};
+		} else if (mcs_key & McsKeyCode::RIGHT) {
+			uv0 = ImVec2{2.f / 3, 0.f / 3};
+			uv1 = ImVec2{3.f / 3, 1.f / 3};
 		} else {
-			uv0 = ImVec2{1.f/3, 0.f/3};
-			uv1 = ImVec2{2.f/3, 1.f/3};
+			uv0 = ImVec2{1.f / 3, 0.f / 3};
+			uv1 = ImVec2{2.f / 3, 1.f / 3};
 		}
-	} else if (keyCode & GdxsvKeyDisplay::DOWN) {
-		if (keyCode & GdxsvKeyDisplay::LEFT) {
-			uv0 = ImVec2{0.f/3, 2.f/3};
-			uv1 = ImVec2{1.f/3, 3.f/3};
-		} else if (keyCode & GdxsvKeyDisplay::RIGHT) {
-			uv0 = ImVec2{2.f/3, 2.f/3};
-			uv1 = ImVec2{3.f/3, 3.f/3};
+	} else if (mcs_key & McsKeyCode::DOWN) {
+		if (mcs_key & McsKeyCode::LEFT) {
+			uv0 = ImVec2{0.f / 3, 2.f / 3};
+			uv1 = ImVec2{1.f / 3, 3.f / 3};
+		} else if (mcs_key & McsKeyCode::RIGHT) {
+			uv0 = ImVec2{2.f / 3, 2.f / 3};
+			uv1 = ImVec2{3.f / 3, 3.f / 3};
 		} else {
-			uv0 = ImVec2{1.f/3, 2.f/3};
-			uv1 = ImVec2{2.f/3, 3.f/3};
+			uv0 = ImVec2{1.f / 3, 2.f / 3};
+			uv1 = ImVec2{2.f / 3, 3.f / 3};
 		}
-	} else if (keyCode & GdxsvKeyDisplay::LEFT) {
-        uv0 = ImVec2{ 0.f / 3, 1.f / 3 };
-        uv1 = ImVec2{ 1.f / 3, 2.f / 3 };
-	} else if (keyCode & GdxsvKeyDisplay::RIGHT) {
-        uv0 = ImVec2{ 2.f / 3, 1.f / 3 };
-        uv1 = ImVec2{ 3.f / 3, 2.f / 3 };
+	} else if (mcs_key & McsKeyCode::LEFT) {
+		uv0 = ImVec2{0.f / 3, 1.f / 3};
+		uv1 = ImVec2{1.f / 3, 2.f / 3};
+	} else if (mcs_key & McsKeyCode::RIGHT) {
+		uv0 = ImVec2{2.f / 3, 1.f / 3};
+		uv1 = ImVec2{3.f / 3, 2.f / 3};
 	}
 }
 
-}
-
-
+}  // namespace

@@ -85,7 +85,7 @@ class Gdxsv {
 	GdxsvBackendUdp udp_net_;
 	GdxsvBackendReplay replay_net_;
 	GdxsvBackendRollback rollback_net_;
-	GdxsvKeyDisplay key_display;
+	GdxsvKeyDisplay key_display_;
 };
 
 extern Gdxsv gdxsv;

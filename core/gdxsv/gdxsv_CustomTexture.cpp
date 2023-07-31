@@ -92,12 +92,11 @@ u8* GdxsvCustomTexture::LoadExtraTexture(const char* name, bool v_flip, int& wid
 #else
 
 	auto textures_base_path = textures_path.substr(0, textures_path.find_last_of("/"));
-	FILE *file = nowide::fopen((textures_base_path + "/Extra/" + name).c_str(), "rb");
-	if (file == nullptr)
-		return nullptr;
+	FILE* file = nowide::fopen((textures_base_path + "/Extra/" + name).c_str(), "rb");
+	if (file == nullptr) return nullptr;
 	int n;
 	stbi_set_flip_vertically_on_load((int)v_flip);
-	u8 *imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
+	u8* imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
 	std::fclose(file);
 	return imgData;
 

@@ -5,6 +5,24 @@
 
 #include "types.h"
 
+namespace McsKeyCode {
+enum {
+	A = 0x4000,
+	B = 0x2000,
+	X = 0x0002,
+	Y = 0x0001,
+	LT = 0x8000,
+	RT = 0x1000,
+	C = LT,
+	Z = RT,
+	UP = 0x0020,
+	DOWN = 0x0010,
+	RIGHT = 0x0004,
+	LEFT = 0x0008,
+	START = 0x0080,
+};
+};
+
 struct McsMessage {
 	std::vector<u8> body;
 

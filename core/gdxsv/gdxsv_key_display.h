@@ -3,30 +3,25 @@
 #include <array>
 #include <deque>
 
+#include "types.h"
+
 class GdxsvKeyDisplay {
-public:
-    enum KeyCode {
-        UP = 0x2000,
-        DOWN = 0x1000,
-        LEFT = 0x0800,
-        RIGHT = 0x0400,
-        SEARCH = 0x0040,
-        JUMP = 0x0080,
-        SHOOT = 0x0200,
-        COMBAT = 0x0100,
-        COOP = 0x0020,
-    };
+   public:
+	void DisplayOSD();
+	void AppendInput(int player, u16 mcs_key);
+	void SetDisplayPlayer(int player);
+	void Clear();
 
-    struct KeyInput {
-        int code;
-        int frame;
-    };
+	void enabled(bool enabled) { enabled_ = enabled; }
+	bool enabled() const { return enabled_; }
 
-    void DisplayOSD();
-    void AppendInput(int player, KeyInput input);
-    void SetCurrentFrame(int frame);
+   private:
+	struct McsPadInput {
+		int frame;
+		u16 code;
+	};
 
-private:
-    int current_frame;
-    std::array<std::deque<KeyInput>, 4> history;
+	bool enabled_ = false;
+	int display_player_ = 0;
+	std::array<std::deque<McsPadInput>, 4> history_;
 };
