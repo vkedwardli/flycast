@@ -10,8 +10,10 @@
 #endif
 
 #include "gdxsv_CustomTexture.h"
-#include "gdxsv_translation.h"
+
 #include <stb_image.h>
+
+#include "gdxsv_translation.h"
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
