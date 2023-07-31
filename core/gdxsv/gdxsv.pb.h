@@ -266,15 +266,43 @@ class P2PMatchingReport PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kFpsHistoryFieldNumber = 15,
     kBattleCodeFieldNumber = 1,
     kCloseReasonFieldNumber = 5,
-    kLogFieldNumber = 11,
+    kAfterLogFieldNumber = 11,
+    kBeforeLogFieldNumber = 12,
     kSessionIdFieldNumber = 2,
     kPlayerCountFieldNumber = 3,
     kPeerIdFieldNumber = 4,
     kFrameCountFieldNumber = 6,
     kDisconnectedPeerIdFieldNumber = 7,
+    kTotalTimesyncFieldNumber = 16,
+    kInputBlockCount2FieldNumber = 19,
+    kInputBlockCount0FieldNumber = 17,
+    kInputBlockCount1FieldNumber = 18,
   };
+  // repeated float fps_history = 15;
+  int fps_history_size() const;
+  private:
+  int _internal_fps_history_size() const;
+  public:
+  void clear_fps_history();
+  private:
+  float _internal_fps_history(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >&
+      _internal_fps_history() const;
+  void _internal_add_fps_history(float value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >*
+      _internal_mutable_fps_history();
+  public:
+  float fps_history(int index) const;
+  void set_fps_history(int index, float value);
+  void add_fps_history(float value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >&
+      fps_history() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >*
+      mutable_fps_history();
+
   // string battle_code = 1;
   void clear_battle_code();
   const std::string& battle_code() const;
@@ -307,20 +335,36 @@ class P2PMatchingReport PROTOBUF_FINAL :
   std::string* _internal_mutable_close_reason();
   public:
 
-  // string log = 11;
-  void clear_log();
-  const std::string& log() const;
-  void set_log(const std::string& value);
-  void set_log(std::string&& value);
-  void set_log(const char* value);
-  void set_log(const char* value, size_t size);
-  std::string* mutable_log();
-  std::string* release_log();
-  void set_allocated_log(std::string* log);
+  // string after_log = 11;
+  void clear_after_log();
+  const std::string& after_log() const;
+  void set_after_log(const std::string& value);
+  void set_after_log(std::string&& value);
+  void set_after_log(const char* value);
+  void set_after_log(const char* value, size_t size);
+  std::string* mutable_after_log();
+  std::string* release_after_log();
+  void set_allocated_after_log(std::string* after_log);
   private:
-  const std::string& _internal_log() const;
-  void _internal_set_log(const std::string& value);
-  std::string* _internal_mutable_log();
+  const std::string& _internal_after_log() const;
+  void _internal_set_after_log(const std::string& value);
+  std::string* _internal_mutable_after_log();
+  public:
+
+  // string before_log = 12;
+  void clear_before_log();
+  const std::string& before_log() const;
+  void set_before_log(const std::string& value);
+  void set_before_log(std::string&& value);
+  void set_before_log(const char* value);
+  void set_before_log(const char* value, size_t size);
+  std::string* mutable_before_log();
+  std::string* release_before_log();
+  void set_allocated_before_log(std::string* before_log);
+  private:
+  const std::string& _internal_before_log() const;
+  void _internal_set_before_log(const std::string& value);
+  std::string* _internal_mutable_before_log();
   public:
 
   // int32 session_id = 2;
@@ -368,6 +412,42 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void _internal_set_disconnected_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 total_timesync = 16;
+  void clear_total_timesync();
+  ::PROTOBUF_NAMESPACE_ID::int32 total_timesync() const;
+  void set_total_timesync(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_total_timesync() const;
+  void _internal_set_total_timesync(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 input_block_count_2 = 19;
+  void clear_input_block_count_2();
+  ::PROTOBUF_NAMESPACE_ID::int32 input_block_count_2() const;
+  void set_input_block_count_2(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_input_block_count_2() const;
+  void _internal_set_input_block_count_2(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 input_block_count_0 = 17;
+  void clear_input_block_count_0();
+  ::PROTOBUF_NAMESPACE_ID::int32 input_block_count_0() const;
+  void set_input_block_count_0(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_input_block_count_0() const;
+  void _internal_set_input_block_count_0(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 input_block_count_1 = 18;
+  void clear_input_block_count_1();
+  ::PROTOBUF_NAMESPACE_ID::int32 input_block_count_1() const;
+  void set_input_block_count_1(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_input_block_count_1() const;
+  void _internal_set_input_block_count_1(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.P2PMatchingReport)
  private:
   class _Internal;
@@ -375,14 +455,21 @@ class P2PMatchingReport PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< float > fps_history_;
+  mutable std::atomic<int> _fps_history_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr log_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr after_log_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr before_log_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 player_count_;
   ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 frame_count_;
   ::PROTOBUF_NAMESPACE_ID::int32 disconnected_peer_id_;
+  ::PROTOBUF_NAMESPACE_ID::int32 total_timesync_;
+  ::PROTOBUF_NAMESPACE_ID::int32 input_block_count_2_;
+  ::PROTOBUF_NAMESPACE_ID::int32 input_block_count_0_;
+  ::PROTOBUF_NAMESPACE_ID::int32 input_block_count_1_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -3536,66 +3623,255 @@ inline void P2PMatchingReport::set_disconnected_peer_id(::PROTOBUF_NAMESPACE_ID:
   // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.disconnected_peer_id)
 }
 
-// string log = 11;
-inline void P2PMatchingReport::clear_log() {
-  log_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+// string after_log = 11;
+inline void P2PMatchingReport::clear_after_log() {
+  after_log_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline const std::string& P2PMatchingReport::log() const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.log)
-  return _internal_log();
+inline const std::string& P2PMatchingReport::after_log() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.after_log)
+  return _internal_after_log();
 }
-inline void P2PMatchingReport::set_log(const std::string& value) {
-  _internal_set_log(value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.log)
+inline void P2PMatchingReport::set_after_log(const std::string& value) {
+  _internal_set_after_log(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.after_log)
 }
-inline std::string* P2PMatchingReport::mutable_log() {
-  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.log)
-  return _internal_mutable_log();
+inline std::string* P2PMatchingReport::mutable_after_log() {
+  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.after_log)
+  return _internal_mutable_after_log();
 }
-inline const std::string& P2PMatchingReport::_internal_log() const {
-  return log_.Get();
+inline const std::string& P2PMatchingReport::_internal_after_log() const {
+  return after_log_.Get();
 }
-inline void P2PMatchingReport::_internal_set_log(const std::string& value) {
+inline void P2PMatchingReport::_internal_set_after_log(const std::string& value) {
   
-  log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+  after_log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
 }
-inline void P2PMatchingReport::set_log(std::string&& value) {
+inline void P2PMatchingReport::set_after_log(std::string&& value) {
   
-  log_.Set(
+  after_log_.Set(
     &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:proto.P2PMatchingReport.log)
+  // @@protoc_insertion_point(field_set_rvalue:proto.P2PMatchingReport.after_log)
 }
-inline void P2PMatchingReport::set_log(const char* value) {
+inline void P2PMatchingReport::set_after_log(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   
-  log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+  after_log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
               GetArena());
-  // @@protoc_insertion_point(field_set_char:proto.P2PMatchingReport.log)
+  // @@protoc_insertion_point(field_set_char:proto.P2PMatchingReport.after_log)
 }
-inline void P2PMatchingReport::set_log(const char* value,
+inline void P2PMatchingReport::set_after_log(const char* value,
     size_t size) {
   
-  log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+  after_log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
       reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:proto.P2PMatchingReport.log)
+  // @@protoc_insertion_point(field_set_pointer:proto.P2PMatchingReport.after_log)
 }
-inline std::string* P2PMatchingReport::_internal_mutable_log() {
+inline std::string* P2PMatchingReport::_internal_mutable_after_log() {
   
-  return log_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  return after_log_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline std::string* P2PMatchingReport::release_log() {
-  // @@protoc_insertion_point(field_release:proto.P2PMatchingReport.log)
-  return log_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+inline std::string* P2PMatchingReport::release_after_log() {
+  // @@protoc_insertion_point(field_release:proto.P2PMatchingReport.after_log)
+  return after_log_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline void P2PMatchingReport::set_allocated_log(std::string* log) {
-  if (log != nullptr) {
+inline void P2PMatchingReport::set_allocated_after_log(std::string* after_log) {
+  if (after_log != nullptr) {
     
   } else {
     
   }
-  log_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), log,
+  after_log_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), after_log,
       GetArena());
-  // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.log)
+  // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.after_log)
+}
+
+// string before_log = 12;
+inline void P2PMatchingReport::clear_before_log() {
+  before_log_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& P2PMatchingReport::before_log() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.before_log)
+  return _internal_before_log();
+}
+inline void P2PMatchingReport::set_before_log(const std::string& value) {
+  _internal_set_before_log(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.before_log)
+}
+inline std::string* P2PMatchingReport::mutable_before_log() {
+  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.before_log)
+  return _internal_mutable_before_log();
+}
+inline const std::string& P2PMatchingReport::_internal_before_log() const {
+  return before_log_.Get();
+}
+inline void P2PMatchingReport::_internal_set_before_log(const std::string& value) {
+  
+  before_log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void P2PMatchingReport::set_before_log(std::string&& value) {
+  
+  before_log_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:proto.P2PMatchingReport.before_log)
+}
+inline void P2PMatchingReport::set_before_log(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  before_log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:proto.P2PMatchingReport.before_log)
+}
+inline void P2PMatchingReport::set_before_log(const char* value,
+    size_t size) {
+  
+  before_log_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:proto.P2PMatchingReport.before_log)
+}
+inline std::string* P2PMatchingReport::_internal_mutable_before_log() {
+  
+  return before_log_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* P2PMatchingReport::release_before_log() {
+  // @@protoc_insertion_point(field_release:proto.P2PMatchingReport.before_log)
+  return before_log_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void P2PMatchingReport::set_allocated_before_log(std::string* before_log) {
+  if (before_log != nullptr) {
+    
+  } else {
+    
+  }
+  before_log_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), before_log,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.before_log)
+}
+
+// repeated float fps_history = 15;
+inline int P2PMatchingReport::_internal_fps_history_size() const {
+  return fps_history_.size();
+}
+inline int P2PMatchingReport::fps_history_size() const {
+  return _internal_fps_history_size();
+}
+inline void P2PMatchingReport::clear_fps_history() {
+  fps_history_.Clear();
+}
+inline float P2PMatchingReport::_internal_fps_history(int index) const {
+  return fps_history_.Get(index);
+}
+inline float P2PMatchingReport::fps_history(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.fps_history)
+  return _internal_fps_history(index);
+}
+inline void P2PMatchingReport::set_fps_history(int index, float value) {
+  fps_history_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.fps_history)
+}
+inline void P2PMatchingReport::_internal_add_fps_history(float value) {
+  fps_history_.Add(value);
+}
+inline void P2PMatchingReport::add_fps_history(float value) {
+  _internal_add_fps_history(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.fps_history)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >&
+P2PMatchingReport::_internal_fps_history() const {
+  return fps_history_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >&
+P2PMatchingReport::fps_history() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.fps_history)
+  return _internal_fps_history();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >*
+P2PMatchingReport::_internal_mutable_fps_history() {
+  return &fps_history_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >*
+P2PMatchingReport::mutable_fps_history() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.fps_history)
+  return _internal_mutable_fps_history();
+}
+
+// int32 total_timesync = 16;
+inline void P2PMatchingReport::clear_total_timesync() {
+  total_timesync_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_total_timesync() const {
+  return total_timesync_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::total_timesync() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.total_timesync)
+  return _internal_total_timesync();
+}
+inline void P2PMatchingReport::_internal_set_total_timesync(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  total_timesync_ = value;
+}
+inline void P2PMatchingReport::set_total_timesync(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_total_timesync(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.total_timesync)
+}
+
+// int32 input_block_count_0 = 17;
+inline void P2PMatchingReport::clear_input_block_count_0() {
+  input_block_count_0_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_input_block_count_0() const {
+  return input_block_count_0_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::input_block_count_0() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.input_block_count_0)
+  return _internal_input_block_count_0();
+}
+inline void P2PMatchingReport::_internal_set_input_block_count_0(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  input_block_count_0_ = value;
+}
+inline void P2PMatchingReport::set_input_block_count_0(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_input_block_count_0(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.input_block_count_0)
+}
+
+// int32 input_block_count_1 = 18;
+inline void P2PMatchingReport::clear_input_block_count_1() {
+  input_block_count_1_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_input_block_count_1() const {
+  return input_block_count_1_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::input_block_count_1() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.input_block_count_1)
+  return _internal_input_block_count_1();
+}
+inline void P2PMatchingReport::_internal_set_input_block_count_1(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  input_block_count_1_ = value;
+}
+inline void P2PMatchingReport::set_input_block_count_1(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_input_block_count_1(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.input_block_count_1)
+}
+
+// int32 input_block_count_2 = 19;
+inline void P2PMatchingReport::clear_input_block_count_2() {
+  input_block_count_2_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_input_block_count_2() const {
+  return input_block_count_2_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::input_block_count_2() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.input_block_count_2)
+  return _internal_input_block_count_2();
+}
+inline void P2PMatchingReport::_internal_set_input_block_count_2(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  input_block_count_2_ = value;
+}
+inline void P2PMatchingReport::set_input_block_count_2(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_input_block_count_2(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.input_block_count_2)
 }
 
 // -------------------------------------------------------------------

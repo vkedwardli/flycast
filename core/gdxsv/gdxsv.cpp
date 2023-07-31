@@ -368,7 +368,7 @@ std::vector<u8> Gdxsv::GenerateP2PMatchReportPacket() {
 	for (const auto &line : lines) {
 		ss << line;
 	}
-	rbk_report.set_log(ss.str());
+	rbk_report.set_after_log(ss.str());
 
 	std::string data;
 	if (rbk_report.SerializeToString(&data)) {

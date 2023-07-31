@@ -45,6 +45,8 @@ struct NetworkStats {
 	   int total_rollbacked_frames;
 	   int total_timesync;
 	   int current_timesync;
+	   float current_fps;
+	   int input_block_count[3];
    } extra;
 };
 

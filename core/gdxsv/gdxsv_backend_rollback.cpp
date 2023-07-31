@@ -14,6 +14,7 @@
 #include "imgui/imgui_internal.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
+#include "log/InMemoryListener.h"
 #include "network/ggpo.h"
 #include "network/net_platform.h"
 #include "rend/boxart/http_client.h"
@@ -218,6 +219,14 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 			SetCloseReason("unreachable");
 			error_fast_return_ = true;
 			emu.start();
+		}
+		{
+			std::ostringstream ss;
+			auto lines = InMemoryListener::getInstance()->getLog();
+			for (const auto& line : lines) {
+				ss << line;
+			}
+			report_.set_before_log(ss.str());
 		}
 	}
 
@@ -597,6 +606,19 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 	if (!ggpo::rollbacking()) {
 		report_.set_frame_count(frame);
+
+		if (0 < frame && frame % 600 == 0) {
+			auto me = matching_.peer_id();
+			ggpo::NetworkStats stats{};
+			if (ggpo::active()) {
+				ggpo::getNetworkStats(me, &stats);
+				report_.add_fps_history(stats.extra.current_fps);
+				report_.set_total_timesync(stats.extra.total_timesync);
+				report_.set_input_block_count_0(stats.extra.input_block_count[0]);
+				report_.set_input_block_count_1(stats.extra.input_block_count[1]);
+				report_.set_input_block_count_2(stats.extra.input_block_count[2]);
+			}
+		}
 	}
 
 	verify(recv_buf_.size() <= size);
