@@ -10,6 +10,7 @@
 
 std::future<std::string> test_udp_port_connectivity(int port, bool ipv6);
 std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6);
+std::future<std::map<std::string, int>> gcp_ping_test();
 int get_random_port_number();
 std::string sockaddr_to_string(const sockaddr *addr);
 bool is_loopback_addr(const sockaddr *addr);

@@ -121,10 +121,12 @@ static GGPOPlayerHandle remotePlayer;
 static int disconnect_flags;
 static bool synchronized;
 static std::recursive_mutex ggpoMutex;
-static std::array<int, 5> msPerFrame;
-static int msPerFrameIndex;
+static std::array<int, 10> usPerFrame;
+static int usPerFrameIndex;
 static time_point<steady_clock> lastFrameTime;
-static int msPerFrameAvg;
+static int usPerFrameAvg;
+static float fpsAvg;
+static std::array<int, 3> inputBlockCount;
 static bool _endOfFrame;
 static MiniUPnP miniupnp;
 static int analogAxes;
@@ -510,6 +512,7 @@ void startSession(int localPort, int localPlayerNum)
 	cb.log_game_state  = log_game_state;
 	cb.on_message      = on_message;
 	disconnect_flags = 0;
+	inputBlockCount.fill(0);
 
 #ifdef SYNC_TEST
 	GGPOErrorCode result = ggpo_start_synctest(&ggpoSession, &cb, settings.content.gameId.c_str(), 2, sizeof(kcode[0]), 1);
@@ -717,10 +720,11 @@ bool nextFrame()
 	auto now = std::chrono::steady_clock::now();
 	if (lastFrameTime != time_point<steady_clock>())
 	{
-		msPerFrame[msPerFrameIndex++] = duration_cast<milliseconds>(now - lastFrameTime).count();
-		if (msPerFrameIndex >= (int)msPerFrame.size())
-			msPerFrameIndex = 0;
-		msPerFrameAvg = std::accumulate(msPerFrame.begin(), msPerFrame.end(), 0) / msPerFrame.size();
+		usPerFrame[usPerFrameIndex++] = duration_cast<microseconds>(now - lastFrameTime).count();
+		if (usPerFrameIndex >= (int)usPerFrame.size())
+			usPerFrameIndex = 0;
+		usPerFrameAvg = std::accumulate(usPerFrame.begin(), usPerFrame.end(), 0) / usPerFrame.size();
+		fpsAvg = static_cast<float>(usPerFrame.size()) * 1000 * 1000 / std::accumulate(usPerFrame.begin(), usPerFrame.end(), 0);
 	}
 	lastFrameTime = now;
 
@@ -802,6 +806,11 @@ bool nextFrame()
 		error = ggpo_add_local_input(ggpoSession, localPlayer, &inputs, inputSize);
 		if (error == GGPO_OK)
 		{
+			if (0 < loop_count) {
+				if (loop_count * 5 <= 30) inputBlockCount[0]++;
+				else if (loop_count * 5 <= 500) inputBlockCount[1]++;
+				else inputBlockCount[2]++;
+			}
 			if (2 < loop_count)
 				NOTICE_LOG(NETWORK, "ggpo_add_local_input prediction barrier reached looped %dms", loop_count * 5);
 			break;
@@ -1052,6 +1061,10 @@ void getNetworkStats(int playerNum, NetworkStats* stats)
 	stats->extra.total_rollbacked_frames = totalRollbackFrames;
 	stats->extra.total_timesync = totalTimeSync;
 	stats->extra.current_timesync = timeSyncFrames;
+	stats->extra.current_fps = fpsAvg;
+	stats->extra.input_block_count[0] = inputBlockCount[0];
+	stats->extra.input_block_count[1] = inputBlockCount[1];
+	stats->extra.input_block_count[2] = inputBlockCount[2];
 	ggpo_get_network_stats(ggpoSession, playerHandles[playerNum], (GGPONetworkStats*)stats);
 }
 
@@ -1068,7 +1081,8 @@ void gdxsvStartSession(const char* sessionCode, int me,
 	cb.log_game_state  = log_game_state;
 	cb.on_message      = on_message;
 	memset(playerHandles, 0, sizeof(playerHandles));
-
+	disconnect_flags = 0;
+	inputBlockCount.fill(0);
 	useExInput = true;
 	localExInput = 0;
 	analogAxes = 2;

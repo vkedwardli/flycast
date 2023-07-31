@@ -89,6 +89,91 @@ std::future<std::string> test_udp_port_connectivity(int port, bool ipv6) {
 	});
 }
 
+std::future<std::map<std::string, int>> gcp_ping_test() {
+	auto fn = []() -> std::map<std::string, int> {
+		std::map<std::string, int> test_result;
+
+		// powered by https://github.com/GoogleCloudPlatform/gcping
+		const std::string get_path = "/api/ping";
+		const std::map<std::string, std::string> gcp_region_hosts = {
+			{"asia-east1", "asia-east1-5tkroniexa-de.a.run.app"},
+			{"asia-east2", "asia-east2-5tkroniexa-df.a.run.app"},
+			{"asia-northeast1", "asia-northeast1-5tkroniexa-an.a.run.app"},
+			{"asia-northeast2", "asia-northeast2-5tkroniexa-dt.a.run.app"},
+			{"asia-northeast3", "asia-northeast3-5tkroniexa-du.a.run.app"},
+			{"asia-south1", "asia-south1-5tkroniexa-el.a.run.app"},
+			{"asia-southeast1", "asia-southeast1-5tkroniexa-as.a.run.app"},
+			{"australia-southeast1", "australia-southeast1-5tkroniexa-ts.a.run.app"},
+			{"europe-north1", "europe-north1-5tkroniexa-lz.a.run.app"},
+			{"europe-west1", "europe-west1-5tkroniexa-ew.a.run.app"},
+			{"europe-west2", "europe-west2-5tkroniexa-nw.a.run.app"},
+			{"europe-west3", "europe-west3-5tkroniexa-ey.a.run.app"},
+			{"europe-west4", "europe-west4-5tkroniexa-ez.a.run.app"},
+			{"europe-west6", "europe-west6-5tkroniexa-oa.a.run.app"},
+			{"northamerica-northeast1", "northamerica-northeast1-5tkroniexa-nn.a.run.app"},
+			{"southamerica-east1", "southamerica-east1-5tkroniexa-rj.a.run.app"},
+			{"us-central1", "us-central1-5tkroniexa-uc.a.run.app"},
+			{"us-east1", "us-east1-5tkroniexa-ue.a.run.app"},
+			{"us-east4", "us-east4-5tkroniexa-uk.a.run.app"},
+			{"us-west1", "us-west1-5tkroniexa-uw.a.run.app"},
+			{"us-west2", "us-west2-5tkroniexa-wl.a.run.app"},
+			{"us-west3", "us-west3-5tkroniexa-wm.a.run.app"},
+		};
+
+		for (const auto &region_host : gcp_region_hosts) {
+			TcpClient client;
+			std::stringstream ss;
+			ss << "HEAD " << get_path << " HTTP/1.1"
+			   << "\r\n";
+			ss << "Host: " << region_host.second << "\r\n";
+			ss << "User-Agent: flycast for gdxsv"
+			   << "\r\n";
+			ss << "Accept: */*"
+			   << "\r\n";
+			ss << "\r\n";  // end of header
+
+			if (!client.Connect(region_host.second.c_str(), 80)) {
+				ERROR_LOG(COMMON, "connect failed : %s", region_host.first.c_str());
+				continue;
+			}
+
+			auto request_header = ss.str();
+			auto t1 = std::chrono::high_resolution_clock::now();
+			int n = client.Send(request_header.c_str(), request_header.size());
+			if (n < request_header.size()) {
+				ERROR_LOG(COMMON, "send failed : %s", region_host.first.c_str());
+				client.Close();
+				continue;
+			}
+
+			char buf[1024] = {0};
+			n = client.Recv(buf, 1024);
+			if (n <= 0) {
+				ERROR_LOG(COMMON, "recv failed : %s", region_host.first.c_str());
+				client.Close();
+				continue;
+			}
+
+			auto t2 = std::chrono::high_resolution_clock::now();
+			int rtt = (int)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+			const std::string response_header(buf, n);
+			if (response_header.find("200 OK") == std::string::npos && response_header.find("302 Found") == std::string::npos) {
+				ERROR_LOG(COMMON, "error response : %s", response_header.c_str());
+			} else {
+				test_result[region_host.first] = rtt;
+				char latency_str[256];
+				snprintf(latency_str, 256, "%s : %d[ms]", region_host.first.c_str(), rtt);
+				NOTICE_LOG(COMMON, "%s", latency_str);
+			}
+			client.Close();
+		}
+
+		return test_result;
+	};
+
+	return std::async(std::launch::async, fn);
+}
+
 int get_random_port_number() {
 	std::random_device rd;
 	std::mt19937 gen(rd());
