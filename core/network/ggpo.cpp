@@ -25,6 +25,8 @@
 #include "cfg/option.h"
 #include <algorithm>
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+
 void UpdateInputState();
 
 namespace ggpo
@@ -67,6 +69,11 @@ static void getLocalInput(MapleInputState inputState[4])
 		mo_x_delta[player] -= relX;
 		mo_y_delta[player] -= relY;
 		mo_wheel_delta[player] -= wheel;
+
+		if (gdxsv_enabled()) {
+			if (state.halfAxes[PJTI_L2] >= 64) state.kcode &= ~(DC_BTN_A | DC_BTN_X);
+			if (state.halfAxes[PJTI_R2] >= 64) state.kcode &= ~(DC_BTN_A | DC_BTN_Y);
+		}
 	}
 }
 
@@ -802,6 +809,10 @@ bool nextFrame()
 		if (useExInput)
 		{
 			inputs.exInput = localExInput;
+		}
+		if (gdxsv_enabled()) {
+			if (lt2[0] >= 64) inputs.kcode |= DC_BTN_A | DC_BTN_X;
+			if (rt2[0] >= 64) inputs.kcode |= DC_BTN_A | DC_BTN_Y;
 		}
 		error = ggpo_add_local_input(ggpoSession, localPlayer, &inputs, inputSize);
 		if (error == GGPO_OK)
