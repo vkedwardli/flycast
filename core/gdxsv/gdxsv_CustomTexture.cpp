@@ -5,15 +5,13 @@
 //  Created by Edward Li on 3/6/2021.
 //  Copyright 2021 flycast. All rights reserved.
 //
-#if defined(__APPLE__) || defined(_WIN32)
-
 #ifdef _WIN32
 #define _AMD64_	 // Fixing GitHub runner's winnt.h error
 #endif
 
 #include "gdxsv_CustomTexture.h"
-
 #include "gdxsv_translation.h"
+#include <stb_image.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -22,7 +20,6 @@
 
 #include "oslib/directory.h"
 #elif _WIN32
-#include <stb_image.h>
 #include <winbase.h>
 #include <winnls.h>
 #include <winuser.h>
@@ -162,4 +159,3 @@ u8* GdxsvCustomTexture::LoadCustomTexture(u32 hash, int& width, int& height) {
 }
 
 #endif
-#endif	// __APPLE__ || _WIN32

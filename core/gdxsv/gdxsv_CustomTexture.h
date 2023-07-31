@@ -5,7 +5,6 @@
 //  Created by Edward Li on 3/6/2021.
 //  Copyright 2021 flycast. All rights reserved.
 //
-#if defined(__APPLE__) || defined(_WIN32)
 #pragma once
 
 // clang-format off
@@ -26,4 +25,3 @@ class GdxsvCustomTexture : public CustomTexture {
 #endif
 };
 extern GdxsvCustomTexture gdx_custom_texture;
-#endif
