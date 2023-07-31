@@ -810,6 +810,10 @@ bool nextFrame()
 		{
 			inputs.exInput = localExInput;
 		}
+		if (gdxsv_enabled()) {
+			if (lt2[0] >= 64) inputs.kcode |= DC_BTN_A | DC_BTN_X;
+			if (rt2[0] >= 64) inputs.kcode |= DC_BTN_A | DC_BTN_Y;
+		}
 		error = ggpo_add_local_input(ggpoSession, localPlayer, &inputs, inputSize);
 		if (error == GGPO_OK)
 		{
