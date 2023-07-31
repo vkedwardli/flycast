@@ -8,6 +8,7 @@
 #include "gdxsv_backend_rollback.h"
 #include "gdxsv_backend_tcp.h"
 #include "gdxsv_backend_udp.h"
+#include "gdxsv_key_display.h"
 #include "network/miniupnp.h"
 #include "types.h"
 
@@ -84,6 +85,7 @@ class Gdxsv {
 	GdxsvBackendUdp udp_net_;
 	GdxsvBackendReplay replay_net_;
 	GdxsvBackendRollback rollback_net_;
+	GdxsvKeyDisplay key_display_;
 };
 
 extern Gdxsv gdxsv;

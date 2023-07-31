@@ -5,7 +5,6 @@
 //  Created by Edward Li on 3/6/2021.
 //  Copyright 2021 flycast. All rights reserved.
 //
-#if defined(__APPLE__) || defined(_WIN32)
 #pragma once
 
 // clang-format off
@@ -16,6 +15,8 @@
 class GdxsvCustomTexture : public CustomTexture {
    public:
 	bool Init() override;
+	u8* LoadExtraTexture(const char* name, bool v_flip, int& width, int& height);
+
 #ifdef _WIN32
 	u8* LoadCustomTexture(u32 hash, int& width, int& height) override;
 
@@ -24,4 +25,3 @@ class GdxsvCustomTexture : public CustomTexture {
 #endif
 };
 extern GdxsvCustomTexture gdx_custom_texture;
-#endif

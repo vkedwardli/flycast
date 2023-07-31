@@ -26,7 +26,7 @@ class GdxsvBackendReplay {
 			// System used
 			SaveFirstFrame,
 			SetMaxLag,
-			SeekToGameScene,
+			SeekToBriefing,
 
 			// User control
 			TogglePauseMenu,

@@ -5,15 +5,13 @@
 //  Created by Edward Li on 3/6/2021.
 //  Copyright 2021 flycast. All rights reserved.
 //
-#if defined(__APPLE__) || defined(_WIN32)
-
 #ifdef _WIN32
 #define _AMD64_	 // Fixing GitHub runner's winnt.h error
 #endif
 
 #include "gdxsv_CustomTexture.h"
-
 #include "gdxsv_translation.h"
+#include <stb_image.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -22,7 +20,6 @@
 
 #include "oslib/directory.h"
 #elif _WIN32
-#include <stb_image.h>
 #include <winbase.h>
 #include <winnls.h>
 #include <winuser.h>
@@ -58,6 +55,49 @@ bool GdxsvCustomTexture::Init() {
 		}
 	}
 	return custom_textures_available;
+}
+
+u8* GdxsvCustomTexture::LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) {
+	if (!custom_textures_available) {
+		return nullptr;
+	}
+
+#ifdef _WIN32
+	u8* imgData = nullptr;
+	std::string upper_name = name;
+	std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
+	if (upper_name.find_last_of("PNG") != std::string::npos) {
+		upper_name = upper_name.substr(0, upper_name.find_last_of('.'));
+	}
+	HRSRC source = FindResourceA(GetModuleHandle(NULL), ("EXTRA_" + upper_name).c_str(), "GDXSV_TEXTURE");
+	if (source != NULL) {
+		unsigned int size = SizeofResource(NULL, source);
+		HGLOBAL memory = LoadResource(NULL, source);
+
+		if (memory != NULL) {
+			void* data = LockResource(memory);
+
+			int n;
+			stbi_set_flip_vertically_on_load((int)v_flip);
+			imgData = stbi_load_from_memory(static_cast<unsigned char*>(data), size, &width, &height, &n, STBI_rgb_alpha);
+
+			FreeResource(memory);
+		}
+	}
+	return imgData;
+
+#else
+
+	auto textures_base_path = textures_path.substr(0, textures_path.find_last_of("/"));
+	FILE* file = nowide::fopen((textures_base_path + "/Extra/" + name).c_str(), "rb");
+	if (file == nullptr) return nullptr;
+	int n;
+	stbi_set_flip_vertically_on_load((int)v_flip);
+	u8* imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
+	std::fclose(file);
+	return imgData;
+
+#endif
 }
 
 #ifdef _WIN32
@@ -119,4 +159,3 @@ u8* GdxsvCustomTexture::LoadCustomTexture(u32 hash, int& width, int& height) {
 }
 
 #endif
-#endif	// __APPLE__ || _WIN32
