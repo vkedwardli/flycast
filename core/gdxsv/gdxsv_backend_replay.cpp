@@ -7,12 +7,15 @@
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
+#include "gdxsv_prof.h"
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
 #include "rend/gui.h"
 #include "rend/gui_util.h"
 #include "sdl/sdl.h"
+
+using namespace std::chrono;
 
 void GdxsvBackendReplay::Reset() {
 	state_ = State::None;
@@ -45,26 +48,29 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 	*/
 
+	if (state_ == State::End) {
+		gdxsv_save_state.Reset();
+		gdxsv_end_replay();
+		return;
+	}
+
 	if (state_ == State::Start) {
 		kcode[0] = ~0x0004u;
-		ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameForward, 60});
+		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameForward, 60});
 	}
 
 	if (state_ == State::McsInBattle) {
 		const int disk = gdxsv.Disk();
 		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
-		if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 1) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing, 60});
-		}
 		if (gdxsv_ReadMem8(COM_R_No0) == 4 && (gdxsv_ReadMem8(COM_R_No0 + 5) == 3 || gdxsv_ReadMem8(COM_R_No0 + 5) == 4)) {
+			// re-battle end
 			Stop();
+		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
+			// not game scene
+			if (ctrl_commands_.empty()) {
+				ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
+			}
 		}
-	}
-
-	if (state_ == State::End) {
-		gdxsv_save_state.Reset();
-		gdxsv_end_replay();
-		return;
 	}
 
 	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_) {
@@ -109,7 +115,15 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 }
 
-void GdxsvBackendReplay::OnVBlank() {
+void GdxsvBackendReplay::OnEndOfFrame() {
+	end_of_frame_ = true;
+	sh4_cpu.Stop();
+}
+
+void GdxsvBackendReplay::OnNextFrame() {
+	if (!end_of_frame_) return;
+	if (seeking_) return;
+
 	constexpr int save_interval = 180;
 	auto in_briefing = [disk = gdxsv.Disk()]() -> bool {
 		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 5
@@ -120,6 +134,8 @@ void GdxsvBackendReplay::OnVBlank() {
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
 
+	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
+
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
 
 	// Regular save state
@@ -127,9 +143,9 @@ void GdxsvBackendReplay::OnVBlank() {
 		gdxsv_save_state.SaveState(key_msg_count_);
 	}
 
-	while (!ctrl_commands_.empty()) {
+	ReplayCtrlCommand ctrl{};
+	while (ctrl_commands_.try_get_front(ctrl)) {
 		constexpr int duration = 1000;
-		auto &ctrl = ctrl_commands_.front();
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePauseMenu) {
 			pause_menu_opend_ = !pause_menu_opend_;
@@ -139,6 +155,7 @@ void GdxsvBackendReplay::OnVBlank() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::SaveFirstFrame) {
 			if (!recv_buf_.empty()) break;
+			NOTICE_LOG(COMMON, "SaveFirstFrame saved");
 			gdxsv_save_state.Clear();
 			gdxsv_save_state.SaveState(key_msg_count_);
 			ctrl_commands_.pop_front();
@@ -180,47 +197,71 @@ void GdxsvBackendReplay::OnVBlank() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
-			static std::chrono::high_resolution_clock::time_point t0;
-			const int skip_frames = ctrl.arg1 != 0 ? ctrl.arg1 : 300;
-			if (ctrl.var1 == 0) {
-				t0 = std::chrono::high_resolution_clock::now();
-				ctrl.var1 = 1;
-				ctrl.var2 = skip_frames;
+			gui_display_notification(">>", duration);
+			const int skip_frames = 1 <= ctrl.arg1 ? ctrl.arg1 : save_interval;
+			int skipped_frame;
+			auto t0 = high_resolution_clock::now();
+
+			const int prev_key_msg_count = key_msg_count_;
+			for (skipped_frame = 0; skipped_frame < skip_frames; skipped_frame++) {
 				settings.aica.muteAudio = true;
+				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames;
 				rend_enable_renderer(false);
-				gui_display_notification(">>", duration);
-			}
-			if (ctrl.var2-- == 0) {
+				seeking_ = true;
+				emu.run();
+				// Regular save state
+				if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ &&
+					recv_buf_.empty()) {
+					gdxsv_save_state.SaveState(key_msg_count_);
+				}
 				settings.aica.muteAudio = false;
+				settings.gdxsv.skipRenderingHack = false;
 				rend_enable_renderer(true);
-				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0).count();
-				NOTICE_LOG(COMMON, "SomeFrameForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skip_frames, ms, (float)ms / skip_frames);
-				ctrl_commands_.pop_front();
-			} else {
-				break;
+				seeking_ = false;
+				end_of_frame_ = false;
+				if (need_cancel()) break;
 			}
+
+			if (0 < skipped_frame) {
+				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
+				NOTICE_LOG(COMMON, "SomeFrameForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
+						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
+				char buf[256];
+				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
+				gui_display_notification(buf, duration);
+			}
+			ctrl_commands_.pop_front();
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekToBriefing) {
-			ctrl.var1++;
-			if (ctrl.var1 == 1) {
-				if (in_briefing() || in_game()) {
-					ctrl_commands_.pop_front();
-				} else {
-					ctrl_pause_ = false;
-					gui_display_notification("Loading...", duration);
-				}
-			} else if (ctrl.var1 == 3) {
+			auto t0 = high_resolution_clock::now();
+			int skipped_frame = 0;
+
+			while (!(in_briefing() || in_game() || need_cancel())) {
 				settings.aica.muteAudio = true;
+				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
 				rend_enable_renderer(false);
-			} else if (in_briefing() || in_game()) {
+				seeking_ = true;
+				emu.run();
 				settings.aica.muteAudio = false;
+				settings.gdxsv.skipRenderingHack = false;
 				rend_enable_renderer(true);
-				gdxsv.key_display_.Clear();
-				ctrl_commands_.pop_front();
-			} else {
-				break;
+				seeking_ = false;
+				end_of_frame_ = false;
+				skipped_frame++;
+				if (need_cancel()) break;
 			}
+
+			if (0 < skipped_frame) {
+				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
+				NOTICE_LOG(COMMON, "SeekToBriefing skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skipped_frame, ms, (float)ms / skipped_frame);
+				char buf[256];
+				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
+				gui_display_notification(buf, duration);
+			}
+
+			ctrl_commands_.pop_front();
+			gdxsv.key_display_.Clear();
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameBackward) {
@@ -235,9 +276,6 @@ void GdxsvBackendReplay::OnVBlank() {
 						KillTex = true;
 					}
 					gui_display_notification("<<", duration);
-					NOTICE_LOG(COMMON, "LoadState ok");
-				} else {
-					NOTICE_LOG(COMMON, "LoadState failure");
 				}
 			}
 			ctrl_commands_.pop_front();
@@ -287,7 +325,7 @@ void GdxsvBackendReplay::OnVBlank() {
 				gdxsv.maxlag_ = 1;	// for StartMsg
 				NOTICE_LOG(COMMON, "ctrl_change_round_:%d key_msg_count_:%d", round, key_msg_count_);
 				NOTICE_LOG(COMMON, "start_msg_randoms_size:%d", log_file_.start_msg_randoms_size());
-				ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
+				ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
 			}
 
 			ctrl_commands_.pop_front();
@@ -300,7 +338,7 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 		return false;
 	}
 
-	ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::TogglePauseMenu});
+	ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::TogglePauseMenu});
 
 	return false;
 }
@@ -311,11 +349,11 @@ void GdxsvBackendReplay::DisplayOSD() {
 	}
 }
 
-bool GdxsvBackendReplay::StartFile(const char *path, int pov) {
+bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 #ifdef NOWIDE_CONFIG_H_INCLUDED
-	FILE *fp = nowide::fopen(path, "rb");
+	FILE* fp = nowide::fopen(path, "rb");
 #else
-	FILE *fp = fopen(path, "rb");
+	FILE* fp = fopen(path, "rb");
 #endif
 	if (fp == nullptr) {
 		NOTICE_LOG(COMMON, "fopen failed path:%s", path);
@@ -338,7 +376,7 @@ bool GdxsvBackendReplay::StartFile(const char *path, int pov) {
 	return Start();
 }
 
-bool GdxsvBackendReplay::StartBuffer(const std::vector<u8> &buf, int pov) {
+bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 	bool ok = log_file_.ParseFromArray(buf.data(), buf.size());
 	if (!ok) {
 		NOTICE_LOG(COMMON, "ParseFromArray failed");
@@ -357,6 +395,10 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8> &buf, int pov) {
 void GdxsvBackendReplay::Stop() {
 	RestorePatch();
 	config::SkipFrame.reset();
+	ctrl_commands_.clear();
+	settings.gdxsv.skipRenderingHack = false;
+	settings.aica.muteAudio = false;
+	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();
 	gdxsv.key_display_.enabled(false);
 	state_ = State::End;
@@ -371,7 +413,7 @@ void GdxsvBackendReplay::Stop() {
 		}
 
 		auto replay_file = replay_dir + "/" + log_file_.battle_code() + "_converted.pb";
-		FILE *f = nowide::fopen(replay_file.c_str(), "wb");
+		FILE* f = nowide::fopen(replay_file.c_str(), "wb");
 		if (f == nullptr) {
 			ERROR_LOG(COMMON, "SaveReplay: fopen failure");
 			return;
@@ -397,30 +439,30 @@ bool GdxsvBackendReplay::ChangeRoundAvailable() const {
 	return 0 < log_file_.start_msg_indexes_size() && log_file_.start_msg_indexes_size() == log_file_.start_msg_randoms_size();
 }
 
-void GdxsvBackendReplay::CtrlSpeedUp() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeSpeed, 1}); }
+void GdxsvBackendReplay::CtrlSpeedUp() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeSpeed, 1}); }
 
-void GdxsvBackendReplay::CtrlSpeedDown() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeSpeed, -1}); }
+void GdxsvBackendReplay::CtrlSpeedDown() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeSpeed, -1}); }
 
 void GdxsvBackendReplay::CtrlSetSpeed(int speed) {
-	ctrl_commands_.emplace_back(ReplayCtrlCommand{
+	ctrl_commands_.push_back(ReplayCtrlCommand{
 		ReplayCtrlCommand::SetSpeed,
 		speed,
 	});
 }
 
-void GdxsvBackendReplay::CtrlTogglePause() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::TogglePause}); }
+void GdxsvBackendReplay::CtrlTogglePause() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::TogglePause}); }
 
-void GdxsvBackendReplay::CtrlStepFrame() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::StepFrame}); }
+void GdxsvBackendReplay::CtrlStepFrame() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::StepFrame}); }
 
-void GdxsvBackendReplay::CtrlSomeFrameBackward() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameBackward}); }
+void GdxsvBackendReplay::CtrlSomeFrameBackward() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameBackward}); }
 
-void GdxsvBackendReplay::CtrlSomeFrameForward() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameForward}); }
+void GdxsvBackendReplay::CtrlSomeFrameForward() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameForward}); }
 
-void GdxsvBackendReplay::CtrlSetRound(int round) { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SetRound, round}); }
+void GdxsvBackendReplay::CtrlSetRound(int round) { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SetRound, round}); }
 
-void GdxsvBackendReplay::CtrlNextRound() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeRound, 1}); }
+void GdxsvBackendReplay::CtrlNextRound() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeRound, 1}); }
 
-void GdxsvBackendReplay::CtrlPrevRound() { ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeRound, -1}); }
+void GdxsvBackendReplay::CtrlPrevRound() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeRound, -1}); }
 
 void GdxsvBackendReplay::Open() {
 	recv_buf_.assign({0x0e, 0x61, 0x00, 0x22, 0x10, 0x31, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd});
@@ -437,11 +479,7 @@ void GdxsvBackendReplay::Close() {
 		PrintDisconnectionSummary();
 	}
 
-	RestorePatch();
-	config::SkipFrame.reset();
-	gdxsv_save_state.EndUsing();
-	gdxsv.key_display_.enabled(false);
-	state_ = State::End;
+	Stop();
 }
 
 u32 GdxsvBackendReplay::OnSockWrite(u32 addr, u32 size) {
@@ -451,7 +489,7 @@ u32 GdxsvBackendReplay::OnSockWrite(u32 addr, u32 size) {
 			buf[i] = gdxsv_ReadMem8(addr + i);
 		}
 
-		lbs_tx_reader_.Write((const char *)buf, size);
+		lbs_tx_reader_.Write((const char*)buf, size);
 		ProcessLbsMessage();
 	}
 
@@ -523,12 +561,12 @@ bool GdxsvBackendReplay::Start() {
 		// proto2 required fields was moved to UnknownFields
 		for (int i = 0; i < log_file_.battle_data_size(); ++i) {
 			auto data = log_file_.mutable_battle_data(i);
-			const auto &fields = proto::BattleLogFile::GetReflection()->GetUnknownFields(*data);
+			const auto& fields = proto::BattleLogFile::GetReflection()->GetUnknownFields(*data);
 			if (!fields.empty()) {
 				for (int j = 0; j < fields.field_count(); ++j) {
-					const auto &field = fields.field(j);
+					const auto& field = fields.field(j);
 					if (j == 0 && field.type() == google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-						const auto &body = field.length_delimited();
+						const auto& body = field.length_delimited();
 						data->set_body(body.data(), body.size());
 					}
 					if (j == 1 && field.type() == google::protobuf::UnknownField::TYPE_VARINT) {
@@ -543,7 +581,7 @@ bool GdxsvBackendReplay::Start() {
 		McsMessageReader r;
 		McsMessage msg;
 		for (int i = 0; i < log_file_.battle_data_size(); ++i) {
-			const auto &data = log_file_.battle_data(i);
+			const auto& data = log_file_.battle_data(i);
 			if (player_position.find(data.user_id()) == player_position.end()) {
 				r.Write(data.body().data(), data.body().size());
 				while (r.Read(msg)) {
@@ -568,7 +606,7 @@ bool GdxsvBackendReplay::Start() {
 		}
 
 		std::sort(log_file_.mutable_users()->begin(), log_file_.mutable_users()->end(),
-				  [](const proto::BattleLogUser &a, const proto::BattleLogUser &b) { return a.pos() < b.pos(); });
+				  [](const proto::BattleLogUser& a, const proto::BattleLogUser& b) { return a.pos() < b.pos(); });
 	}
 
 	if (log_file_.log_file_version() == 20230729) {
@@ -591,7 +629,7 @@ bool GdxsvBackendReplay::Start() {
 		McsMessage msg;
 		std::vector<std::vector<std::vector<u16>>> player_chunked_inputs(log_file_.users_size());
 
-		for (const auto &data : log_file_.battle_data()) {
+		for (const auto& data : log_file_.battle_data()) {
 			r.Write(data.body().data(), data.body().size());
 
 			while (r.Read(msg)) {
@@ -656,7 +694,7 @@ void GdxsvBackendReplay::PrintDisconnectionSummary() {
 	McsMessage msg;
 
 	for (int i = 0; i < log_file_.battle_data_size(); ++i) {
-		const auto &data = log_file_.battle_data(i);
+		const auto& data = log_file_.battle_data(i);
 		r.Write(data.body().data(), data.body().size());
 		while (r.Read(msg)) {
 			if (msg.Type() == McsMessage::KeyMsg2) {
@@ -671,7 +709,7 @@ void GdxsvBackendReplay::PrintDisconnectionSummary() {
 	std::vector<int> last_keymsg_seq(log_file_.users_size());
 	std::vector<int> last_force_msg_index(log_file_.users_size());
 	for (int i = 0; i < msg_list.size(); ++i) {
-		const auto &msg = msg_list[i];
+		const auto& msg = msg_list[i];
 		if (msg.Type() == McsMessage::KeyMsg1) {
 			last_keymsg_seq[msg.Sender()] = msg.FirstSeq();
 			last_force_msg_index[msg.Sender()] = 0;
@@ -793,7 +831,7 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 	}
 }
 
-void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
+void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	const auto msg_type = msg.Type();
 
 	if (msg_type == McsMessage::MsgType::ConnectionIdMsg) {
@@ -825,6 +863,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::StartMsg) {
 		start_msg_count_++;
+		NOTICE_LOG(COMMON, "StartMsg key_msg_count %d", key_msg_count_);
 
 		if (start_msg_count_ - 1 < log_file_.start_msg_indexes_size()) {
 			const auto it = std::lower_bound(log_file_.start_msg_indexes().begin(), log_file_.start_msg_indexes().end(), key_msg_count_);
@@ -844,15 +883,16 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage &msg) {
 			log_file_.add_start_msg_randoms(random_data);
 		}
 
-		ctrl_commands_.emplace_front(ReplayCtrlCommand{ReplayCtrlCommand::SetMaxLag, 1});
-		ctrl_commands_.emplace_front(ReplayCtrlCommand{ReplayCtrlCommand::SaveFirstFrame});
-		ctrl_commands_.emplace_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
 		for (int i = 0; i < log_file_.users_size(); ++i) {
 			if (i != pov_) {
 				auto start_msg = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
 				std::copy(start_msg.body.begin(), start_msg.body.end(), std::back_inserter(recv_buf_));
 			}
 		}
+
+		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SaveFirstFrame});
+		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SetMaxLag, 1});
+		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
@@ -925,8 +965,8 @@ void GdxsvBackendReplay::ApplyPatch(bool first_time) {
 	}
 
 	// Online Patch
-	for (const auto &patch : log_file_.patches()) {
-		for (const auto &code : patch.codes()) {
+	for (const auto& patch : log_file_.patches()) {
+		for (const auto& code : patch.codes()) {
 			gdxsv_WriteMem(code.size(), code.address(), code.changed());
 		}
 	}
@@ -943,8 +983,8 @@ void GdxsvBackendReplay::RestorePatch() {
 	}
 
 	// Online Patch
-	for (const auto &patch : log_file_.patches()) {
-		for (const auto &code : patch.codes()) {
+	for (const auto& patch : log_file_.patches()) {
+		for (const auto& code : patch.codes()) {
 			gdxsv_WriteMem(code.size(), code.address(), code.original());
 		}
 	}

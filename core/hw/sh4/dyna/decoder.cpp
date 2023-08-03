@@ -1059,6 +1059,13 @@ _end:
 	
 	blk->guest_cycles = std::round(blk->guest_cycles * 200.f / std::max(1.f, (float)config::Sh4Clock));
 
+	// Hack: slow idle loop
+	if (config::GdxSlowIdleLoopHack) {
+		if (settings.gdxsv.disk == 2 && blk->addr == 0x0c2ccdba) {
+			blk->guest_cycles = SH4_TIMESLICE;
+		}
+	}
+
 	//make sure we don't use wayy-too-few cycles
 	blk->guest_cycles = std::max(1U, blk->guest_cycles);
 	blk = nullptr;

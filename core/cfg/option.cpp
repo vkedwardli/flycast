@@ -143,6 +143,9 @@ Option<int> GdxLocalPort("LocalPort", 0, "gdxsv");
 Option<int> GdxMinDelay("MinDelay", 2, "gdxsv");
 Option<bool> GdxSaveReplay("SaveReplay", true, "gdxsv");
 Option<bool> GdxUploadReplay("UploadReplay", true, "gdxsv");
+Option<bool> GdxSkipRenderingHack("SkipRenderingHack", true, "gdxsv");
+Option<bool> GdxSlowIdleLoopHack("SlowIdleLoopHack", true, "gdxsv");
+
 Option<bool> GdxReplayHideName("ReplayHideName", false, "gdxsv");
 Option<bool> GdxReplayShowAllyHP("ReplayShowAllyHP", true, "gdxsv");
 Option<bool> GdxReplayKeyDisplay("ReplayKeyDisplay", true, "gdxsv");

@@ -38,6 +38,8 @@ class Gdxsv {
 	bool HookOpenMenu();
 	void HookVBlank();
 	void HookMainUiLoop();
+	void HookEndOfFrame();
+	void HookNextFrame();
 	void HandleRPC();
 	void RestoreOnlinePatch();
 	void StartPingTest();

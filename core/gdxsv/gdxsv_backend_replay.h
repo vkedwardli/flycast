@@ -45,32 +45,19 @@ class GdxsvBackendReplay {
 		Command cmd;
 		int arg1;
 		int arg2;
-		int var1;
-		int var2;
 	};
 
 	void Reset();
 	void OnMainUiLoop();
-	void OnVBlank();
+	void OnEndOfFrame();
+	void OnNextFrame();
 	bool OnOpenMenu();
 	void DisplayOSD();
 
-	bool StartFile(const char *path, int pov);
-	bool StartBuffer(const std::vector<u8> &buf, int pov);
+	bool StartFile(const char* path, int pov);
+	bool StartBuffer(const std::vector<u8>& buf, int pov);
 	void Stop();
 	bool ChangeRoundAvailable() const;
-
-	// Replay control
-	void CtrlSpeedUp();
-	void CtrlSpeedDown();
-	void CtrlSetSpeed(int speed);
-	void CtrlTogglePause();
-	void CtrlStepFrame();
-	void CtrlSomeFrameBackward();
-	void CtrlSomeFrameForward();
-	void CtrlSetRound(int round);
-	void CtrlNextRound();
-	void CtrlPrevRound();
 
 	// Network Backend Interface
 	void Open();
@@ -83,12 +70,70 @@ class GdxsvBackendReplay {
 	bool Start();
 	void PrintDisconnectionSummary();
 	void ProcessLbsMessage();
-	void ProcessMcsMessage(const McsMessage &msg);
+	void ProcessMcsMessage(const McsMessage& msg);
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void RenderPauseMenu();
 
+	// Replay control (need mutex lock)
+	void CtrlSpeedUp();
+	void CtrlSpeedDown();
+	void CtrlSetSpeed(int speed);
+	void CtrlTogglePause();
+	void CtrlStepFrame();
+	void CtrlSomeFrameBackward();
+	void CtrlSomeFrameForward();
+	void CtrlSetRound(int round);
+	void CtrlNextRound();
+	void CtrlPrevRound();
+
 	State state_;
+	class {
+	   public:
+		void push_back(const ReplayCtrlCommand& cmd) {
+			std::lock_guard lock(mtx_);
+			cmds_.push_back(cmd);
+		}
+		void pop_front() {
+			std::lock_guard lock(mtx_);
+			if (!cmds_.empty()) cmds_.pop_front();
+		}
+		bool try_get_front(ReplayCtrlCommand& cmd) {
+			std::lock_guard lock(mtx_);
+			if (!cmds_.empty()) {
+				cmd = cmds_.front();
+				return true;
+			}
+			return false;
+		}
+		size_t size() {
+			std::lock_guard lock(mtx_);
+			return cmds_.size();
+		}
+		bool empty() {
+			std::lock_guard lock(mtx_);
+			return cmds_.empty();
+		}
+		bool contains(ReplayCtrlCommand::Command c) {
+			std::lock_guard lock(mtx_);
+			for (const auto& cmd : cmds_) {
+				if (cmd.cmd == c) {
+					return true;
+				}
+			}
+			return false;
+		}
+		void clear() {
+			std::lock_guard lock(mtx_);
+			cmds_.clear();
+		}
+
+	   private:
+		std::recursive_mutex mtx_;
+		std::deque<ReplayCtrlCommand> cmds_;
+	} ctrl_commands_;
+	bool end_of_frame_;
+	bool seeking_;
 	bool pause_menu_opend_;
 	LbsMessageReader lbs_tx_reader_;
 	proto::BattleLogFile log_file_;
@@ -97,7 +142,6 @@ class GdxsvBackendReplay {
 	int recv_delay_;
 	int start_msg_count_;
 	int key_msg_count_;
-	std::deque<ReplayCtrlCommand> ctrl_commands_;
 	bool ctrl_pause_;
 	int ctrl_play_speed_;
 	int ctrl_step_frame_;

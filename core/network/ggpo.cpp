@@ -26,6 +26,7 @@
 #include <algorithm>
 
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_prof.h"
 
 void UpdateInputState();
 
@@ -165,6 +166,7 @@ struct MemPages
 };
 static std::unordered_map<int, MemPages> deltaStates;
 static int lastSavedFrame = -1;
+static int seekToFrame = -1;
 static int totalRollbackFrames;
 static int totalTimeSync;
 static int timesyncOccurred;
@@ -289,7 +291,11 @@ static bool on_event(GGPOEvent *info)
 static bool advance_frame(int)
 {
 	INFO_LOG(NETWORK, "advance_frame");
+	int frame;
+	getCurrentFrame(&frame);
+
 	settings.aica.muteAudio = true;
+	settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && frame + 1 < seekToFrame;
 	rend_enable_renderer(false);
 	inRollback = true;
 
@@ -297,6 +303,7 @@ static bool advance_frame(int)
 	ggpo_advance_frame(ggpoSession);
 
 	settings.aica.muteAudio = false;
+	settings.gdxsv.skipRenderingHack = false;
 	rend_enable_renderer(true);
 	inRollback = false;
 	_endOfFrame = false;
@@ -315,6 +322,7 @@ static bool advance_frame(int)
 static bool load_game_state(unsigned char *buffer, int len)
 {
 	INFO_LOG(NETWORK, "load_game_state");
+	ggpo::getCurrentFrame(&seekToFrame);
 
 	rend_start_rollback();
 	// FIXME dynarecs

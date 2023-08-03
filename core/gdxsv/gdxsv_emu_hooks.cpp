@@ -33,10 +33,6 @@ bool gdxsv_is_online() { return gdxsv.IsOnline(); }
 
 bool gdxsv_is_savestate_allowed() { return gdxsv.IsSaveStateAllowed(); }
 
-bool gdxsv_is_replaying() { return gdxsv.IsReplaying(); }
-
-void gdxsv_stop_replay() { gdxsv.StopReplay(); }
-
 void gdxsv_emu_flycast_init() { config::GGPOEnable = false; }
 
 void gdxsv_emu_start() {
@@ -61,6 +57,18 @@ void gdxsv_emu_reset() { gdxsv.Reset(); }
 void gdxsv_emu_vblank() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookVBlank();
+	}
+}
+
+void gdxsv_emu_end_frame() {
+	if (gdxsv.Enabled()) {
+		gdxsv.HookEndOfFrame();
+	}
+}
+
+void gdxsv_emu_next_frame() {
+	if (gdxsv.Enabled()) {
+		gdxsv.HookNextFrame();
 	}
 }
 
@@ -349,6 +357,10 @@ void gdxsv_emu_gui_settings() {
 
 	OptionCheckbox("Display Network Statistics", config::NetworkStats,
 				   "Display network statistics on screen by default.\nUse Flycast Menu button to show/hide.");
+
+	OptionCheckbox("SkipRenderingHack", config::GdxSkipRenderingHack, "Skip graphic updates when rolling back.");
+
+	OptionCheckbox("SlowIdleLoopHack", config::GdxSlowIdleLoopHack, "Reduce idle loop when rendering.");
 }
 
 void gdxsv_gui_display_osd() { gdxsv.DisplayOSD(); }
