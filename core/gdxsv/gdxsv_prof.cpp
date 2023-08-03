@@ -1,4 +1,5 @@
 #include "gdxsv_prof.h"
+
 #include "log/LogManager.h"
 
 void GdxsvProf::Print() {

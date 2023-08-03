@@ -358,11 +358,9 @@ void gdxsv_emu_gui_settings() {
 	OptionCheckbox("Display Network Statistics", config::NetworkStats,
 				   "Display network statistics on screen by default.\nUse Flycast Menu button to show/hide.");
 
-	OptionCheckbox("SkipRenderingHack", config::GdxSkipRenderingHack,
-				   "Skip graphic updates when rolling back.");
+	OptionCheckbox("SkipRenderingHack", config::GdxSkipRenderingHack, "Skip graphic updates when rolling back.");
 
-	OptionCheckbox("SlowIdleLoopHack", config::GdxSlowIdleLoopHack,
-				   "Reduce idle loop when rendering.");
+	OptionCheckbox("SlowIdleLoopHack", config::GdxSlowIdleLoopHack, "Reduce idle loop when rendering.");
 }
 
 void gdxsv_gui_display_osd() { gdxsv.DisplayOSD(); }

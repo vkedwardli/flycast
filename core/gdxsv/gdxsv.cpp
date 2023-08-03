@@ -11,8 +11,8 @@
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv_key_display.h"
-#include "gdxsv_translation.h"
 #include "gdxsv_prof.h"
+#include "gdxsv_translation.h"
 #include "imgui/imgui.h"
 #include "libs.h"
 #include "log/InMemoryListener.h"
@@ -238,20 +238,17 @@ void Gdxsv::HookVBlank() {
 	}
 }
 
-void Gdxsv::HookEndOfFrame()
-{
+void Gdxsv::HookEndOfFrame() {
 	if (netmode_ == NetMode::Replay) {
 		gdxsv.replay_net_.OnEndOfFrame();
 	}
 }
 
-void Gdxsv::HookNextFrame()
-{
+void Gdxsv::HookNextFrame() {
 	if (netmode_ == NetMode::Replay) {
 		gdxsv.replay_net_.OnNextFrame();
 	}
 }
-
 
 void Gdxsv::HookMainUiLoop() {
 	if (!enabled_) return;

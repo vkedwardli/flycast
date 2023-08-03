@@ -53,7 +53,7 @@ class Gdxsv {
 	std::string UserId() const { return user_id_; }
 	MiniUPnP& UPnP() { return upnp_; }
 
-private:
+   private:
 	void AddPortMapping();
 	static std::string GenerateLoginKey();
 	std::vector<u8> GeneratePlatformInfoPacket();

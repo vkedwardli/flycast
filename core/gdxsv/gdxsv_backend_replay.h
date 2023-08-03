@@ -54,8 +54,8 @@ class GdxsvBackendReplay {
 	bool OnOpenMenu();
 	void DisplayOSD();
 
-	bool StartFile(const char *path, int pov);
-	bool StartBuffer(const std::vector<u8> &buf, int pov);
+	bool StartFile(const char* path, int pov);
+	bool StartBuffer(const std::vector<u8>& buf, int pov);
 	void Stop();
 	bool ChangeRoundAvailable() const;
 
@@ -66,11 +66,11 @@ class GdxsvBackendReplay {
 	u32 OnSockRead(u32 addr, u32 size);
 	u32 OnSockPoll();
 
-private:
+   private:
 	bool Start();
 	void PrintDisconnectionSummary();
 	void ProcessLbsMessage();
-	void ProcessMcsMessage(const McsMessage &msg);
+	void ProcessMcsMessage(const McsMessage& msg);
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void RenderPauseMenu();
@@ -89,7 +89,7 @@ private:
 
 	State state_;
 	class {
-	public:
+	   public:
 		void push_back(const ReplayCtrlCommand& cmd) {
 			std::lock_guard lock(mtx_);
 			cmds_.push_back(cmd);
@@ -127,7 +127,8 @@ private:
 			std::lock_guard lock(mtx_);
 			cmds_.clear();
 		}
-	private:
+
+	   private:
 		std::recursive_mutex mtx_;
 		std::deque<ReplayCtrlCommand> cmds_;
 	} ctrl_commands_;
