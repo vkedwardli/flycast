@@ -7,7 +7,6 @@
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
-#include "gdxsv_prof.h"
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
@@ -31,23 +30,6 @@ void GdxsvBackendReplay::Reset() {
 }
 
 void GdxsvBackendReplay::OnMainUiLoop() {
-	/*
-	if (emu.running()) {
-		const int disk = gdxsv.Disk();
-		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
-		const int ConnectionStatus = disk == 1 ? 0x0c310444 : 0x0c3abb84;
-		const int NetCountDown = disk == 1 ? 0x0c310202 : 0x0c3ab942;
-		const int DataStopCounter = 0x0c3ab51a;
-		NOTICE_LOG(COMMON, "DataStopCounter=%d ConnectionStatus=%d %d %d NetCountDown=%d",
-			gdxsv_ReadMem16(DataStopCounter),
-			gdxsv_ReadMem16(ConnectionStatus),
-			gdxsv_ReadMem16(ConnectionStatus + 2),
-			gdxsv_ReadMem16(ConnectionStatus + 4),
-			gdxsv_ReadMem16(NetCountDown));
-		NOTICE_LOG(COMMON, "COM_R_No0 %d %d", gdxsv_ReadMem8(COM_R_No0), gdxsv_ReadMem8(COM_R_No0 + 5));
-	}
-	*/
-
 	if (state_ == State::End) {
 		gdxsv_save_state.Reset();
 		gdxsv_end_replay();
@@ -55,8 +37,16 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (state_ == State::Start) {
-		kcode[0] = ~0x0004u;
-		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameForward, 60});
+		kcode[0] = ~DC_BTN_A;
+		if (ctrl_commands_.empty()) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, 180);
+		}
+	}
+
+	if (state_ == State::McsWaitJoin) {
+		if (ctrl_commands_.empty()) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+		}
 	}
 
 	if (state_ == State::McsInBattle) {
@@ -68,7 +58,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
 			// not game scene
 			if (ctrl_commands_.empty()) {
-				ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 			}
 		}
 	}
@@ -92,23 +82,50 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 
 		static u32 prev_kcode = 0;
 		if (prev_kcode == 0) prev_kcode = input.kcode;
-		u32 pressed_kcode = ~((input.kcode ^ prev_kcode) & ~input.kcode);
-		u32 released_kcode = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
+		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
+		const u32 released = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
 		if (input.kcode != prev_kcode) {
 			if (~input.kcode & DC_BTN_X) {
-				if (~pressed_kcode & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) CtrlSomeFrameForward();
-				if (~pressed_kcode & (BTN_TRIGGER_LEFT | DC_BTN_C)) CtrlSomeFrameBackward();
+				if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
+				}
+				if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
+				}
 			} else {
-				if (~pressed_kcode & DC_BTN_B) CtrlSetSpeed(0), CtrlTogglePause();
-				if (~pressed_kcode & DC_BTN_A) CtrlSetSpeed(0), CtrlStepFrame();
-				if (~pressed_kcode & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) CtrlSetSpeed(0), CtrlNextRound();
-				if (~pressed_kcode & (BTN_TRIGGER_LEFT | DC_BTN_C)) CtrlSetSpeed(0), CtrlPrevRound();
-				if (~pressed_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(1);
-				if (~released_kcode & DC_DPAD_RIGHT) CtrlSetSpeed(0);
-				if (~pressed_kcode & DC_DPAD_LEFT) CtrlSetSpeed(0), CtrlSomeFrameBackward();
-				if (~pressed_kcode & DC_DPAD_UP) CtrlSpeedUp();
-				if (~pressed_kcode & DC_DPAD_DOWN) CtrlSpeedDown();
+				if (~pressed & DC_BTN_B) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
+				}
+				if (~pressed & DC_BTN_A) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+				}
+				if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, 1);
+				}
+				if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, -1);
+				}
+				if (~pressed & DC_DPAD_RIGHT) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 1);
+				}
+				if (~released & DC_DPAD_RIGHT) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+				}
+				if (~pressed & DC_DPAD_LEFT) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
+				}
+				if (~pressed & DC_DPAD_UP) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
+				}
+				if (~pressed & DC_DPAD_DOWN) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
+				}
 			}
 		}
 		prev_kcode = input.kcode;
@@ -133,7 +150,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 7
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
-
 	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
 
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
@@ -167,18 +183,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_commands_.pop_front();
 		}
 
-		if (ctrl.cmd == ReplayCtrlCommand::Pause) {
-			ctrl_pause_ = true;
-			ctrl_commands_.pop_front();
-			gui_display_notification("Paused", duration);
-		}
-
-		if (ctrl.cmd == ReplayCtrlCommand::Resume) {
-			ctrl_pause_ = false;
-			ctrl_commands_.pop_front();
-			gui_display_notification("Resumed", duration);
-		}
-
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePause) {
 			ctrl_pause_ = !ctrl_pause_;
 			ctrl_commands_.pop_front();
@@ -196,7 +200,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_commands_.pop_front();
 		}
 
-		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameForward) {
+		if (ctrl.cmd == ReplayCtrlCommand::SeekForward) {
 			gui_display_notification(">>", duration);
 			const int skip_frames = 1 <= ctrl.arg1 ? ctrl.arg1 : save_interval;
 			int skipped_frame;
@@ -224,7 +228,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 			if (0 < skipped_frame) {
 				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
-				NOTICE_LOG(COMMON, "SomeFrameForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
+				NOTICE_LOG(COMMON, "SeekForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
 						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
 				char buf[256];
 				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
@@ -264,7 +268,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			gdxsv.key_display_.Clear();
 		}
 
-		if (ctrl.cmd == ReplayCtrlCommand::SomeFrameBackward) {
+		if (ctrl.cmd == ReplayCtrlCommand::SeekBackward) {
 			if (in_game()) {
 				const int ahead_frame = key_msg_count_ - gdxsv_save_state.LastSavedFrame();
 				int target_frame = key_msg_count_ - (60 < ahead_frame ? 0 : save_interval);
@@ -281,7 +285,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_commands_.pop_front();
 		}
 
-		if (ctrl.cmd == ReplayCtrlCommand::SetSpeed || ctrl.cmd == ReplayCtrlCommand::ChangeSpeed) {
+		if (ctrl.cmd == ReplayCtrlCommand::SetSpeed || ctrl.cmd == ReplayCtrlCommand::NextSpeed) {
 			int speed = ctrl.cmd == ReplayCtrlCommand::SetSpeed ? ctrl.arg1 : ctrl_play_speed_ + ctrl.arg1;
 			speed = std::max<int>(-2, std::min<int>(2, speed));
 			if (speed != ctrl_play_speed_) {
@@ -300,7 +304,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_commands_.pop_front();
 		}
 
-		if (ctrl.cmd == ReplayCtrlCommand::SetRound || ctrl.cmd == ReplayCtrlCommand::ChangeRound) {
+		if (ctrl.cmd == ReplayCtrlCommand::SetRound || ctrl.cmd == ReplayCtrlCommand::NextRound) {
 			const int round = ctrl.cmd == ReplayCtrlCommand::SetRound ? ctrl.arg1 : start_msg_count_ + ctrl.arg1;
 			if (0 < round && round != start_msg_count_ && round - 1 < log_file_.start_msg_indexes_size() &&
 				round - 1 < log_file_.start_msg_randoms_size() && gdxsv_save_state.FirstSavedFrame() != -1) {
@@ -325,7 +329,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				gdxsv.maxlag_ = 1;	// for StartMsg
 				NOTICE_LOG(COMMON, "ctrl_change_round_:%d key_msg_count_:%d", round, key_msg_count_);
 				NOTICE_LOG(COMMON, "start_msg_randoms_size:%d", log_file_.start_msg_randoms_size());
-				ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 			}
 
 			ctrl_commands_.pop_front();
@@ -338,7 +342,7 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 		return false;
 	}
 
-	ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::TogglePauseMenu});
+	ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePauseMenu);
 
 	return false;
 }
@@ -438,31 +442,6 @@ void GdxsvBackendReplay::Stop() {
 bool GdxsvBackendReplay::ChangeRoundAvailable() const {
 	return 0 < log_file_.start_msg_indexes_size() && log_file_.start_msg_indexes_size() == log_file_.start_msg_randoms_size();
 }
-
-void GdxsvBackendReplay::CtrlSpeedUp() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeSpeed, 1}); }
-
-void GdxsvBackendReplay::CtrlSpeedDown() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeSpeed, -1}); }
-
-void GdxsvBackendReplay::CtrlSetSpeed(int speed) {
-	ctrl_commands_.push_back(ReplayCtrlCommand{
-		ReplayCtrlCommand::SetSpeed,
-		speed,
-	});
-}
-
-void GdxsvBackendReplay::CtrlTogglePause() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::TogglePause}); }
-
-void GdxsvBackendReplay::CtrlStepFrame() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::StepFrame}); }
-
-void GdxsvBackendReplay::CtrlSomeFrameBackward() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameBackward}); }
-
-void GdxsvBackendReplay::CtrlSomeFrameForward() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SomeFrameForward}); }
-
-void GdxsvBackendReplay::CtrlSetRound(int round) { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SetRound, round}); }
-
-void GdxsvBackendReplay::CtrlNextRound() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeRound, 1}); }
-
-void GdxsvBackendReplay::CtrlPrevRound() { ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::ChangeRound, -1}); }
 
 void GdxsvBackendReplay::Open() {
 	recv_buf_.assign({0x0e, 0x61, 0x00, 0x22, 0x10, 0x31, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd});
@@ -688,7 +667,7 @@ bool GdxsvBackendReplay::Start() {
 	return true;
 }
 
-void GdxsvBackendReplay::PrintDisconnectionSummary() {
+void GdxsvBackendReplay::PrintDisconnectionSummary() const {
 	std::vector<McsMessage> msg_list;
 	McsMessageReader r;
 	McsMessage msg;
@@ -890,9 +869,9 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			}
 		}
 
-		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SaveFirstFrame});
-		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SetMaxLag, 1});
-		ctrl_commands_.push_back(ReplayCtrlCommand{ReplayCtrlCommand::SeekToBriefing});
+		ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
+		ctrl_commands_.emplace_back(ReplayCtrlCommand::SetMaxLag, 1);
+		ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
