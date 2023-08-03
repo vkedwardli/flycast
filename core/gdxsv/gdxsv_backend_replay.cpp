@@ -227,7 +227,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				NOTICE_LOG(COMMON, "SomeFrameForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
 						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
 				char buf[256];
-				sprintf_s(buf, "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
+				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
 				gui_display_notification(buf, duration);
 			}
 			ctrl_commands_.pop_front();
@@ -256,7 +256,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
 				NOTICE_LOG(COMMON, "SeekToBriefing skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skipped_frame, ms, (float)ms / skipped_frame);
 				char buf[256];
-				sprintf_s(buf, "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
+				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
 				gui_display_notification(buf, duration);
 			}
 
