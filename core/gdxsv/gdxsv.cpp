@@ -12,7 +12,7 @@
 #include "gdx_rpc.h"
 #include "gdxsv_key_display.h"
 #include "gdxsv_translation.h"
-#include "hw/sh4/dyna/blockmanager.h"
+#include "gdxsv_prof.h"
 #include "imgui/imgui.h"
 #include "libs.h"
 #include "log/InMemoryListener.h"
@@ -87,6 +87,7 @@ void Gdxsv::Reset() {
 	replay_net_.Reset();
 	netmode_ = NetMode::Offline;
 	http::init();
+	settings.gdxsv.disk = 0;
 
 	// Automatically add ContentPath if it is empty.
 	if (config::ContentPath.get().empty()) {
@@ -115,6 +116,7 @@ void Gdxsv::Reset() {
 	std::string disk_num(ip_meta.disk_num, 1);
 	if (disk_num == "1") disk_ = 1;
 	if (disk_num == "2") disk_ = 2;
+	settings.gdxsv.disk = disk_;
 
 	maxrebattle_ = 5;
 
@@ -234,10 +236,22 @@ void Gdxsv::HookVBlank() {
 		// Don't edit memory at vsync if ggpo::active
 		WritePatch();
 	}
+}
+
+void Gdxsv::HookEndOfFrame()
+{
 	if (netmode_ == NetMode::Replay) {
-		gdxsv.replay_net_.OnVBlank();
+		gdxsv.replay_net_.OnEndOfFrame();
 	}
 }
+
+void Gdxsv::HookNextFrame()
+{
+	if (netmode_ == NetMode::Replay) {
+		gdxsv.replay_net_.OnNextFrame();
+	}
+}
+
 
 void Gdxsv::HookMainUiLoop() {
 	if (!enabled_) return;

@@ -16,10 +16,6 @@ bool gdxsv_is_online();
 
 bool gdxsv_is_savestate_allowed();
 
-bool gdxsv_is_replaying();
-
-void gdxsv_stop_replay();
-
 void gdxsv_emu_flycast_init();
 
 void gdxsv_emu_start();
@@ -27,6 +23,10 @@ void gdxsv_emu_start();
 void gdxsv_emu_reset();
 
 void gdxsv_emu_vblank();
+
+void gdxsv_emu_end_frame();
+
+void gdxsv_emu_next_frame();
 
 void gdxsv_emu_mainui_loop();
 

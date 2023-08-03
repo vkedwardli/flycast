@@ -501,6 +501,8 @@ extern Option<int> GdxLocalPort;
 extern Option<int> GdxMinDelay;
 extern Option<bool> GdxSaveReplay;
 extern Option<bool> GdxUploadReplay;
+extern Option<bool> GdxSkipRenderingHack;
+extern Option<bool> GdxSlowIdleLoopHack;
 extern Option<bool> GdxReplayHideName;
 extern Option<bool> GdxReplayShowAllyHP;
 extern Option<bool> GdxReplayKeyDisplay;
