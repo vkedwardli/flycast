@@ -113,7 +113,7 @@ void mainui_loop()
 	set_timer_resolution();
 	std::chrono::time_point<std::chrono::steady_clock> start;
 	auto fixedFrequencyWait = [&start]() {
-		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode || !rend_is_enabled())
+		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
 			return;
 
 		const auto period = get_period();

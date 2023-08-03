@@ -18,13 +18,23 @@ using namespace std::chrono;
 
 void GdxsvBackendReplay::Reset() {
 	state_ = State::None;
+	ctrl_commands_.clear();
 	lbs_tx_reader_.Clear();
 	log_file_.Clear();
 	recv_buf_.clear();
-	recv_delay_ = 0;
-	start_msg_count_ = 0;
 	pov_ = 0;
-	ctrl_commands_.clear();
+	key_msg_count_ = 0;
+	start_msg_count_ = 0;
+	recv_delay_ = 0;
+	end_of_frame_ = false;
+	seeking_ = false;
+	pause_menu_opend_ = false;
+	lbs_first_skip_ = false;
+	ctrl_play_speed_ = 0;
+	ctrl_step_frame_ = false;
+	ctrl_pause_ = false;
+	save_converted_log_ = false;
+
 	gdxsv_save_state.Reset();
 	gdxsv.key_display_.Clear();
 }
@@ -36,10 +46,15 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		return;
 	}
 
-	if (state_ == State::Start) {
-		kcode[0] = ~DC_BTN_A;
-		if (ctrl_commands_.empty()) {
+	if (state_ <= State::LbsStartBattleFlow) {
+		static int counter = 0;
+		if (++counter % 10 < 5)
+			kcode[0] = ~(DC_BTN_A);
+		else
+			kcode[0] = ~0u;
+		if (ctrl_commands_.empty() && !lbs_first_skip_) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, 180);
+			lbs_first_skip_ = true;
 		}
 	}
 
@@ -152,11 +167,30 @@ void GdxsvBackendReplay::OnNextFrame() {
 	};
 	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
 
-	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
+	auto regular_save_state = [&]() {
+		if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty()) {
+			gdxsv_save_state.SaveState(key_msg_count_);
+		}
+	};
 
-	// Regular save state
-	if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty()) {
-		gdxsv_save_state.SaveState(key_msg_count_);
+	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
+	regular_save_state();
+
+	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel()) {
+		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
+			settings.aica.muteAudio = true;
+			settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_;
+			rend_enable_renderer(false);
+			seeking_ = true;
+			emu.run();
+			regular_save_state();
+			settings.aica.muteAudio = false;
+			settings.gdxsv.skipRenderingHack = false;
+			rend_enable_renderer(true);
+			seeking_ = false;
+			end_of_frame_ = false;
+			if (need_cancel()) break;
+		}
 	}
 
 	ReplayCtrlCommand ctrl{};
@@ -184,12 +218,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePause) {
-			ctrl_pause_ = !ctrl_pause_;
+			if (state_ == State::McsInBattle) {
+				ctrl_pause_ = !ctrl_pause_;
+				if (ctrl_pause_)
+					gui_display_notification("Paused", duration);
+				else
+					gui_display_notification("Resumed", duration);
+			}
 			ctrl_commands_.pop_front();
-			if (ctrl_pause_)
-				gui_display_notification("Paused", duration);
-			else
-				gui_display_notification("Resumed", duration);
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::StepFrame) {
@@ -213,11 +249,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
-				// Regular save state
-				if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ &&
-					recv_buf_.empty()) {
-					gdxsv_save_state.SaveState(key_msg_count_);
-				}
+				regular_save_state();
 				settings.aica.muteAudio = false;
 				settings.gdxsv.skipRenderingHack = false;
 				rend_enable_renderer(true);
@@ -247,6 +279,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
+				regular_save_state();
 				settings.aica.muteAudio = false;
 				settings.gdxsv.skipRenderingHack = false;
 				rend_enable_renderer(true);
@@ -290,17 +323,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			speed = std::max<int>(-2, std::min<int>(2, speed));
 			if (speed != ctrl_play_speed_) {
 				ctrl_play_speed_ = speed;
-				if (0 <= ctrl_play_speed_) {
-					config::SkipFrame.override(ctrl_play_speed_);
-				}
+				std::string speed_text;
+				if (ctrl_play_speed_ == 0) speed_text = "Speed:100%";
+				if (ctrl_play_speed_ == 1) speed_text = "Speed:200%";
+				if (ctrl_play_speed_ == 2) speed_text = "Speed:300%";
+				if (ctrl_play_speed_ == -1) speed_text = "Speed:50%";
+				if (ctrl_play_speed_ == -2) speed_text = "Speed:33%";
+				gui_display_notification(speed_text.c_str(), duration);
 			}
-			std::string speed_text;
-			if (ctrl_play_speed_ == 0) speed_text = "Speed:100%";
-			if (ctrl_play_speed_ == 1) speed_text = "Speed:200%";
-			if (ctrl_play_speed_ == 2) speed_text = "Speed:300%";
-			if (ctrl_play_speed_ == -1) speed_text = "Speed:50%";
-			if (ctrl_play_speed_ == -2) speed_text = "Speed:33%";
-			gui_display_notification(speed_text.c_str(), duration);
 			ctrl_commands_.pop_front();
 		}
 
@@ -397,8 +427,6 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 }
 
 void GdxsvBackendReplay::Stop() {
-	RestorePatch();
-	config::SkipFrame.reset();
 	ctrl_commands_.clear();
 	settings.gdxsv.skipRenderingHack = false;
 	settings.aica.muteAudio = false;
@@ -518,6 +546,7 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 		gdxsv_WriteMem8(addr + i, recv_buf_.front());
 		recv_buf_.pop_front();
 	}
+
 	return n;
 }
 
@@ -646,6 +675,7 @@ bool GdxsvBackendReplay::Start() {
 		PrintDisconnectionSummary();
 	}
 
+	NOTICE_LOG(COMMON, "battle_code = %s", log_file_.battle_code().c_str());
 	NOTICE_LOG(COMMON, "users = %d", log_file_.users_size());
 	NOTICE_LOG(COMMON, "patch_size = %d", log_file_.patches_size());
 	NOTICE_LOG(COMMON, "inputs_size = %d", log_file_.inputs_size());
@@ -979,7 +1009,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 	ImGui::Columns(2, "buttons", false);
 	if (ImGui::Button("Stop Replay", ScaledVec2(150, 50))) {
 		pause_menu_opend_ = false;
-		gdxsv.StopReplay();
+		Stop();
 	}
 	ImGui::NextColumn();
 	if (ImGui::Button("Resume", ScaledVec2(150, 50))) {
