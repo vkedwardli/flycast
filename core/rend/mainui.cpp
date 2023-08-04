@@ -145,7 +145,7 @@ void mainui_loop()
 			imguiDriver->present();
 
 		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
-			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames)  == 0) {
+			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
 				ggpo::timeSyncFrames.fetch_sub(1);
 				fixedFrequencyWait();
 			}
