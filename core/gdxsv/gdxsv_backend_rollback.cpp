@@ -1057,14 +1057,11 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	ImGui::Text(ts.c_str());
 
 	// Predicted Frames
-	if (stats[me].sync.predicted_frames >= 7)
+	if (stats[me].sync.predicted_frames >= 5)
 		// red
-		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1, 0, 0, 1));
-	else if (stats[me].sync.predicted_frames >= 5)
-		// yellow
-		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.9f, .9f, .1f, 1));
+		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.6, .2f, .2f, 1));
 	ImGui::Text("Predicted");
-	ImGui::ProgressBar(stats[me].sync.predicted_frames / 7.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
+	ImGui::ProgressBar(stats[me].sync.predicted_frames / 5.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
 	if (stats[me].sync.predicted_frames >= 5) ImGui::PopStyleColor();
 
 	for (int i = 0; i < matching.users_size(); i++) {

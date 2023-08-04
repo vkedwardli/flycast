@@ -89,7 +89,7 @@ public:
    void GetNetworkStats(struct GGPONetworkStats *stats);
    bool GetEvent(UdpProtocol::Event &e);
    void GGPONetworkStats(Stats *stats);
-   void SetLocalFrameNumber(int num);
+   void SetLocalFrameNumber(int num, int input_delay);
    void SetLocalPlayerQueue(int queue);
    int RecommendFrameDelay();
    void SetVerificationData(const void *verification, int verification_size) {

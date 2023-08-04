@@ -15,7 +15,7 @@
 #include "ring_buffer.h"
 #include "network/udp_msg.h"
 
-#define MAX_PREDICTION_FRAMES    8
+#define MAX_PREDICTION_FRAMES    6
 
 class SyncTestBackend;
 
@@ -46,6 +46,7 @@ public:
 
    void SetLastConfirmedFrame(int frame);
    void SetFrameDelay(int queue, int delay);
+   int GetFrameDelay(int queue);
    bool AddLocalInput(int queue, GameInput &input);
    void AddRemoteInput(int queue, GameInput &input);
    int GetConfirmedInputs(void *values, int size, int frame);
@@ -57,7 +58,7 @@ public:
 
    int GetFrameCount() { return _framecount; }
    bool InRollback() { return _rollingback; }
-   int GetPredictedFrames() { return _framecount - _last_confirmed_frame; }
+   int GetPredictedFrames(int queue) { return _framecount - _last_confirmed_frame - GetFrameDelay(queue); }
 
    bool GetEvent(Event &e);
 

@@ -9,7 +9,7 @@
 #include <chrono>
 #include <thread>
 
-static const int RECOMMENDATION_INTERVAL           = 180;
+static const int RECOMMENDATION_INTERVAL           = 30;
 static const int DEFAULT_DISCONNECT_TIMEOUT        = 5000;
 static const int DEFAULT_DISCONNECT_NOTIFY_START   = 750;
 
@@ -25,6 +25,7 @@ Peer2PeerBackend::Peer2PeerBackend(GGPOSessionCallbacks *cb,
     _num_spectators(0),
     _input_size(input_size),
     _num_players(num_players),
+    _local_player_queue(-1),
     _next_spectator_frame(0),
     _disconnect_timeout(DEFAULT_DISCONNECT_TIMEOUT),
     _disconnect_notify_start(DEFAULT_DISCONNECT_NOTIFY_START),
@@ -123,7 +124,7 @@ Peer2PeerBackend::DoPoll(int timeout)
          // next connection quality report
          int current_frame = _sync.GetFrameCount();
          for (int i = 0; i < _num_players; i++) {
-            _endpoints[i].SetLocalFrameNumber(current_frame);
+            _endpoints[i].SetLocalFrameNumber(current_frame, _sync.GetFrameDelay(_local_player_queue));
          }
 
          int total_min_confirmed;
@@ -273,6 +274,8 @@ Peer2PeerBackend::AddPlayer(GGPOPlayer *player,
    }
 
    if (player->type == GGPO_PLAYERTYPE_LOCAL) {
+       ASSERT(_local_player_queue == -1);
+       _local_player_queue = queue;
        for (int q = 0; q < _num_players; q++) {
            _endpoints[q].SetLocalPlayerQueue(queue);
        }
@@ -565,7 +568,7 @@ Peer2PeerBackend::GetNetworkStats(GGPONetworkStats *stats, GGPOPlayerHandle play
 
    memset(stats, 0, sizeof *stats);
    _endpoints[queue].GetNetworkStats(stats);
-   stats->sync.predicted_frames = _sync.GetPredictedFrames();
+   stats->sync.predicted_frames = _sync.GetPredictedFrames(queue);
 
    return GGPO_OK;
 }
