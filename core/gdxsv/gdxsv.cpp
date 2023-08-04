@@ -805,12 +805,8 @@ void Gdxsv::WritePatchDisk2() {
 
 bool Gdxsv::StartReplayFile(const char *path, int pov) {
 	replay_net_.Reset();
-	if (replay_net_.StartFile(path, pov)) {
-		netmode_ = NetMode::Replay;
-		return true;
-	}
+	const auto str = std::string(path);
 
-	auto str = std::string(path);
 	if (4 <= str.length() && str.substr(0, 4) == "http") {
 		std::string content_type;
 		http::init();
@@ -826,7 +822,13 @@ bool Gdxsv::StartReplayFile(const char *path, int pov) {
 			netmode_ = NetMode::Replay;
 			return true;
 		}
+	} else {
+		if (replay_net_.StartFile(path, pov)) {
+			netmode_ = NetMode::Replay;
+			return true;
+		}
 	}
+
 	return false;
 }
 

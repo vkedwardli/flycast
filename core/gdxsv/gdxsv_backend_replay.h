@@ -136,8 +136,9 @@ class GdxsvBackendReplay {
 	bool end_of_frame_;
 	bool seeking_;
 	bool pause_menu_opend_;
+	bool lbs_first_skip_;
 	int ctrl_play_speed_;
-	int ctrl_step_frame_;
+	bool ctrl_step_frame_;
 	bool ctrl_pause_;
 	bool save_converted_log_;
 };
