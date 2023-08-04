@@ -69,6 +69,7 @@ protected:
 
    bool                  _synchronizing;
    int                   _num_players;
+   int                   _local_player_queue;
    int                   _next_recommended_sleep;
 
    int                   _next_spectator_frame;

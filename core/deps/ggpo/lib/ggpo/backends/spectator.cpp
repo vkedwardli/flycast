@@ -161,7 +161,7 @@ SpectatorBackend::OnUdpProtocolEvent(UdpProtocol::Event &evt)
    	  {
    		  GameInput& input = evt.u.input.input;
 
-   		  _host.SetLocalFrameNumber(input.frame);
+   		  _host.SetLocalFrameNumber(input.frame, 0);
    		  _host.SendInputAck();
    		  _inputs[input.frame % SPECTATOR_FRAME_BUFFER_SIZE] = input;
    	  }

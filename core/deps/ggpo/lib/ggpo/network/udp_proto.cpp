@@ -757,7 +757,7 @@ UdpProtocol::GetNetworkStats(struct GGPONetworkStats *s)
 }
 
 void
-UdpProtocol::SetLocalFrameNumber(int localFrame)
+UdpProtocol::SetLocalFrameNumber(int localFrame, int input_delay)
 {
    /*
     * Estimate which frame the other guy is one by looking at the
@@ -772,7 +772,7 @@ UdpProtocol::SetLocalFrameNumber(int localFrame)
     * it means they'll have to predict more often and our moves will
     * pop more frequenetly.
     */
-   _local_frame_advantage = remoteFrame - localFrame;
+   _local_frame_advantage = remoteFrame - (localFrame + input_delay);
 }
 
 void

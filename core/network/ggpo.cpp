@@ -957,31 +957,31 @@ void displayStats()
 	ImGui::Begin("##ggpostats", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
 
+	{
+		ggpo_get_network_stats(ggpoSession, localPlayerNum, &stats);
+		// Frame Delay
+		ImGui::Text("Delay");
+		std::string delay = std::to_string(config::GGPODelay.get());
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(delay.c_str()).x);
+		ImGui::Text("%s", delay.c_str());
+
+		// Predicted Frames
+		if (stats.sync.predicted_frames >= 7)
+			// red
+			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1, 0, 0, 1));
+		else if (stats.sync.predicted_frames >= 5)
+			// yellow
+			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.9f, .9f, .1f, 1));
+		ImGui::Text("Predicted");
+		ImGui::ProgressBar(stats.sync.predicted_frames / 7.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
+		if (stats.sync.predicted_frames >= 5)
+			ImGui::PopStyleColor();
+	}
+
 	for (int i = 0; i < MAX_PLAYERS; i++) {
-		ggpo_get_network_stats(ggpoSession, playerHandles[i], &stats);
-
-		if (i == 0) {
-			// Frame Delay
-			ImGui::Text("Delay");
-			std::string delay = std::to_string(config::GGPODelay.get());
-			ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(delay.c_str()).x);
-			ImGui::Text("%s", delay.c_str());
-
-			// Predicted Frames
-			if (stats.sync.predicted_frames >= 7)
-				// red
-				ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1, 0, 0, 1));
-			else if (stats.sync.predicted_frames >= 5)
-				// yellow
-				ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.9f, .9f, .1f, 1));
-			ImGui::Text("Predicted");
-			ImGui::ProgressBar(stats.sync.predicted_frames / 7.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
-			if (stats.sync.predicted_frames >= 5)
-				ImGui::PopStyleColor();
-		}
-
 		if (i == localPlayerNum) continue;
 		if (playerHandles[i] == 0) continue;
+		ggpo_get_network_stats(ggpoSession, playerHandles[i], &stats);
 
 		ImGui::Text("-- %dP --", i+1);
 
@@ -1197,6 +1197,12 @@ void gdxsvStartSession(const char* sessionCode, int me,
 		ggpo::remotePlayer = playerHandles[i];
 	}
 
+	if (getenv("GGPO_DELAY") != nullptr) {
+		const int v = atoi(getenv("GGPO_DELAY"));
+		if (0 <= v && v <= 64) {
+			config::GGPODelay.override(v);
+		}
+	}
 	ggpo_set_frame_delay(ggpoSession, localPlayer, config::GGPODelay.get());
 
 	DEBUG_LOG(NETWORK, "GGPO session started");

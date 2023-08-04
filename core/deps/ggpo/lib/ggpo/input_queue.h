@@ -25,6 +25,7 @@ public:
    int GetLength() { return _length; }
 
    void SetFrameDelay(int delay) { _frame_delay = delay; }
+   int GetFrameDelay() { return _frame_delay; }
    void ResetPrediction(int frame);
    void DiscardConfirmedFrames(int frame);
    bool GetConfirmedInput(int frame, GameInput *input);

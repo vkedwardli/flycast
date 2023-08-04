@@ -12,7 +12,6 @@ TimeSync::TimeSync()
 {
    memset(_local, 0, sizeof(_local));
    memset(_remote, 0, sizeof(_remote));
-   _next_prediction = FRAME_WINDOW_SIZE * 3;
 }
 
 TimeSync::~TimeSync()
@@ -51,11 +50,9 @@ TimeSync::recommend_frame_wait_duration(bool require_idle_input)
    // See if someone should take action.  The person furthest ahead
    // needs to slow down so the other user can catch up.
    // Only do this if both clients agree on who's ahead!!
-   /*
    if (advantage >= radvantage) {
       return 0;
    }
-   */
 
    // Both clients agree that we're the one ahead.  Split
    // the difference between the two to figure out how long to
