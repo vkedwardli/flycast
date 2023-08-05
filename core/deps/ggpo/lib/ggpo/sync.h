@@ -58,7 +58,7 @@ public:
 
    int GetFrameCount() { return _framecount; }
    bool InRollback() { return _rollingback; }
-   int GetPredictedFrames(int queue) { return _framecount - _last_confirmed_frame - GetFrameDelay(queue); }
+   int GetPredictedFrames(int queue) { return _framecount - _last_confirmed_frame; }
 
    bool GetEvent(Event &e);
 

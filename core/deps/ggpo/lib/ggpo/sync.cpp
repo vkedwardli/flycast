@@ -57,7 +57,7 @@ Sync::SetLastConfirmedFrame(int frame)
 bool
 Sync::AddLocalInput(int queue, GameInput &input)
 {
-   int frames_behind = _framecount - _last_confirmed_frame - _input_queues[queue].GetFrameDelay();
+   int frames_behind = _framecount - _last_confirmed_frame;
    if (_framecount >= _max_prediction_frames && frames_behind >= _max_prediction_frames) {
       Log("Rejecting input from emulator: reached prediction barrier.");
       return false;
