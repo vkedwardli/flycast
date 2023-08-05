@@ -921,10 +921,10 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	}
 
 	bool ok = true;
-	auto savestate_path = hostfs::getSavestatePath(99, false);
+	const auto savestate_path = hostfs::getSavestatePath(99, false);
 	if (!file_exists(savestate_path)) {
 		ok = false;
-		if (download_replay_savestate(2, savestate_path)) {
+		if (download_replay_savestate(gdxsv.Disk(), savestate_path)) {
 			ok = true;
 		}
 	}

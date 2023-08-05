@@ -55,9 +55,9 @@ static DynarecCodeEntryPtr DYNACALL bm_GetCode(u32 addr)
 // This returns an executable address
 DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 {
-	if (settings.gdxsv.disk == 2) {
-		// Hack: skip something of game rendering function
-		if (addr == 0x0c0520e2 && settings.gdxsv.skipRenderingHack) {
+	// Hack: skip something of game rendering function
+	if (settings.gdxsv.skipRenderingHack) {
+		if ((addr == 0x0c064cce && settings.gdxsv.disk == 1) || (addr == 0x0c0520e2 && settings.gdxsv.disk == 2)) {
 			next_pc += 4;
 			addr = next_pc;
 		}
