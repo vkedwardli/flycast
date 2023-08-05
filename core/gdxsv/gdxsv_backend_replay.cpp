@@ -384,11 +384,7 @@ void GdxsvBackendReplay::DisplayOSD() {
 }
 
 bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
-#ifdef NOWIDE_CONFIG_H_INCLUDED
 	FILE* fp = nowide::fopen(path, "rb");
-#else
-	FILE* fp = fopen(path, "rb");
-#endif
 	if (fp == nullptr) {
 		NOTICE_LOG(COMMON, "fopen failed path:%s", path);
 		return false;
