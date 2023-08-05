@@ -84,8 +84,12 @@ void GdxsvBackendRollback::DisplayOSD() {
 
 void GdxsvBackendRollback::Reset() {
 	RestorePatch();
+
 	state_ = State::None;
-	lbs_tx_reader_.Clear();
+	is_local_test_ = false;
+	error_fast_return_ = false;
+	osd_network_stat_ = false;
+	osd_network_stat_countdown_ = 0;
 	recv_delay_ = 0;
 	port_ = 0;
 	recv_buf_.clear();
@@ -94,8 +98,12 @@ void GdxsvBackendRollback::Reset() {
 	report_.Clear();
 	ping_pong_.Reset();
 	start_network_ = std::future<bool>();
+
+	start_at_ = 0;
 	input_logs_.clear();
-	osd_network_stat_ = false;
+	start_msg_indexes_.clear();
+	start_msg_randoms_.clear();
+
 	ggpo::stopSession();
 	config::GGPOEnable.reset();
 }
