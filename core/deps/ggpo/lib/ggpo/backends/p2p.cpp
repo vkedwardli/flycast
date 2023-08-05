@@ -9,7 +9,7 @@
 #include <chrono>
 #include <thread>
 
-static const int RECOMMENDATION_INTERVAL           = 30;
+static const int RECOMMENDATION_INTERVAL           = 90;
 static const int DEFAULT_DISCONNECT_TIMEOUT        = 5000;
 static const int DEFAULT_DISCONNECT_NOTIFY_START   = 750;
 

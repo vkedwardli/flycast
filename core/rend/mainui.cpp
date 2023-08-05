@@ -126,6 +126,12 @@ void mainui_loop()
 			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
 	};
 
+	auto timeSyncInterval = [](int frame) -> int {
+		if (6 <= frame) return 20;
+		if (3 <= frame) return 30;
+		return 60;
+	};
+
 	while (mainui_enabled)
 	{
 		fc_profiler::startThread("main");
@@ -138,9 +144,11 @@ void mainui_loop()
 		else
 			imguiDriver->present();
 
-		if (ggpo::active() && MainFrameCount % 5 == 0 && 0 < ggpo::timeSyncFrames) {
-			ggpo::timeSyncFrames.fetch_sub(1);
-			fixedFrequencyWait();
+		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
+			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
+				ggpo::timeSyncFrames.fetch_sub(1);
+				fixedFrequencyWait();
+			}
 		}
 
 		if (currentDupeFrames != config::DupeFrames) {
