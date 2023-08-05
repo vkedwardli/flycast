@@ -127,8 +127,10 @@ Peer2PeerBackend::DoPoll(int timeout)
             _endpoints[i].SetLocalFrameNumber(current_frame, _sync.GetFrameDelay(_local_player_queue));
          }
 
+         // Note: PollNPlayers have larger total_min_confirmed than Poll2Players.
+         // Possibly, but if you don't care about catching up when a player disconnected, Poll2Player works well.
          int total_min_confirmed;
-         if (_num_players <= 2) {
+         if (_num_players <= 2 || _disconnect_without_rollback) {
             total_min_confirmed = Poll2Players(current_frame);
          } else {
             total_min_confirmed = PollNPlayers(current_frame);

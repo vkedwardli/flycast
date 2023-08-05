@@ -1162,7 +1162,7 @@ void gdxsvStartSession(const char* sessionCode, int me,
 	GGPOPlayer player{sizeof(GGPOPlayer), GGPO_PLAYERTYPE_LOCAL, me + 1};
 	result = ggpo_add_player(ggpoSession, &player, &playerHandles[me]);
 	if (result != GGPO_OK) {
-		WARN_LOG(NETWORK, "GGPO cannot add remote player: %d", result);
+		WARN_LOG(NETWORK, "GGPO cannot add local player: %d", result);
 		stopSession();
 		return;
 	}
