@@ -44,7 +44,7 @@ void gdxsv_emu_gui_display();
 
 void gdxsv_emu_gui_display_replay();
 
-void gdxsv_emu_gui_settings();
+void gdxsv_emu_settings_gdxsv_tab();
 
 void gdxsv_gui_display_osd();
 

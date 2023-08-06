@@ -1533,7 +1533,7 @@ static void gui_display_settings()
 		if (ImGui::BeginTabItem("Gdxsv"))
 		{
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, normal_padding);
-			gdxsv_emu_gui_settings();
+			gdxsv_emu_settings_gdxsv_tab();
 			ImGui::PopStyleVar();
 			ImGui::EndTabItem();
 		}
@@ -2036,6 +2036,33 @@ static void gui_display_settings()
 					OptionCheckbox("Duplicate frames", config::DupeFrames, "Duplicate frames on high refresh rate monitors (120 Hz and higher)");
 				}
 				ImGui::Unindent();
+
+				OptionCheckbox("AudioSync", config::LimitFPS, "Limit frame rate by audio. Minimize audio glitch");
+
+				bool fixedFrequency = config::FixedFrequency != 0;
+				ImGui::Checkbox("Fixed frequency", &fixedFrequency);
+				ImGui::SameLine();
+				ShowHelpMarker("Limit frame rate by CPU Sleep and Busy-Wait. Minimize input glitch");
+				if (fixedFrequency) {
+					if (!config::FixedFrequency) config::FixedFrequency = 2;
+
+					ImGui::Indent();
+					ImGui::Columns(3, "fixed_frequency", false);
+					OptionRadioButton("Auto", config::FixedFrequency, 1, "Automatically sets frequency by Cable & Broadcast type");
+					ImGui::NextColumn();
+					OptionRadioButton("59.94 Hz", config::FixedFrequency, 2, "Native NTSC/VGA frequency");
+					ImGui::NextColumn();
+					OptionRadioButton("60 Hz", config::FixedFrequency, 3, "Approximate NTSC/VGA frequency");
+					ImGui::NextColumn();
+					OptionRadioButton("50 Hz", config::FixedFrequency, 4, "Native PAL frequency");
+					ImGui::NextColumn();
+					OptionRadioButton("30 Hz", config::FixedFrequency, 5, "Half NTSC/VGA frequency");
+					ImGui::Columns(1, nullptr, false);
+					ImGui::Unindent();
+				} else {
+					config::FixedFrequency = 0;
+				}
+
 #endif
 		    	OptionCheckbox("Show FPS Counter", config::ShowFPS, "Show on-screen frame/sec counter");
 		    	OptionCheckbox("Show VMU In-game", config::FloatVMUs, "Show the VMU LCD screens while in-game");
