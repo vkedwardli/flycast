@@ -342,8 +342,8 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, session_id_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, player_count_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, peer_id_),
-  PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, timeout_min_ms_),
-  PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, timeout_max_ms_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, ping_test_duration_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, is_training_game_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, rule_bin_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, users_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, candidates_),
@@ -523,57 +523,57 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "s_history\030\017 \003(\002\022\026\n\016total_timesync\030\020 \001(\005\022"
   "\033\n\023input_block_count_0\030\021 \001(\005\022\033\n\023input_bl"
   "ock_count_1\030\022 \001(\005\022\033\n\023input_block_count_2"
-  "\030\023 \001(\005\"\356\001\n\013P2PMatching\022\023\n\013battle_code\030\001 "
+  "\030\023 \001(\005\"\364\001\n\013P2PMatching\022\023\n\013battle_code\030\001 "
   "\001(\t\022\022\n\nsession_id\030\002 \001(\005\022\024\n\014player_count\030"
-  "\003 \001(\005\022\017\n\007peer_id\030\004 \001(\005\022\026\n\016timeout_min_ms"
-  "\030\005 \001(\005\022\026\n\016timeout_max_ms\030\006 \001(\005\022\020\n\010rule_b"
-  "in\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.proto.BattleLo"
-  "gUser\022(\n\ncandidates\030\n \003(\0132\024.proto.Player"
-  "Address\"Y\n\rPlayerAddress\022\017\n\007user_id\030\001 \001("
-  "\t\022\017\n\007peer_id\030\002 \001(\005\022\n\n\002ip\030\003 \001(\t\022\014\n\004port\030\004"
-  " \001(\005\022\014\n\004team\030\005 \001(\005\"e\n\tGamePatch\022\021\n\tgame_"
-  "disk\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\022\n\nwrite_once\030\004"
-  " \001(\010\022#\n\005codes\030\n \003(\0132\024.proto.GamePatchCod"
-  "e\"Q\n\rGamePatchCode\022\014\n\004size\030\001 \001(\005\022\017\n\007addr"
-  "ess\030\002 \001(\r\022\020\n\010original\030\003 \001(\r\022\017\n\007changed\030\004"
-  " \001(\r\"2\n\rGamePatchList\022!\n\007patches\030\001 \003(\0132\020"
-  ".proto.GamePatch\"\354\001\n\rBattleLogUser\022\017\n\007us"
-  "er_id\030\001 \001(\t\022\021\n\tuser_name\030\002 \001(\t\022\022\n\npilot_"
-  "name\030\003 \001(\t\022\022\n\ngame_param\030\004 \001(\014\022\024\n\014battle"
-  "_count\030\005 \001(\005\022\021\n\twin_count\030\006 \001(\005\022\022\n\nlose_"
-  "count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004team\030\t \001(\005"
-  "\022\020\n\010platform\030\n \001(\t\022\026\n\016user_name_sjis\030\013 \001"
-  "(\014\022\013\n\003pos\030\014 \001(\005\"\225\003\n\rBattleLogFile\022\021\n\tgam"
-  "e_disk\030\005 \001(\t\022 \n\030gdxsv_version_deprecated"
-  "\030\002 \001(\t\022\023\n\013battle_code\030\003 \001(\t\022\030\n\020log_file_"
-  "version\030\004 \001(\005\022!\n\007patches\030\007 \003(\0132\020.proto.G"
-  "amePatch\022\020\n\010rule_bin\030\n \001(\014\022#\n\005users\030\013 \003("
-  "\0132\024.proto.BattleLogUser\022)\n\013battle_data\030\014"
-  " \003(\0132\024.proto.BattleMessage\022\016\n\006inputs\030\017 \003"
-  "(\006\022\031\n\021start_msg_indexes\030\020 \003(\005\022\031\n\021start_m"
-  "sg_randoms\030\021 \003(\004\022\020\n\010start_at\030\024 \001(\003\022\016\n\006en"
-  "d_at\030\025 \001(\003\022\024\n\014close_reason\030\030 \001(\t\022\035\n\025disc"
-  "onnect_user_index\030\031 \001(\005\";\n\rBattleMessage"
-  "\022\017\n\007user_id\030\001 \001(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003"
-  " \001(\014\"1\n\013PingMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017"
-  "\n\007user_id\030\002 \001(\t\"F\n\013PongMessage\022\021\n\ttimest"
-  "amp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\022\023\n\013public_add"
-  "r\030\003 \001(\t\"P\n\022HelloServerMessage\022\035\n\025session"
-  "_id_deprecated\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user"
-  "_id\030\003 \001(\t\"\034\n\nFinMessage\022\016\n\006detail\030\001 \001(\t\""
-  "\"\n\017HelloLbsMessage\022\017\n\007user_id\030\001 \001(\t\"\334\002\n\006"
-  "Packet\022 \n\004type\030\001 \001(\0162\022.proto.MessageType"
-  "\022\013\n\003seq\030\002 \001(\r\022\013\n\003ack\030\003 \001(\r\022\022\n\nsession_id"
-  "\030\005 \001(\t\0224\n\021hello_server_data\030\n \001(\0132\031.prot"
-  "o.HelloServerMessage\022%\n\tping_data\030\013 \001(\0132"
-  "\022.proto.PingMessage\022%\n\tpong_data\030\014 \001(\0132\022"
-  ".proto.PongMessage\022)\n\013battle_data\030\r \003(\0132"
-  "\024.proto.BattleMessage\022#\n\010fin_data\030\016 \001(\0132"
-  "\021.proto.FinMessage\022.\n\016hello_lbs_data\030\017 \001"
-  "(\0132\026.proto.HelloLbsMessage*_\n\013MessageTyp"
-  "e\022\010\n\004None\020\000\022\017\n\013HelloServer\020\001\022\010\n\004Ping\020\002\022\010"
-  "\n\004Pong\020\003\022\n\n\006Battle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLb"
-  "s\020\nB\rZ\013gdxsv/protob\006proto3"
+  "\003 \001(\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_test_dura"
+  "tion\030\006 \001(\005\022\030\n\020is_training_game\030\007 \001(\010\022\020\n\010"
+  "rule_bin\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.proto.Ba"
+  "ttleLogUser\022(\n\ncandidates\030\n \003(\0132\024.proto."
+  "PlayerAddress\"Y\n\rPlayerAddress\022\017\n\007user_i"
+  "d\030\001 \001(\t\022\017\n\007peer_id\030\002 \001(\005\022\n\n\002ip\030\003 \001(\t\022\014\n\004"
+  "port\030\004 \001(\005\022\014\n\004team\030\005 \001(\005\"e\n\tGamePatch\022\021\n"
+  "\tgame_disk\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\022\n\nwrite_"
+  "once\030\004 \001(\010\022#\n\005codes\030\n \003(\0132\024.proto.GamePa"
+  "tchCode\"Q\n\rGamePatchCode\022\014\n\004size\030\001 \001(\005\022\017"
+  "\n\007address\030\002 \001(\r\022\020\n\010original\030\003 \001(\r\022\017\n\007cha"
+  "nged\030\004 \001(\r\"2\n\rGamePatchList\022!\n\007patches\030\001"
+  " \003(\0132\020.proto.GamePatch\"\354\001\n\rBattleLogUser"
+  "\022\017\n\007user_id\030\001 \001(\t\022\021\n\tuser_name\030\002 \001(\t\022\022\n\n"
+  "pilot_name\030\003 \001(\t\022\022\n\ngame_param\030\004 \001(\014\022\024\n\014"
+  "battle_count\030\005 \001(\005\022\021\n\twin_count\030\006 \001(\005\022\022\n"
+  "\nlose_count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004team"
+  "\030\t \001(\005\022\020\n\010platform\030\n \001(\t\022\026\n\016user_name_sj"
+  "is\030\013 \001(\014\022\013\n\003pos\030\014 \001(\005\"\225\003\n\rBattleLogFile\022"
+  "\021\n\tgame_disk\030\005 \001(\t\022 \n\030gdxsv_version_depr"
+  "ecated\030\002 \001(\t\022\023\n\013battle_code\030\003 \001(\t\022\030\n\020log"
+  "_file_version\030\004 \001(\005\022!\n\007patches\030\007 \003(\0132\020.p"
+  "roto.GamePatch\022\020\n\010rule_bin\030\n \001(\014\022#\n\005user"
+  "s\030\013 \003(\0132\024.proto.BattleLogUser\022)\n\013battle_"
+  "data\030\014 \003(\0132\024.proto.BattleMessage\022\016\n\006inpu"
+  "ts\030\017 \003(\006\022\031\n\021start_msg_indexes\030\020 \003(\005\022\031\n\021s"
+  "tart_msg_randoms\030\021 \003(\004\022\020\n\010start_at\030\024 \001(\003"
+  "\022\016\n\006end_at\030\025 \001(\003\022\024\n\014close_reason\030\030 \001(\t\022\035"
+  "\n\025disconnect_user_index\030\031 \001(\005\";\n\rBattleM"
+  "essage\022\017\n\007user_id\030\001 \001(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004"
+  "body\030\003 \001(\014\"1\n\013PingMessage\022\021\n\ttimestamp\030\001"
+  " \001(\003\022\017\n\007user_id\030\002 \001(\t\"F\n\013PongMessage\022\021\n\t"
+  "timestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\022\023\n\013publ"
+  "ic_addr\030\003 \001(\t\"P\n\022HelloServerMessage\022\035\n\025s"
+  "ession_id_deprecated\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017"
+  "\n\007user_id\030\003 \001(\t\"\034\n\nFinMessage\022\016\n\006detail\030"
+  "\001 \001(\t\"\"\n\017HelloLbsMessage\022\017\n\007user_id\030\001 \001("
+  "\t\"\334\002\n\006Packet\022 \n\004type\030\001 \001(\0162\022.proto.Messa"
+  "geType\022\013\n\003seq\030\002 \001(\r\022\013\n\003ack\030\003 \001(\r\022\022\n\nsess"
+  "ion_id\030\005 \001(\t\0224\n\021hello_server_data\030\n \001(\0132"
+  "\031.proto.HelloServerMessage\022%\n\tping_data\030"
+  "\013 \001(\0132\022.proto.PingMessage\022%\n\tpong_data\030\014"
+  " \001(\0132\022.proto.PongMessage\022)\n\013battle_data\030"
+  "\r \003(\0132\024.proto.BattleMessage\022#\n\010fin_data\030"
+  "\016 \001(\0132\021.proto.FinMessage\022.\n\016hello_lbs_da"
+  "ta\030\017 \001(\0132\026.proto.HelloLbsMessage*_\n\013Mess"
+  "ageType\022\010\n\004None\020\000\022\017\n\013HelloServer\020\001\022\010\n\004Pi"
+  "ng\020\002\022\010\n\004Pong\020\003\022\n\n\006Battle\020\004\022\007\n\003Fin\020\005\022\014\n\010H"
+  "elloLbs\020\nB\rZ\013gdxsv/protob\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_gdxsv_2eproto_deps[1] = {
 };
@@ -596,7 +596,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_gdxsv_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_gdxsv_2eproto = {
-  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 2386,
+  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 2392,
   &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 15, 0,
   schemas, file_default_instances, TableStruct_gdxsv_2eproto::offsets,
   file_level_metadata_gdxsv_2eproto, 15, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
@@ -1237,8 +1237,8 @@ P2PMatching::P2PMatching(const P2PMatching& from)
       GetArena());
   }
   ::memcpy(&session_id_, &from.session_id_,
-    static_cast<size_t>(reinterpret_cast<char*>(&timeout_max_ms_) -
-    reinterpret_cast<char*>(&session_id_)) + sizeof(timeout_max_ms_));
+    static_cast<size_t>(reinterpret_cast<char*>(&is_training_game_) -
+    reinterpret_cast<char*>(&session_id_)) + sizeof(is_training_game_));
   // @@protoc_insertion_point(copy_constructor:proto.P2PMatching)
 }
 
@@ -1247,8 +1247,8 @@ void P2PMatching::SharedCtor() {
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   rule_bin_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   ::memset(&session_id_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&timeout_max_ms_) -
-      reinterpret_cast<char*>(&session_id_)) + sizeof(timeout_max_ms_));
+      reinterpret_cast<char*>(&is_training_game_) -
+      reinterpret_cast<char*>(&session_id_)) + sizeof(is_training_game_));
 }
 
 P2PMatching::~P2PMatching() {
@@ -1289,8 +1289,8 @@ void P2PMatching::Clear() {
   battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   rule_bin_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::memset(&session_id_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&timeout_max_ms_) -
-      reinterpret_cast<char*>(&session_id_)) + sizeof(timeout_max_ms_));
+      reinterpret_cast<char*>(&is_training_game_) -
+      reinterpret_cast<char*>(&session_id_)) + sizeof(is_training_game_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -1332,17 +1332,17 @@ const char* P2PMatching::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // int32 timeout_min_ms = 5;
-      case 5:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 40)) {
-          timeout_min_ms_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+      // int32 ping_test_duration = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 48)) {
+          ping_test_duration_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // int32 timeout_max_ms = 6;
-      case 6:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 48)) {
-          timeout_max_ms_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+      // bool is_training_game = 7;
+      case 7:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 56)) {
+          is_training_game_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -1434,16 +1434,16 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(4, this->_internal_peer_id(), target);
   }
 
-  // int32 timeout_min_ms = 5;
-  if (this->timeout_min_ms() != 0) {
+  // int32 ping_test_duration = 6;
+  if (this->ping_test_duration() != 0) {
     target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(5, this->_internal_timeout_min_ms(), target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(6, this->_internal_ping_test_duration(), target);
   }
 
-  // int32 timeout_max_ms = 6;
-  if (this->timeout_max_ms() != 0) {
+  // bool is_training_game = 7;
+  if (this->is_training_game() != 0) {
     target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(6, this->_internal_timeout_max_ms(), target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteBoolToArray(7, this->_internal_is_training_game(), target);
   }
 
   // bytes rule_bin = 8;
@@ -1533,18 +1533,16 @@ size_t P2PMatching::ByteSizeLong() const {
         this->_internal_peer_id());
   }
 
-  // int32 timeout_min_ms = 5;
-  if (this->timeout_min_ms() != 0) {
+  // int32 ping_test_duration = 6;
+  if (this->ping_test_duration() != 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
-        this->_internal_timeout_min_ms());
+        this->_internal_ping_test_duration());
   }
 
-  // int32 timeout_max_ms = 6;
-  if (this->timeout_max_ms() != 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
-        this->_internal_timeout_max_ms());
+  // bool is_training_game = 7;
+  if (this->is_training_game() != 0) {
+    total_size += 1 + 1;
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -1595,11 +1593,11 @@ void P2PMatching::MergeFrom(const P2PMatching& from) {
   if (from.peer_id() != 0) {
     _internal_set_peer_id(from._internal_peer_id());
   }
-  if (from.timeout_min_ms() != 0) {
-    _internal_set_timeout_min_ms(from._internal_timeout_min_ms());
+  if (from.ping_test_duration() != 0) {
+    _internal_set_ping_test_duration(from._internal_ping_test_duration());
   }
-  if (from.timeout_max_ms() != 0) {
-    _internal_set_timeout_max_ms(from._internal_timeout_max_ms());
+  if (from.is_training_game() != 0) {
+    _internal_set_is_training_game(from._internal_is_training_game());
   }
 }
 
@@ -1629,8 +1627,8 @@ void P2PMatching::InternalSwap(P2PMatching* other) {
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   rule_bin_.Swap(&other->rule_bin_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(P2PMatching, timeout_max_ms_)
-      + sizeof(P2PMatching::timeout_max_ms_)
+      PROTOBUF_FIELD_OFFSET(P2PMatching, is_training_game_)
+      + sizeof(P2PMatching::is_training_game_)
       - PROTOBUF_FIELD_OFFSET(P2PMatching, session_id_)>(
           reinterpret_cast<char*>(&session_id_),
           reinterpret_cast<char*>(&other->session_id_));

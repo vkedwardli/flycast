@@ -27,9 +27,9 @@ u8 DummyGameParam[] = {0x00, 0x00, 0x01, 0x00, 0x03, 0x00, 0x02, 0x00, 0x05, 0x0
 u8 DummyRuleData[] = {0x03, 0x02, 0x03, 0x00, 0x00, 0x01, 0x58, 0x02, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
 					  0x3f, 0xff, 0xff, 0xff, 0x3f, 0x00, 0x00, 0xff, 0x01, 0xff, 0xff, 0xff, 0x3f, 0xff, 0xff, 0xff, 0x3f, 0x00};
 
-const u16 ExInputNone = 0;
-const u16 ExInputWaitStart = 1;
-const u16 ExInputWaitLoadEnd = 2;
+constexpr u16 ExInputNone = 0;
+constexpr u16 ExInputWaitStart = 1;
+constexpr u16 ExInputWaitLoadEnd = 2;
 
 // maple input to mcs pad input
 u16 convertInput(MapleInputState input) {
@@ -90,6 +90,7 @@ void GdxsvBackendRollback::Reset() {
 	error_fast_return_ = false;
 	osd_network_stat_ = false;
 	osd_network_stat_countdown_ = 0;
+	start_button_counter_ = 0;
 	recv_delay_ = 0;
 	port_ = 0;
 	recv_buf_.clear();
@@ -105,6 +106,7 @@ void GdxsvBackendRollback::Reset() {
 	start_msg_randoms_.clear();
 
 	ggpo::stopSession();
+	gdxsv.key_display_.Clear();
 	config::GGPOEnable.reset();
 }
 
@@ -149,13 +151,13 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 		std::vector<u8> relays(matching_.player_count());
 		static const auto get_ip_port = [](const sockaddr_storage& storage) -> std::tuple<std::string, u16> {
 			if (storage.ss_family == AF_INET) {
-				auto addr = (sockaddr_in*)&storage;
+				const auto addr = (sockaddr_in*)&storage;
 				char str[INET_ADDRSTRLEN] = {};
 				inet_ntop(AF_INET, &(addr->sin_addr), str, sizeof(str));
 				return {str, ntohs(addr->sin_port)};
 			}
 			if (storage.ss_family == AF_INET6) {
-				auto addr = (sockaddr_in6*)&storage;
+				const auto addr = (sockaddr_in6*)&storage;
 				char str[INET6_ADDRSTRLEN] = {};
 				inet_ntop(AF_INET6, &(addr->sin6_addr), str, sizeof(str));
 				return {str, ntohs(addr->sin6_port)};
@@ -169,7 +171,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 			if (i == matching_.peer_id()) {
 				NOTICE_LOG(COMMON, "Peer%d is self", i);
 				ips[i] = "";
-				ports[i] = port_;
+				ports[i] = static_cast<u16>(port_);
 			} else {
 				sockaddr_storage addr_storage{};
 				float rtt;
@@ -194,7 +196,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 					}
 
 					if (relay_peer != -1 && ping_pong_.GetAvailableAddress(relay_peer, &addr_storage, &rtt)) {
-						rtt += (float)rtt_matrix[relay_peer][i];
+						rtt += static_cast<float>(rtt_matrix[relay_peer][i]);
 						max_rtt = std::max(max_rtt, rtt);
 						std::tie(ips[i], ports[i]) = get_ip_port(addr_storage);
 						relays[i] = true;
@@ -209,7 +211,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 		}
 
 		if (ok) {
-			int delay = std::max<int>({2, config::GdxMinDelay.get(), int(max_rtt / 2.0 / 16.0 + 0.9999)});
+			const int delay = std::max<int>({2, config::GdxMinDelay.get(), static_cast<int>(max_rtt / 2.0 / 16.0 + 0.9999)});
 			NOTICE_LOG(COMMON, "max_rtt=%.2f delay=%d", max_rtt, delay);
 			config::GGPOEnable.override(true);
 			config::GGPODelay.override(delay);
@@ -230,7 +232,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 		}
 		{
 			std::ostringstream ss;
-			auto lines = InMemoryListener::getInstance()->getLog();
+			const auto lines = InMemoryListener::getInstance()->getLog();
 			for (const auto& line : lines) {
 				ss << line;
 			}
@@ -239,8 +241,8 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	}
 
 	if (state_ == State::WaitGGPOSession) {
-		auto now = std::chrono::high_resolution_clock::now();
-		auto timeout = 10000 <= std::chrono::duration_cast<std::chrono::milliseconds>(now - session_start_time).count();
+		const auto now = std::chrono::high_resolution_clock::now();
+		const auto timeout = 10000 <= std::chrono::duration_cast<std::chrono::milliseconds>(now - session_start_time).count();
 
 		if (start_network_.valid() && start_network_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (ggpo::active()) {
@@ -263,7 +265,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 
 	static int disconnect_frame = 0;
 
-	// Rebattle end
+	// Re battle end
 	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 3 && ggpo::active() && !ggpo::rollbacking()) {
 		if (state_ != State::CloseWait) {
 			SetCloseReason("game_end");
@@ -307,15 +309,14 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 	auto args = std::string(param);
 	int me = 0;
 	int n = 4;
-	if (0 < args.size() && '1' <= args[0] && args[0] <= '4') {
+	if (!args.empty() && '1' <= args[0] && args[0] <= '4') {
 		me = args[0] - '1';
 	}
 	if (2 < args.size() && args[1] == '/' && '1' <= args[2] && args[2] <= '4') {
 		n = args[2] - '0';
 	}
 
-	u64 seed = cfgLoadInt64("gdxsv", "rand_input", 0);
-	if (seed) {
+	if (const u64 seed = cfgLoadInt64("gdxsv", "rand_input", 0)) {
 		NOTICE_LOG(COMMON, "RandomInput Seed=%d", seed + me);
 		ggpo::randomInput(true, seed + me, 0x0004 | 0x0400 | 0x0200 | 0x0010 | 0x0040);
 	}
@@ -328,8 +329,7 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 	matching.set_battle_code("0123456");
 	matching.set_peer_id(me);
 	matching.set_session_id(12345);
-	// matching.set_timeout_min_ms(1000);
-	matching.set_timeout_max_ms(8000);
+	matching.set_ping_test_duration(7500);
 	matching.set_player_count(n);
 	for (int i = 0; i < n; i++) {
 		proto::PlayerAddress player{};
@@ -378,7 +378,7 @@ void GdxsvBackendRollback::Prepare(const proto::P2PMatching& matching, int port)
 			ping_pong_.AddCandidate(c.user_id(), c.peer_id(), c.ip(), c.port());
 		}
 	}
-	ping_pong_.Start(matching.session_id(), matching.peer_id(), port, matching.timeout_max_ms());
+	ping_pong_.Start(matching.session_id(), matching.peer_id(), port, matching.ping_test_duration());
 
 	report_.Clear();
 	report_.set_battle_code(matching.battle_code());
@@ -396,6 +396,7 @@ void GdxsvBackendRollback::Open() {
 	gdxsv.maxlag_ = 0;
 	ApplyPatch(true);
 	osd_network_stat_ = config::NetworkStats;
+	gdxsv.key_display_.SetDisplayPlayer(matching_.peer_id());
 }
 
 void GdxsvBackendRollback::Close() {
@@ -417,6 +418,7 @@ void GdxsvBackendRollback::Close() {
 	osd_network_stat_ = false;
 	error_fast_return_ = false;
 	SaveReplay();
+	gdxsv.key_display_.enabled(false);
 	state_ = State::Closed;
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Close Done");
 }
@@ -428,7 +430,7 @@ u32 GdxsvBackendRollback::OnSockWrite(u32 addr, u32 size) {
 			buf[i] = gdxsv_ReadMem8(addr + i);
 		}
 
-		lbs_tx_reader_.Write((const char*)buf, size);
+		lbs_tx_reader_.Write(reinterpret_cast<const char*>(buf), size);
 		ProcessLbsMessage();
 	}
 
@@ -459,8 +461,35 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
 	const auto inputState = mapleInputState;
 	const auto memExInputAddr = gdxsv.symbols_.at("rbk_ex_input");
+	const auto in_game = [disk = gdxsv.Disk()]() -> bool {
+		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 7
+						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
+	};
 
-	// Disconnect check (ignore rebattle end scene)
+	gdxsv.key_display_.enabled(matching_.is_training_game() && !osd_network_stat_ && in_game());
+
+	// Disconnect from training game
+	if (ggpo::active() && !ggpo::rollbacking() && matching_.is_training_game()) {
+		auto start_btn_pressed = false;
+		for (int i = 0; i < 4; i++) {
+			start_btn_pressed |= ~inputState[i].kcode & DC_BTN_START;
+		}
+
+		if (start_btn_pressed) {
+			start_button_counter_++;
+		} else {
+			start_button_counter_ = 0;
+		}
+
+		if (60 * 4 <= start_button_counter_) {
+			for (int i = 0; i < matching_.player_count(); ++i) {
+				ggpo::disconnect(matching_.peer_id());
+			}
+			error_fast_return_ = true;
+		}
+	}
+
+	// Disconnect check (ignore re battle end scene)
 	if (ggpo::active() && !(gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 2)) {
 		for (int i = 0; i < matching_.player_count(); ++i) {
 			if (!ggpo::isConnected(i)) {
@@ -543,13 +572,18 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				a.body[2] = input >> 8 & 0xff;
 				a.body[3] = input & 0xff;
 				std::copy(a.body.begin(), a.body.end(), std::back_inserter(recv_buf_));
-				inputs |= u64(input) << (i * 16);
+				inputs |= static_cast<u64>(input) << (i * 16);
+				if (matching_.is_training_game() && !ggpo::rollbacking()) {
+					gdxsv.key_display_.AppendInput(i, input);
+				}
 			}
 
 			while (!input_logs_.empty() && frame <= input_logs_.back().first) {
 				input_logs_.pop_back();
 			}
-			input_logs_.emplace_back(frame, inputs);
+			if (!matching_.is_training_game()) {
+				input_logs_.emplace_back(frame, inputs);
+			}
 		}
 
 		if (msg.Type() == McsMessage::LoadEndMsg) {
@@ -612,7 +646,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 	}
 
-	if (!ggpo::rollbacking()) {
+	if (!ggpo::rollbacking() && !matching_.is_training_game()) {
 		report_.set_frame_count(frame);
 
 		if (0 < frame && frame % 600 == 0) {
@@ -732,8 +766,9 @@ bool GdxsvBackendRollback::SetCloseReason(const char* reason) {
 	return false;
 }
 
-void GdxsvBackendRollback::SaveReplay() {
-	if (!config::GdxSaveReplay) {
+void GdxsvBackendRollback::SaveReplay() const {
+	if (!config::GdxSaveReplay || matching_.is_training_game()) {
+		NOTICE_LOG(COMMON, "Skip SaveReplay is_training=%d", matching_.is_training_game());
 		return;
 	}
 
@@ -950,9 +985,9 @@ void drawRectWave(ImDrawList* draw_list, ImVec2 anchor, ImColor color, float sca
 		if (step <= i)
 			c = ImColor(64, 64, 64);
 		else if (i == (elapsed / 100 % 5)) {
-			c.Value.x *= 2;
-			c.Value.y *= 2;
-			c.Value.z *= 2;
+			c.Value.x = 200;
+			c.Value.y = 200;
+			c.Value.z = 200;
 		}
 		moveRect(points, ImVec2(0, i * 5.3));
 		scaleRectX(points, 1 + i * 0.50);
@@ -1043,10 +1078,10 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetIO().DisplaySize.y / 2.f), ImGuiCond_Always, ImVec2(0.0f, 0.5f));
 	ImGui::SetNextWindowSize(ImVec2(160 * settings.display.uiScale, 0));
 	ImGui::SetNextWindowBgAlpha(0.3f);
-	ImGui::Begin("##gdxsv_osd_network_stat", NULL,
+	ImGui::Begin("##gdxsv_osd_network_stats", NULL,
 				 ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-	textCentered("Network Stat");
+	textCentered("Network Stats");
 
 	// Frame Delay
 	ImGui::Text("Delay");
@@ -1067,7 +1102,7 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	// Predicted Frames
 	if (stats[me].sync.predicted_frames >= 5)
 		// red
-		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.6, .2f, .2f, 1));
+		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.6f, .2f, .2f, 1));
 	ImGui::Text("Predicted");
 	ImGui::ProgressBar(stats[me].sync.predicted_frames / 5.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
 	if (stats[me].sync.predicted_frames >= 5) ImGui::PopStyleColor();
@@ -1077,7 +1112,7 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 		ImGui::Separator();
 		textCentered(std::to_string(i + 1) + "P: " + matching.users(i).user_id());
 		textCentered(matching.users(i).user_name());
-		textCentered(matching.users(i).pilot_name().c_str());
+		textCentered(matching.users(i).pilot_name());
 
 		if (is_connected[i]) {
 			// Ping

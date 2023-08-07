@@ -595,8 +595,8 @@ class P2PMatching PROTOBUF_FINAL :
     kSessionIdFieldNumber = 2,
     kPlayerCountFieldNumber = 3,
     kPeerIdFieldNumber = 4,
-    kTimeoutMinMsFieldNumber = 5,
-    kTimeoutMaxMsFieldNumber = 6,
+    kPingTestDurationFieldNumber = 6,
+    kIsTrainingGameFieldNumber = 7,
   };
   // repeated .proto.BattleLogUser users = 9;
   int users_size() const;
@@ -693,22 +693,22 @@ class P2PMatching PROTOBUF_FINAL :
   void _internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 timeout_min_ms = 5;
-  void clear_timeout_min_ms();
-  ::PROTOBUF_NAMESPACE_ID::int32 timeout_min_ms() const;
-  void set_timeout_min_ms(::PROTOBUF_NAMESPACE_ID::int32 value);
+  // int32 ping_test_duration = 6;
+  void clear_ping_test_duration();
+  ::PROTOBUF_NAMESPACE_ID::int32 ping_test_duration() const;
+  void set_ping_test_duration(::PROTOBUF_NAMESPACE_ID::int32 value);
   private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_timeout_min_ms() const;
-  void _internal_set_timeout_min_ms(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_ping_test_duration() const;
+  void _internal_set_ping_test_duration(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 timeout_max_ms = 6;
-  void clear_timeout_max_ms();
-  ::PROTOBUF_NAMESPACE_ID::int32 timeout_max_ms() const;
-  void set_timeout_max_ms(::PROTOBUF_NAMESPACE_ID::int32 value);
+  // bool is_training_game = 7;
+  void clear_is_training_game();
+  bool is_training_game() const;
+  void set_is_training_game(bool value);
   private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_timeout_max_ms() const;
-  void _internal_set_timeout_max_ms(::PROTOBUF_NAMESPACE_ID::int32 value);
+  bool _internal_is_training_game() const;
+  void _internal_set_is_training_game(bool value);
   public:
 
   // @@protoc_insertion_point(class_scope:proto.P2PMatching)
@@ -725,8 +725,8 @@ class P2PMatching PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 player_count_;
   ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
-  ::PROTOBUF_NAMESPACE_ID::int32 timeout_min_ms_;
-  ::PROTOBUF_NAMESPACE_ID::int32 timeout_max_ms_;
+  ::PROTOBUF_NAMESPACE_ID::int32 ping_test_duration_;
+  bool is_training_game_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -4000,44 +4000,44 @@ inline void P2PMatching::set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
   // @@protoc_insertion_point(field_set:proto.P2PMatching.peer_id)
 }
 
-// int32 timeout_min_ms = 5;
-inline void P2PMatching::clear_timeout_min_ms() {
-  timeout_min_ms_ = 0;
+// int32 ping_test_duration = 6;
+inline void P2PMatching::clear_ping_test_duration() {
+  ping_test_duration_ = 0;
 }
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatching::_internal_timeout_min_ms() const {
-  return timeout_min_ms_;
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatching::_internal_ping_test_duration() const {
+  return ping_test_duration_;
 }
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatching::timeout_min_ms() const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatching.timeout_min_ms)
-  return _internal_timeout_min_ms();
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatching::ping_test_duration() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatching.ping_test_duration)
+  return _internal_ping_test_duration();
 }
-inline void P2PMatching::_internal_set_timeout_min_ms(::PROTOBUF_NAMESPACE_ID::int32 value) {
+inline void P2PMatching::_internal_set_ping_test_duration(::PROTOBUF_NAMESPACE_ID::int32 value) {
   
-  timeout_min_ms_ = value;
+  ping_test_duration_ = value;
 }
-inline void P2PMatching::set_timeout_min_ms(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_timeout_min_ms(value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatching.timeout_min_ms)
+inline void P2PMatching::set_ping_test_duration(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_ping_test_duration(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatching.ping_test_duration)
 }
 
-// int32 timeout_max_ms = 6;
-inline void P2PMatching::clear_timeout_max_ms() {
-  timeout_max_ms_ = 0;
+// bool is_training_game = 7;
+inline void P2PMatching::clear_is_training_game() {
+  is_training_game_ = false;
 }
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatching::_internal_timeout_max_ms() const {
-  return timeout_max_ms_;
+inline bool P2PMatching::_internal_is_training_game() const {
+  return is_training_game_;
 }
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatching::timeout_max_ms() const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatching.timeout_max_ms)
-  return _internal_timeout_max_ms();
+inline bool P2PMatching::is_training_game() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatching.is_training_game)
+  return _internal_is_training_game();
 }
-inline void P2PMatching::_internal_set_timeout_max_ms(::PROTOBUF_NAMESPACE_ID::int32 value) {
+inline void P2PMatching::_internal_set_is_training_game(bool value) {
   
-  timeout_max_ms_ = value;
+  is_training_game_ = value;
 }
-inline void P2PMatching::set_timeout_max_ms(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_timeout_max_ms(value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatching.timeout_max_ms)
+inline void P2PMatching::set_is_training_game(bool value) {
+  _internal_set_is_training_game(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatching.is_training_game)
 }
 
 // bytes rule_bin = 8;

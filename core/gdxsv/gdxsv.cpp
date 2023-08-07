@@ -367,6 +367,10 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 }
 
 std::vector<u8> Gdxsv::GenerateP2PMatchReportPacket() {
+	if (rollback_net_.GetMatching().is_training_game()) {
+		return {};
+	}
+
 	auto rbk_report = rollback_net_.GetReport();
 	if (rbk_report.battle_code().empty()) {
 		return {};
