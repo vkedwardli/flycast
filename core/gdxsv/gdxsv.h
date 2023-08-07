@@ -43,6 +43,7 @@ class Gdxsv {
 	void HandleRPC();
 	void RestoreOnlinePatch();
 	void StartPingTest();
+	void StartUdpPortTest();
 	void FetchPublicIP();
 	void NotifyWanPort() const;
 	bool StartReplayFile(const char* path, int pov);
@@ -76,11 +77,10 @@ class Gdxsv {
 
 	std::shared_future<std::map<std::string, int>> gcp_ping_test_result_;
 	std::shared_future<std::pair<bool, std::string>> public_ipv4_, public_ipv6_;
+	std::shared_future<std::string> upnp_result_;
+	std::shared_future<std::string> port_test_result_v4_;
 
 	MiniUPnP upnp_;
-	std::future<std::string> upnp_result_;
-	int upnp_port_ = 0;
-
 	GdxsvBackendTcp lbs_net_;
 	GdxsvBackendUdp udp_net_;
 	GdxsvBackendReplay replay_net_;
