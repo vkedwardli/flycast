@@ -53,7 +53,7 @@ class GdxsvBackendReplay {
 			None,
 			// System used
 			SaveFirstFrame,
-			SetMaxLag,
+			SendStartMsg,
 			SeekToBriefing,
 
 			// User control
