@@ -180,6 +180,8 @@ Peer2PeerBackend::DoPoll(int timeout)
          // XXX: this is obviously a farce...
          if (timeout)
         	 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      } else if (this->_num_players == 1) {
+		  CheckInitialSync();
       }
    }
    return GGPO_OK;

@@ -2,15 +2,14 @@
 
 #include "gdxsv.h"
 #include "gdxsv_network.h"
-#include "imgui.h"
-#include "libs.h"
 #include "hw/maple/maple_if.h"
+#include "imgui.h"
 #include "input/gamepad_device.h"
+#include "libs.h"
 #include "rend/gui_util.h"
 
-inline static void header(const char *title)
-{
-	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f)); // Left
+inline static void header(const char* title) {
+	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));	// Left
 	ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 1.0f);
 	ImGui::BeginDisabled();
 	ImGui::ButtonEx(title, ImVec2(-1, 0));
@@ -23,8 +22,7 @@ inline static void header(const char *title)
 // Index 0: English
 // Index 1: Japanese
 // Index 2: Cantonese
-static const char* t(std::initializer_list<const char*> texts)
-{
+static const char* t(std::initializer_list<const char*> texts) {
 	verify(0 < texts.size());
 
 	unsigned index = 0;

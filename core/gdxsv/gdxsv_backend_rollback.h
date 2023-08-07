@@ -34,8 +34,9 @@ class GdxsvBackendRollback {
 	u32 OnSockRead(u32 addr, u32 size);
 	u32 OnSockPoll();
 	bool SetCloseReason(const char *reason);
-	void SaveReplay();
-	proto::P2PMatchingReport &GetReport() { return report_; }
+	void SaveReplay() const;
+	const proto::P2PMatching &GetMatching() { return matching_; }
+	const proto::P2PMatchingReport &GetReport() { return report_; }
 	void ClearReport() { report_.Clear(); }
 	void ToggleNetworkStat() { osd_network_stat_ = !osd_network_stat_; }
 
@@ -49,6 +50,7 @@ class GdxsvBackendRollback {
 	bool error_fast_return_ = false;
 	bool osd_network_stat_ = false;
 	int osd_network_stat_countdown_ = 0;
+	int start_button_counter_ = 0;
 	int recv_delay_ = 0;
 	int port_ = 0;
 	std::deque<u8> recv_buf_;

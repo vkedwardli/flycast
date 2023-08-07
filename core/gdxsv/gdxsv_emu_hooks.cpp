@@ -132,9 +132,7 @@ void gdxsv_emu_gui_display() {
 	}
 }
 
-void gdxsv_emu_settings_gdxsv_tab() {
-	gdxsv_gui_settings_tab();
-}
+void gdxsv_emu_settings_gdxsv_tab() { gdxsv_gui_settings_tab(); }
 
 void gdxsv_gui_display_osd() { gdxsv.DisplayOSD(); }
 
