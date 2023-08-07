@@ -2070,41 +2070,43 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME} PRIVATE core/deps/gdxsv)
 target_sources(${PROJECT_NAME} PRIVATE
-		core/gdxsv/libs.h
 		core/gdxsv/gdx_rpc.h
 		core/gdxsv/gdxsv.cpp
 		core/gdxsv/gdxsv.h
 		core/gdxsv/gdxsv.pb.cc
 		core/gdxsv/gdxsv.pb.h
-		core/gdxsv/gdxsv_backend_replay.h
+		core/gdxsv/gdxsv_CustomTexture.cpp
+		core/gdxsv/gdxsv_CustomTexture.h
 		core/gdxsv/gdxsv_backend_replay.cpp
-		core/gdxsv/gdxsv_backend_rollback.h
+		core/gdxsv/gdxsv_backend_replay.h
 		core/gdxsv/gdxsv_backend_rollback.cpp
-		core/gdxsv/gdxsv_backend_tcp.h
+		core/gdxsv/gdxsv_backend_rollback.h
 		core/gdxsv/gdxsv_backend_tcp.cpp
-		core/gdxsv/gdxsv_backend_udp.h
+		core/gdxsv/gdxsv_backend_tcp.h
 		core/gdxsv/gdxsv_backend_udp.cpp
+		core/gdxsv/gdxsv_backend_udp.h
+		core/gdxsv/gdxsv_emu_hooks.cpp
+		core/gdxsv/gdxsv_emu_hooks.h
+		core/gdxsv/gdxsv_gui_settings.cpp
+		core/gdxsv/gdxsv_gui_settings.h
+		core/gdxsv/gdxsv_key_display.cpp
+		core/gdxsv/gdxsv_key_display.h
 		core/gdxsv/gdxsv_network.cpp
 		core/gdxsv/gdxsv_network.h
 		core/gdxsv/gdxsv_patch.inc
-		core/gdxsv/gdxsv_prof.h
 		core/gdxsv/gdxsv_prof.cpp
-		core/gdxsv/gdxsv_emu_hooks.cpp
-		core/gdxsv/gdxsv_emu_hooks.h
-		core/gdxsv/gdxsv_update.h
-		core/gdxsv/gdxsv_update.cpp
-		core/gdxsv/gdxsv_replay_util.h
+		core/gdxsv/gdxsv_prof.h
 		core/gdxsv/gdxsv_replay_util.cpp
-		core/gdxsv/gdxsv_save_state.h
+		core/gdxsv/gdxsv_replay_util.h
 		core/gdxsv/gdxsv_save_state.cpp
-		core/gdxsv/gdxsv_key_display.cpp
-		core/gdxsv/gdxsv_key_display.h
-		core/gdxsv/gdxsv_translation.h
+		core/gdxsv/gdxsv_save_state.h
 		core/gdxsv/gdxsv_translation.cpp
+		core/gdxsv/gdxsv_translation.h
 		core/gdxsv/gdxsv_translation_patch.inc
-		core/gdxsv/gdxsv_CustomTexture.h
-		core/gdxsv/gdxsv_CustomTexture.cpp
+		core/gdxsv/gdxsv_update.cpp
+		core/gdxsv/gdxsv_update.h
 		core/gdxsv/lbs_message.h
+		core/gdxsv/libs.h
 		core/gdxsv/mcs_message.h)
 
 if(MSVC)
