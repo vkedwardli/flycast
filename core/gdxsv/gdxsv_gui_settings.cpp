@@ -23,7 +23,7 @@ inline static void header(const char *title)
 // Index 0: English
 // Index 1: Japanese
 // Index 2: Cantonese
-const char* t(std::initializer_list<const char*> texts)
+static const char* t(std::initializer_list<const char*> texts)
 {
 	verify(0 < texts.size());
 
@@ -34,6 +34,7 @@ const char* t(std::initializer_list<const char*> texts)
 	return *(texts.begin() + index);
 }
 
+// clang-format off
 void gdxsv_gui_settings_tab()
 {
 	header("gdxsv Settings");
@@ -114,29 +115,28 @@ void gdxsv_gui_settings_tab()
 		apply_base_settings();
 		config::ThreadedRendering = false;
 		config::RenderResolution = 960;
-		config::TextureUpscale = 2;
 	}
 	ImGui::SameLine();
 	if (ImGui::Button(t({ "Apply Recommended Settings\nfor High-Spec PC", u8"‚ƒXƒyƒbƒNPCŒü‚¯\n‚¨‚·‚·‚ßİ’è“K—p" }), ScaledVec2(200, 50))) {
 		apply_base_settings();
-		config::DupeFrames = false;
 		config::ThreadedRendering = false;
 		config::RenderResolution = 1440;
-		config::TextureUpscale = 3;
+		config::TextureUpscale = 2;
 	}
 
 	ImGui::SameLine();
-	ShowHelpMarker(t({ "Use gdxsv recommended settings", u8"ŠJ”­Ò‚¨‚·‚·‚ß‚Ìİ’è‚ğ“K—p‚µ‚Ü‚·B‚±‚Ìƒy[ƒWˆÈŠO‚Ìİ’è‚à•ÏX‚³‚ê‚Ü‚·B" }));
+	ShowHelpMarker(t({ "Use gdxsv recommended settings", u8"ŠJ”­Ò‚¨‚·‚·‚ß‚Ìİ’è‚ğ“K—p‚µ‚Ü‚·B‚±‚Ìƒy[ƒWˆÈŠO‚Ìİ’è‚à•ÏX‚³‚ê‚Ü‚·B\n\
+’áƒXƒyƒbƒNŒü‚¯:\n‰õ“K‚ÈƒvƒŒƒC‚æ‚è‚à•‰‰×‚ğ‰º‚°‚ÄƒQ[ƒ€ƒXƒs[ƒh‚ÌˆÀ’è‚ğ—Dæ‚³‚¹‚éİ’è‚Å‚·B\n\
+’†ƒXƒyƒbƒNŒü‚¯:\n‰õ“K‚ÈƒvƒŒƒC‚ª‰Â”\‚Å•‰‰×‚à­‚È‚¢ƒoƒ‰ƒ“ƒX‚Ì—Ç‚¢İ’è‚Å‚·B\n\
+‚ƒXƒyƒbƒNŒü‚¯:\n‰õ“K‚ÈƒvƒŒƒC‚ª‰Â”\‚Å•‰‰×‚Ì‚‚¢ƒIƒvƒVƒ‡ƒ“‚àg—p‚·‚éİ’è‚Å‚·B"}));
 
-	OptionCheckbox(t({ "Multi-threaded emulation", u8"ƒ}ƒ‹ƒ`ƒXƒŒƒbƒhƒGƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“" }), config::ThreadedRendering,
-		t({
+	OptionCheckbox(t({ "Multi-threaded emulation", u8"ƒ}ƒ‹ƒ`ƒXƒŒƒbƒhƒGƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“" }), config::ThreadedRendering, t({
 R"(Run the emulated CPU and GPU on different threads.
 	Enable = Best for low spec CPU.
 	Disable = Best for high spec CPU.)",
 u8"ƒGƒ~ƒ…ƒŒ[ƒ^[‚ÌŒvZ‚Æ•`‰æ‚ğ•Ê‚ÌƒXƒŒƒbƒh‚Ås‚¢‚Ü‚·B—LŒø‚É‚µ‚½ê‡•‰‰×‚ªŒy‚­‚È‚è‚Ü‚·‚ªAÅ‘å1ƒtƒŒ[ƒ€‚Ì“ü—Í’x‰„‚ª”­¶‚µ‚Ü‚·B\n\
 ’áƒXƒyƒbƒNCPU‚ğg—p‚µ‚Ä‚¢‚éê‡A—LŒø‚ğ„§\n\
-‚ƒXƒyƒbƒNCPU‚ğg—p‚µ‚Ä‚¢‚éê‡A–³Œø‚ğ„§"
-			}));
+‚ƒXƒyƒbƒNCPU‚ğg—p‚µ‚Ä‚¢‚éê‡A–³Œø‚ğ„§"}));
 
 	bool widescreen = config::Widescreen.get() && config::WidescreenGameHacks.get();
 	bool pressed = ImGui::Checkbox(t({ "Enable 16:9 Widescreen Hack", u8"16:9 ƒƒCƒhƒ‚ƒjƒ^[‘Î‰" }), &widescreen);
@@ -208,37 +208,22 @@ u8"ƒIƒ“ƒ‰ƒCƒ“‘Îí‚Åg—p‚·‚éUDPƒ|[ƒg”Ô†‚ğİ’è‚µ‚Ü‚·B“¯‚Ég—p‚·‚é‘¼‚ÌƒAƒvƒŠƒP
 	ImGui::SameLine();
 	ImGui::Text("%s", upnp_result.c_str());
 
-	static std::string v4_result, v6_result;
-	static std::future<std::string> v4_future, v6_future;
+	static std::string v4_result;
+	static std::future<std::string> v4_future;
 	if (future_is_ready(v4_future)) {
 		v4_result = v4_future.get();
 	}
-	if (ImGui::Button(t({ "Test The Port (IPv4)", u8"ƒ|[ƒgŠJ•úŠm”F (IPv4)" }), ScaledVec2(buttonWidth, 0)) && !v4_future.valid()) {
+	if (ImGui::Button(t({ "Test The Port", u8"ƒ|[ƒgŠJ•úŠm”F" }), ScaledVec2(buttonWidth, 0)) && !v4_future.valid()) {
 		v4_result = "Please wait...";
 		v4_future = test_udp_port_connectivity(config::GdxLocalPort, false);
 	}
 	ImGui::SameLine();
 	ShowHelpMarker(t({
-"Test receiving data using this UDP port on IPv4",
+"Test receiving data using this UDP port",
 u8"İ’è‚³‚ê‚½UDPƒ|[ƒg‚ğg‚Á‚ÄŠO•”‚©‚çƒf[ƒ^‚ğóM‚Å‚«‚é‚©ƒeƒXƒg‚µ‚Ü‚·B\n‚±‚ÌƒeƒXƒg‚É¸”s‚·‚éê‡A‘Îí‚ª¬—§‚µ‚È‚¢‚©’ÊM’x‰„‚ª‘‰Á‚·‚éê‡‚ª‚ ‚è‚Ü‚·B"
 }));
 	ImGui::SameLine();
 	ImGui::Text("%s", v4_result.c_str());
-
-	if (future_is_ready(v6_future)) {
-		v6_result = v6_future.get();
-	}
-	if (ImGui::Button(t({ "Test The Port (IPv6)", u8"ƒ|[ƒgŠJ•úŠm”F (IPv6)" }), ScaledVec2(buttonWidth, 0)) && !v6_future.valid()) {
-		v6_result = "Please wait...";
-		v6_future = test_udp_port_connectivity(config::GdxLocalPort, true);
-	}
-	ImGui::SameLine();
-	ShowHelpMarker(t({
-"Test receiving data using this UDP port on IPv6",
-u8"İ’è‚³‚ê‚½UDPƒ|[ƒg‚ğg‚Á‚ÄŠO•”‚©‚çƒf[ƒ^‚ğóM‚Å‚«‚é‚©ƒeƒXƒg‚µ‚Ü‚·B"
-		}));
-	ImGui::SameLine();
-	ImGui::Text("%s", v6_result.c_str());
 
 	OptionArrowButtons(
 		t({"Gdx Minimum Delay", u8"Å¬“ü—Í’x‰„"}), config::GdxMinDelay, 2, 6,
@@ -259,8 +244,5 @@ u8"ƒIƒ“ƒ‰ƒCƒ“‘Îí‚ÌÅ¬“ü—Í’x‰„ƒtƒŒ[ƒ€”‚ğİ’è‚µ‚Ü‚·B¬‚³‚¢’l‚ğİ’è‚·‚é‚Æ“ü—
 "Display network statistics on screen by default.\nUse Flycast Menu button to show/hide.",
 u8"ƒIƒ“ƒ‰ƒCƒ“‘Îí‚É’ÊM‚Ì“Œvî•ñ‚ğ•\¦‚µ‚Ü‚·B.\nMenu ƒ{ƒ^ƒ“‚ğ‰Ÿ‚µ‚Ä•\¦E”ñ•\¦‚ğØ‚è‘Ö‚¦‚é‚±‚Æ‚ª‚Å‚«‚Ü‚·B",
 }));
-
-	OptionCheckbox("SkipRenderingHack", config::GdxSkipRenderingHack, t({ "Skip graphic updates when rolling back.", u8"ƒ[ƒ‹ƒoƒbƒN’†‚ÉƒQ[ƒ€‚Ì•`‰æˆ—‚ğÈ‚«•‰‰×‚ğŒyŒ¸‚µ‚Ü‚·B—LŒø‚ğ„§"}));
-
-	OptionCheckbox("SlowIdleLoopHack", config::GdxSlowIdleLoopHack, t({ "Reduce idle loop when rendering.", u8"ƒQ[ƒ€‚Ì–³‘Ê‚Èˆ—‚ğÈ‚«•‰‰×‚ğŒyŒ¸‚µ‚Ü‚·B—LŒø‚ğ„§"}));
 }
+// clang-format on
