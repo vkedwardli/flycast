@@ -344,6 +344,23 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 		}
 	}
 
+	if (upnp_result_.valid()) {
+		ss << "upnp_result=" << upnp_result_.get() << "\n";
+		ss << "upnp_local_ip=" << upnp_.localAddress() << "\n";
+		ss << "upnp_public_ip=" << upnp_.externalAddress() << "\n";
+		ss << "upnp_local_ip_differ=" << static_cast<int>(lbs_net_.LocalIP() != std::string(upnp_.localAddress())) << "\n";
+		if (public_ipv4_.valid()) {
+			if (public_ipv4_.get().first) {
+				ss << "upnp_public_ip_differ=" << static_cast<int>(public_ipv4_.get().second != std::string(upnp_.externalAddress()))
+				   << "\n";
+			}
+		}
+	}
+
+	if (port_test_result_v4_.valid()) {
+		ss << "port_test_v4=" << port_test_result_v4_.get() << "\n";
+	}
+
 	const auto raw_content = ss.str();
 	std::vector<u8> content;
 	if (!encode_zlib_deflate(raw_content.c_str(), raw_content.size(), content)) {
@@ -521,6 +538,12 @@ void Gdxsv::HandleRPC() {
 }
 
 void Gdxsv::StartPingTest() { gcp_ping_test_result_ = gcp_ping_test().share(); }
+
+void Gdxsv::StartUdpPortTest() {
+	if (config::GdxLocalPort != 0) {
+		port_test_result_v4_ = test_udp_port_connectivity(config::GdxLocalPort, false).share();
+	}
+}
 
 void Gdxsv::FetchPublicIP() {
 	public_ipv4_ = get_public_ip_address(false).share();
