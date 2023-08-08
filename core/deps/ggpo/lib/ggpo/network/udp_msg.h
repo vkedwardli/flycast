@@ -69,6 +69,7 @@ struct UdpMsg
       
       struct {
          uint32      pong;
+         uint32      packet_loss;
       } quality_reply;
 
       struct {

@@ -68,8 +68,6 @@ class Gdxsv {
 	std::atomic<int> disk_;
 	std::atomic<int> maxlag_;
 	std::atomic<int> maxrebattle_;
-	std::string server_;
-	std::string loginkey_;
 	std::string user_id_;
 	std::map<std::string, u32> symbols_;
 	proto::GamePatchList patch_list_;
