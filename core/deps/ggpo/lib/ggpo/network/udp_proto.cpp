@@ -31,10 +31,12 @@ UdpProtocol::UdpProtocol() :
    _remote_magic_number(0),
    _connected(false),
    _round_trip_time(0),
+   _smooth_round_trip_time(0),
    _packets_sent(0),
    _bytes_sent(0),
    _stats_start_time(0),
    _recv_packet_loss(0),
+   _send_packet_loss(0),
    _local_frame_advantage(0),
    _remote_frame_advantage(0),
    _last_send_time(0),
@@ -401,7 +403,7 @@ UdpProtocol::OnMsg(UdpMsg *msg, int len)
       }
 
       if (_next_recv_seq < seq && skipped != 1) {
-        _recv_packet_loss++;
+        _recv_packet_loss += skipped;
       }
    }
 
@@ -724,6 +726,7 @@ UdpProtocol::OnQualityReport(UdpMsg *msg, int len)
    // send a reply so the other side can compute the round trip transmit time.
    UdpMsg *reply = new UdpMsg(UdpMsg::QualityReply);
    reply->u.quality_reply.pong = msg->u.quality_report.ping;
+   reply->u.quality_reply.packet_loss = _recv_packet_loss;
    SendMsg(reply);
 
    _remote_frame_advantage = msg->u.quality_report.frame_advantage;
@@ -733,9 +736,10 @@ UdpProtocol::OnQualityReport(UdpMsg *msg, int len)
 bool
 UdpProtocol::OnQualityReply(UdpMsg *msg, int len)
 {
-   uint32 rtt = GGPOPlatform::GetCurrentTimeMS() - msg->u.quality_reply.pong;
-   if (1000 < rtt) return true;
-   _round_trip_time = _round_trip_time == 0 ? rtt : uint32(0.5 + 0.9 * _round_trip_time + 0.1 * rtt);
+   int rtt = int(GGPOPlatform::GetCurrentTimeMS() - msg->u.quality_reply.pong);
+   _round_trip_time = rtt;
+   _smooth_round_trip_time = _smooth_round_trip_time == 0 ? rtt : int(0.5 + 0.75 * _smooth_round_trip_time + 0.25 * rtt);
+   _send_packet_loss = msg->u.quality_reply.packet_loss;
    return true;
 }
 
@@ -752,6 +756,7 @@ UdpProtocol::GetNetworkStats(struct GGPONetworkStats *s)
    s->network.send_queue_len = _pending_output.size();
    s->network.kbps_sent = _kbps_sent;
    s->network.recv_packet_loss = _recv_packet_loss;
+   s->network.send_packet_loss = _send_packet_loss;
    s->timesync.remote_frames_behind = _remote_frame_advantage;
    s->timesync.local_frames_behind = _local_frame_advantage;
 }
@@ -764,7 +769,7 @@ UdpProtocol::SetLocalFrameNumber(int localFrame, int input_delay)
     * last frame they gave us plus some delta for the one-way packet
     * trip time.
     */
-   int remoteFrame = _last_received_input.frame + (_round_trip_time * 60 + 2000) / 2000;
+   int remoteFrame = _last_received_input.frame + (_smooth_round_trip_time * 60 + 2000) / 2000;
 
    /*
     * Our frame advantage is how many frames *behind* the other guy
