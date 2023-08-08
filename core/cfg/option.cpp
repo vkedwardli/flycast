@@ -138,6 +138,8 @@ Option<float> ProfilerFrameWarningTime("Profiler.FrameWarningTime", 1.0f / 55.0f
 
 // Gdxsv
 
+Option<std::string> GdxLobbyServer("server", "zdxsv.net", "gdxsv");
+Option<std::string> GdxLoginKey("loginkey", "", "gdxsv");
 Option<int> GdxLanguage("language", -1, "gdxsv");
 Option<int> GdxLocalPort("LocalPort", 0, "gdxsv");
 Option<int> GdxMinDelay("MinDelay", 2, "gdxsv");

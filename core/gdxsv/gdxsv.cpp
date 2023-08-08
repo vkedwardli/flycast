@@ -100,23 +100,12 @@ void Gdxsv::Reset() {
 		return;
 	}
 	enabled_ = true;
-
-	RestoreOnlinePatch();
-
-	server_ = cfgLoadStr("gdxsv", "server", "zdxsv.net");
-	loginkey_ = cfgLoadStr("gdxsv", "loginkey", "");
-
-	if (loginkey_.empty()) {
-		loginkey_ = GenerateLoginKey();
-	}
-
-	cfgSaveStr("gdxsv", "server", server_.c_str());
-	cfgSaveStr("gdxsv", "loginkey", loginkey_.c_str());
-
 	std::string disk_num(ip_meta.disk_num, 1);
 	if (disk_num == "1") disk_ = 1;
 	if (disk_num == "2") disk_ = 2;
 	settings.gdxsv.disk = disk_;
+
+	RestoreOnlinePatch();
 
 	maxrebattle_ = 5;
 
@@ -128,8 +117,8 @@ void Gdxsv::Reset() {
 		config::GdxLocalPort = get_random_port_number();
 	}
 
-	NOTICE_LOG(COMMON, "gdxsv disk:%d server:%s loginkey:%s udp_port:%d", (int)disk_, server_.c_str(), loginkey_.c_str(),
-			   config::GdxLocalPort.get());
+	NOTICE_LOG(COMMON, "gdxsv disk:%d server:%s loginkey:%s udp_port:%d", (int)disk_, config::GdxLobbyServer.get().c_str(),
+			   config::GdxLoginKey.get().c_str(), config::GdxLocalPort.get());
 
 	lbs_net_.lbs_packet_filter([this](const LbsMessage &lbs_msg) -> bool {
 		if (netmode_ != NetMode::Lbs) {
@@ -344,7 +333,11 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 		}
 	}
 
-	if (upnp_result_.valid()) {
+	if (future_is_ready(port_test_result_v4_)) {
+		ss << "port_test_v4=" << port_test_result_v4_.get() << "\n";
+	}
+
+	if (future_is_ready(upnp_result_)) {
 		ss << "upnp_result=" << upnp_result_.get() << "\n";
 		ss << "upnp_local_ip=" << upnp_.localAddress() << "\n";
 		ss << "upnp_public_ip=" << upnp_.externalAddress() << "\n";
@@ -357,10 +350,6 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 		}
 	}
 
-	if (port_test_result_v4_.valid()) {
-		ss << "port_test_v4=" << port_test_result_v4_.get() << "\n";
-	}
-
 	const auto raw_content = ss.str();
 	std::vector<u8> content;
 	if (!encode_zlib_deflate(raw_content.c_str(), raw_content.size(), content)) {
@@ -371,9 +360,10 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 	packet.push_back((content.size() >> 8) & 0xffu);
 	packet.push_back(content.size() & 0xffu);
 	std::copy(std::begin(content), std::end(content), std::back_inserter(packet));
-	std::vector<u8> e_loginkey(loginkey_.size());
+	const auto key = config::GdxLoginKey.get();
+	std::vector<u8> e_loginkey(key.size());
 	static const int magic[] = {0x46, 0xcf, 0x2d, 0x55};
-	for (int i = 0; i < e_loginkey.size(); ++i) e_loginkey[i] ^= loginkey_[i] ^ magic[i & 3];
+	for (int i = 0; i < e_loginkey.size(); ++i) e_loginkey[i] ^= key[i] ^ magic[i & 3];
 	packet.push_back((e_loginkey.size() >> 8) & 0xffu);
 	packet.push_back(e_loginkey.size() & 0xffu);
 	std::copy(std::begin(e_loginkey), std::end(e_loginkey), std::back_inserter(packet));
@@ -447,7 +437,7 @@ void Gdxsv::HandleRPC() {
 		if (netmode_ == NetMode::Replay) {
 			replay_net_.Open();
 		} else if (tolobby == 1) {
-			if (lbs_net_.Connect(server_, port)) {
+			if (lbs_net_.Connect(config::GdxLobbyServer, port)) {
 				netmode_ = NetMode::Lbs;
 				lbs_net_.Send(GeneratePlatformInfoPacket());
 				AddPortMapping();
@@ -597,12 +587,12 @@ void Gdxsv::AddPortMapping() {
 			return;
 		}
 		upnp_result_ = std::async(std::launch::async, [this, port]() -> std::string {
-			NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d", port);
-			const bool ok = upnp_.Init() && upnp_.AddPortMapping(port, false);
-			std::string result = ok ? "Success" : upnp_.getLastError();
-			NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d %s", port, result.c_str());
-			return result;
-		});
+						   NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d", port);
+						   const bool ok = upnp_.Init() && upnp_.AddPortMapping(port, false);
+						   std::string result = ok ? "Success" : upnp_.getLastError();
+						   NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d %s", port, result.c_str());
+						   return result;
+					   }).share();
 	}
 }
 
@@ -688,8 +678,9 @@ void Gdxsv::WritePatchDisk1() {
 	}
 
 	// Overwrite serve address (max 20 chars)
+	const auto server = config::GdxLobbyServer.get();
 	for (int i = 0; i < 20; ++i) {
-		gdxsv_WriteMem8(offset + 0x0015e788 + i, (i < server_.length()) ? u8(server_[i]) : u8(0));
+		gdxsv_WriteMem8(offset + 0x0015e788 + i, (i < server.length()) ? u8(server[i]) : u8(0));
 	}
 
 	// Skip form validation
@@ -700,8 +691,9 @@ void Gdxsv::WritePatchDisk1() {
 
 	// Write LoginKey
 	if (gdxsv_ReadMem8(offset - 0x10000 + 0x002f6924) == 0) {
-		for (int i = 0; i < std::min(loginkey_.length(), size_t(8)) + 1; ++i) {
-			gdxsv_WriteMem8(offset - 0x10000 + 0x002f6924 + i, (i < loginkey_.length()) ? u8(loginkey_[i]) : u8(0));
+		const auto key = config::GdxLoginKey.get();
+		for (int i = 0; i < std::min(key.length(), size_t(8)) + 1; ++i) {
+			gdxsv_WriteMem8(offset - 0x10000 + 0x002f6924 + i, (i < key.length()) ? u8(key[i]) : u8(0));
 		}
 	}
 
@@ -713,8 +705,8 @@ void Gdxsv::WritePatchDisk1() {
 		if (1 <= player_index && player_index <= 4) {
 			player_index--;
 			// depend on 4 player battle
-			u8 ally_index = player_index - (player_index & 1) + !(player_index & 1);
-			u16 ally_hp = gdxsv_ReadMem16(0x0c3369d6 + ally_index * 0x2000);
+			const u8 ally_index = player_index - (player_index & 1) + !(player_index & 1);
+			const u16 ally_hp = gdxsv_ReadMem16(0x0c3369d6 + ally_index * 0x2000);
 			gdxsv_WriteMem16(0x0c3369d2 + player_index * 0x2000, ally_hp);
 			hp_offset -= 2;
 		}
@@ -769,9 +761,10 @@ void Gdxsv::WritePatchDisk2() {
 		gdxsv_WriteMem8(offset + 0x001be7c7 + i, u8(atm1[i]));
 	}
 
-	// Overwrite serve address (max 20 chars)
+	// Overwrite server address (max 20 chars)
+	const auto server = config::GdxLobbyServer.get();
 	for (int i = 0; i < 20; ++i) {
-		gdxsv_WriteMem8(offset + 0x001be84c + i, (i < server_.length()) ? u8(server_[i]) : u8(0));
+		gdxsv_WriteMem8(offset + 0x001be84c + i, (i < server.length()) ? u8(server[i]) : u8(0));
 	}
 
 	// Skip form validation
@@ -782,8 +775,9 @@ void Gdxsv::WritePatchDisk2() {
 
 	// Write LoginKey
 	if (gdxsv_ReadMem8(offset - 0x10000 + 0x00392064) == 0) {
-		for (int i = 0; i < std::min(loginkey_.length(), size_t(8)) + 1; ++i) {
-			gdxsv_WriteMem8(offset - 0x10000 + 0x00392064 + i, (i < loginkey_.length()) ? u8(loginkey_[i]) : u8(0));
+		const auto key = config::GdxLoginKey.get();
+		for (int i = 0; i < std::min(key.length(), size_t(8)) + 1; ++i) {
+			gdxsv_WriteMem8(offset - 0x10000 + 0x00392064 + i, (i < key.length()) ? u8(key[i]) : u8(0));
 		}
 	}
 
@@ -795,8 +789,8 @@ void Gdxsv::WritePatchDisk2() {
 		if (1 <= player_index && player_index <= 4) {
 			player_index--;
 			// depend on 4 player battle
-			u8 ally_index = player_index - (player_index & 1) + !(player_index & 1);
-			u16 ally_hp = gdxsv_ReadMem16(0x0c3d1e56 + ally_index * 0x2000);
+			const u8 ally_index = player_index - (player_index & 1) + !(player_index & 1);
+			const u16 ally_hp = gdxsv_ReadMem16(0x0c3d1e56 + ally_index * 0x2000);
 			gdxsv_WriteMem16(0x0c3d1e52 + player_index * 0x2000, ally_hp);
 			hp_offset -= 2;
 		}
