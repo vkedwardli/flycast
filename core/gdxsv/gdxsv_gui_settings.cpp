@@ -374,7 +374,7 @@ u8"網絡對戰時顯示連線状態。\n按下Menu button可以切換顯示或�
 }
 // clang-format on
 
-const char* gdxsv_gui_settings_canto_glyphs()
+const char* gdxsv_gui_settings_text_for_preparing_font()
 {
 	return u8"檔嘅黑吓增開另幫你";
 }

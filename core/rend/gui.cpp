@@ -220,8 +220,7 @@ void gui_initFonts()
 	
 	ImFontGlyphRangesBuilder builder;
 	builder.AddRanges(GetGlyphRangesShiftJIS());
-	builder.AddText(gdxsv_emu_settings_canto_glyphs());
-	builder.AddText(u8"黑");
+	builder.AddText(gdxsv_emu_settings_text_for_preparing_font());
 	ImVector<ImWchar> cjk_ranges;
 	builder.BuildRanges(&cjk_ranges);
 	

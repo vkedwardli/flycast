@@ -137,7 +137,7 @@ void gdxsv_emu_settings_gdxsv_tab() { gdxsv_gui_settings_tab(); }
 
 void gdxsv_emu_apply_base_settings() { gdxsv_apply_base_settings(); }
 
-const char* gdxsv_emu_settings_canto_glyphs() { return gdxsv_gui_settings_canto_glyphs(); }
+const char* gdxsv_emu_settings_text_for_preparing_font() { return gdxsv_gui_settings_text_for_preparing_font(); }
 
 void gdxsv_gui_display_osd() { gdxsv.DisplayOSD(); }
 

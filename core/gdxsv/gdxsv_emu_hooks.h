@@ -48,7 +48,7 @@ void gdxsv_emu_settings_gdxsv_tab();
 
 void gdxsv_emu_apply_base_settings();
 
-const char* gdxsv_emu_settings_canto_glyphs();
+const char* gdxsv_emu_settings_text_for_preparing_font();
 
 void gdxsv_gui_display_osd();
 
