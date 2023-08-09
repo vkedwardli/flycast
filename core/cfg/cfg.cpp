@@ -4,6 +4,8 @@
 
 #include <cerrno>
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+
 static std::string cfgPath;
 static bool save_config = true;
 static bool autoSave = true;
@@ -55,6 +57,7 @@ bool cfgOpen()
 		{
 			// Config file didn't exist
 			INFO_LOG(COMMON, "Creating new empty config file at '%s'", cfgPath.c_str());
+			gdxsv_emu_apply_base_settings();
 			saveConfigFile();
 		}
 		else

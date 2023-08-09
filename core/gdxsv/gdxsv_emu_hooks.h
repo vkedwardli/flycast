@@ -46,6 +46,10 @@ void gdxsv_emu_gui_display_replay();
 
 void gdxsv_emu_settings_gdxsv_tab();
 
+void gdxsv_emu_apply_base_settings();
+
+const char* gdxsv_emu_settings_text_for_preparing_font();
+
 void gdxsv_gui_display_osd();
 
 void gdxsv_crash_append_log(FILE* f);

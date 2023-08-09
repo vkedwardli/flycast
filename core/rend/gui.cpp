@@ -217,6 +217,13 @@ void gui_initFonts()
 	io.Fonts->AddFontFromMemoryCompressedTTF(roboto_medium_compressed_data, roboto_medium_compressed_size, fontSize, nullptr, ranges);
     ImFontConfig font_cfg;
     font_cfg.MergeMode = true;
+	
+	ImFontGlyphRangesBuilder builder;
+	builder.AddRanges(GetGlyphRangesShiftJIS());
+	builder.AddText(gdxsv_emu_settings_text_for_preparing_font());
+	ImVector<ImWchar> cjk_ranges;
+	builder.BuildRanges(&cjk_ranges);
+	
 #ifdef _WIN32
     u32 cp = GetACP();
     std::string fontDir = std::string(nowide::getenv("SYSTEMROOT")) + "\\Fonts\\";
@@ -224,10 +231,10 @@ void gui_initFonts()
 	// Always load ShiftJIS for Gdxsv
 	{
 		font_cfg.FontNo = 2;	// Meiryo UI
-		ImFont* font = io.Fonts->AddFontFromFileTTF((fontDir + "meiryo.ttc").c_str(), fontSize, &font_cfg, GetGlyphRangesShiftJIS());
+		ImFont* font = io.Fonts->AddFontFromFileTTF((fontDir + "meiryo.ttc").c_str(), fontSize, &font_cfg, cjk_ranges.Data);
 		font_cfg.FontNo = 2;	// UIGothic
 		if (font == nullptr)
-			io.Fonts->AddFontFromFileTTF((fontDir + "msgothic.ttc").c_str(), fontSize, &font_cfg, GetGlyphRangesShiftJIS());
+			io.Fonts->AddFontFromFileTTF((fontDir + "msgothic.ttc").c_str(), fontSize, &font_cfg, cjk_ranges.Data);
 	}
 /* Load ShiftJIS only to prevent crash with older GPU
     switch (cp)
@@ -271,7 +278,7 @@ void gui_initFonts()
     std::string fontDir = std::string("/System/Library/Fonts/");
 
     // Always load ShiftJIS for Gdxsv
-    io.Fonts->AddFontFromFileTTF((fontDir + "ヒラギノ角ゴシック W4.ttc").c_str(), fontSize, &font_cfg, GetGlyphRangesShiftJIS());
+    io.Fonts->AddFontFromFileTTF((fontDir + "ヒラギノ角ゴシック W4.ttc").c_str(), fontSize, &font_cfg, cjk_ranges.Data);
 /* Load ShiftJIS only to prevent crash with older GPU
     extern std::string os_Locale();
     std::string locale = os_Locale();
@@ -314,6 +321,8 @@ void gui_initFonts()
 
     // TODO Linux, iOS, ...
 #endif
+	io.Fonts->Build();
+	
 	NOTICE_LOG(RENDERER, "Screen DPI is %.0f, size %d x %d. Scaling by %.2f", settings.display.dpi, settings.display.width, settings.display.height, settings.display.uiScale);
 }
 
