@@ -32,6 +32,49 @@ static const char* t(std::initializer_list<const char*> texts) {
 	return *(texts.begin() + index);
 }
 
+void gdxsv_apply_base_settings()
+{
+	// Frame Limit
+	config::LimitFPS = false;
+	config::FixedFrequency = 2;
+	
+	// Controls
+	config::MapleMainDevices[0].set(MapleDeviceType::MDT_SegaController);
+	config::MapleExpansionDevices[0][0].set(MDT_SegaVMU);
+	config::Sh4Clock = 200;
+	
+	// Video
+	config::PerStripSorting = false;
+	config::DelayFrameSwapping = false;
+#if defined(_WIN32)
+	config::RendererType.set(RenderType::DirectX11);
+#else
+	config::RendererType.set(RenderType::OpenGL);
+#endif
+	config::RenderResolution = 720;
+	config::SkipFrame = 0;
+	config::AutoSkipFrame = 0;
+	config::TextureUpscale = 1;
+	
+	// Audio
+	config::DSPEnabled = false;
+	config::AudioVolume.set(50);
+	config::AudioVolume.calcDbPower();
+	config::AudioBufferSize = 706 * 4;
+	
+	// Others
+	config::DynarecEnabled = true;
+	
+	// Network
+	config::EnableUPnP = true;
+	if (config::GdxLocalPort == 0) {
+		config::GdxLocalPort = get_random_port_number();
+	}
+	config::GdxMinDelay = 2;
+	
+	maple_ReconnectDevices();
+}
+
 // clang-format off
 void gdxsv_gui_settings_tab()
 {
@@ -59,48 +102,6 @@ void gdxsv_gui_settings_tab()
 	ImGui::NextColumn();
 	OptionRadioButton("Disabled", config::GdxLanguage, 3);
 	ImGui::Columns(1, nullptr, false);
-
-	auto apply_base_settings = []() {
-		// Frame Limit
-		config::LimitFPS = false;
-		config::FixedFrequency = 2;
-
-		// Controls
-		config::MapleMainDevices[0].set(MapleDeviceType::MDT_SegaController);
-		config::MapleExpansionDevices[0][0].set(MDT_SegaVMU);
-		config::Sh4Clock = 200;
-
-		// Video
-		config::PerStripSorting = false;
-		config::DelayFrameSwapping = false;
-#if defined(_WIN32)
-		config::RendererType.set(RenderType::DirectX11);
-#else
-		config::RendererType.set(RenderType::OpenGL);
-#endif
-		config::RenderResolution = 720;
-		config::SkipFrame = 0;
-		config::AutoSkipFrame = 0;
-		config::TextureUpscale = 1;
-
-		// Audio
-		config::DSPEnabled = false;
-		config::AudioVolume.set(50);
-		config::AudioVolume.calcDbPower();
-		config::AudioBufferSize = 706 * 4;
-
-		// Others
-		config::DynarecEnabled = true;
-
-		// Network
-		config::EnableUPnP = true;
-		if (config::GdxLocalPort == 0) {
-			config::GdxLocalPort = get_random_port_number();
-		}
-		config::GdxMinDelay = 2;
-
-		maple_ReconnectDevices();
-	};
 	
 	auto settings_to_be_changed = []() -> std::string {
 		std::string str = t({ "Settings to be changed:\n\n", u8"設定を変更する:\n\n", u8"將會被更改的設定:\n\n" });
@@ -156,7 +157,7 @@ void gdxsv_gui_settings_tab()
 	};
 
 	if (ImGui::Button(t({ "Apply Recommended Settings\nfor Low-Spec PC", u8"低スペックPC向け\nおすすめ設定適用", u8"使用建議偏好設定\n低階電腦適用" }), ScaledVec2(200, 50))) {
-		apply_base_settings();
+		gdxsv_apply_base_settings();
 		config::ThreadedRendering = true;
 		config::GdxMinDelay = 3;
 		config::AutoSkipFrame = 1;
@@ -180,7 +181,7 @@ void gdxsv_gui_settings_tab()
 	
 	ImGui::SameLine();
 	if (ImGui::Button(t({ "Apply Recommended Settings\nfor Mid-Spec PC", u8"中スペックPC向け\nおすすめ設定適用", u8"使用建議偏好設定\n中階電腦適用" }), ScaledVec2(200, 50))) {
-		apply_base_settings();
+		gdxsv_apply_base_settings();
 		config::ThreadedRendering = false;
 		config::RenderResolution = 960;
 	}
@@ -203,7 +204,7 @@ void gdxsv_gui_settings_tab()
 	
 	ImGui::SameLine();
 	if (ImGui::Button(t({ "Apply Recommended Settings\nfor High-Spec PC", u8"高スペックPC向け\nおすすめ設定適用", u8"使用建議偏好設定\n高階電腦適用" }), ScaledVec2(200, 50))) {
-		apply_base_settings();
+		gdxsv_apply_base_settings();
 		config::ThreadedRendering = false;
 		config::RenderResolution = 1440;
 		config::TextureUpscale = 2;
