@@ -275,9 +275,11 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekToBriefing) {
+			const int org_speed = ctrl_play_speed_;
+			ctrl_play_speed_ = 0;
+
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
-
 			while (!(in_briefing() || in_game() || need_cancel())) {
 				settings.aica.muteAudio = true;
 				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
@@ -302,6 +304,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				gui_display_notification(buf, duration);
 			}
 
+			ctrl_play_speed_ = org_speed;
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
 		}
@@ -344,7 +347,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 			if (0 < round && round != start_msg_count_ && round - 1 < log_file_.start_msg_indexes_size() &&
 				round - 1 < log_file_.start_msg_randoms_size() && gdxsv_save_state.FirstSavedFrame() != -1) {
 				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame());
-				gdxsv_save_state.Clear();
 				KillTex = true;
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
 				start_msg_count_ = round;
@@ -357,13 +359,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 				gdxsv_WriteMem8(battle_count, round - 1);
 				gdxsv_WriteMem8(net_battle_count, round - 1);
 				gdxsv_WriteMem8(net_battle_count_copy, round - 1);
-
-				gdxsv_save_state.SaveState(key_msg_count_);
-				recv_buf_.clear();
-				gdxsv.key_display_.Clear();
-				gdxsv.maxlag_ = 1;	// for StartMsg
 				NOTICE_LOG(COMMON, "ctrl_change_round_:%d key_msg_count_:%d", round, key_msg_count_);
 				NOTICE_LOG(COMMON, "start_msg_randoms_size:%d", log_file_.start_msg_randoms_size());
+
+				recv_buf_.clear();
+				gdxsv.key_display_.Clear();
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 			}
@@ -877,12 +878,11 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		NOTICE_LOG(COMMON, "StartMsg key_msg_count %d", key_msg_count_);
 
 		if (start_msg_count_ - 1 < log_file_.start_msg_indexes_size()) {
-			const auto it = std::lower_bound(log_file_.start_msg_indexes().begin(), log_file_.start_msg_indexes().end(), key_msg_count_);
-			if (it != log_file_.start_msg_indexes().end()) {
-				NOTICE_LOG(COMMON, "key_msg_count updates %d -> %d", key_msg_count_, *it);
-				key_msg_count_ = *it;
-			}
-		} else {
+			const auto key_msg_count = log_file_.start_msg_indexes(start_msg_count_ - 1);
+			key_msg_count_ = log_file_.start_msg_indexes(start_msg_count_ - 1);
+			NOTICE_LOG(COMMON, "key_msg_count updates %d -> %d", key_msg_count_, key_msg_count);
+			key_msg_count_ = key_msg_count;
+		} else if (save_converted_log_) {
 			log_file_.add_start_msg_indexes(key_msg_count_);
 		}
 
@@ -890,7 +890,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		const auto random_data = gdxsv_ReadMem16(k_rnd0);
 		if (start_msg_count_ - 1 < log_file_.start_msg_randoms_size()) {
 			verify(random_data == (log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu));
-		} else {
+		} else if (save_converted_log_) {
 			log_file_.add_start_msg_randoms(random_data);
 		}
 
@@ -900,29 +900,28 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
+		verify(recv_buf_.empty());
 		gdxsv.maxlag_ = 0;
 
-		if (ctrl_play_speed_ < 0) {
-			recv_delay_ = -ctrl_play_speed_;
-		}
+		if (key_msg_count_ < log_file_.inputs_size()) {
+			const u64 inputs = log_file_.inputs(key_msg_count_);
 
-		if (log_file_.inputs_size()) {
-			if (key_msg_count_ < log_file_.inputs_size()) {
-				const u64 inputs = log_file_.inputs(key_msg_count_);
+			for (int i = 0; i < log_file_.users_size(); ++i) {
+				const u16 input = u16(inputs >> (i * 16));
+				auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
+				key_msg.body[2] = input >> 8 & 0xff;
+				key_msg.body[3] = input & 0xff;
+				std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+				gdxsv.key_display_.AppendInput(i, input);
+			}
 
-				for (int i = 0; i < log_file_.users_size(); ++i) {
-					const u16 input = u16(inputs >> (i * 16));
-					auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
-					key_msg.body[2] = input >> 8 & 0xff;
-					key_msg.body[3] = input & 0xff;
-					std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
-					gdxsv.key_display_.AppendInput(i, input);
-				}
+			++key_msg_count_;
+			if (key_msg_count_ == log_file_.inputs_size()) {
+				Stop();
+			}
 
-				++key_msg_count_;
-				if (key_msg_count_ == log_file_.inputs_size()) {
-					Stop();
-				}
+			if (ctrl_play_speed_ < 0) {
+				recv_delay_ = -ctrl_play_speed_;
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::KeyMsg2) {
