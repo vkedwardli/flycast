@@ -1128,8 +1128,8 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 			ImGui::PopStyleColor();
 		}
 
-		ImGui::Text("Loss");
-		std::string loss = std::to_string(stats[i].network.recv_packet_loss);
+		ImGui::Text("Loss i/o");
+		std::string loss = std::to_string(stats[i].network.recv_packet_loss) + " / " + std::to_string(stats[i].network.send_packet_loss);
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(loss.c_str()).x);
 		ImGui::Text("%s", loss.c_str());
 

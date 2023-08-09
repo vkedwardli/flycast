@@ -166,11 +166,13 @@ protected:
     * Stats
     */
    int            _round_trip_time;
+   int            _smooth_round_trip_time;
    int            _packets_sent;
    int            _bytes_sent;
    int            _kbps_sent;
    int            _stats_start_time;
    int            _recv_packet_loss;
+   int            _send_packet_loss;
 
    /*
     * The state machine
