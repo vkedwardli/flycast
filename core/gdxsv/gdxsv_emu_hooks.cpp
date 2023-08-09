@@ -135,6 +135,8 @@ void gdxsv_emu_gui_display() {
 
 void gdxsv_emu_settings_gdxsv_tab() { gdxsv_gui_settings_tab(); }
 
+const char* gdxsv_emu_settings_canto_glyphs() { return gdxsv_gui_settings_canto_glyphs(); }
+
 void gdxsv_gui_display_osd() { gdxsv.DisplayOSD(); }
 
 void gdxsv_crash_append_log(FILE* f) {

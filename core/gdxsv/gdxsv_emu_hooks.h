@@ -46,6 +46,8 @@ void gdxsv_emu_gui_display_replay();
 
 void gdxsv_emu_settings_gdxsv_tab();
 
+const char* gdxsv_emu_settings_canto_glyphs();
+
 void gdxsv_gui_display_osd();
 
 void gdxsv_crash_append_log(FILE* f);
