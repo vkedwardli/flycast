@@ -35,7 +35,7 @@ static const char* t(std::initializer_list<const char*> texts) {
 void gdxsv_apply_base_settings()
 {
 	// Frame Limit
-	config::LimitFPS = false;
+	config::LimitFPS = true;
 	config::FixedFrequency = 2;
 	
 	// Controls
@@ -106,8 +106,8 @@ void gdxsv_gui_settings_tab()
 	auto settings_to_be_changed = []() -> std::string {
 		std::string str = t({ "Settings to be changed:\n\n", u8"設定を変更する:\n\n", u8"將會被更改的設定:\n\n" });
 		// Frame Limit
-		if (config::LimitFPS)
-			str += "AudioSync = false\n";
+		if (config::LimitFPS == false)
+			str += "AudioSync = true\n";
 		if (config::FixedFrequency != 2)
 			str += "FixedFrequency = 59.94 Hz\n";
 		
