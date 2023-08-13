@@ -151,6 +151,8 @@ protected:
    uint16         _remote_magic_number;
    bool           _connected;
    int            _send_latency;
+   int            _jam_latency;
+   bool           _enable_jam;
    int            _oop_percent;
    struct {
       int         send_time;

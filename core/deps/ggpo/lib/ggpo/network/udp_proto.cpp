@@ -62,6 +62,7 @@ UdpProtocol::UdpProtocol() :
    _oo_packet.msg = NULL;
 
    _send_latency = GGPOPlatform::GetConfigInt("GGPO_NETWORK_DELAY");
+   _jam_latency = GGPOPlatform::GetConfigInt("GGPO_NETWORK_JAM_DELAY");
    _oop_percent = GGPOPlatform::GetConfigInt("GGPO_OOP_PERCENT");
 }
 
@@ -822,6 +823,21 @@ UdpProtocol::PumpSendQueue()
             break;
          }
       }
+
+      // simulate temporary packet jam
+      if (_jam_latency) {
+          if (!_enable_jam && (rand() % 600 == 0)) {
+              _enable_jam = true;
+              LogInfo("Jam!");
+          }
+		  if (_enable_jam) {
+			 if ((int)GGPOPlatform::GetCurrentTimeMS() < entry.queue_time + _jam_latency) {
+				break;
+			 }
+             _enable_jam = false;
+		  }
+      }
+
       if (_oop_percent && !_oo_packet.msg && ((rand() % 100) < _oop_percent)) {
          int delay = rand() % (_send_latency * 10 + 1000);
          Log("udpproto%d | creating rogue oop (seq: %d  delay: %d)", _queue, entry.msg->hdr.sequence_number, delay);
