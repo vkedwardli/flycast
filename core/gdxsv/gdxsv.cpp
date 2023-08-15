@@ -6,7 +6,6 @@
 #include <random>
 #include <sstream>
 
-#include "cfg/cfg.h"
 #include "cfg/option.h"
 #include "emulator.h"
 #include "gdx_rpc.h"
@@ -115,6 +114,10 @@ void Gdxsv::Reset() {
 
 	if (config::GdxLocalPort == 0) {
 		config::GdxLocalPort = get_random_port_number();
+	}
+
+	if (config::GdxLoginKey.get().empty()) {
+		config::GdxLoginKey = GenerateLoginKey();
 	}
 
 	NOTICE_LOG(COMMON, "gdxsv disk:%d server:%s loginkey:%s udp_port:%d", (int)disk_, config::GdxLobbyServer.get().c_str(),
