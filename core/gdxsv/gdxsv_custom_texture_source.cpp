@@ -8,8 +8,8 @@
 
 #include "gdxsv_translation.h"
 #include "oslib/storage.h"
-#include "zip.h"
-#include "zipint.h"
+#include <zip.h>
+#include <zipint.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
