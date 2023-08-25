@@ -25,12 +25,6 @@
 GdxsvTexturePackSource gdxsv_texture_pack_source;
 GdxsvEmbedTextureSource gdxsv_embed_texture_source;
 
-static std::string trim_colon_prefix(const std::string& str) {
-	const auto pos = str.find(':');
-	if (pos != std::string::npos) return str.substr(pos + 1);
-	return str;
-}
-
 static std::string get_game_id() {
 	std::string game_id(settings.content.gameId);
 	const size_t str_end = game_id.find_last_not_of(' ');
