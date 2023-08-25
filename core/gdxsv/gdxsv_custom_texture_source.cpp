@@ -5,11 +5,10 @@
 #include "gdxsv_custom_texture_source.h"
 
 #include <stb_image.h>
+#include <zip.h>
 
 #include "gdxsv_translation.h"
 #include "oslib/storage.h"
-#include <zip.h>
-#include <zipint.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -329,23 +328,39 @@ u8* GdxsvTexturePackSource::LoadCustomTexture(u32 hash, int& width, int& height)
 	if (zfp == nullptr) {
 		ERROR_LOG(COMMON, "LoadCustomTexture: zip_fopen_index failure");
 	} else {
+		struct UserData {
+			zip_file_t* zfp;
+			bool eof;
+		};
+
 		stbi_io_callbacks cbk{};
 		cbk.read = [](void* user, char* data, int size) -> int {
-			return static_cast<int>(zip_fread(static_cast<zip_file_t*>(user), data, size));
+			const auto u = static_cast<UserData*>(user);
+			const int n = static_cast<int>(zip_fread(u->zfp, data, size));
+			u->eof |= size != 0 && n == 0;
+			return n;
 		};
-		cbk.skip = [](void* user, int n) {
-			while (0 < n) {
-				char buf[4096];
-				const int size = std::min<int>(sizeof(buf), n);
-				n -= static_cast<int>(zip_fread(static_cast<zip_file_t*>(user), buf, size));
+		cbk.skip = [](void* user, int skip) {
+			const auto u = static_cast<UserData*>(user);
+			while (0 < skip) {
+				char buf[1024];
+				const int size = std::min<int>(sizeof(buf), skip);
+				const int n = static_cast<int>(zip_fread(u->zfp, buf, size));
+				u->eof |= size != 0 && n == 0;
+				skip -= n;
 			}
-			verify(n == 0);
 		};
-		cbk.eof = [](void* user) -> int { return static_cast<zip_file_t*>(user)->eof; };
+		cbk.eof = [](void* user) -> int {
+			const auto u = static_cast<UserData*>(user);
+			return u->eof;
+		};
 
+		UserData u{};
+		u.zfp = zfp;
+		u.eof = false;
 		int n;
 		stbi_set_flip_vertically_on_load(1);
-		u8* imgData = stbi_load_from_callbacks(&cbk, zfp, &width, &height, &n, STBI_rgb_alpha);
+		u8* imgData = stbi_load_from_callbacks(&cbk, &u, &width, &height, &n, STBI_rgb_alpha);
 
 		zip_fclose(zfp);
 		return imgData;
