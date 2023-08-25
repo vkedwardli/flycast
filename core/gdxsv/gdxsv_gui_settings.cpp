@@ -4,7 +4,6 @@
 #include "gdxsv_network.h"
 #include "hw/maple/maple_if.h"
 #include "imgui.h"
-#include "input/gamepad_device.h"
 #include "libs.h"
 #include "rend/gui_util.h"
 
@@ -32,17 +31,16 @@ static const char* t(std::initializer_list<const char*> texts) {
 	return *(texts.begin() + index);
 }
 
-void gdxsv_apply_base_settings()
-{
+void gdxsv_apply_base_settings() {
 	// Frame Limit
 	config::LimitFPS = true;
 	config::FixedFrequency = 2;
-	
+
 	// Controls
 	config::MapleMainDevices[0].set(MapleDeviceType::MDT_SegaController);
 	config::MapleExpansionDevices[0][0].set(MDT_SegaVMU);
 	config::Sh4Clock = 200;
-	
+
 	// Video
 	config::PerStripSorting = false;
 	config::DelayFrameSwapping = false;
@@ -55,23 +53,23 @@ void gdxsv_apply_base_settings()
 	config::SkipFrame = 0;
 	config::AutoSkipFrame = 0;
 	config::TextureUpscale = 1;
-	
+
 	// Audio
 	config::DSPEnabled = false;
 	config::AudioVolume.set(50);
 	config::AudioVolume.calcDbPower();
 	config::AudioBufferSize = 706 * 4;
-	
+
 	// Others
 	config::DynarecEnabled = true;
-	
+
 	// Network
 	config::EnableUPnP = true;
 	if (config::GdxLocalPort == 0) {
 		config::GdxLocalPort = get_random_port_number();
 	}
 	config::GdxMinDelay = 2;
-	
+
 	maple_ReconnectDevices();
 }
 
@@ -102,7 +100,7 @@ void gdxsv_gui_settings_tab()
 	ImGui::NextColumn();
 	OptionRadioButton("Disabled", config::GdxLanguage, 3);
 	ImGui::Columns(1, nullptr, false);
-	
+
 	auto settings_to_be_changed = []() -> std::string {
 		std::string str = t({ "Settings to be changed:\n\n", u8"設定を変更する:\n\n", u8"將會被更改的設定:\n\n" });
 		// Frame Limit
@@ -244,6 +242,11 @@ u8"使用開發者建議嘅偏好設定 (其他版嘅設定都會改埋)\n\n\
 最爽亦係最高負荷嘅設定"
 		}));
 
+	OptionCheckbox(t({ "UseTexturePack", u8"高解像度テクスチャを使用" }), config::GdxUseTexturePack, t({
+"Use up-scaled textures.",
+u8"ゲーム内で高品質なテクスチャを使用します. ",
+}));
+
 	OptionCheckbox(t({ "Multi-threaded emulation", u8"マルチスレッドエミュレーション" }), config::ThreadedRendering, t({
 R"(Run the emulated CPU and GPU on different threads.
 Can reduce the loading, but it may introduce a delay of 1 frame for input.
@@ -374,7 +377,4 @@ u8"網絡對戰時顯示連線状態。\n按下Menu button可以切換顯示或�
 }
 // clang-format on
 
-const char* gdxsv_gui_settings_text_for_preparing_font()
-{
-	return u8"檔嘅黑吓增開另幫你";
-}
+const char* gdxsv_gui_settings_text_for_preparing_font() { return u8"檔嘅黑吓增開另幫你"; }

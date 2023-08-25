@@ -5,14 +5,13 @@
 
 #include "cfg/cfg.h"
 #include "gdxsv.h"
+#include "gdxsv_custom_texture_source.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_update.h"
-#include "hw/maple/maple_if.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
 #include "json.hpp"
-#include "libs.h"
 #include "nowide/fstream.hpp"
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
@@ -34,7 +33,11 @@ bool gdxsv_is_online() { return gdxsv.IsOnline(); }
 
 bool gdxsv_is_savestate_allowed() { return gdxsv.IsSaveStateAllowed(); }
 
-void gdxsv_emu_flycast_init() { config::GGPOEnable = false; }
+void gdxsv_emu_flycast_init() {
+	config::GGPOEnable = false;
+	custom_texture.AddTextureSource(&gdxsv_embed_texture_source);
+	custom_texture.AddTextureSource(&gdxsv_texture_pack_source);
+}
 
 void gdxsv_emu_start() {
 	gdxsv.Reset();

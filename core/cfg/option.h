@@ -499,6 +499,7 @@ extern Option<float> ProfilerFrameWarningTime;
 extern Option<std::string> GdxLobbyServer;
 extern Option<std::string> GdxLoginKey;
 extern Option<int> GdxLanguage;
+extern Option<bool> GdxUseTexturePack;
 extern Option<int> GdxLocalPort;
 extern Option<int> GdxMinDelay;
 extern Option<bool> GdxSaveReplay;
