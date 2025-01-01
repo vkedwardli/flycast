@@ -35,6 +35,7 @@ class DX11Context : public GraphicsContext
 public:
 	bool init(ID3D11Device *device, ID3D11DeviceContext *deviceContext, pD3DCompile D3DCompile, D3D_FEATURE_LEVEL featureLevel);
 	void term() override;
+	void present();
 
 	const ComPtr<ID3D11Device>& getDevice() const { return pDevice; }
 	const ComPtr<ID3D11DeviceContext>& getDeviceContext() const { return pDeviceContext; }
@@ -49,6 +50,9 @@ public:
 
 	bool isIntel() const {
 		return vendorId == VENDOR_INTEL;
+	}
+	bool isAMD() override {
+		return vendorId == VENDOR_ATI || vendorId == VENDOR_AMD;
 	}
 
 	DX11Shaders& getShaders() {
@@ -90,6 +94,8 @@ private:
 	bool supportedTexFormats[5] {}; // indexed by TextureType enum
 
 	static constexpr UINT VENDOR_INTEL = 0x8086;
+	static constexpr UINT VENDOR_ATI = 0x1002;
+	static constexpr UINT VENDOR_AMD = 0x1022;
 };
 extern DX11Context theDX11Context;
 #endif

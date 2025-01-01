@@ -40,7 +40,7 @@ static bm_Map blkmap;
 u32 protected_blocks;
 u32 unprotected_blocks;
 
-#define FPCA(x) ((DynarecCodeEntryPtr&)sh4rcb.fpcb[(x>>1)&FPCB_MASK])
+#define FPCA(x) ((DynarecCodeEntryPtr&)p_sh4rcb->fpcb[(x>>1)&FPCB_MASK])
 
 // addr must be a physical address
 // This returns an executable address
@@ -73,8 +73,8 @@ DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 #ifdef USE_WINCE_HACK
 		case 0xfffffde7: // GetTickCount
 			// This should make this syscall faster
-			r[0] = sh4_sched_now64() * 1000 / SH4_MAIN_CLOCK;
-			next_pc = pr;
+			Sh4cntx.r[0] = sh4_sched_now64() * 1000 / SH4_MAIN_CLOCK;
+			Sh4cntx.pc = Sh4cntx.pr;
 			Sh4cntx.cycle_counter -= 100;
 			break;
 
@@ -83,11 +83,11 @@ DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 				bool isRam;
 				u64 *ptr;
 				u32 paddr;
-				if (rdv_writeMemImmediate(r[4], sizeof(u64), (void*&)ptr, isRam, paddr) && isRam)
+				if (rdv_writeMemImmediate(Sh4cntx.r[4], sizeof(u64), (void*&)ptr, isRam, paddr) && isRam)
 				{
 					*ptr = sh4_sched_now64() >> 4;
-					r[0] = 1;
-					next_pc = pr;
+					Sh4cntx.r[0] = 1;
+					Sh4cntx.pc = Sh4cntx.pr;
 					Sh4cntx.cycle_counter -= 100;
 				}
 				else
@@ -102,7 +102,7 @@ DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 			Do_Exception(addr, Sh4Ex_AddressErrorRead);
 			break;
 		}
-		addr = next_pc;
+		addr = Sh4cntx.pc;
 	}
 
 	u32 paddr;
@@ -110,7 +110,7 @@ DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 	if (rv != MmuError::NONE)
 	{
 		DoMMUException(addr, rv, MMU_TT_IREAD);
-		mmu_instruction_translation(next_pc, paddr);
+		mmu_instruction_translation(Sh4cntx.pc, paddr);
 	}
 
 	return bm_GetCode(paddr);
@@ -245,11 +245,12 @@ void bm_Reset()
 	protected_blocks = 0;
 	unprotected_blocks = 0;
 
+#ifndef __SWITCH__
 	if (addrspace::virtmemEnabled())
 	{
 		// Windows cannot lock/unlock a region spanning more than one VirtualAlloc or MapViewOfFile
 		// so we have to unlock each region individually
-		if (settings.platform.ram_size == 16 * 1024 * 1024)
+		if (settings.platform.ram_size == 16_MB)
 		{
 			virtmem::region_unlock(addrspace::ram_base + 0x0C000000, RAM_SIZE);
 			virtmem::region_unlock(addrspace::ram_base + 0x0D000000, RAM_SIZE);
@@ -263,6 +264,7 @@ void bm_Reset()
 		}
 	}
 	else
+#endif
 	{
 		virtmem::region_unlock(&mem_b[0], RAM_SIZE);
 	}
@@ -288,7 +290,7 @@ void bm_UnlockPage(u32 addr, u32 size)
 
 void bm_ResetCache()
 {
-	ngen_ResetBlocks();
+	sh4Dynarec->reset();
 	addrspace::bm_reset();
 
 	for (const auto& it : blkmap)
@@ -368,9 +370,8 @@ void bm_WriteBlockMap(const std::string& file)
 	if (f)
 	{
 		INFO_LOG(DYNAREC, "Writing block map !");
-		for (auto& it : blkmap)
+		for (const auto& [_, block] : blkmap)
 		{
-			RuntimeBlockInfoPtr& block = it.second;
 			fprintf(f, "block: %d:%08X:%p:%d:%d:%d\n", block->BlockType, block->addr, block->code, block->host_code_size, block->guest_cycles, block->guest_opcodes);
 			for(size_t j = 0; j < block->oplist.size(); j++)
 				fprintf(f,"\top: %zd:%d:%s\n", j, block->oplist[j].guest_offs, block->oplist[j].dissasm().c_str());
@@ -382,118 +383,11 @@ void bm_WriteBlockMap(const std::string& file)
 
 void sh4_jitsym(FILE* out)
 {
-	for (const auto& it : blkmap)
+	for (const auto& [_, block] : blkmap)
 	{
-		const RuntimeBlockInfoPtr& block = it.second;
 		fprintf(out, "%p %d %08X\n", block->code, block->host_code_size, block->addr);
 	}
 }
-
-#if 0
-u32 GetLookup(RuntimeBlockInfo* elem)
-{
-	return elem->lookups;
-}
-
-bool UDgreater ( RuntimeBlockInfo* elem1, RuntimeBlockInfo* elem2 )
-{
-	return elem1->runs > elem2->runs;
-}
-
-bool UDgreater2 ( RuntimeBlockInfo* elem1, RuntimeBlockInfo* elem2 )
-{
-	return elem1->runs*elem1->host_opcodes > elem2->runs*elem2->host_opcodes;
-}
-
-bool UDgreater3 ( RuntimeBlockInfo* elem1, RuntimeBlockInfo* elem2 )
-{
-	return elem1->runs*elem1->host_opcodes/elem1->guest_cycles > elem2->runs*elem2->host_opcodes/elem2->guest_cycles;
-}
-
-void bm_PrintTopBlocks()
-{
-	double total_lups=0;
-	double total_runs=0;
-	double total_cycles=0;
-	double total_hops=0;
-	double total_sops=0;
-
-	for (size_t i=0;i<all_blocks.size();i++)
-	{
-		total_lups+=GetLookup(all_blocks[i]);
-		total_cycles+=all_blocks[i]->runs*all_blocks[i]->guest_cycles;
-		total_hops+=all_blocks[i]->runs*all_blocks[i]->host_opcodes;
-		total_sops+=all_blocks[i]->runs*all_blocks[i]->guest_opcodes;
-		total_runs+=all_blocks[i]->runs;
-	}
-
-	INFO_LOG(DYNAREC, "Total lookups:  %.0fKRuns, %.0fKLuops, Total cycles: %.0fMhz, Total Hops: %.0fMips, Total Sops: %.0fMips!",total_runs/1000,total_lups/1000,total_cycles/1000/1000,total_hops/1000/1000,total_sops/1000/1000);
-	total_hops/=100;
-	total_cycles/=100;
-	total_runs/=100;
-
-	double sel_hops=0;
-	for (size_t i=0;i<(all_blocks.size()/100);i++)
-	{
-		INFO_LOG(DYNAREC, "Block %08X: %p, r: %d (c: %d, s: %d, h: %d) (r: %.2f%%, c: %.2f%%, h: %.2f%%)",
-			all_blocks[i]->addr, all_blocks[i]->code,all_blocks[i]->runs,
-			all_blocks[i]->guest_cycles,all_blocks[i]->guest_opcodes,all_blocks[i]->host_opcodes,
-
-			all_blocks[i]->runs/total_runs,
-			all_blocks[i]->guest_cycles*all_blocks[i]->runs/total_cycles,
-			all_blocks[i]->host_opcodes*all_blocks[i]->runs/total_hops);
-		
-		sel_hops+=all_blocks[i]->host_opcodes*all_blocks[i]->runs;
-	}
-
-	INFO_LOG(DYNAREC, " >-< %.2f%% covered in top 1%% blocks",sel_hops/total_hops);
-
-	size_t i;
-	for (i=all_blocks.size()/100;sel_hops/total_hops<50;i++)
-	{
-		INFO_LOG(DYNAREC, "Block %08X: %p, r: %d (c: %d, s: %d, h: %d) (r: %.2f%%, c: %.2f%%, h: %.2f%%)",
-			all_blocks[i]->addr, all_blocks[i]->code,all_blocks[i]->runs,
-			all_blocks[i]->guest_cycles,all_blocks[i]->guest_opcodes,all_blocks[i]->host_opcodes,
-
-			all_blocks[i]->runs/total_runs,
-			all_blocks[i]->guest_cycles*all_blocks[i]->runs/total_cycles,
-			all_blocks[i]->host_opcodes*all_blocks[i]->runs/total_hops);
-		
-		sel_hops+=all_blocks[i]->host_opcodes*all_blocks[i]->runs;
-	}
-
-	INFO_LOG(DYNAREC, " >-< %.2f%% covered in top %.2f%% blocks",sel_hops/total_hops,i*100.0/all_blocks.size());
-
-}
-
-void bm_Sort()
-{
-	INFO_LOG(DYNAREC, "!!!!!!!!!!!!!!!!!!! BLK REPORT !!!!!!!!!!!!!!!!!!!!");
-
-	INFO_LOG(DYNAREC, "     ---- Blocks: Sorted based on Runs ! ----     ");
-	std::sort(all_blocks.begin(),all_blocks.end(),UDgreater);
-	bm_PrintTopBlocks();
-
-	INFO_LOG(DYNAREC, "<><><><><><><><><><><><><><><><><><><><><><><><><>");
-
-	INFO_LOG(DYNAREC, "     ---- Blocks: Sorted based on hops ! ----     ");
-	std::sort(all_blocks.begin(),all_blocks.end(),UDgreater2);
-	bm_PrintTopBlocks();
-
-	INFO_LOG(DYNAREC, "<><><><><><><><><><><><><><><><><><><><><><><><><>");
-
-	INFO_LOG(DYNAREC, "     ---- Blocks: Sorted based on wefs ! ----     ");
-	std::sort(all_blocks.begin(),all_blocks.end(),UDgreater3);
-	bm_PrintTopBlocks();
-
-	INFO_LOG(DYNAREC, "^^^^^^^^^^^^^^^^^^^ END REPORT ^^^^^^^^^^^^^^^^^^^");
-
-	for (size_t i=0;i<all_blocks.size();i++)
-	{
-		all_blocks[i]->runs=0;
-	}
-}
-#endif
 
 RuntimeBlockInfo::~RuntimeBlockInfo()
 {
@@ -545,10 +439,6 @@ void RuntimeBlockInfo::Discard()
 
 void RuntimeBlockInfo::SetProtectedFlags()
 {
-#ifdef TARGET_NO_EXCEPTIONS
-	this->read_only = false;
-	return;
-#endif
 	// Don't write protect rom and BIOS/IP.BIN (Grandia II)
 	if (!IsOnRam(addr) || (addr & 0x1FFF0000) == 0x0c000000)
 	{
@@ -590,7 +480,11 @@ void bm_RamWriteAccess(u32 addr)
 		std::vector<RuntimeBlockInfo*> list_copy;
 		list_copy.insert(list_copy.begin(), block_list.begin(), block_list.end());
 		if (!list_copy.empty())
+<<<<<<< HEAD
 			WARN_LOG(DYNAREC, "bm_RamWriteAccess write access to %08x pc %08x", addr, next_pc);
+=======
+			DEBUG_LOG(DYNAREC, "bm_RamWriteAccess write access to %08x pc %08x", addr, Sh4cntx.pc);
+>>>>>>> upstream/master
 		for (auto& block : list_copy)
 			bm_DiscardBlock(block);
 		verify(block_list.empty());
@@ -599,6 +493,7 @@ void bm_RamWriteAccess(u32 addr)
 
 u32 bm_getRamOffset(void *p)
 {
+#ifndef __SWITCH__
 	if (addrspace::virtmemEnabled())
 	{
 		if ((u8 *)p < addrspace::ram_base || (u8 *)p >= addrspace::ram_base + 0x20000000)
@@ -609,6 +504,7 @@ u32 bm_getRamOffset(void *p)
 		return addr & RAM_MASK;
 	}
 	else
+#endif
 	{
 		if ((u8 *)p < &mem_b[0] || (u8 *)p >= &mem_b[RAM_SIZE])
 			return -1;
@@ -662,16 +558,14 @@ void print_blocks()
 		INFO_LOG(DYNAREC, "Writing blocks to %p", f);
 	}
 
-	for (auto it : blkmap)
+	for (const auto& [_, blk] : blkmap)
 	{
-		RuntimeBlockInfoPtr blk = it.second;
 		if (f)
 		{
 			fprintf(f,"block: %p\n",blk.get());
 			fprintf(f,"vaddr: %08X\n",blk->vaddr);
 			fprintf(f,"paddr: %08X\n",blk->addr);
 			fprintf(f,"code: %p\n",blk->code);
-			fprintf(f,"runs: %d\n",blk->runs);
 			fprintf(f,"BlockType: %d\n",blk->BlockType);
 			fprintf(f,"NextBlock: %08X\n",blk->NextBlock);
 			fprintf(f,"BranchBlock: %08X\n",blk->BranchBlock);
@@ -716,8 +610,6 @@ void print_blocks()
 
 			fprintf(f,"}\n");
 		}
-
-		blk->runs=0;
 	}
 
 	if (f) fclose(f);

@@ -27,23 +27,16 @@
 #include <fcntl.h>
 #include <nowide/config.hpp>
 #include <nowide/convert.hpp>
+#include "cfg/option.h"
+#include "ui/gui.h"
 #endif
 #include "oslib/oslib.h"
-#include "imgread/common.h"
 #include "stdclass.h"
 #include "cfg/cfg.h"
-#include "win_keyboard.h"
 #include "log/LogManager.h"
-#include "wsi/context.h"
-#if defined(USE_SDL)
 #include "sdl/sdl.h"
-#else
-#include "xinput_gamepad.h"
-#endif
 #include "emulator.h"
-#include "rend/mainui.h"
-#include "../shell/windows/resource.h"
-#include "rawinput.h"
+#include "ui/mainui.h"
 #include "oslib/directory.h"
 #ifdef USE_BREAKPAD
 #ifdef _MSC_VER
@@ -55,9 +48,7 @@
 #endif
 #include "profiler/fc_profiler.h"
 
-#if defined(USE_SDL) || defined(DEF_CONSOLE)
 #include <nowide/args.hpp>
-#endif
 #include <nowide/stackstring.hpp>
 
 #include <ws2ipdef.h>
@@ -68,6 +59,7 @@
 #include <windows.h>
 #include <windowsx.h>
 
+<<<<<<< HEAD
 // Gdxsv
 #include <fstream>
 #include <sstream>
@@ -248,6 +240,8 @@ void os_TermInput()
 #endif
 }
 
+=======
+>>>>>>> upstream/master
 static void setupPath()
 {
 #ifndef TARGET_UWP
@@ -287,6 +281,7 @@ static void setupPath()
 #endif
 }
 
+<<<<<<< HEAD
 void UpdateInputState()
 {
 	FC_PROFILE_SCOPE;
@@ -620,6 +615,8 @@ void os_SetWindowText(const char* text)
 #endif
 }
 
+=======
+>>>>>>> upstream/master
 static void reserveBottomMemory()
 {
 #if defined(_WIN64) && defined(_DEBUG)
@@ -637,8 +634,7 @@ static void reserveBottomMemory()
     size_t totalReservation = 0;
     size_t numVAllocs = 0;
     size_t numHeapAllocs = 0;
-    size_t oneMB = 1024 * 1024;
-    for (size_t size = 256 * oneMB; size >= oneMB; size /= 2)
+    for (size_t size = 256_MB; size >= 1_MB; size /= 2)
     {
         for (;;)
         {
@@ -661,7 +657,7 @@ static void reserveBottomMemory()
     // Now repeat the same process but making heap allocations, to use up
     // the already reserved heap blocks that are below the 4 GB line.
     HANDLE heap = GetProcessHeap();
-    for (size_t blockSize = 64 * 1024; blockSize >= 16; blockSize /= 2)
+    for (size_t blockSize = 64_KB; blockSize >= 16; blockSize /= 2)
     {
         for (;;)
         {
@@ -683,7 +679,7 @@ static void reserveBottomMemory()
 
     // Perversely enough the CRT doesn't use the process heap. Suck up
     // the memory the CRT heap has already reserved.
-    for (size_t blockSize = 64 * 1024; blockSize >= 16; blockSize /= 2)
+    for (size_t blockSize = 64_KB; blockSize >= 16; blockSize /= 2)
     {
         for (;;)
         {
@@ -776,41 +772,6 @@ static bool dumpCallback(const wchar_t* dump_path,
 #endif
 
 #ifdef TARGET_UWP
-
-void gui_load_game()
-{
-	using namespace Windows::Storage;
-	using namespace Concurrency;
-
-	auto picker = ref new Pickers::FileOpenPicker();
-	picker->ViewMode = Pickers::PickerViewMode::List;
-
-	picker->FileTypeFilter->Append(".chd");
-	picker->FileTypeFilter->Append(".gdi");
-	picker->FileTypeFilter->Append(".cue");
-	picker->FileTypeFilter->Append(".cdi");
-	picker->FileTypeFilter->Append(".zip");
-	picker->FileTypeFilter->Append(".7z");
-	picker->FileTypeFilter->Append(".elf");
-	if (!config::HideLegacyNaomiRoms)
-	{
-		picker->FileTypeFilter->Append(".bin");
-		picker->FileTypeFilter->Append(".lst");
-		picker->FileTypeFilter->Append(".dat");
-	}
-	picker->SuggestedStartLocation = Pickers::PickerLocationId::DocumentsLibrary;
-
-	create_task(picker->PickSingleFileAsync()).then([](StorageFile ^file) {
-		if (file)
-		{
-			NOTICE_LOG(COMMON, "Picked file: %S", file->Path->Data());
-			nowide::stackstring path;
-			if (path.convert(file->Path->Data()))
-				gui_start_game(path.get());
-		}
-	});
-}
-
 namespace nowide {
 
 FILE *fopen(char const *file_name, char const *mode)
@@ -873,32 +834,9 @@ int remove(char const *name)
 }
 #endif
 
-#ifdef USE_SDL
 int main(int argc, char* argv[])
 {
 	nowide::args _(argc, argv);
-
-#elif defined(DEF_CONSOLE)
-// DEF_CONSOLE allows you to override linker subsystem and therefore default console
-//	: pragma isn't pretty but def's are configurable
-#pragma comment(linker, "/subsystem:console")
-
-int main(int argc, char** argv)
-{
-	nowide::args _(argc, argv);
-
-#else
-#pragma comment(linker, "/subsystem:windows")
-
-int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShowCmd)
-{
-	wchar_t *cmd_line = GetCommandLineW();
-	nowide::stackstring converter;
-	int argc = 0;
-	char **argv = nullptr;
-	if (converter.convert(cmd_line))
-		argv = commandLineToArgvA(converter.get(), &argc);
-#endif
 
 #ifdef USE_BREAKPAD
 	wchar_t tempDir[MAX_PATH + 1];
@@ -949,19 +887,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	os_InstallFaultHandler();
 
 	mainui_loop();
-
-#ifdef USE_SDL
-	sdl_window_destroy();
-#else
-	termRenderApi();
-	destroyMainWindow();
-	cfgSaveBool("window", "maximized", window_maximized);
-	if (!window_maximized && settings.display.width != 0 && settings.display.height != 0)
-	{
-		cfgSaveInt("window", "width", settings.display.width);
-		cfgSaveInt("window", "height", settings.display.height);
-	}
-#endif
 
 	flycast_term();
 	os_UninstallFaultHandler();
@@ -1071,21 +996,33 @@ std::string os_GetConnectionMedium(){
 
 void os_RunInstance(int argc, const char *argv[])
 {
-	char exePath[MAX_PATH];
-	GetModuleFileNameA(NULL, exePath, sizeof(exePath));
+	wchar_t exePath[MAX_PATH];
+	GetModuleFileNameW(NULL, exePath, std::size(exePath));
 
-	std::string cmdLine(exePath);
+	std::wstring cmdLine = L'"' + std::wstring(exePath) + L'"';
 	for (int i = 0; i < argc; i++)
 	{
-		cmdLine += ' ';
-		cmdLine += argv[i];
+		nowide::wstackstring wname;
+		if (!wname.convert(argv[i])) {
+			WARN_LOG(BOOT, "Invalid argument: %s", argv[i]);
+			continue;
+		}
+		cmdLine += L" \"";
+		for (wchar_t *p = wname.get(); *p != L'\0'; p++)
+		{
+			cmdLine += *p;
+			if (*p == L'"')
+				// escape double quote
+				cmdLine += L'"';
+		}
+		cmdLine += L'"';
 	}
 
-	STARTUPINFOA startupInfo{};
+	STARTUPINFOW startupInfo{};
 	startupInfo.cb = sizeof(startupInfo);
 
 	PROCESS_INFORMATION processInfo{};
-	BOOL rc = CreateProcessA(exePath, (char *)cmdLine.c_str(), nullptr, nullptr, true, 0, nullptr, nullptr, &startupInfo, &processInfo);
+	BOOL rc = CreateProcessW(exePath, (wchar_t *)cmdLine.c_str(), nullptr, nullptr, true, 0, nullptr, nullptr, &startupInfo, &processInfo);
 	if (rc)
 	{
 		CloseHandle(processInfo.hProcess);
@@ -1097,6 +1034,29 @@ void os_RunInstance(int argc, const char *argv[])
 	}
 }
 
+<<<<<<< HEAD
+=======
+void os_SetThreadName(const char *name)
+{
+#ifndef TARGET_UWP
+	nowide::wstackstring wname;
+	if (wname.convert(name))
+	{
+		static HRESULT (*SetThreadDescription)(HANDLE, PCWSTR);
+		if (SetThreadDescription == nullptr)
+		{
+			// supported in Windows 10, version 1607 or Windows Server 2016
+			HINSTANCE libh = LoadLibraryW(L"KernelBase.dll");
+			if (libh != NULL)
+				SetThreadDescription = (HRESULT (*)(HANDLE, PCWSTR))GetProcAddress(libh, "SetThreadDescription");
+		}
+		if (SetThreadDescription != nullptr)
+			SetThreadDescription(GetCurrentThread(), wname.get());
+	}
+#endif
+}
+
+>>>>>>> upstream/master
 #ifdef VIDEO_ROUTING
 #include "SpoutSender.h"
 #include "SpoutDX.h"
@@ -1104,11 +1064,16 @@ void os_RunInstance(int argc, const char *argv[])
 static SpoutSender* spoutSender;
 static spoutDX* spoutDXSender;
 
+<<<<<<< HEAD
 void os_VideoRoutingInitSpout()
+=======
+void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w, float h)
+>>>>>>> upstream/master
 {
 	if (spoutSender == nullptr)
 	{
 		spoutSender = new SpoutSender();
+<<<<<<< HEAD
 	}
 	
 	int boardID = cfgLoadInt("naomi", "BoardId", 0);
@@ -1119,6 +1084,13 @@ void os_VideoRoutingInitSpout()
 
 void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w, float h)
 {
+=======
+		int boardID = cfgLoadInt("naomi", "BoardId", 0);
+		char buf[32] = { 0 };
+		vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
+		spoutSender->SetSenderName(buf);
+	}	
+>>>>>>> upstream/master
 	spoutSender->SendTexture(texID, texTarget, w, h, true);
 }
 
@@ -1131,11 +1103,16 @@ void os_VideoRoutingTermGL()
 	}
 }
 
+<<<<<<< HEAD
 void os_VideoRoutingInitSpoutDXWithDevice(ID3D11Device* pDevice)
+=======
+void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
+>>>>>>> upstream/master
 {
 	if (spoutDXSender == nullptr)
 	{
 		spoutDXSender = new spoutDX();
+<<<<<<< HEAD
 	}
 	spoutDXSender->OpenDirectX11(pDevice);
 	int boardID = cfgLoadInt("naomi", "BoardId", 0);
@@ -1146,6 +1123,27 @@ void os_VideoRoutingInitSpoutDXWithDevice(ID3D11Device* pDevice)
 
 void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
 {
+=======
+		ID3D11Resource* resource = nullptr;
+		HRESULT hr = pTexture->QueryInterface(__uuidof(ID3D11Resource), reinterpret_cast<void**>(&resource));
+		if (SUCCEEDED(hr))
+		{
+			ID3D11Device* pDevice = nullptr;
+			resource->GetDevice(&pDevice);
+			resource->Release();
+			spoutDXSender->OpenDirectX11(pDevice);
+			pDevice->Release();
+			int boardID = cfgLoadInt("naomi", "BoardId", 0);
+			char buf[32] = { 0 };
+			vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
+			spoutDXSender->SetSenderName(buf);
+		}
+		else
+		{
+			return;
+		}
+	}
+>>>>>>> upstream/master
 	spoutDXSender->SendTexture(pTexture);
 }
 

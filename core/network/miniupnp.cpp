@@ -44,7 +44,11 @@ bool MiniUPnP::Init()
 		WARN_LOG(NETWORK, lastError);
 		return false;
 	}
+#if MINIUPNPC_API_VERSION >= 18
+	error = UPNP_GetValidIGD(devlist, &urls, &data, lanAddress, sizeof(lanAddress), nullptr, 0);
+#else
 	error = UPNP_GetValidIGD(devlist, &urls, &data, lanAddress, sizeof(lanAddress));
+#endif
 	freeUPNPDevlist(devlist);
 	if (error != 1)
 	{

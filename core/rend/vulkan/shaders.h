@@ -20,7 +20,7 @@
 */
 #pragma once
 #include "vulkan.h"
-#include "SPIRV/GlslangToSpv.h"
+#include <glslang/SPIRV/GlslangToSpv.h>
 
 #include <glm/glm.hpp>
 #include <map>
@@ -49,8 +49,9 @@ struct FragmentShaderParams
 	bool bumpmap;
 	bool clamping;
 	bool trilinear;
-	bool palette;
+	int palette;
 	bool divPosZ;
+	bool dithering;
 
 	u32 hash()
 	{
@@ -58,7 +59,7 @@ struct FragmentShaderParams
 			| ((u32)texture << 3) | ((u32)ignoreTexAlpha << 4) | (shaderInstr << 5)
 			| ((u32)offset << 7) | ((u32)fog << 8) | ((u32)gouraud << 10)
 			| ((u32)bumpmap << 11) | ((u32)clamping << 12) | ((u32)trilinear << 13)
-			| ((u32)palette << 14) | ((u32)divPosZ << 15);
+			| ((u32)palette << 14) | ((u32)divPosZ << 16) | ((u32)dithering << 17);
 	}
 };
 
@@ -83,6 +84,7 @@ struct FragmentShaderUniforms
 	float colorClampMax[4];
 	float sp_FOG_COL_RAM[4];	// Only using 3 elements but easier for std140
 	float sp_FOG_COL_VERT[4];	// same comment
+	float ditherColorMax[4];
 	float cp_AlphaTestValue;
 	float sp_FOG_DENSITY;
 };
@@ -145,18 +147,6 @@ public:
 			return *quadFragmentShader;
 		}
 	}
-	vk::ShaderModule GetOSDVertexShader()
-	{
-		if (!osdVertexShader)
-			osdVertexShader = compileOSDVertexShader();
-		return *osdVertexShader;
-	}
-	vk::ShaderModule GetOSDFragmentShader()
-	{
-		if (!osdFragmentShader)
-			osdFragmentShader = compileOSDFragmentShader();
-		return *osdFragmentShader;
-	}
 
 	void term()
 	{
@@ -169,8 +159,6 @@ public:
 		quadRotateVertexShader.reset();
 		quadFragmentShader.reset();
 		quadNoAlphaFragmentShader.reset();
-		osdVertexShader.reset();
-		osdFragmentShader.reset();
 	}
 
 private:
@@ -190,8 +178,6 @@ private:
 	vk::UniqueShaderModule compileModVolFragmentShader(bool divPosZ);
 	vk::UniqueShaderModule compileQuadVertexShader(bool rotate);
 	vk::UniqueShaderModule compileQuadFragmentShader(bool ignoreTexAlpha);
-	vk::UniqueShaderModule compileOSDVertexShader();
-	vk::UniqueShaderModule compileOSDFragmentShader();
 
 	std::map<u32, vk::UniqueShaderModule> vertexShaders;
 	std::map<u32, vk::UniqueShaderModule> fragmentShaders;
@@ -201,6 +187,4 @@ private:
 	vk::UniqueShaderModule quadRotateVertexShader;
 	vk::UniqueShaderModule quadFragmentShader;
 	vk::UniqueShaderModule quadNoAlphaFragmentShader;
-	vk::UniqueShaderModule osdVertexShader;
-	vk::UniqueShaderModule osdFragmentShader;
 };

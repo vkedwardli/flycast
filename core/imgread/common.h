@@ -60,10 +60,16 @@ enum DiskArea
 	DoubleDensity
 };
 
-bool InitDrive(const std::string& path);
-void TermDrive();
-bool DiscSwap(const std::string& path);
-void DiscOpenLid();
+namespace gdr {
+
+bool initDrive(const std::string& path);
+void termDrive();
+void insertDisk(const std::string& path);
+void openLid();
+bool isOpen();
+bool isLoaded();
+
+}
 
 struct Session
 {
@@ -112,19 +118,7 @@ struct Disc
 	DiscType type;
 	std::string catalog;
 
-	bool ReadSector(u32 FAD,u8* dst,SectorFormat* sector_type,u8* subcode,SubcodeFormat* subcode_type)
-	{
-		for (size_t i=tracks.size();i-->0;)
-		{
-			*subcode_type=SUBFMT_NONE;
-			if (tracks[i].Read(FAD,dst,sector_type,subcode,subcode_type))
-				return true;
-		}
-
-		return false;
-	}
-
-	void ReadSectors(u32 FAD, u32 count, u8 *dst, u32 fmt, LoadProgress *progress = nullptr);
+	u32 ReadSectors(u32 FAD, u32 count, u8 *dst, u32 fmt, bool stopOnMiss = false, LoadProgress *progress = nullptr);
 
 	virtual ~Disc() 
 	{
@@ -167,7 +161,7 @@ struct Disc
 
 			for (u32 j=tracks[i].StartFAD;j<=tracks[i].EndFAD;j++)
 			{
-				u8 temp[2352];
+				u8 temp[2448];
 				ReadSectors(j,1,temp,fmt);
 				std::fwrite(temp, fmt, 1, fo);
 			}
@@ -211,6 +205,9 @@ struct Disc
 		GetSessionInfo(ses, ses[2]);
 		return (ses[3] << 16) | (ses[4] << 8) | (ses[5] << 0);
 	}
+
+private:
+	bool readSector(u32 FAD, u8 *dst, SectorFormat *sector_type, u8 *subcode, SubcodeFormat *subcode_type);
 };
 
 Disc* OpenDisc(const std::string& path, std::vector<u8> *digest = nullptr);
@@ -242,7 +239,8 @@ struct RawTrackFile : TrackFile
 			*sector_type=SECFMT_2448_MODE2;
 		else
 		{
-			verify(false);
+			WARN_LOG(GDROM, "Unsupported sector size %d", fmt);
+			return false;
 		}
 
 		std::fseek(file, offset + FAD * fmt, SEEK_SET);
@@ -263,7 +261,7 @@ struct RawTrackFile : TrackFile
 DiscType GuessDiscType(bool m1, bool m2, bool da);
 
 //IO
-void libGDR_ReadSector(u8 * buff,u32 StartSector,u32 SectorCount,u32 secsz);
+u32 libGDR_ReadSector(u8 * buff, u32 StartSector, u32 SectorCount, u32 secsz, bool stopOnMiss = false);
 void libGDR_ReadSubChannel(u8 * buff, u32 len);
 void libGDR_GetToc(u32 *toc, DiskArea area);
 u32 libGDR_GetDiscType();
@@ -273,6 +271,10 @@ bool libGDR_GetTrack(u32 track_num, u32& start_fad, u32& end_fad);
 std::string libGDR_GetDiskCatalog();
 std::string libGDR_GetTrackIsrc(u32 trackNum);
 void libGDR_GetTrackAdrAndControl(u32 trackNum, u8& adr, u8& ctrl);
+void libGDR_init();
+void libGDR_term();
+void libGDR_serialize(Serializer& ser);
+void libGDR_deserialize(Deserializer& deser);
 
 namespace flycast
 {

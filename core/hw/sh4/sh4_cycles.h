@@ -21,75 +21,46 @@
 #include "sh4_opcode_list.h"
 #include "sh4_if.h"
 #include "sh4_sched.h"
-#include "modules/mmu.h"
 
 class Sh4Cycles
 {
 public:
 	Sh4Cycles(int cpuRatio = 1) : cpuRatio(cpuRatio) {}
 
+	void init(Sh4Context *ctx) {
+		this->ctx = ctx;
+	}
+
 	void executeCycles(u16 op)
 	{
-		Sh4cntx.cycle_counter -= countCycles(op);
+		ctx->cycle_counter -= countCycles(op);
 	}
 
 	void addCycles(int cycles) const
 	{
-		Sh4cntx.cycle_counter -= cycles;
+		ctx->cycle_counter -= cycles;
 	}
 
 	void addReadAccessCycles(u32 addr, u32 size) const
 	{
-		Sh4cntx.cycle_counter -= readAccessCycles(addr, size);
+		ctx->cycle_counter -= readAccessCycles(addr, size);
 	}
 
 	void addWriteAccessCycles(u32 addr, u32 size) const
 	{
-		Sh4cntx.cycle_counter -= writeAccessCycles(addr, size);
+		ctx->cycle_counter -= writeAccessCycles(addr, size);
 	}
 
-	int countCycles(u16 op)
-	{
-		sh4_opcodelistentry *opcode = OpDesc[op];
-		int cycles = 0;
-#ifndef STRICT_MODE
-		if (opcode->ex_type == 2 || opcode->ex_type == 3
-				|| opcode->ex_type == 5 || opcode->ex_type == 6 || opcode->ex_type == 7
-				// cache mgmt || opcode->ex_type == 10 || opcode->ex_type == 11
-				|| opcode->ex_type == 12
-				|| opcode->ex_type == 17 || opcode->ex_type == 18 || opcode->ex_type == 19
-				|| opcode->ex_type == 22 || opcode->ex_type == 23 || opcode->ex_type == 25
-				|| opcode->ex_type == 27 || opcode->ex_type == 29 || opcode->ex_type == 31
-				|| opcode->ex_type == 33 || opcode->ex_type == 35)
-		{
-			cycles = mmu_enabled() ? 5 : 2;
-		}
-		// TODO only for mem read?
-#endif
-
-		if (lastUnit == CO
-				|| opcode->unit == CO
-				|| (lastUnit == opcode->unit && lastUnit != MT))
-		{
-			// cannot run in parallel
-			lastUnit = opcode->unit;
-			cycles += opcode->IssueCycles;
-		}
-		else
-		{
-			// can run in parallel
-			lastUnit = CO;
-		}
-		return cycles * cpuRatio;
-	}
+	int countCycles(u16 op);
 
 	void reset()
 	{
 		lastUnit = CO;
+		memOps = 0;
 	}
 
-	static u64 now() {
-		return sh4_sched_now64() + SH4_TIMESLICE - Sh4cntx.cycle_counter;
+	u64 now() {
+		return sh4_sched_now64() + SH4_TIMESLICE - ctx->cycle_counter;
 	}
 
 	int readAccessCycles(u32 addr, u32 size) const {
@@ -108,6 +79,6 @@ private:
 
 	sh4_eu lastUnit = CO;
 	const int cpuRatio;
+	int memOps = 0;
+	Sh4Context *ctx = nullptr;
 };
-
-extern Sh4Cycles sh4cycles;

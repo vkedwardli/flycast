@@ -20,6 +20,7 @@
 #pragma once
 #include "types.h"
 #include "mapping.h"
+#include "stdclass.h"
 
 #include <map>
 #include <memory>
@@ -70,14 +71,43 @@ public:
 			}
 		}
 	}
+	bool has_analog_stick() const { return hasAnalogStick; }
+	float get_dead_zone() const { return input_mapper->dead_zone; }
+	void set_dead_zone(float deadzone) {
+		if (deadzone != input_mapper->dead_zone)
+		{
+			input_mapper->dead_zone = deadzone;
+			input_mapper->set_dirty();
+			save_mapping();
+		}
+	}
+	float get_saturation() const { return input_mapper->saturation; }
+	void set_saturation(float saturation)
+	{
+		if (saturation != input_mapper->saturation)
+		{
+			input_mapper->saturation = saturation;
+			input_mapper->set_dirty();
+			save_mapping();
+		}
+	}
 
 	static void Register(const std::shared_ptr<GamepadDevice>& gamepad);
-
 	static void Unregister(const std::shared_ptr<GamepadDevice>& gamepad);
-
 	static int GetGamepadCount();
 	static std::shared_ptr<GamepadDevice> GetGamepad(int index);
 	static void SaveMaplePorts();
+	static void RampAnalog();
+
+	template<typename T>
+	static std::shared_ptr<T> GetGamepad()
+	{
+		Lock _(_gamepads_mutex);
+		for (const auto& gamepad : _gamepads)
+			if (dynamic_cast<T*>(gamepad.get()) != nullptr)
+				return std::dynamic_pointer_cast<T>(gamepad);
+		return {};
+	}
 
 	static void load_system_mappings();
 	bool find_mapping(int system = settings.platform.system);
@@ -109,7 +139,10 @@ protected:
 	std::string _unique_id;
 	std::shared_ptr<InputMapping> input_mapper;
 	bool rumbleEnabled = false;
+	bool hasAnalogStick = false;
 	int rumblePower = 100;
+	u32 leftTrigger = ~0;
+	u32 rightTrigger = ~0;
 
 private:
 	bool handleButtonInput(int port, DreamcastKey key, bool pressed);
@@ -131,39 +164,45 @@ private:
 	};
 
 	template<DreamcastKey DcNegDir, DigAnalog NegDir, DigAnalog PosDir>
-	void buttonToAnalogInput(int port, DreamcastKey key, bool pressed, s8& joystick)
+	void buttonToAnalogInput(int port, DreamcastKey key, bool pressed, s16& joystick)
 	{
 		if (port < 0)
 			return;
+		Lock _(rampMutex);
 		DigAnalog axis = key == DcNegDir ? NegDir : PosDir;
 		if (pressed)
 			digitalToAnalogState[port] |= axis;
 		else
 			digitalToAnalogState[port] &= ~axis;
-		const u32 socd = digitalToAnalogState[port] & (NegDir | PosDir);
-		if (socd == 0 || socd == (NegDir | PosDir))
-			joystick = 0;
-		else if (socd == NegDir)
-			joystick = -128;
-		else
-			joystick = 127;
-
+		rampAnalogState[port] |= NegDir;
+		if (lastAnalogUpdate == 0)
+			lastAnalogUpdate = getTimeMs();
 	}
+
+	s16 (&getTargetArray(DigAnalog axis))[4];
+	void rampAnalog();
 
 	std::string _api_name;
 	int _maple_port;
 	bool _detecting_button = false;
 	bool _detecting_axis = false;
-	double _detection_start_time = 0.0;
+	u64 _detection_start_time = 0;
 	input_detected_cb _input_detected;
 	bool _remappable;
 	u32 digitalToAnalogState[4];
 	std::map<DreamcastKey, int> lastAxisValue[4];
 	bool perGameMapping = false;
 	bool instanceMapping = false;
-	
+
+	u64 lastAnalogUpdate = 0;
+	u32 rampAnalogState[4] {};
+	static constexpr float AnalogRamp = 32767.f / 100.f;		// 100 ms ramp time
+	std::mutex rampMutex;
+
 	static std::vector<std::shared_ptr<GamepadDevice>> _gamepads;
 	static std::mutex _gamepads_mutex;
+
+	using Lock = std::lock_guard<std::mutex>;
 };
 
 #ifdef TEST_AUTOMATION
@@ -171,7 +210,7 @@ void replay_input();
 #endif
 
 extern u32 kcode[4];
-extern u8 rt[4], lt[4], rt2[4], lt2[4];
-extern s8 joyx[4], joyy[4];
-extern s8 joyrx[4], joyry[4];
-extern s8 joy3x[4], joy3y[4];
+extern u16 rt[4], lt[4], rt2[4], lt2[4];
+extern s16 joyx[4], joyy[4];
+extern s16 joyrx[4], joyry[4];
+extern s16 joy3x[4], joy3y[4];

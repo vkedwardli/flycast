@@ -25,6 +25,9 @@
 
 void setImageLayout(vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, u32 mipmapLevels, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
 {
+	static const float scopeColor[4] = { 0.75f, 0.75f, 0.0f, 1.0f };
+	CommandBufferDebugScope _(commandBuffer, "setImageLayout", scopeColor);
+
 	vk::AccessFlags sourceAccessMask;
 	switch (oldImageLayout)
 	{
@@ -180,7 +183,8 @@ void Texture::UploadToGPU(int width, int height, const u8 *data, bool mipmapped,
 		}
 	}
 	bool isNew = true;
-	if (width != (int)extent.width || height != (int)extent.height || format != this->format)
+	if (width != (int)extent.width || height != (int)extent.height
+			|| format != this->format || !this->image)
 		Init(width, height, format, dataSize, mipmapped, mipmapsIncluded);
 	else
 		isNew = false;
@@ -228,9 +232,10 @@ void Texture::Init(u32 width, u32 height, vk::Format format, u32 dataSize, bool 
 	CreateImage(imageTiling, usageFlags, initialLayout, vk::ImageAspectFlagBits::eColor);
 }
 
-void Texture::CreateImage(vk::ImageTiling tiling, const vk::ImageUsageFlags& usage, vk::ImageLayout initialLayout,
-		const vk::ImageAspectFlags& aspectMask)
+void Texture::CreateImage(vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::ImageLayout initialLayout,
+		vk::ImageAspectFlags aspectMask)
 {
+	this->usageFlags = usage;
 	vk::ImageCreateInfo imageCreateInfo(vk::ImageCreateFlags(), vk::ImageType::e2D, format, vk::Extent3D(extent, 1), mipmapLevels, 1,
 										vk::SampleCountFlagBits::e1, tiling, usage,
 										vk::SharingMode::eExclusive, nullptr, initialLayout);
@@ -246,11 +251,20 @@ void Texture::CreateImage(vk::ImageTiling tiling, const vk::ImageUsageFlags& usa
 	vk::ImageViewCreateInfo imageViewCreateInfo(vk::ImageViewCreateFlags(), image.get(), vk::ImageViewType::e2D, format, vk::ComponentMapping(),
 			vk::ImageSubresourceRange(aspectMask, 0, mipmapLevels, 0, 1));
 	imageView = device.createImageViewUnique(imageViewCreateInfo);
+#ifdef VK_DEBUG
+	char name[128];
+	sprintf(name, "texture @ %x", startAddress);
+	VulkanContext::Instance()->setObjectName(image.get(), name);
+	VulkanContext::Instance()->setObjectName(imageView.get(), name);
+#endif
 }
 
 void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMipmaps)
 {
 	verify((bool)commandBuffer);
+
+	static const float scopeColor[4] = { 1.0f, 1.0f, 0.0f, 1.0f };
+	CommandBufferDebugScope _(commandBuffer, "SetImage", scopeColor);
 
 	if (!isNew && !needsStaging)
 		setImageLayout(commandBuffer, image.get(), format, mipmapLevels, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eGeneral);
@@ -346,6 +360,9 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 
 void Texture::GenerateMipmaps()
 {
+	static const float scopeColor[4] = { 0.75f, 0.75f, 0.0f, 1.0f };
+	CommandBufferDebugScope _(commandBuffer, "GenerateMipmaps", scopeColor);
+
 	u32 mipWidth = extent.width;
 	u32 mipHeight = extent.height;
 	vk::ImageMemoryBarrier barrier(vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
@@ -396,7 +413,29 @@ void Texture::GenerateMipmaps()
 	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, barrier);
 }
 
-void FramebufferAttachment::Init(u32 width, u32 height, vk::Format format, const vk::ImageUsageFlags& usage)
+void Texture::deferDeleteResource(FlightManager *manager)
+{
+	class ResourceDeleter : public Deletable
+	{
+	public:
+		ResourceDeleter(Texture *texture)
+		{
+			std::swap(image, texture->image);
+			std::swap(imageView, texture->imageView);
+			std::swap(bufferData, texture->stagingBufferData);
+			std::swap(allocation, texture->allocation);
+		}
+
+	private:
+		vk::UniqueImage image;
+		vk::UniqueImageView imageView;
+		std::unique_ptr<BufferData> bufferData;
+		Allocation allocation;
+	};
+	manager->addToFlight(new ResourceDeleter(this));
+}
+
+void FramebufferAttachment::Init(u32 width, u32 height, vk::Format format, const vk::ImageUsageFlags& usage, const std::string& name)
 {
 	this->format = format;
 	this->extent = vk::Extent2D { width, height };
@@ -412,6 +451,10 @@ void FramebufferAttachment::Init(u32 width, u32 height, vk::Format format, const
 			vk::ImageTiling::eOptimal, usage,
 			vk::SharingMode::eExclusive, nullptr, vk::ImageLayout::eUndefined);
 	image = device.createImageUnique(imageCreateInfo);
+#ifdef VK_DEBUG
+	if (!name.empty())
+		VulkanContext::Instance()->setObjectName(image.get(), name);
+#endif
 
 	VmaAllocationCreateInfo allocCreateInfo = { VmaAllocationCreateFlags(), VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY };
 	if (usage & vk::ImageUsageFlagBits::eTransientAttachment)
@@ -423,12 +466,20 @@ void FramebufferAttachment::Init(u32 width, u32 height, vk::Format format, const
 		vk::ImageViewCreateInfo imageViewCreateInfo(vk::ImageViewCreateFlags(), image.get(), vk::ImageViewType::e2D,
 				format, vk::ComponentMapping(),	vk::ImageSubresourceRange(depth ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1));
 		imageView = device.createImageViewUnique(imageViewCreateInfo);
+#ifdef VK_DEBUG
+		if (!name.empty())
+			VulkanContext::Instance()->setObjectName(imageView.get(), name);
+#endif
 
 		if ((usage & vk::ImageUsageFlagBits::eDepthStencilAttachment) && (usage & vk::ImageUsageFlagBits::eInputAttachment))
 		{
 			// Also create an imageView for the stencil
 			imageViewCreateInfo.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1);
 			stencilView = device.createImageViewUnique(imageViewCreateInfo);
+#ifdef VK_DEBUG
+			if (!name.empty())
+				VulkanContext::Instance()->setObjectName(stencilView.get(), name);
+#endif
 		}
 	}
 }

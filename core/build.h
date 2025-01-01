@@ -10,16 +10,13 @@
 #define DC_PLATFORM_NAOMI       2
 #define DC_PLATFORM_NAOMI2      3
 #define DC_PLATFORM_ATOMISWAVE  4
+#define DC_PLATFORM_SYSTEMSP    5
 
 //HOST_CPU
 #define CPU_X86      0x20000001
 #define CPU_ARM      0x20000002
-#define CPU_MIPS     0x20000003
+#define CPU_ARM64    0x20000003
 #define CPU_X64      0x20000004
-#define CPU_GENERIC  0x20000005 //used for pnacl, emscripten, etc
-#define CPU_PPC      0x20000006
-#define CPU_PPC64    0x20000007
-#define CPU_ARM64    0x20000008
 
 //FEAT_SHREC, FEAT_AREC, FEAT_DSPREC
 #define DYNAREC_NONE	0x40000001
@@ -35,10 +32,19 @@
 	#define HOST_CPU CPU_ARM
 #elif defined(__aarch64__) || defined(_M_ARM64)
 	#define HOST_CPU CPU_ARM64
-#elif defined(__mips__)
-	#define HOST_CPU CPU_MIPS
 #else
-	#define HOST_CPU CPU_GENERIC
+	#error Unsupported architecture
+#endif
+
+#if defined(__APPLE__)
+#include "TargetConditionals.h"
+#if defined(TARGET_OS_SIMULATOR)
+// iOS simulator
+#define TARGET_NO_REC
+#endif
+#if defined(TARGET_MAC) && HOST_CPU == CPU_ARM64
+#define TARGET_ARM_MAC
+#endif
 #endif
 
 #if defined(TARGET_NO_REC)
@@ -99,7 +105,7 @@
 #endif
 #endif
 
-#if !defined(LIBRETRO) && !defined(TARGET_NO_EXCEPTIONS)
+#if !defined(LIBRETRO)
 #define USE_GGPO
 #endif
 
@@ -109,11 +115,6 @@
 #endif
 
 // TARGET PLATFORM
-
-#define RAM_SIZE_MAX (32*1024*1024)
-#define VRAM_SIZE_MAX (16*1024*1024)
-#define ARAM_SIZE_MAX (8*1024*1024)
-
 #define GD_CLOCK 33868800						//GDROM XTAL -- 768fs
 #define AICA_CORE_CLOCK (GD_CLOCK * 4 / 3)		//[45158400]  GD->PLL 3:4 -> AICA CORE	 -- 1024fs
 #define AICA_ARM_CLOCK (AICA_CORE_CLOCK / 2)	//[22579200]  AICA CORE -> PLL 2:1 -> ARM

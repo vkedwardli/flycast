@@ -21,7 +21,9 @@
 
 #if FEAT_SHREC == DYNAREC_JIT && HOST_CPU == CPU_ARM64
 
+#ifndef _M_ARM64
 #include <unistd.h>
+#endif
 #include <map>
 
 #include <aarch64/macro-assembler-aarch64.h>
@@ -33,22 +35,25 @@ using namespace vixl::aarch64;
 
 #include "hw/sh4/sh4_mmr.h"
 #include "hw/sh4/sh4_interrupts.h"
+#include "arm64_unwind.h"
 #include "hw/sh4/sh4_core.h"
 #include "hw/sh4/dyna/ngen.h"
 #include "hw/sh4/sh4_mem.h"
 #include "hw/sh4/sh4_rom.h"
 #include "arm64_regalloc.h"
 #include "hw/mem/addrspace.h"
-#include "arm64_unwind.h"
 #include "oslib/virtmem.h"
-
-#undef do_sqw_nommu
-
-static void generate_mainloop();
+#include "emulator.h"
 
 struct DynaRBI : RuntimeBlockInfo
 {
+	DynaRBI(Sh4Context& sh4ctx, Sh4CodeBuffer& codeBuffer)
+	: sh4ctx(sh4ctx), codeBuffer(codeBuffer) {}
 	u32 Relink() override;
+
+private:
+	Sh4Context& sh4ctx;
+	Sh4CodeBuffer& codeBuffer;
 };
 
 static u64 jmp_stack;
@@ -70,59 +75,22 @@ static DynaCode *linkBlockNextStub;
 static DynaCode *writeStoreQueue32;
 static DynaCode *writeStoreQueue64;
 
-static bool restarting;
-
-void ngen_mainloop(void* v_cntx)
+static void jitWriteProtect(Sh4CodeBuffer &codeBuffer, bool enable)
 {
-	try {
-		do {
-			restarting = false;
-			generate_mainloop();
-
-			mainloop(v_cntx);
-			if (restarting)
-				p_sh4rcb->cntx.CpuRunning = 1;
-		} while (restarting);
-	} catch (const SH4ThrownException&) {
-		ERROR_LOG(DYNAREC, "SH4ThrownException in mainloop");
-		throw FlycastException("Fatal: Unhandled SH4 exception");
-	}
-}
-
 #ifdef TARGET_IPHONE
-static void JITWriteProtect(bool enable)
-{
     if (enable)
-    	virtmem::region_set_exec(CodeCache, CODE_SIZE + TEMP_CODE_SIZE);
+    	virtmem::region_set_exec(codeBuffer.getBase(), codeBuffer.getSize());
     else
-    	virtmem::region_unlock(CodeCache, CODE_SIZE + TEMP_CODE_SIZE);
-}
+    	virtmem::region_unlock(codeBuffer.getBase(), codeBuffer.getSize());
+#else
+    JITWriteProtect(enable);
 #endif
-
-void ngen_init()
-{
-	INFO_LOG(DYNAREC, "Initializing the ARM64 dynarec");
 }
 
-void ngen_ResetBlocks()
-{
-	unwinder.clear();
-	mainloop = nullptr;
-
-	if (p_sh4rcb->cntx.CpuRunning)
-	{
-		// Force the dynarec out of mainloop() to regenerate it
-		p_sh4rcb->cntx.CpuRunning = 0;
-		restarting = true;
-	}
-	else
-		generate_mainloop();
-}
-
-static void interpreter_fallback(u16 op, OpCallFP *oph, u32 pc)
+static void interpreter_fallback(Sh4Context *ctx, u16 op, OpCallFP *oph, u32 pc)
 {
 	try {
-		oph(op);
+		oph(ctx, op);
 	} catch (SH4ThrownException& ex) {
 		if (pc & 1)
 		{
@@ -135,10 +103,10 @@ static void interpreter_fallback(u16 op, OpCallFP *oph, u32 pc)
 	}
 }
 
-static void do_sqw_mmu_no_ex(u32 addr, u32 pc)
+static void do_sqw_mmu_no_ex(u32 addr, Sh4Context *ctx, u32 pc)
 {
 	try {
-		do_sqw_mmu(addr);
+		ctx->doSqWrite(addr, ctx);
 	} catch (SH4ThrownException& ex) {
 		if (pc & 1)
 		{
@@ -158,28 +126,29 @@ class Arm64Assembler : public MacroAssembler
 	typedef void (MacroAssembler::*Arm64Fop_RRR)(const VRegister&, const VRegister&, const VRegister&);
 
 public:
-	Arm64Assembler() : Arm64Assembler(emit_GetCCPtr())
-	{
-	}
-	Arm64Assembler(void *buffer) : MacroAssembler((u8 *)buffer, emit_FreeSpace()), regalloc(this)
-	{
-		call_regs.push_back(&w0);
-		call_regs.push_back(&w1);
-		call_regs.push_back(&w2);
-		call_regs.push_back(&w3);
-		call_regs.push_back(&w4);
-		call_regs.push_back(&w5);
-		call_regs.push_back(&w6);
-		call_regs.push_back(&w7);
+	Arm64Assembler(Sh4Context& sh4ctx, Sh4CodeBuffer& codeBuffer)
+	: Arm64Assembler(sh4ctx, codeBuffer, codeBuffer.get()) { }
 
-		call_regs64.push_back(&x0);
-		call_regs64.push_back(&x1);
-		call_regs64.push_back(&x2);
-		call_regs64.push_back(&x3);
-		call_regs64.push_back(&x4);
-		call_regs64.push_back(&x5);
-		call_regs64.push_back(&x6);
-		call_regs64.push_back(&x7);
+	Arm64Assembler(Sh4Context& sh4ctx, Sh4CodeBuffer& codeBuffer, void *buffer)
+	: MacroAssembler((u8 *)buffer, codeBuffer.getFreeSpace()), regalloc(this), sh4ctx(sh4ctx), codeBuffer(codeBuffer)
+	{
+		call_regs.push_back((const WRegister*)&w0);
+		call_regs.push_back((const WRegister*)&w1);
+		call_regs.push_back((const WRegister*)&w2);
+		call_regs.push_back((const WRegister*)&w3);
+		call_regs.push_back((const WRegister*)&w4);
+		call_regs.push_back((const WRegister*)&w5);
+		call_regs.push_back((const WRegister*)&w6);
+		call_regs.push_back((const WRegister*)&w7);
+
+		call_regs64.push_back((const XRegister*)&x0);
+		call_regs64.push_back((const XRegister*)&x1);
+		call_regs64.push_back((const XRegister*)&x2);
+		call_regs64.push_back((const XRegister*)&x3);
+		call_regs64.push_back((const XRegister*)&x4);
+		call_regs64.push_back((const XRegister*)&x5);
+		call_regs64.push_back((const XRegister*)&x6);
+		call_regs64.push_back((const XRegister*)&x7);
 
 		call_fregs.push_back(&s0);
 		call_fregs.push_back(&s1);
@@ -191,7 +160,7 @@ public:
 		call_fregs.push_back(&s7);
 	}
 
-	void ngen_BinaryOp_RRO(shil_opcode* op, Arm64Op_RRO arm_op, Arm64Op_RROF arm_op2)
+	void binaryOp_RRO(shil_opcode* op, Arm64Op_RRO arm_op, Arm64Op_RROF arm_op2)
 	{
 		Operand op3 = Operand(0);
 		if (op->rs2.is_imm())
@@ -208,7 +177,7 @@ public:
 			((*this).*arm_op2)(regalloc.MapRegister(op->rd), regalloc.MapRegister(op->rs1), op3, LeaveFlags);
 	}
 
-	void ngen_BinaryFop(shil_opcode* op, Arm64Fop_RRR arm_op)
+	void binaryFop(shil_opcode* op, Arm64Fop_RRR arm_op)
 	{
 		VRegister reg1;
 		VRegister reg2;
@@ -243,7 +212,7 @@ public:
 				Add(*ret_reg, regalloc.MapRegister(op.rs1), op.rs3._imm);
 			else
 			{
-				Ldr(*ret_reg, sh4_context_mem_operand(op.rs1.reg_ptr()));
+				Ldr(*ret_reg, sh4_context_mem_operand(op.rs1._reg));
 				Add(*ret_reg, *ret_reg, op.rs3._imm);
 			}
 		}
@@ -253,8 +222,8 @@ public:
 				Add(*ret_reg, regalloc.MapRegister(op.rs1), regalloc.MapRegister(op.rs3));
 			else
 			{
-				Ldr(*ret_reg, sh4_context_mem_operand(op.rs1.reg_ptr()));
-				Ldr(w8, sh4_context_mem_operand(op.rs3.reg_ptr()));
+				Ldr(*ret_reg, sh4_context_mem_operand(op.rs1._reg));
+				Ldr(w8, sh4_context_mem_operand(op.rs3._reg));
 				Add(*ret_reg, *ret_reg, w8);
 			}
 		}
@@ -273,7 +242,7 @@ public:
 			}
 			else
 			{
-				Ldr(*ret_reg, sh4_context_mem_operand(op.rs1.reg_ptr()));
+				Ldr(*ret_reg, sh4_context_mem_operand(op.rs1._reg));
 			}
 		}
 		else
@@ -285,10 +254,10 @@ public:
 		return *ret_reg;
 	}
 
-	void ngen_Compile(RuntimeBlockInfo* block, bool force_checks, bool reset, bool staging, bool optimise)
+	void compileBlock(RuntimeBlockInfo* block, bool force_checks, bool optimise)
 	{
 		//printf("REC-ARM64 compiling %08x\n", block->addr);
-		JITWriteProtect(false);
+		jitWriteProtect(codeBuffer, false);
 		this->block = block;
 		CheckBlock(force_checks, block);
 		
@@ -296,7 +265,7 @@ public:
 		regalloc.DoAlloc(block);
 
 		// scheduler
-		Ldr(w1, sh4_context_mem_operand(&Sh4cntx.cycle_counter));
+		Ldr(w1, sh4_context_mem_operand(&sh4ctx.cycle_counter));
 		Cmp(w1, 0);
 		Label cycles_remaining;
 		B(&cycles_remaining, pl);
@@ -306,7 +275,7 @@ public:
 		Bind(&cycles_remaining);
 
 		Sub(w1, w1, block->guest_cycles);
-		Str(w1, sh4_context_mem_operand(&Sh4cntx.cycle_counter));
+		Str(w1, sh4_context_mem_operand(&sh4ctx.cycle_counter));
 
 		for (size_t i = 0; i < block->oplist.size(); i++)
 		{
@@ -319,18 +288,19 @@ public:
 				if (op.rs1._imm)	// if NeedPC()
 				{
 					Mov(w10, op.rs2._imm);
-					Str(w10, sh4_context_mem_operand(&next_pc));
+					Str(w10, sh4_context_mem_operand(&sh4ctx.pc));
 				}
-				Mov(w0, op.rs3._imm);
 
+				Mov(x0, x28);
+				Mov(w1, op.rs3._imm);
 				if (!mmu_enabled())
 				{
 					GenCallRuntime(OpDesc[op.rs3._imm]->oph);
 				}
 				else
 				{
-					Mov(x1, reinterpret_cast<uintptr_t>(*OpDesc[op.rs3._imm]->oph));	// op handler
-					Mov(w2, block->vaddr + op.guest_offs - (op.delay_slot ? 1 : 0));	// pc
+					Mov(x2, reinterpret_cast<uintptr_t>(*OpDesc[op.rs3._imm]->oph));	// op handler
+					Mov(w3, block->vaddr + op.guest_offs - (op.delay_slot ? 1 : 0));	// pc
 
 					GenCallRuntime(interpreter_fallback);
 				}
@@ -422,7 +392,8 @@ public:
 				GenCallRuntime(UpdateSR);
 				break;
 			case shop_sync_fpscr:
-				GenCallRuntime(UpdateFPSCR);
+				Mov(x0, x28);
+				GenCallRuntime(Sh4Context::UpdateFPSCR);
 				break;
 
 			case shop_swaplb:
@@ -443,19 +414,19 @@ public:
 				break;
 
 			case shop_and:
-				ngen_BinaryOp_RRO(&op, &MacroAssembler::And, NULL);
+				binaryOp_RRO(&op, &MacroAssembler::And, NULL);
 				break;
 			case shop_or:
-				ngen_BinaryOp_RRO(&op, &MacroAssembler::Orr, NULL);
+				binaryOp_RRO(&op, &MacroAssembler::Orr, NULL);
 				break;
 			case shop_xor:
-				ngen_BinaryOp_RRO(&op, &MacroAssembler::Eor, NULL);
+				binaryOp_RRO(&op, &MacroAssembler::Eor, NULL);
 				break;
 			case shop_add:
-				ngen_BinaryOp_RRO(&op, NULL, &MacroAssembler::Add);
+				binaryOp_RRO(&op, NULL, &MacroAssembler::Add);
 				break;
 			case shop_sub:
-				ngen_BinaryOp_RRO(&op, NULL, &MacroAssembler::Sub);
+				binaryOp_RRO(&op, NULL, &MacroAssembler::Sub);
 				break;
 			case shop_shl:
 				if (op.rs2.is_imm())
@@ -485,7 +456,7 @@ public:
 			case shop_adc:
 				{
 					Register reg1;
-					Operand op2;
+					Operand op2 = Operand(0);
 					Register reg3;
 					if (op.rs1.is_imm())
 					{
@@ -517,8 +488,8 @@ public:
 			case shop_sbc:
 				{
 					Register reg1;
-					Operand op2;
-					Operand op3;
+					Operand op2 = Operand(0);
+					Operand op3 = Operand(0);
 					if (op.rs1.is_imm())
 					{
 						Mov(w0, op.rs1.imm_value());
@@ -543,8 +514,8 @@ public:
 				break;
 			case shop_negc:
 				{
-					Operand op1;
-					Operand op2;
+					Operand op1 = Operand(0);
+					Operand op2 = Operand(0);
 					if (op.rs1.is_imm())
 						op1 = Operand(op.rs1.imm_value());
 					else
@@ -811,7 +782,7 @@ public:
 							Lsr(w1, regalloc.MapRegister(op.rs1), 26);
 						else
 						{
-							Ldr(w0, sh4_context_mem_operand(op.rs1.reg_ptr()));
+							Ldr(w0, sh4_context_mem_operand(op.rs1._reg));
 							Lsr(w1, w0, 26);
 						}
 						Cmp(w1, 0x38);
@@ -820,17 +791,15 @@ public:
 							Mov(w0, regalloc.MapRegister(op.rs1));
 					}
 
+					Mov(x1, x28);
 					if (mmu_enabled())
 					{
-						Mov(w1, block->vaddr + op.guest_offs - (op.delay_slot ? 1 : 0));	// pc
-
+						Mov(w2, block->vaddr + op.guest_offs - (op.delay_slot ? 1 : 0));	// pc
 						GenCallRuntime(do_sqw_mmu_no_ex);
 					}
 					else
 					{
-						Sub(x9, x28, offsetof(Sh4RCB, cntx) - offsetof(Sh4RCB, do_sqw_nommu));
-						Ldr(x9, MemOperand(x9));
-						Sub(x1, x28, offsetof(Sh4RCB, cntx) - offsetof(Sh4RCB, sq_buffer));
+						Ldr(x9, sh4_context_mem_operand(&sh4ctx.doSqWrite));
 						Blr(x9);
 					}
 					Bind(&not_sqw);
@@ -885,16 +854,16 @@ public:
 			//
 
 			case shop_fadd:
-				ngen_BinaryFop(&op, &MacroAssembler::Fadd);
+				binaryFop(&op, &MacroAssembler::Fadd);
 				break;
 			case shop_fsub:
-				ngen_BinaryFop(&op, &MacroAssembler::Fsub);
+				binaryFop(&op, &MacroAssembler::Fsub);
 				break;
 			case shop_fmul:
-				ngen_BinaryFop(&op, &MacroAssembler::Fmul);
+				binaryFop(&op, &MacroAssembler::Fmul);
 				break;
 			case shop_fdiv:
-				ngen_BinaryFop(&op, &MacroAssembler::Fdiv);
+				binaryFop(&op, &MacroAssembler::Fdiv);
 				break;
 
 			case shop_fabs:
@@ -936,16 +905,17 @@ public:
 				else
 				{
 					Ldr(x2, MemOperand(x1));
-					Str(x2, sh4_context_mem_operand(op.rd.reg_ptr()));
+					Str(x2, sh4_context_mem_operand(op.rd._reg));
 				}
 				break;
 
+			/* fall back to the canonical implementations for better precision
 			case shop_fipr:
-				Add(x9, x28, sh4_context_mem_operand(op.rs1.reg_ptr()).GetOffset());
+				Add(x9, x28, op.rs1.reg_offset());
 				Ld1(v0.V4S(), MemOperand(x9));
 				if (op.rs1._reg != op.rs2._reg)
 				{
-					Add(x9, x28, sh4_context_mem_operand(op.rs2.reg_ptr()).GetOffset());
+					Add(x9, x28, op.rs2.reg_offset());
 					Ld1(v1.V4S(), MemOperand(x9));
 					Fmul(v0.V4S(), v0.V4S(), v1.V4S());
 				}
@@ -956,9 +926,9 @@ public:
 				break;
 
 			case shop_ftrv:
-				Add(x9, x28, sh4_context_mem_operand(op.rs1.reg_ptr()).GetOffset());
+				Add(x9, x28, op.rs1.reg_offset());
 				Ld1(v0.V4S(), MemOperand(x9));
-				Add(x9, x28, sh4_context_mem_operand(op.rs2.reg_ptr()).GetOffset());
+				Add(x9, x28, op.rs2.reg_offset());
 				Ld1(v1.V4S(), MemOperand(x9, 16, PostIndex));
 				Ld1(v2.V4S(), MemOperand(x9, 16, PostIndex));
 				Ld1(v3.V4S(), MemOperand(x9, 16, PostIndex));
@@ -967,13 +937,14 @@ public:
 				Fmla(v5.V4S(), v2.V4S(), s0, 1);
 				Fmla(v5.V4S(), v3.V4S(), s0, 2);
 				Fmla(v5.V4S(), v4.V4S(), s0, 3);
-				Add(x9, x28, sh4_context_mem_operand(op.rd.reg_ptr()).GetOffset());
+				Add(x9, x28, op.rd.reg_offset());
 				St1(v5.V4S(), MemOperand(x9));
 				break;
+			*/
 
 			case shop_frswap:
-				Add(x9, x28, sh4_context_mem_operand(op.rs1.reg_ptr()).GetOffset());
-				Add(x10, x28, sh4_context_mem_operand(op.rd.reg_ptr()).GetOffset());
+				Add(x9, x28, op.rs1.reg_offset());
+				Add(x10, x28, op.rd.reg_offset());
 				Ld4(v0.V2D(), v1.V2D(), v2.V2D(), v3.V2D(), MemOperand(x9));
 				Ld4(v4.V2D(), v5.V2D(), v6.V2D(), v7.V2D(), MemOperand(x10));
 				St4(v4.V2D(), v5.V2D(), v6.V2D(), v7.V2D(), MemOperand(x9));
@@ -1002,15 +973,15 @@ public:
 		RelinkBlock(block);
 
 		Finalize();
-		JITWriteProtect(true);
+		jitWriteProtect(codeBuffer, true);
 	}
 
-	void ngen_CC_Start(shil_opcode* op)
+	void canonStart(const shil_opcode *op)
 	{
 		CC_pars.clear();
 	}
 
-	void ngen_CC_Param(shil_opcode& op, shil_param& prm, CanonicalParamType tp)
+	void canonParam(const shil_opcode& op, const shil_param *prm, CanonicalParamType tp)
 	{
 		switch (tp)
 		{
@@ -1018,29 +989,30 @@ public:
 		case CPT_u32:
 		case CPT_ptr:
 		case CPT_f32:
+		case CPT_sh4ctx:
 		{
-			CC_PS t = { tp, &prm };
+			CC_PS t = { tp, prm };
 			CC_pars.push_back(t);
 		}
 		break;
 
 		case CPT_u64rvL:
 		case CPT_u32rv:
-			host_reg_to_shil_param(prm, w0);
+			host_reg_to_shil_param(*prm, w0);
 			break;
 
 		case CPT_u64rvH:
 			Lsr(x10, x0, 32);
-			host_reg_to_shil_param(prm, w10);
+			host_reg_to_shil_param(*prm, w10);
 			break;
 
 		case CPT_f32rv:
-			host_reg_to_shil_param(prm, s0);
+			host_reg_to_shil_param(*prm, s0);
 			break;
 		}
 	}
 
-	void ngen_CC_Call(shil_opcode*op, void* function)
+	void canonCall(const shil_opcode *op, void *function)
 	{
 		int regused = 0;
 		int fregused = 0;
@@ -1049,21 +1021,19 @@ public:
 		for (int i = CC_pars.size(); i-- > 0;)
 		{
 			verify(fregused < (int)call_fregs.size() && regused < (int)call_regs.size());
-			shil_param& prm = *CC_pars[i].prm;
+			const shil_param& prm = *CC_pars[i].prm;
 			switch (CC_pars[i].type)
 			{
 			// push the params
-
 			case CPT_u32:
 				shil_param_to_host_reg(prm, *call_regs[regused++]);
-
 				break;
 
 			case CPT_f32:
 				if (prm.is_reg())
 					Fmov(*call_fregs[fregused], regalloc.MapVRegister(prm));
 				else if (prm.is_imm())
-					Fmov(*call_fregs[fregused], reinterpret_cast<f32&>(prm._imm));
+					Fmov(*call_fregs[fregused], reinterpret_cast<const f32&>(prm._imm));
 				else
 					verify(prm.is_null());
 				fregused++;
@@ -1072,14 +1042,18 @@ public:
 			case CPT_ptr:
 				verify(prm.is_reg());
 				// push the ptr itself
-				Mov(*call_regs64[regused++], reinterpret_cast<uintptr_t>(prm.reg_ptr()));
-
+				Mov(*call_regs64[regused++], reinterpret_cast<uintptr_t>(prm.reg_ptr(sh4ctx)));
 				break;
+
+			case CPT_sh4ctx:
+				Mov(*call_regs64[regused++], reinterpret_cast<uintptr_t>(&sh4ctx));
+				break;
+
 			case CPT_u32rv:
 			case CPT_u64rvL:
 			case CPT_u64rvH:
 			case CPT_f32rv:
-				// return values are handled in ngen_CC_param()
+				// return values are handled in canonParam()
 				break;
 			}
 		}
@@ -1090,15 +1064,21 @@ public:
 			if (ccParam.type == CPT_ptr && prm.count() == 2 && regalloc.IsAllocf(prm) && (op->rd._reg == prm._reg || op->rd2._reg == prm._reg))
 			{
 				// fsca rd param is a pointer to a 64-bit reg so reload the regs if allocated
-				Ldr(regalloc.MapVRegister(prm, 0), sh4_context_mem_operand(GetRegPtr(prm._reg)));
-				Ldr(regalloc.MapVRegister(prm, 1), sh4_context_mem_operand(GetRegPtr(prm._reg + 1)));
+				Ldr(regalloc.MapVRegister(prm, 0), sh4_context_mem_operand(prm._reg));
+				Ldr(regalloc.MapVRegister(prm, 1), sh4_context_mem_operand((Sh4RegType)(prm._reg + 1)));
 			}
 		}
 	}
 
 	MemOperand sh4_context_mem_operand(void *p)
 	{
-		u32 offset = (u8*)p - (u8*)&p_sh4rcb->cntx;
+		u32 offset = (u8*)p - (u8*)&sh4ctx;
+		verify((offset & 3) == 0 && offset <= 16380);	// FIXME 64-bit regs need multiple of 8 up to 32760
+		return MemOperand(x28, offset);
+	}
+	MemOperand sh4_context_mem_operand(Sh4RegType reg)
+	{
+		u32 offset = getRegOffset(reg);
 		verify((offset & 3) == 0 && offset <= 16380);	// FIXME 64-bit regs need multiple of 8 up to 32760
 		return MemOperand(x28, offset);
 	}
@@ -1110,13 +1090,11 @@ public:
 		switch (size)
 		{
 		case 1:
-			GenCallRuntime(addrspace::read8);
-			Sxtb(w0, w0);
+			GenCallRuntime(addrspace::read8SX32);
 			break;
 
 		case 2:
-			GenCallRuntime(addrspace::read16);
-			Sxth(w0, w0);
+			GenCallRuntime(addrspace::read16SX32);
 			break;
 
 		case 4:
@@ -1141,10 +1119,12 @@ public:
 		switch (size)
 		{
 		case 1:
+			Uxtb(w1, w1);
 			GenCallRuntime(addrspace::write8);
 			break;
 
 		case 2:
+			Uxth(w1, w1);
 			GenCallRuntime(addrspace::write16);
 			break;
 
@@ -1194,7 +1174,7 @@ public:
 #endif
 				{
 					Mov(w29, block->BranchBlock);
-					Str(w29, sh4_context_mem_operand(&next_pc));
+					Str(w29, sh4_context_mem_operand(&sh4ctx.pc));
 					GenBranch(arm64_no_update);
 				}
 			}
@@ -1208,9 +1188,9 @@ public:
 				//   next_pc = branch_pc_value;
 
 				if (block->has_jcond)
-					Ldr(w11, sh4_context_mem_operand(&Sh4cntx.jdyn));
+					Ldr(w11, sh4_context_mem_operand(&sh4ctx.jdyn));
 				else
-					Ldr(w11, sh4_context_mem_operand(&sr.T));
+					Ldr(w11, sh4_context_mem_operand(&sh4ctx.sr.T));
 
 				Cmp(w11, block->BlockType & 1);
 
@@ -1238,7 +1218,7 @@ public:
 #endif
 					{
 						Mov(w29, block->BranchBlock);
-						Str(w29, sh4_context_mem_operand(&next_pc));
+						Str(w29, sh4_context_mem_operand(&sh4ctx.pc));
 						GenBranch(arm64_no_update);
 					}
 				}
@@ -1266,7 +1246,7 @@ public:
 #endif
 					{
 						Mov(w29, block->NextBlock);
-						Str(w29, sh4_context_mem_operand(&next_pc));
+						Str(w29, sh4_context_mem_operand(&sh4ctx.pc));
 						GenBranch(arm64_no_update);
 					}
 				}
@@ -1278,16 +1258,15 @@ public:
 		case BET_DynamicRet:
 			// next_pc = *jdyn;
 
-			Str(w29, sh4_context_mem_operand(&next_pc));
+			Str(w29, sh4_context_mem_operand(&sh4ctx.pc));
 			if (!mmu_enabled())
 			{
 				// TODO Call no_update instead (and check CpuRunning less frequently?)
 				Sub(x2, x28, offsetof(Sh4RCB, cntx));
-#if RAM_SIZE_MAX == 33554432
-				Ubfx(w1, w29, 1, 24);
-#else
-				Ubfx(w1, w29, 1, 23);
-#endif
+				if (RAM_SIZE == 32_MB)
+					Ubfx(w1, w29, 1, 24);
+				else
+					Ubfx(w1, w29, 1, 23);
 				Ldr(x15, MemOperand(x2, x1, LSL, 3));	// Get block entry point
 				Br(x15);
 			}
@@ -1308,11 +1287,11 @@ public:
 				Mov(w29, block->NextBlock);
 			// else next_pc = *jdyn (already in w29)
 
-			Str(w29, sh4_context_mem_operand(&next_pc));
+			Str(w29, sh4_context_mem_operand(&sh4ctx.pc));
 
 			GenCallRuntime(UpdateINTC);
 
-			Ldr(w29, sh4_context_mem_operand(&next_pc));
+			Ldr(w29, sh4_context_mem_operand(&sh4ctx.pc));
 			GenBranch(arm64_no_update);
 
 			break;
@@ -1337,7 +1316,7 @@ public:
 			block->host_code_size = GetBuffer()->GetSizeInBytes();
 			block->host_opcodes = GetLabelAddress<u32*>(&code_end) - GetBuffer()->GetStartAddress<u32*>();
 
-			emit_Skip(block->host_code_size);
+			codeBuffer.advance(block->host_code_size);
 		}
 
 		// Flush and invalidate caches
@@ -1373,12 +1352,12 @@ public:
 
 		// int intc_sched(int pc, int cycle_counter)
 		arm64_intc_sched = GetCursorAddress<DynaCode *>();
-		verify((void *)arm64_intc_sched == (void *)CodeCache);
+		verify((void *)arm64_intc_sched == codeBuffer.getBase());
 		B(&intc_sched);
 
 		// Not yet compiled block stub
 		// WARNING: this function must be at a fixed address, or transitioning to mmu will fail (switch)
-		ngen_FailedToFindBlock = (void (*)())CC_RW2RX(GetCursorAddress<uintptr_t>());
+		rdv_SetFailedToFindBlockHandler((void (*)())CC_RW2RX(GetCursorAddress<uintptr_t>()));
 		if (mmu_enabled())
 		{
 			GenCallRuntime(rdv_FailedToFindBlock_pc);
@@ -1398,9 +1377,9 @@ public:
 		if (!mmu_enabled())
 		{
 			Sub(x2, x28, offsetof(Sh4RCB, cntx));
-			if (RAM_SIZE == 32 * 1024 * 1024)
+			if (RAM_SIZE == 32_MB)
 				Ubfx(w1, w29, 1, 24);	// 24+1 bits: 32 MB
-			else if (RAM_SIZE == 16 * 1024 * 1024)
+			else if (RAM_SIZE == 16_MB)
 				Ubfx(w1, w29, 1, 23);	// 23+1 bits: 16 MB
 			else
 				die("Unsupported RAM_SIZE");
@@ -1418,7 +1397,7 @@ public:
 		// For stack unwinding purposes, we pretend that the entire code block is just one function, with the same
 		// unwinding instructions everywhere. This isn't true until the end of the following prolog, but exceptions
 		// can only be thrown by called functions so this is good enough.
-		unwinder.start(CodeCache);
+		unwinder.start(codeBuffer.getBase());
 
 		// Save registers
 		Stp(x19, x20, MemOperand(sp, -160, PreIndex));
@@ -1482,21 +1461,21 @@ public:
 
 		Bind(&intc_sched);	// w0 is pc, w1 is cycle_counter
 
-		Str(w0, sh4_context_mem_operand(&Sh4cntx.pc));
+		Str(w0, sh4_context_mem_operand(&sh4ctx.pc));
 		// Add timeslice to cycle counter
 		Add(w1, w1, SH4_TIMESLICE);
-		Str(w1, sh4_context_mem_operand(&Sh4cntx.cycle_counter));
-		Ldr(w0, sh4_context_mem_operand(&Sh4cntx.CpuRunning));
+		Str(w1, sh4_context_mem_operand(&sh4ctx.cycle_counter));
+		Ldr(w0, sh4_context_mem_operand(&sh4ctx.CpuRunning));
 		Cbz(w0, &end_mainloop);
 		Mov(x29, lr);				// Save link register in case we return
 		GenCallRuntime(UpdateSystem_INTC);
 		Cbnz(w0, &do_interrupts);
 		Mov(lr, x29);
-		Ldr(w0, sh4_context_mem_operand(&Sh4cntx.cycle_counter));
+		Ldr(w0, sh4_context_mem_operand(&sh4ctx.cycle_counter));
 		Ret();
 
 		Bind(&do_interrupts);
-		Ldr(w29, sh4_context_mem_operand(&Sh4cntx.pc));
+		Ldr(w29, sh4_context_mem_operand(&sh4ctx.pc));
 		B(&no_update);
 
 		Bind(&end_mainloop);
@@ -1531,12 +1510,12 @@ public:
 		// w0: vaddr, w1: addr
 		checkBlockFpu = GetCursorAddress<DynaCode *>();
 		Label fpu_enabled;
-		Ldr(w10, sh4_context_mem_operand(&sr));
+		Ldr(w10, sh4_context_mem_operand(&sh4ctx.sr.status));
 		Tbz(w10, 15, &fpu_enabled);			// test SR.FD bit
 
 		Mov(w1, Sh4Ex_FpuDisabled);	// exception code
 		GenCallRuntime(Do_Exception);
-		Ldr(w29, sh4_context_mem_operand(&next_pc));
+		Ldr(w29, sh4_context_mem_operand(&sh4ctx.pc));
 		B(&no_update);
 		Bind(&fpu_enabled);
 		// fallthrough
@@ -1545,7 +1524,7 @@ public:
 		// MMU Block check (no fpu)
 		// w0: vaddr, w1: addr
 		checkBlockNoFpu = GetCursorAddress<DynaCode *>();
-		Ldr(w2, sh4_context_mem_operand(&Sh4cntx.pc));
+		Ldr(w2, sh4_context_mem_operand(&sh4ctx.pc));
 		Cmp(w2, w0);
 		Mov(w0, w1);
 		B(&blockCheckFailLabel, ne);
@@ -1590,8 +1569,7 @@ public:
 		Cmp(x7, 0x38);
 		GenBranchRuntime(addrspace::write32, Condition::ne);
 		And(x0, x0, 0x3f);
-		Sub(x7, x0, sizeof(Sh4RCB::sq_buffer), LeaveFlags);
-		Str(w1, MemOperand(x28, x7));
+		Str(w1, MemOperand(x28, x0));
 		Ret();
 
 		Label writeStoreQueue64Label;
@@ -1600,14 +1578,13 @@ public:
 		Cmp(x7, 0x38);
 		GenBranchRuntime(addrspace::write64, Condition::ne);
 		And(x0, x0, 0x3f);
-		Sub(x7, x0, sizeof(Sh4RCB::sq_buffer), LeaveFlags);
-		Str(x1, MemOperand(x28, x7));
+		Str(x1, MemOperand(x28, x0));
 		Ret();
 
 		FinalizeCode();
-		emit_Skip(GetBuffer()->GetSizeInBytes());
+		codeBuffer.advance(GetBuffer()->GetSizeInBytes());
 
-		size_t unwindSize = unwinder.end(CODE_SIZE - 128, (ptrdiff_t)CC_RW2RX(0));
+		size_t unwindSize = unwinder.end(codeBuffer.getSize() - 128, (ptrdiff_t)CC_RW2RX(0));
 		verify(unwindSize <= 128);
 
 		arm64_no_update = GetLabelAddress<DynaCode *>(&no_update);
@@ -1816,9 +1793,9 @@ private:
 					break;
 				}
 				if (op.size == 8)
-					Str(x1, sh4_context_mem_operand(op.rd.reg_ptr()));
+					Str(x1, sh4_context_mem_operand(op.rd._reg));
 				else
-					Str(w1, sh4_context_mem_operand(op.rd.reg_ptr()));
+					Str(w1, sh4_context_mem_operand(op.rd._reg));
 			}
 		}
 		else
@@ -1832,14 +1809,14 @@ private:
 				if (regalloc.IsAllocf(op.rd))
 					Fmov(regalloc.MapVRegister(op.rd, 0), w0);
 				else
-					Str(w0, sh4_context_mem_operand(op.rd.reg_ptr()));
+					Str(w0, sh4_context_mem_operand(op.rd._reg));
 
 				Mov(w0, addr + 4);
 				GenCallRuntime((void (*)())ptr);
 				if (regalloc.IsAllocf(op.rd))
 					Fmov(regalloc.MapVRegister(op.rd, 1), w0);
 				else
-					Str(w0, sh4_context_mem_operand((u8*)op.rd.reg_ptr() + 4));
+					Str(w0, sh4_context_mem_operand((Sh4RegType)(op.rd._reg + 1)));
 			}
 			else
 			{
@@ -1881,14 +1858,14 @@ private:
 
 	bool GenReadMemoryFast(const shil_opcode& op, size_t opid)
 	{
-		// Direct memory access. Need to handle SIGSEGV and rewrite block as needed. See ngen_Rewrite()
+		// Direct memory access. Need to handle SIGSEGV and rewrite block as needed. See rewrite()
 		if (!addrspace::virtmemEnabled())
 			return false;
 
 		Instruction *start_instruction = GetCursorAddress<Instruction *>();
 
 		// WARNING: the rewrite code relies on having 2 ops before the memory access
-		// Update ngen_Rewrite (and perhaps read_memory_rewrite_size) if adding or removing code
+		// Update rewrite (and perhaps read_memory_rewrite_size) if adding or removing code
 		Ubfx(x1, x0, 0, 29);
 		Add(x1, x1, sizeof(Sh4Context), LeaveFlags);
 
@@ -2010,6 +1987,10 @@ private:
 			}
 			else
 			{
+				if (op.size == 1)
+					Uxtb(w1, w1);
+				else if (op.size == 2)
+					Uxth(w1, w1);
 				GenCallRuntime((void (*)())ptr);
 			}
 		}
@@ -2019,14 +2000,14 @@ private:
 
 	bool GenWriteMemoryFast(const shil_opcode& op, size_t opid)
 	{
-		// Direct memory access. Need to handle SIGSEGV and rewrite block as needed. See ngen_Rewrite()
+		// Direct memory access. Need to handle SIGSEGV and rewrite block as needed. See rewrite()
 		if (!addrspace::virtmemEnabled())
 			return false;
 
 		Instruction *start_instruction = GetCursorAddress<Instruction *>();
 
 		// WARNING: the rewrite code relies on having 2 ops before the memory access
-		// Update ngen_Rewrite (and perhaps write_memory_rewrite_size) if adding or removing code
+		// Update rewrite (and perhaps write_memory_rewrite_size) if adding or removing code
 		Ubfx(x7, x0, 0, 29);
 		Add(x7, x7, sizeof(Sh4Context), LeaveFlags);
 
@@ -2131,14 +2112,14 @@ private:
 		{
 			if (param.is_r64f() && !regalloc.IsAllocf(param))
 			{
-				Ldr(reg, sh4_context_mem_operand(param.reg_ptr()));
+				Ldr(reg, sh4_context_mem_operand(param._reg));
 			}
 			else if (param.is_r32f() || param.is_r64f())
 			{
 				if (regalloc.IsAllocf(param))
 					Fmov(reg.W(), regalloc.MapVRegister(param, 0));
 				else
-					Ldr(reg.W(), sh4_context_mem_operand(param.reg_ptr()));
+					Ldr(reg.W(), sh4_context_mem_operand(param._reg));
 				if (param.is_r64f())
 				{
 					Fmov(w15, regalloc.MapVRegister(param, 1));
@@ -2150,7 +2131,7 @@ private:
 				if (regalloc.IsAllocg(param))
 					Mov(reg.W(), regalloc.MapRegister(param));
 				else
-					Ldr(reg.W(), sh4_context_mem_operand(param.reg_ptr()));
+					Ldr(reg.W(), sh4_context_mem_operand(param._reg));
 			}
 		}
 		else
@@ -2172,7 +2153,7 @@ private:
 			}
 			else
 			{
-				Str((const Register&)reg, sh4_context_mem_operand(param.reg_ptr()));
+				Str((const Register&)reg, sh4_context_mem_operand(param._reg));
 			}
 		}
 		else if (regalloc.IsAllocg(param))
@@ -2191,14 +2172,14 @@ private:
 		}
 		else
 		{
-			Str(reg, sh4_context_mem_operand(param.reg_ptr()));
+			Str(reg, sh4_context_mem_operand(param._reg));
 		}
 	}
 
 	struct CC_PS
 	{
 		CanonicalParamType type;
-		shil_param* prm;
+		const shil_param *prm;
 	};
 	std::vector<CC_PS> CC_pars;
 	std::vector<const WRegister*> call_regs;
@@ -2208,149 +2189,209 @@ private:
 	RuntimeBlockInfo* block = NULL;
 	const int read_memory_rewrite_size = 5;	// ubfx, add, ldr for fast access. calling a handler can use more than 3 depending on offset
 	const int write_memory_rewrite_size = 5; // ubfx, add, str
+	Sh4Context& sh4ctx;
+	Sh4CodeBuffer& codeBuffer;
 };
 
-static Arm64Assembler* compiler;
-
-void ngen_Compile(RuntimeBlockInfo* block, bool smc_checks, bool reset, bool staging, bool optimise)
+class Arm64Dynarec : public Sh4Dynarec
 {
-	verify(emit_FreeSpace() >= 16 * 1024);
+public:
+	Arm64Dynarec() {
+		sh4Dynarec = this;
+	}
 
-	compiler = new Arm64Assembler();
-
-	compiler->ngen_Compile(block, smc_checks, reset, staging, optimise);
-
-	delete compiler;
-	compiler = NULL;
-}
-
-void ngen_CC_Start(shil_opcode* op)
-{
-	compiler->ngen_CC_Start(op);
-}
-
-void ngen_CC_Param(shil_opcode* op, shil_param* par, CanonicalParamType tp)
-{
-	compiler->ngen_CC_Param(*op, *par, tp);
-}
-
-void ngen_CC_Call(shil_opcode*op, void* function)
-{
-	compiler->ngen_CC_Call(op, function);
-}
-
-void ngen_CC_Finish(shil_opcode* op)
-{
-
-}
-
-#define STR_LDR_MASK   0xFFE0EC00
-
-static const u32 armv8_mem_ops[] = {
-		0x38E06800,		// Ldrsb
-		0x78E06800,		// Ldrsh
-		0xB8606800,		// Ldr w
-		0xF8606800,		// Ldr x
-		0x38206800,		// Strb
-		0x78206800,		// Strh
-		0xB8206800,		// Str w
-		0xF8206800,		// Str x
-};
-static const bool read_ops[] = {
-		true,
-		true,
-		true,
-		true,
-		false,
-		false,
-		false,
-		false,
-};
-static const u32 op_sizes[] = {
-		1,
-		2,
-		4,
-		8,
-		1,
-		2,
-		4,
-		8,
-};
-bool ngen_Rewrite(host_context_t &context, void *faultAddress)
-{
-	JITWriteProtect(false);
-	//LOGI("ngen_Rewrite pc %zx\n", context.pc);
-	u32 *code_ptr = (u32 *)CC_RX2RW(context.pc);
-	u32 armv8_op = *code_ptr;
-	bool is_read = false;
-	u32 size = 0;
-	bool found = false;
-	u32 masked = armv8_op & STR_LDR_MASK;
-	for (u32 i = 0; i < std::size(armv8_mem_ops); i++)
+	void init(Sh4Context& sh4ctx, Sh4CodeBuffer& codeBuffer) override
 	{
-		if (masked == armv8_mem_ops[i])
+		INFO_LOG(DYNAREC, "Initializing the ARM64 dynarec");
+		this->sh4ctx = &sh4ctx;
+		this->codeBuffer = &codeBuffer;
+	}
+
+	void reset() override
+	{
+		unwinder.clear();
+		::mainloop = nullptr;
+
+		if (sh4ctx->CpuRunning)
 		{
-			size = op_sizes[i];
-			is_read = read_ops[i];
-			found = true;
-			break;
+			// Force the dynarec out of mainloop() to regenerate it
+			sh4ctx->CpuRunning = 0;
+			restarting = true;
+		}
+		else
+			generate_mainloop();
+	}
+
+	void mainloop(void* v_cntx) override
+	{
+		try {
+			do {
+				restarting = false;
+				generate_mainloop();
+
+				::mainloop(v_cntx);
+				if (restarting && !emu.restartCpu())
+					restarting = false;
+			} while (restarting);
+		} catch (const SH4ThrownException&) {
+			ERROR_LOG(DYNAREC, "SH4ThrownException in mainloop");
+			throw FlycastException("Fatal: Unhandled SH4 exception");
 		}
 	}
-	verify(found);
 
-	// Skip the preceding ops (add, ubfx)
-	u32 *code_rewrite = code_ptr - 2;
-	Arm64Assembler *assembler = new Arm64Assembler(code_rewrite);
-	if (is_read)
-		assembler->GenReadMemorySlow(size);
-	else if (!is_read && size >= 4 && (context.x0 >> 26) == 0x38)
-		assembler->GenWriteStoreQueue(size);
-	else
-		assembler->GenWriteMemorySlow(size);
-	assembler->Finalize(true);
-	delete assembler;
-	context.pc = (unat)CC_RW2RX(code_rewrite);
-	JITWriteProtect(true);
+	void compile(RuntimeBlockInfo* block, bool smc_checks, bool optimise) override
+	{
+		verify(codeBuffer->getFreeSpace() >= 16 * 1024);
 
-	return true;
-}
+		compiler = new Arm64Assembler(*sh4ctx, *codeBuffer);
 
-static void generate_mainloop()
-{
-	if (mainloop != nullptr)
-		return;
-	JITWriteProtect(false);
-	compiler = new Arm64Assembler();
+		compiler->compileBlock(block, smc_checks, optimise);
 
-	compiler->GenMainloop();
+		delete compiler;
+		compiler = nullptr;
+	}
 
-	delete compiler;
-	compiler = nullptr;
-	JITWriteProtect(true);
-}
+	void canonStart(const shil_opcode *op) override
+	{
+		compiler->canonStart(op);
+	}
 
-RuntimeBlockInfo* ngen_AllocateBlock()
-{
-	generate_mainloop();
-	return new DynaRBI();
-}
+	void canonParam(const shil_opcode *op, const shil_param *par, CanonicalParamType tp) override
+	{
+		compiler->canonParam(*op, par, tp);
+	}
 
-void ngen_HandleException(host_context_t &context)
-{
-	context.pc = (uintptr_t)handleException;
-}
+	void canonCall(const shil_opcode *op, void *function) override
+	{
+		compiler->canonCall(op, function);
+	}
+
+	void canonFinish(const shil_opcode *op) override {
+	}
+
+	void generate_mainloop()
+	{
+		if (::mainloop != nullptr)
+			return;
+		jitWriteProtect(*codeBuffer, false);
+		compiler = new Arm64Assembler(*sh4ctx, *codeBuffer);
+
+		compiler->GenMainloop();
+
+		delete compiler;
+		compiler = nullptr;
+		jitWriteProtect(*codeBuffer, true);
+	}
+
+	RuntimeBlockInfo* allocateBlock() override
+	{
+		generate_mainloop();
+		return new DynaRBI(*sh4ctx, *codeBuffer);
+	}
+
+	void handleException(host_context_t &context) override
+	{
+		context.pc = (uintptr_t)::handleException;
+	}
+
+	bool rewrite(host_context_t &context, void *faultAddress) override
+	{
+		constexpr u32 STR_LDR_MASK = 0xFFE0EC00;
+
+		static const u32 armv8_mem_ops[] = {
+				0x38E06800,		// Ldrsb
+				0x78E06800,		// Ldrsh
+				0xB8606800,		// Ldr w
+				0xF8606800,		// Ldr x
+				0x38206800,		// Strb
+				0x78206800,		// Strh
+				0xB8206800,		// Str w
+				0xF8206800,		// Str x
+		};
+		static const bool read_ops[] = {
+				true,
+				true,
+				true,
+				true,
+				false,
+				false,
+				false,
+				false,
+		};
+		static const u32 op_sizes[] = {
+				1,
+				2,
+				4,
+				8,
+				1,
+				2,
+				4,
+				8,
+		};
+
+		if (codeBuffer == nullptr)
+			// init() not called yet
+			return false;
+		//LOGI("Sh4Dynarec::rewrite pc %zx\n", context.pc);
+		u32 *code_ptr = (u32 *)CC_RX2RW(context.pc);
+		if ((u8 *)code_ptr < (u8 *)codeBuffer->getBase()
+				|| (u8 *)code_ptr >= (u8 *)codeBuffer->getBase() + codeBuffer->getSize())
+			return false;
+		jitWriteProtect(*codeBuffer, false);
+		u32 armv8_op = *code_ptr;
+		bool is_read = false;
+		u32 size = 0;
+		bool found = false;
+		u32 masked = armv8_op & STR_LDR_MASK;
+		for (u32 i = 0; i < std::size(armv8_mem_ops); i++)
+		{
+			if (masked == armv8_mem_ops[i])
+			{
+				size = op_sizes[i];
+				is_read = read_ops[i];
+				found = true;
+				break;
+			}
+		}
+		verify(found);
+
+		// Skip the preceding ops (add, ubfx)
+		u32 *code_rewrite = code_ptr - 2;
+		Arm64Assembler *assembler = new Arm64Assembler(*sh4ctx, *codeBuffer, code_rewrite);
+		if (is_read)
+			assembler->GenReadMemorySlow(size);
+		else if (!is_read && size >= 4 && (context.x0 >> 26) == 0x38)
+			assembler->GenWriteStoreQueue(size);
+		else
+			assembler->GenWriteMemorySlow(size);
+		assembler->Finalize(true);
+		delete assembler;
+		context.pc = (uintptr_t)CC_RW2RX(code_rewrite);
+		jitWriteProtect(*codeBuffer, true);
+
+		return true;
+	}
+
+private:
+	Arm64Assembler* compiler = nullptr;
+	bool restarting = false;
+	Sh4Context *sh4ctx = nullptr;
+	Sh4CodeBuffer *codeBuffer = nullptr;
+};
+
+static Arm64Dynarec instance;
 
 u32 DynaRBI::Relink()
 {
 #ifndef NO_BLOCK_LINKING
 	//printf("DynaRBI::Relink %08x\n", this->addr);
-	JITWriteProtect(false);
-	Arm64Assembler *compiler = new Arm64Assembler((u8 *)this->code + this->relink_offset);
+	jitWriteProtect(codeBuffer, false);
+	Arm64Assembler *compiler = new Arm64Assembler(sh4ctx, codeBuffer, (u8 *)this->code + this->relink_offset);
 
 	u32 code_size = compiler->RelinkBlock(this);
 	compiler->Finalize(true);
 	delete compiler;
-	JITWriteProtect(true);
+	jitWriteProtect(codeBuffer, true);
 
 	return code_size;
 #else
@@ -2360,18 +2401,18 @@ u32 DynaRBI::Relink()
 
 void Arm64RegAlloc::Preload(u32 reg, eReg nreg)
 {
-	assembler->Ldr(Register(nreg, 32), assembler->sh4_context_mem_operand(GetRegPtr(reg)));
+	assembler->Ldr(Register(nreg, 32), assembler->sh4_context_mem_operand((Sh4RegType)reg));
 }
 void Arm64RegAlloc::Writeback(u32 reg, eReg nreg)
 {
-	assembler->Str(Register(nreg, 32), assembler->sh4_context_mem_operand(GetRegPtr(reg)));
+	assembler->Str(Register(nreg, 32), assembler->sh4_context_mem_operand((Sh4RegType)reg));
 }
 void Arm64RegAlloc::Preload_FPU(u32 reg, eFReg nreg)
 {
-	assembler->Ldr(VRegister(nreg, 32), assembler->sh4_context_mem_operand(GetRegPtr(reg)));
+	assembler->Ldr(VRegister(nreg, 32), assembler->sh4_context_mem_operand((Sh4RegType)reg));
 }
 void Arm64RegAlloc::Writeback_FPU(u32 reg, eFReg nreg)
 {
-	assembler->Str(VRegister(nreg, 32), assembler->sh4_context_mem_operand(GetRegPtr(reg)));
+	assembler->Str(VRegister(nreg, 32), assembler->sh4_context_mem_operand((Sh4RegType)reg));
 }
 #endif	// FEAT_SHREC == DYNAREC_JIT

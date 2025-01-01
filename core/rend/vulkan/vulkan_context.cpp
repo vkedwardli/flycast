@@ -20,20 +20,28 @@
 */
 #include "vulkan_context.h"
 #include "vulkan_renderer.h"
+<<<<<<< HEAD
 #include "imgui/imgui.h"
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "../gui.h"
+=======
+#include "imgui.h"
+#include "imgui_impl_vulkan.h"
+#include "ui/gui.h"
+>>>>>>> upstream/master
 #ifdef USE_SDL
 #include <sdl/sdl.h>
 #include <SDL_vulkan.h>
 #endif
 #include "compiler.h"
-#include "texture.h"
 #include "utils.h"
 #include "emulator.h"
 #include "oslib/oslib.h"
 #include "vulkan_driver.h"
 #include "rend/transform_matrix.h"
+#if defined(__ANDROID__) && HOST_CPU == CPU_ARM64
+#include "adreno.h"
+#endif
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -140,8 +148,13 @@ bool VulkanContext::InitInstance(const char** extensions, uint32_t extensions_co
 	try
 	{
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
+		PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = nullptr;
+#if defined(__ANDROID__) && HOST_CPU == CPU_ARM64
+		vkGetInstanceProcAddr = loadVulkanDriver();
+#else
 		static vk::DynamicLoader dl;
-		PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+		vkGetInstanceProcAddr = dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+#endif
 		if (vkGetInstanceProcAddr == nullptr) {
 			ERROR_LOG(RENDERER, "Vulkan entry point vkGetInstanceProcAddr not found");
 			return false;
@@ -151,10 +164,9 @@ bool VulkanContext::InitInstance(const char** extensions, uint32_t extensions_co
 		bool vulkan11 = false;
 		if (VULKAN_HPP_DEFAULT_DISPATCHER.vkEnumerateInstanceVersion != nullptr)
 		{
-			u32 apiVersion = vk::enumerateInstanceVersion();
+			const u32 apiVersion = vk::enumerateInstanceVersion();
 
-			vulkan11 = VK_API_VERSION_MAJOR(apiVersion) > 1
-					|| (VK_API_VERSION_MAJOR(apiVersion) == 1 && VK_API_VERSION_MINOR(apiVersion) >= 1);
+			vulkan11 = (apiVersion >= VK_API_VERSION_1_1);
 		}
 
 		vk::ApplicationInfo applicationInfo("Flycast", 1, "Flycast", 1, vulkan11 ? VK_API_VERSION_1_1 : VK_API_VERSION_1_0);
@@ -166,11 +178,11 @@ bool VulkanContext::InitInstance(const char** extensions, uint32_t extensions_co
 		//layer_names.push_back("VK_LAYER_ARM_AGA");
 #ifdef VK_DEBUG
 #ifndef __ANDROID__
-		vext.push_back("VK_EXT_debug_utils");
-		vext.push_back("VK_EXT_debug_report");
+		vext.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		vext.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 		layer_names.push_back("VK_LAYER_KHRONOS_validation");
 #else
-		vext.push_back("VK_EXT_debug_report");	// NDK <= 19?
+		vext.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);	// NDK <= 19?
 		layer_names.push_back("VK_LAYER_GOOGLE_threading");
 		layer_names.push_back("VK_LAYER_LUNARG_parameter_validation");
 		layer_names.push_back("VK_LAYER_LUNARG_core_validation");
@@ -200,54 +212,67 @@ bool VulkanContext::InitInstance(const char** extensions, uint32_t extensions_co
 #endif
 #endif
 
-		const auto devices = instance->enumeratePhysicalDevices();
+		auto devices = instance->enumeratePhysicalDevices();
 		if (devices.empty())
 		{
 			ERROR_LOG(RENDERER, "Vulkan error: no physical devices found");
 			return false;
 		}
 
-		// Choose a discrete gpu if there's one, otherwise just pick the first one
-		physicalDevice = nullptr;
-		for (const auto& phyDev : devices)
-		{
-			vk::PhysicalDeviceProperties props;
-			phyDev.getProperties(&props);
-			if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
-			{
-				physicalDevice = phyDev;
-				break;
-			}
-		}
-		if (!physicalDevice)
-			physicalDevice = devices.front();
+		// The order of physical-devices provided by the driver should be somewhat preserved with stable-partitions/stable-sorts
 
-		const vk::PhysicalDeviceProperties *properties;
-		if (vulkan11)
+		// Prefer GPUs that support optimal R5G5B5/R5G6B5A1/R4G4B4A4
+		const auto supportsOptimalFormat = [](vk::Format format)
+			{
+				return [format](const vk::PhysicalDevice& physicalDevice) -> bool
+					{
+						const vk::FormatProperties formatProperties = physicalDevice.getFormatProperties(format);
+						return (formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage)
+							&& (formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst)
+							&& (formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc);
+					};
+			};
+		std::stable_partition(devices.begin(), devices.end(), supportsOptimalFormat(vk::Format::eR5G6B5UnormPack16));
+		std::stable_partition(devices.begin(), devices.end(), supportsOptimalFormat(vk::Format::eR5G5B5A1UnormPack16));
+		std::stable_partition(devices.begin(), devices.end(), supportsOptimalFormat(vk::Format::eR4G4B4A4UnormPack16));
+
+		// Prefer GPUs that support fragmentStoresAndAtomics
+		std::stable_partition(
+			devices.begin(), devices.end(),
+			[](const vk::PhysicalDevice& physicalDevice) -> bool
+			{
+				return !!physicalDevice.getFeatures().fragmentStoresAndAtomics;
+			}
+		);
+
+		// Finally, prefer Discrete GPUs
+		std::stable_partition(
+			devices.begin(), devices.end(),
+			[](const vk::PhysicalDevice& physicalDevice) -> bool
+			{
+				return physicalDevice.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu;
+			}
+		);
+
+		// Top of the device-list is the _most_ qualified GPU
+		physicalDevice = devices.front();
+
+		vk::PhysicalDeviceProperties properties = physicalDevice.getProperties();
+		if (vulkan11 && properties.apiVersion >= VK_API_VERSION_1_1)
 		{
-			static vk::PhysicalDeviceProperties2 properties2;
-			vk::PhysicalDeviceMaintenance3Properties properties3;
-			properties2.pNext = &properties3;
-			physicalDevice.getProperties2(&properties2);
-			properties = &properties2.properties;
-			maxMemoryAllocationSize = properties3.maxMemoryAllocationSize;
+			const auto properties2 = physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceMaintenance3Properties>();
+			properties = properties2.get<vk::PhysicalDeviceProperties2>().properties;
+			maxMemoryAllocationSize = properties2.get<vk::PhysicalDeviceMaintenance3Properties>().maxMemoryAllocationSize;
 			if (maxMemoryAllocationSize == 0)
 				// Happens on Windows 7 with NVidia 376.33, ok on 441.66
 				maxMemoryAllocationSize = 0xFFFFFFFFu;
 		}
-		else
-		{
-			static vk::PhysicalDeviceProperties phyProperties;
-			physicalDevice.getProperties(&phyProperties);
-			properties = &phyProperties;
-		}
-		uniformBufferAlignment = properties->limits.minUniformBufferOffsetAlignment;
-		storageBufferAlignment = properties->limits.minStorageBufferOffsetAlignment;
-		maxStorageBufferRange = properties->limits.maxStorageBufferRange;
-		maxSamplerAnisotropy =  properties->limits.maxSamplerAnisotropy;
-		unifiedMemory = properties->deviceType == vk::PhysicalDeviceType::eIntegratedGpu;
-		vendorID = properties->vendorID;
-		NOTICE_LOG(RENDERER, "Vulkan API %s. Device %s", vulkan11 ? "1.1" : "1.0", properties->deviceName.data());
+
+		uniformBufferAlignment = properties.limits.minUniformBufferOffsetAlignment;
+		storageBufferAlignment = properties.limits.minStorageBufferOffsetAlignment;
+		maxSamplerAnisotropy =  properties.limits.maxSamplerAnisotropy;
+		vendorID = properties.vendorID;
+		NOTICE_LOG(RENDERER, "Vulkan API %s. Device %s", vulkan11 ? "1.1" : "1.0", properties.deviceName.data());
 
 		vk::FormatProperties formatProperties = physicalDevice.getFormatProperties(vk::Format::eR5G5B5A1UnormPack16);
 		if ((formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage)
@@ -270,12 +295,6 @@ bool VulkanContext::InitInstance(const char** extensions, uint32_t extensions_co
 			optimalTilingSupported4444 = true;
 		else
 			NOTICE_LOG(RENDERER, "eR4G4B4A4UnormPack16 not supported for optimal tiling");
-		vk::PhysicalDeviceFeatures features;
-		physicalDevice.getFeatures(&features);
-		fragmentStoresAndAtomics = features.fragmentStoresAndAtomics;
-		samplerAnisotropy = features.samplerAnisotropy;
-		if (!fragmentStoresAndAtomics)
-			NOTICE_LOG(RENDERER, "Fragment stores & atomic not supported: no per-pixel sorting");
 
 		ShaderCompiler::Init();
 
@@ -298,8 +317,14 @@ bool VulkanContext::InitInstance(const char** extensions, uint32_t extensions_co
 
 void VulkanContext::InitImgui()
 {
-	imguiDriver.reset();
-	imguiDriver = std::unique_ptr<ImGuiDriver>(new VulkanDriver());
+	VulkanDriver *vkDriver = dynamic_cast<VulkanDriver *>(imguiDriver.get());
+	if (vkDriver == nullptr) {
+		imguiDriver.reset();
+		imguiDriver = std::unique_ptr<ImGuiDriver>(new VulkanDriver());
+	}
+	else {
+		vkDriver->reset();
+	}
 	ImGui_ImplVulkan_InitInfo initInfo{};
 	initInfo.Instance = (VkInstance)*instance;
 	initInfo.PhysicalDevice = (VkPhysicalDevice)physicalDevice;
@@ -308,6 +333,7 @@ void VulkanContext::InitImgui()
 	initInfo.Queue = (VkQueue)graphicsQueue;
 	initInfo.PipelineCache = (VkPipelineCache)*pipelineCache;
 	initInfo.DescriptorPool = (VkDescriptorPool)*descriptorPool;
+	initInfo.RenderPass = (VkRenderPass)*renderPass;
 	initInfo.MinImageCount = 2;
 	initInfo.ImageCount = GetSwapChainSize();
 #ifdef VK_DEBUG
@@ -320,24 +346,9 @@ void VulkanContext::InitImgui()
 	});
 #endif
 
-	if (!ImGui_ImplVulkan_Init(&initInfo, (VkRenderPass)*renderPass))
+	if (!ImGui_ImplVulkan_Init(&initInfo))
 	{
 		die("ImGui initialization failed");
-	}
-	if (ImGui::GetIO().Fonts->TexID == 0)
-	{
-		// Upload Fonts
-		device->resetFences(*drawFences.front());
-		device->resetCommandPool(*commandPools.front(), vk::CommandPoolResetFlagBits::eReleaseResources);
-		vk::CommandBuffer& commandBuffer = *commandBuffers.front();
-		commandBuffer.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-		ImGui_ImplVulkan_CreateFontsTexture((VkCommandBuffer)commandBuffer);
-		commandBuffer.end();
-		vk::SubmitInfo submitInfo(nullptr, nullptr, commandBuffer);
-		graphicsQueue.submit(submitInfo, *drawFences.front());
-
-		device->waitIdle();
-		ImGui_ImplVulkan_DestroyFontUploadObjects();
 	}
 }
 
@@ -347,6 +358,8 @@ bool VulkanContext::InitDevice()
 		return false;
 	try
 	{
+		const vk::PhysicalDeviceProperties physicalDeviceProperties = physicalDevice.getProperties();
+
 		std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 #ifdef VK_DEBUG
 		std::for_each(queueFamilyProperties.begin(), queueFamilyProperties.end(),
@@ -396,12 +409,13 @@ bool VulkanContext::InitDevice()
 		else
 			DEBUG_LOG(RENDERER, "Using distinct Graphics and Present queue families");
 
-		// Enable VK_KHR_dedicated_allocation if available
-		bool getMemReq2Supported = false;
-		dedicatedAllocationSupported = false;
-		std::vector<const char *> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-		for (const auto& property : physicalDevice.enumerateDeviceExtensionProperties())
+
+		std::set<std::string> supportedExtensions;
+
+		const auto deviceExtensionProperties = physicalDevice.enumerateDeviceExtensionProperties();
+		for (const auto& property : deviceExtensionProperties)
 		{
+<<<<<<< HEAD
 			if (!strcmp(property.extensionName, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME))
 			{
 				deviceExtensions.push_back(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
@@ -433,19 +447,113 @@ bool VulkanContext::InitDevice()
 				deviceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			}
 #endif
+=======
+			supportedExtensions.insert(property.extensionName);
+>>>>>>> upstream/master
 		}
-		dedicatedAllocationSupported &= getMemReq2Supported;
+
+		std::vector<const char*> enabledExtensions;
+
+		const auto tryAddDeviceExtension = [&supportedExtensions = std::as_const(supportedExtensions), &enabledExtensions]
+		(std::string_view extensionName) -> bool
+		{
+			if (supportedExtensions.count(extensionName.data()))
+			{
+				enabledExtensions.push_back(extensionName.data());
+				NOTICE_LOG(RENDERER, "Device extension enabled: %s", extensionName.data());
+				return true;
+			}
+			NOTICE_LOG(RENDERER, "Device extension unavailable: %s", extensionName.data());
+			return false;
+		};
+
+		// Required swapchain extension
+		tryAddDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+#ifdef VK_ENABLE_BETA_EXTENSIONS
+		tryAddDeviceExtension(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+#endif
+#ifdef VK_USE_PLATFORM_METAL_EXT
+		tryAddDeviceExtension(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
+#endif
+#ifdef VK_DEBUG
+		tryAddDeviceExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+#endif
+
+		// Enable VK_KHR_dedicated_allocation if available
+		if (physicalDeviceProperties.apiVersion >= VK_API_VERSION_1_1)
+		{
+			// Core in Vulkan 1.1
+			dedicatedAllocationSupported = true;
+		}
+		else
+		{
+			const bool getMemReq2Supported = tryAddDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+			if (getMemReq2Supported)
+			{
+				dedicatedAllocationSupported = tryAddDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
+			}
+		}
+
+		// Check for VK_KHR_get_physical_device_properties2
+		// Core as of Vulkan 1.1
+		const bool getPhysicalDeviceProperties2Supported =
+			(physicalDeviceProperties.apiVersion >= VK_API_VERSION_1_1)
+			? true : tryAddDeviceExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+		if (getPhysicalDeviceProperties2Supported)
+		{
+			// Enable VK_EXT_provoking_vertex if available
+			provokingVertexSupported = tryAddDeviceExtension(VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME);
+		}
+		
+		// Get device features
+
+		vk::PhysicalDeviceFeatures2 featuresChain{};
+		vk::PhysicalDeviceFeatures& features = featuresChain.features;
+
+		vk::PhysicalDeviceProvokingVertexFeaturesEXT provokingVertexFeatures{};
+		if (provokingVertexSupported)
+		{
+			featuresChain.pNext = &provokingVertexFeatures;
+		}
+		
+		// Get the physical device's features
+		if (getPhysicalDeviceProperties2Supported && featuresChain.pNext)
+		{
+			physicalDevice.getFeatures2(&featuresChain);
+		}
+		else
+		{
+			physicalDevice.getFeatures(&features);
+		}
+
+		if (provokingVertexSupported)
+		{
+			provokingVertexSupported &= provokingVertexFeatures.provokingVertexLast;
+		}
+
+		samplerAnisotropy = features.samplerAnisotropy;
+		fragmentStoresAndAtomics = features.fragmentStoresAndAtomics;
+		if (!fragmentStoresAndAtomics)
+			NOTICE_LOG(RENDERER, "Fragment stores & atomic not supported: no per-pixel sorting");
 
 		// create a UniqueDevice
 		float queuePriority = 1.0f;
 		vk::DeviceQueueCreateInfo deviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), graphicsQueueIndex, 1, &queuePriority);
-		vk::PhysicalDeviceFeatures features;
-		if (fragmentStoresAndAtomics)
-			features.fragmentStoresAndAtomics = true;
-		if (samplerAnisotropy)
-			features.samplerAnisotropy = true;
-		device = physicalDevice.createDeviceUnique(vk::DeviceCreateInfo(vk::DeviceCreateFlags(), deviceQueueCreateInfo,
-				nullptr, deviceExtensions, &features));
+
+		if (getPhysicalDeviceProperties2Supported)
+		{
+			vk::DeviceCreateInfo deviceCreateInfo(vk::DeviceCreateFlags(), deviceQueueCreateInfo,
+				nullptr, enabledExtensions);
+			deviceCreateInfo.pNext = &featuresChain;
+			device = physicalDevice.createDeviceUnique(deviceCreateInfo);
+		}
+		else
+		{
+			device = physicalDevice.createDeviceUnique(vk::DeviceCreateInfo(vk::DeviceCreateFlags(), deviceQueueCreateInfo,
+				nullptr, enabledExtensions, &features));
+		}
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
 		VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
@@ -506,8 +614,7 @@ bool VulkanContext::InitDevice()
 	    quadRotatePipeline = std::make_unique<QuadPipeline>(true, true);
 	    quadRotateDrawer = std::make_unique<QuadDrawer>();
 
-		vk::PhysicalDeviceProperties props;
-		physicalDevice.getProperties(&props);
+		vk::PhysicalDeviceProperties props = physicalDevice.getProperties();
 		driverName = (const char *)props.deviceName;
 #ifdef __APPLE__
 		driverVersion = std::to_string(VK_API_VERSION_MAJOR(props.apiVersion)) + "."
@@ -562,6 +669,14 @@ void VulkanContext::CreateSwapChain()
 	{
 		device->waitIdle();
 
+		if (!drawFences.empty())
+		{
+			std::vector<vk::Fence> allFences = vk::uniqueToRaw(drawFences);
+			vk::Result res = device->waitForFences(allFences, true, UINT64_MAX);
+			if (res != vk::Result::eSuccess)
+				WARN_LOG(RENDERER, "VulkanContext::CreateSwapChain: waitForFences failed %d", (int)res);
+		}
+		inFlightObjects.clear();
 		overlay->Term();
 		framebuffers.clear();
 		drawFences.clear();
@@ -712,16 +827,20 @@ void VulkanContext::CreateSwapChain()
 
 	    framebuffers.reserve(imageViews.size());
 	    drawFences.reserve(imageViews.size());
-	    renderCompleteSemaphores.reserve(imageViews.size());
-	    imageAcquiredSemaphores.reserve(imageViews.size());
 	    for (auto const& view : imageViews)
 	    {
 	    	framebuffers.push_back(device->createFramebufferUnique(vk::FramebufferCreateInfo(vk::FramebufferCreateFlags(), *renderPass,
 	    			view.get(), width, height, 1)));
 	    	drawFences.push_back(device->createFenceUnique(vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled)));
+	    }
+	    renderCompleteSemaphores.reserve(imageViews.size() + 1);
+	    imageAcquiredSemaphores.reserve(imageViews.size() + 1);
+	    for (unsigned i = 0; i < imageViews.size() + 1; i++)
+	    {
 	    	renderCompleteSemaphores.push_back(device->createSemaphoreUnique(vk::SemaphoreCreateInfo()));
 	    	imageAcquiredSemaphores.push_back(device->createSemaphoreUnique(vk::SemaphoreCreateInfo()));
 	    }
+	    inFlightObjects.resize(imageViews.size());
 	    currentSemaphore = 0;
 	    quadPipeline->Init(shaderManager.get(), *renderPass, 0);
 	    quadPipelineWithAlpha->Init(shaderManager.get(), *renderPass, 0);
@@ -758,26 +877,28 @@ bool VulkanContext::init()
     SDL_Vulkan_GetInstanceExtensions((SDL_Window *)window, &extensionsCount, NULL);
     extensions.resize(extensionsCount + extensions.size());
     SDL_Vulkan_GetInstanceExtensions((SDL_Window *)window, &extensionsCount, &extensions[extensions.size() - extensionsCount]);
-#elif defined(_WIN32)
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
     extern void CreateMainWindow();
     CreateMainWindow();
 	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_IOS_MVK)
-	extensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
 	extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
-#elif defined(SUPPORT_X11)
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
 	extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-#elif defined(__ANDROID__)
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 	extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #endif
-	if (!InitInstance(&extensions[0], extensions.size()))
+	if (!InitInstance(&extensions[0], extensions.size())) {
+		term();
 		return false;
+	}
 
 #if defined(USE_SDL)
     VkSurfaceKHR surface;
-    if (SDL_Vulkan_CreateSurface((SDL_Window *)window, (VkInstance)*instance, &surface) == 0)
+    if (SDL_Vulkan_CreateSurface((SDL_Window *)window, (VkInstance)*instance, &surface) == 0) {
+		term();
     	return false;
+    }
     this->surface.reset(vk::SurfaceKHR(surface));
     SDL_Window *sdlWin = (SDL_Window *)window;
     int w, h;
@@ -789,18 +910,15 @@ bool VulkanContext::init()
 		settings.display.dpi = roundf(std::max(hdpi, vdpi));
 
 	sdl_fix_steamdeck_dpi(sdlWin);
-#elif defined(_WIN32)
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
 	vk::Win32SurfaceCreateInfoKHR createInfo(vk::Win32SurfaceCreateFlagsKHR(), GetModuleHandle(NULL), (HWND)window);
 	surface = instance->createWin32SurfaceKHRUnique(createInfo);
-#elif defined(SUPPORT_X11)
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
 	vk::XlibSurfaceCreateInfoKHR createInfo(vk::XlibSurfaceCreateFlagsKHR(), (Display*)display, (Window)window);
 	surface = instance->createXlibSurfaceKHRUnique(createInfo);
-#elif defined(__ANDROID__)
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 	vk::AndroidSurfaceCreateInfoKHR createInfo(vk::AndroidSurfaceCreateFlagsKHR(), (struct ANativeWindow*)window);
 	surface = instance->createAndroidSurfaceKHRUnique(createInfo);
-#elif defined(VK_USE_PLATFORM_IOS_MVK)
-	vk::IOSSurfaceCreateInfoMVK createInfo(vk::IOSSurfaceCreateFlagsMVK(), window);
-	surface = instance->createIOSSurfaceMVKUnique(createInfo);
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
 	vk::MetalSurfaceCreateInfoEXT createInfo(vk::MetalSurfaceCreateFlagsEXT(), window);
 	surface = instance->createMetalSurfaceEXTUnique(createInfo);
@@ -808,9 +926,13 @@ bool VulkanContext::init()
 #error "Unknown Vulkan platform"
 #endif
 	overlay = std::make_unique<VulkanOverlay>();
-	textureCache = std::make_unique<TextureCache>();
 
-	return InitDevice();
+	if (!InitDevice()) {
+		term();
+		return false;
+	}
+
+	return true;
 }
 
 bool VulkanContext::recreateSwapChainIfNeeded()
@@ -830,13 +952,13 @@ void VulkanContext::NewFrame()
 	recreateSwapChainIfNeeded();
 	if (!IsValid())
 		throw InvalidVulkanContext();
-	device->acquireNextImageKHR(*swapChain, UINT64_MAX, *imageAcquiredSemaphores[currentSemaphore], nullptr, &currentImage);
-	device->waitForFences(*drawFences[currentImage], true, UINT64_MAX);
-	device->resetFences(*drawFences[currentImage]);
+	vk::Result res = device->acquireNextImageKHR(*swapChain, UINT64_MAX, *imageAcquiredSemaphores[currentSemaphore], nullptr, &currentImage);
+	res = device->waitForFences(*drawFences[currentImage], true, UINT64_MAX);
+	(void)res;
 	device->resetCommandPool(*commandPools[currentImage], vk::CommandPoolResetFlagBits::eReleaseResources);
+	inFlightObjects[currentImage].clear();
 	vk::CommandBuffer commandBuffer = *commandBuffers[currentImage];
 	commandBuffer.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-	textureCache->SetCurrentIndex(GetCurrentImageIndex());
 	verify(!rendering);
 	rendering = true;
 }
@@ -864,6 +986,7 @@ void VulkanContext::EndFrame(vk::CommandBuffer overlayCmdBuffer)
 		allCmdBuffers.push_back(overlayCmdBuffer);
 	allCmdBuffers.push_back(commandBuffer);
 	vk::SubmitInfo submitInfo(*imageAcquiredSemaphores[currentSemaphore], wait_stage, allCmdBuffers, *renderCompleteSemaphores[currentSemaphore]);
+	device->resetFences(*drawFences[currentImage]);
 	graphicsQueue.submit(submitInfo, *drawFences[currentImage]);
 	verify(rendering);
 	rendering = false;
@@ -876,15 +999,16 @@ void VulkanContext::Present() noexcept
 	{
 		try {
 			DoSwapAutomation();
-			presentQueue.presentKHR(vk::PresentInfoKHR(1, &(*renderCompleteSemaphores[currentSemaphore]), 1, &(*swapChain), &currentImage));
-			currentSemaphore = (currentSemaphore + 1) % imageViews.size();
+			vk::Result res = presentQueue.presentKHR(vk::PresentInfoKHR(1, &(*renderCompleteSemaphores[currentSemaphore]), 1, &(*swapChain), &currentImage));
+			(void)res;
+			currentSemaphore = (currentSemaphore + 1) % renderCompleteSemaphores.size();
 
 			if (lastFrameView && IsValid() && !gui_is_open())
 				for (int i = 1; i < swapInterval; i++)
 				{
 					PresentFrame(vk::Image(), lastFrameView, lastFrameExtent, lastFrameAR);
-					presentQueue.presentKHR(vk::PresentInfoKHR(1, &(*renderCompleteSemaphores[currentSemaphore]), 1, &(*swapChain), &currentImage));
-					currentSemaphore = (currentSemaphore + 1) % imageViews.size();
+					res = presentQueue.presentKHR(vk::PresentInfoKHR(1, &(*renderCompleteSemaphores[currentSemaphore]), 1, &(*swapChain), &currentImage));
+					currentSemaphore = (currentSemaphore + 1) % renderCompleteSemaphores.size();
 				}
 		} catch (const vk::SystemError& e) {
 			// Happens when resizing the window
@@ -908,7 +1032,7 @@ void VulkanContext::Present() noexcept
 
 void VulkanContext::DrawFrame(vk::ImageView imageView, const vk::Extent2D& extent, float aspectRatio)
 {
-	QuadVertex vtx[] {
+	QuadVertex vtx[4] {
 		{ -1, -1, 0, 0, 0 },
 		{  1, -1, 0, 1, 0 },
 		{ -1,  1, 0, 0, 1 },
@@ -922,6 +1046,10 @@ void VulkanContext::DrawFrame(vk::ImageView imageView, const vk::Extent2D& exten
 	vtx[2].y = vtx[3].y = vtx[0].y + 2;
 
 	vk::CommandBuffer commandBuffer = GetCurrentCommandBuffer();
+
+	static const float scopeColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	CommandBufferDebugScope _(commandBuffer, "DrawFrame", scopeColor);
+
 	if (config::Rotate90)
 		quadRotatePipeline->BindPipeline(commandBuffer);
 	else
@@ -955,7 +1083,7 @@ void VulkanContext::WaitIdle() const
 
 vk::CommandBuffer VulkanContext::PrepareOverlay(bool vmu, bool crosshair)
 {
-	return overlay->Prepare(*commandPools[GetCurrentImageIndex()], vmu, crosshair, *textureCache);
+	return overlay->Prepare(*commandPools[GetCurrentImageIndex()], vmu, crosshair);
 }
 
  void VulkanContext::DrawOverlay(float scaling, bool vmu, bool crosshair)
@@ -977,6 +1105,7 @@ void VulkanContext::PresentFrame(vk::Image image, vk::ImageView imageView, const
 		try {
 			NewFrame();
 			auto overlayCmdBuffer = PrepareOverlay(config::FloatVMUs, true);
+			gui_draw_osd();
 
 			BeginRenderPass();
 
@@ -984,7 +1113,7 @@ void VulkanContext::PresentFrame(vk::Image image, vk::ImageView imageView, const
 				DrawFrame(imageView, extent, aspectRatio);
 
 			DrawOverlay(settings.display.uiScale, config::FloatVMUs, true);
-			renderer->DrawOSD(false);
+			imguiDriver->renderDrawData(ImGui::GetDrawData(), false);
 			EndFrame(overlayCmdBuffer);
 			static_cast<BaseVulkanRenderer*>(renderer)->RenderVideoRouting();
 			
@@ -1003,26 +1132,32 @@ void VulkanContext::term()
 {
 	GraphicsContext::instance = nullptr;
 	lastFrameView = nullptr;
-	if (!device)
-		return;
-	WaitIdle();
+	if (device && graphicsQueue)
+		WaitIdle();
+	if (device && !drawFences.empty())
+	{
+		std::vector<vk::Fence> allFences = vk::uniqueToRaw(drawFences);
+		vk::Result res = device->waitForFences(allFences, true, UINT64_MAX);
+		if (res != vk::Result::eSuccess)
+			WARN_LOG(RENDERER, "VulkanContext::term: waitForFences failed %d", (int)res);
+	}
+	inFlightObjects.clear();
 	imguiDriver.reset();
 	if (device && pipelineCache)
-    {
-        std::vector<u8> cacheData = device->getPipelineCacheData(*pipelineCache);
-        if (!cacheData.empty())
-        {
-            std::string cachePath = hostfs::getShaderCachePath("vulkan_pipeline.cache");
-            FILE *f = nowide::fopen(cachePath.c_str(), "wb");
-            if (f != nullptr)
-            {
-                (void)std::fwrite(&cacheData[0], 1, cacheData.size(), f);
-                std::fclose(f);
-            }
-        }
-    }
+	{
+		std::vector<u8> cacheData = device->getPipelineCacheData(*pipelineCache);
+		if (!cacheData.empty())
+		{
+			std::string cachePath = hostfs::getShaderCachePath("vulkan_pipeline.cache");
+			FILE *f = nowide::fopen(cachePath.c_str(), "wb");
+			if (f != nullptr)
+			{
+				(void)std::fwrite(&cacheData[0], 1, cacheData.size(), f);
+				std::fclose(f);
+			}
+		}
+	}
 	overlay.reset();
-	textureCache.reset();
 	ShaderCompiler::Term();
 	swapChain.reset();
 	imageViews.clear();
@@ -1061,6 +1196,9 @@ void VulkanContext::term()
 #endif
 #endif
 	instance.reset();
+#if defined(__ANDROID__) && HOST_CPU == CPU_ARM64
+	unloadVulkanDriver();
+#endif
 }
 
 void VulkanContext::DoSwapAutomation()
@@ -1235,4 +1373,121 @@ VulkanContext::~VulkanContext()
 {
 	verify(contextInstance == this);
 	contextInstance = nullptr;
+}
+
+bool VulkanContext::GetLastFrame(std::vector<u8>& data, int& width, int& height)
+{
+	if (!lastFrameView)
+		return false;
+
+	if (width != 0) {
+		height = width / lastFrameAR;
+	}
+	else if (height != 0) {
+		width = lastFrameAR * height;
+	}
+	else
+	{
+		width = lastFrameExtent.width;
+		height = lastFrameExtent.height;
+		if (config::Rotate90)
+			std::swap(width, height);
+		// We need square pixels for PNG
+		int w = lastFrameAR * height;
+		if (width > w)
+			height = width / lastFrameAR;
+		else
+			width = w;
+	}
+	// color attachment
+	FramebufferAttachment attachment(physicalDevice, *device);
+	attachment.Init(width, height, vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc, "screenshot");
+	// command buffer
+	vk::UniqueCommandBuffer commandBuffer = std::move(device->allocateCommandBuffersUnique(
+			vk::CommandBufferAllocateInfo(*commandPools.back(), vk::CommandBufferLevel::ePrimary, 1)).front());
+	commandBuffer->begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+
+	static const float scopeColor[4] = { 1.0f, 1.0f, 0.0f, 1.0f };
+	CommandBufferDebugScope _(commandBuffer.get(), "GetLastFrame", scopeColor);
+
+	// render pass
+	vk::AttachmentDescription attachmentDescription = vk::AttachmentDescription(vk::AttachmentDescriptionFlags(), vk::Format::eR8G8B8A8Unorm, vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+	vk::AttachmentReference colorReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+	vk::SubpassDescription subpass(vk::SubpassDescriptionFlags(), vk::PipelineBindPoint::eGraphics, nullptr, colorReference,
+			nullptr, nullptr);
+	vk::UniqueRenderPass renderPass = device->createRenderPassUnique(vk::RenderPassCreateInfo(vk::RenderPassCreateFlags(),
+    		attachmentDescription,	subpass));
+	// framebuffer
+	vk::ImageView imageView = attachment.GetImageView();
+	vk::UniqueFramebuffer framebuffer = device->createFramebufferUnique(vk::FramebufferCreateInfo(vk::FramebufferCreateFlags(),
+				*renderPass, imageView, width, height, 1));
+	vk::ClearValue clearValue;
+	commandBuffer->beginRenderPass(vk::RenderPassBeginInfo(*renderPass, *framebuffer, vk::Rect2D({0, 0}, {(u32)width, (u32)height}), clearValue),
+			vk::SubpassContents::eInline);
+
+	// Pipeline
+	QuadPipeline pipeline(true, config::Rotate90);
+	pipeline.Init(shaderManager.get(), *renderPass, 0);
+	pipeline.BindPipeline(*commandBuffer);
+
+	// Draw
+	QuadVertex vtx[4] {
+		{ -1, -1, 0, 0, 0 },
+		{  1, -1, 0, 1, 0 },
+		{ -1,  1, 0, 0, 1 },
+		{  1,  1, 0, 1, 1 },
+	};
+
+	vk::Viewport viewport(0, 0, width, height);
+	commandBuffer->setViewport(0, viewport);
+	commandBuffer->setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), vk::Extent2D(width, height)));
+	QuadDrawer drawer;
+	drawer.Init(&pipeline);
+	drawer.Draw(*commandBuffer, lastFrameView, vtx, false);
+	commandBuffer->endRenderPass();
+
+	// Copy back
+	vk::BufferImageCopy copyRegion(0, width, height, vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1), vk::Offset3D(0, 0, 0),
+			vk::Extent3D(width, height, 1));
+	commandBuffer->copyImageToBuffer(attachment.GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+			*attachment.GetBufferData()->buffer, copyRegion);
+
+	vk::BufferMemoryBarrier bufferMemoryBarrier(
+			vk::AccessFlagBits::eTransferWrite,
+			vk::AccessFlagBits::eHostRead,
+			VK_QUEUE_FAMILY_IGNORED,
+			VK_QUEUE_FAMILY_IGNORED,
+			*attachment.GetBufferData()->buffer,
+			0,
+			VK_WHOLE_SIZE);
+	commandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+					vk::PipelineStageFlagBits::eHost, {}, nullptr, bufferMemoryBarrier, nullptr);
+	commandBuffer->end();
+
+	vk::UniqueFence fence = device->createFenceUnique(vk::FenceCreateInfo());
+	vk::SubmitInfo submitInfo(nullptr, nullptr, commandBuffer.get(), nullptr);
+	graphicsQueue.submit(submitInfo, *fence);
+
+	vk::Result res = device->waitForFences(fence.get(), true, UINT64_MAX);
+	if (res != vk::Result::eSuccess)
+		WARN_LOG(RENDERER, "VulkanContext::GetLastFrame: waitForFences failed %d", (int)res);
+
+	const u8 *img = (const u8 *)attachment.GetBufferData()->MapMemory();
+	data.clear();
+	data.reserve(width * height * 3);
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			data.push_back(*img++);
+			data.push_back(*img++);
+			data.push_back(*img++);
+			img++;
+		}
+	}
+	attachment.GetBufferData()->UnmapMemory();
+
+	return true;
 }

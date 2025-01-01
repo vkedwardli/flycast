@@ -30,8 +30,8 @@ layout (std140, set = 0, binding = 0) uniform VertexShaderUniforms
 } uniformBuffer;
 
 layout (location = 0) in vec4         in_pos;
-layout (location = 1) in uvec4        in_base;
-layout (location = 2) in uvec4        in_offs;
+layout (location = 1) in vec4        in_base;
+layout (location = 2) in vec4        in_offs;
 layout (location = 3) in mediump vec2 in_uv;
 
 layout (location = 0) INTERPOLATION out highp vec4 vtx_base;
@@ -45,8 +45,8 @@ void main()
 	vpos /= vpos.z;
 	vpos.z = vpos.w;
 #endif
-	vtx_base = vec4(in_base) / 255.0;
-	vtx_offs = vec4(in_offs) / 255.0;
+	vtx_base = in_base;
+	vtx_offs = in_offs;
 	vtx_uv = vec3(in_uv, vpos.z);
 #if pp_Gouraud == 1 && DIV_POS_Z != 1
 	vtx_base *= vpos.z;
@@ -62,9 +62,7 @@ void main()
 }
 )";
 
-static const char FragmentShaderSource[] = R"(
-#define PI 3.1415926
-
+static const char FragmentShaderTop[] = R"(
 layout (location = 0) out vec4 FragColor;
 #define gl_FragColor FragColor
 
@@ -74,6 +72,7 @@ layout (std140, set = 0, binding = 1) uniform FragmentShaderUniforms
 	vec4 colorClampMax;
 	vec4 sp_FOG_COL_RAM;
 	vec4 sp_FOG_COL_VERT;
+	vec4 ditherColorMax;
 	float cp_AlphaTestValue;
 	float sp_FOG_DENSITY;
 } uniformBuffer;
@@ -88,7 +87,10 @@ layout (push_constant) uniform pushBlock
 #if pp_Texture == 1
 layout (set = 1, binding = 0) uniform sampler2D tex;
 #endif
-#if pp_Palette == 1
+#if pp_FogCtrl != 2
+layout (set = 0, binding = 2) uniform sampler2D fog_table;
+#endif
+#if pp_Palette != 0
 layout (set = 0, binding = 3) uniform sampler2D palette;
 #endif
 
@@ -96,10 +98,12 @@ layout (set = 0, binding = 3) uniform sampler2D palette;
 layout (location = 0) INTERPOLATION in highp vec4 vtx_base;
 layout (location = 1) INTERPOLATION in highp vec4 vtx_offs;
 layout (location = 2) in highp vec3 vtx_uv;
+)";
 
-#if pp_FogCtrl != 2
-layout (set = 0, binding = 2) uniform sampler2D fog_table;
+const char *FragmentShaderCommon = R"(
+#define PI 3.1415926
 
+#if pp_FogCtrl != 2 || pp_TwoVolumes == 1
 float fog_mode2(float w)
 {
 	float z = clamp(
@@ -126,21 +130,58 @@ vec4 colorClamp(vec4 col)
 #endif
 }
 
+#if pp_Palette != 0
+
+vec4 getPaletteEntry(float colIdx)
+{
+	vec2 c = vec2(colIdx * 255.0 / 1023.0 + pushConstants.palette_index, 0.5);
+	return texture(palette, c);
+}
+
+#endif
+
 #if pp_Palette == 1
 
 vec4 palettePixel(sampler2D tex, vec3 coords)
 {
 #if DIV_POS_Z == 1
-	float texIdx = texture(tex, coords.xy).r;
+	return getPaletteEntry(texture(tex, coords.xy).r);
 #else
-	float texIdx = textureProj(tex, coords).r;
+	return getPaletteEntry(textureProj(tex, coords).r);
 #endif
-	vec4 c = vec4(texIdx * 255.0 / 1023.0 + pushConstants.palette_index, 0.5, 0.0, 0.0);
-	return texture(palette, c.xy);
+}
+
+#elif pp_Palette == 2
+
+vec4 palettePixelBilinear(sampler2D tex, vec3 coords)
+{
+#if DIV_POS_Z == 0
+	coords.xy /= coords.z;
+#endif
+	vec2 texSize = vec2(textureSize(tex, 0));
+	vec2 pixCoord = coords.xy * texSize - 0.5;			// coordinates of top left pixel
+	vec2 originPixCoord = floor(pixCoord);
+
+	vec2 sampleUV = (originPixCoord + 0.5) / texSize;	// UV coordinates of center of top left pixel
+
+    // Sample from all surrounding texels
+    vec4 c00 = getPaletteEntry(texture(tex, sampleUV).r);
+    vec4 c01 = getPaletteEntry(textureOffset(tex, sampleUV, ivec2(0, 1)).r);
+    vec4 c11 = getPaletteEntry(textureOffset(tex, sampleUV, ivec2(1, 1)).r);
+    vec4 c10 = getPaletteEntry(textureOffset(tex, sampleUV, ivec2(1, 0)).r);
+
+	vec2 weight = pixCoord - originPixCoord;
+
+    // Bi-linear mixing
+    vec4 temp0 = mix(c00, c10, weight.x);
+    vec4 temp1 = mix(c01, c11, weight.x);
+    return mix(temp0, temp1, weight.y);
 }
 
 #endif
+)";
 
+static const char FragmentShaderMain[] = R"(
 void main()
 {
 	// Clip inside the box
@@ -171,7 +212,11 @@ void main()
 				vec4 texcol = textureProj(tex, vtx_uv);
 			#endif
 		#else
-			vec4 texcol = palettePixel(tex, vtx_uv);
+			#if pp_Palette == 1
+				vec4 texcol = palettePixel(tex, vtx_uv);
+			#else
+				vec4 texcol = palettePixelBilinear(tex, vtx_uv);
+			#endif
 		#endif
 		
 		#if pp_BumpMap == 1
@@ -183,12 +228,6 @@ void main()
 			#if pp_IgnoreTexA == 1
 				texcol.a = 1.0;
 			#endif
-			
-			#if cp_AlphaTest == 1
-				if (uniformBuffer.cp_AlphaTestValue > texcol.a)
-					discard;
-				texcol.a = 1.0;
-			#endif 
 		#endif
 		#if pp_ShadInstr == 0
 		{
@@ -237,6 +276,13 @@ void main()
 	color *= pushConstants.trilinearAlpha;
 	#endif
 	
+	#if cp_AlphaTest == 1
+		color.a = round(color.a * 255.0) / 255.0;
+		if (uniformBuffer.cp_AlphaTestValue > color.a)
+			discard;
+		color.a = 1.0;
+	#endif
+
 	//color.rgb = vec3(gl_FragCoord.w * uniformBuffer.sp_FOG_DENSITY / 128.0);
 
 #if DIV_POS_Z == 1
@@ -244,8 +290,21 @@ void main()
 #else
 	highp float w = 100000.0 * vtx_uv.z;
 #endif
-	gl_FragDepth = log2(1.0 + w) / 34.0;
+	gl_FragDepth = log2(1.0 + max(w, -0.999999)) / 34.0;
 
+#if DITHERING == 1
+	float ditherTable[16] = float[](
+		 0.9375,  0.1875,  0.75,  0.,   
+		 0.4375,  0.6875,  0.25,  0.5,
+		 0.8125,  0.0625,  0.875, 0.125,
+		 0.3125,  0.5625,  0.375, 0.625	
+	);
+	float r = ditherTable[int(mod(gl_FragCoord.y, 4.)) * 4 + int(mod(gl_FragCoord.x, 4.))];
+	// 31 for 5-bit color, 63 for 6 bits, 15 for 4 bits
+	color += r / uniformBuffer.ditherColorMax;
+	// avoid rounding
+	color = floor(color * 255.) / 255.;
+#endif
 	gl_FragColor = color;
 }
 )";
@@ -291,7 +350,7 @@ void main()
 #else
 	highp float w = 100000.0 * depth;
 #endif
-	gl_FragDepth = log2(1.0 + w) / 34.0;
+	gl_FragDepth = log2(1.0 + max(w, -0.999999)) / 34.0;
 	FragColor = vec4(0.0, 0.0, 0.0, pushConstants.sp_ShaderColor);
 }
 )";
@@ -332,33 +391,6 @@ void main()
 #else
 	FragColor = pushConstants.color * texture(tex, inUV);
 #endif
-}
-)";
-
-static const char OSDVertexShaderSource[] = R"(
-layout (location = 0) in vec4 inPos;
-layout (location = 1) in uvec4 inColor;
-layout (location = 2) in vec2 inUV;
-layout (location = 0) out lowp vec4 outColor;
-layout (location = 1) out mediump vec2 outUV;
-
-void main() 
-{
-	outColor = inColor / 255.0;
-	outUV = inUV;
-	gl_Position = inPos;
-}
-)";
-
-static const char OSDFragmentShaderSource[] = R"(
-layout (binding = 0) uniform sampler2D tex;
-layout (location = 0) in lowp vec4 inColor;
-layout (location = 1) in mediump vec2 inUV;
-layout (location = 0) out vec4 FragColor;
-
-void main() 
-{
-	FragColor = inColor * texture(tex, inUV);
 }
 )";
 
@@ -600,8 +632,8 @@ layout (std140, set = 0, binding = 0) uniform VertexShaderUniforms
 } uniformBuffer;
 
 layout (location = 0) in vec4         in_pos;
-layout (location = 1) in uvec4        in_base;
-layout (location = 2) in uvec4        in_offs;
+layout (location = 1) in vec4         in_base;
+layout (location = 2) in vec4         in_offs;
 layout (location = 3) in mediump vec2 in_uv;
 layout (location = 4) in vec3         in_normal;
 
@@ -625,8 +657,8 @@ void wDivide(inout vec4 vpos)
 void main()
 {
 	vec4 vpos = n2Uniform.mvMat * in_pos;
-	vtx_base = vec4(in_base) / 255.0;
-	vtx_offs = vec4(in_offs) / 255.0;
+	vtx_base = in_base;
+	vtx_offs = in_offs;
 
 	vec3 vnorm = normalize(mat3(n2Uniform.normalMat) * in_normal);
 
@@ -684,6 +716,7 @@ void wDivide(inout vec4 vpos)
 void main()
 {
 	vec4 vpos = n2Uniform.mvMat * in_pos;
+	vpos.z = min(vpos.z, -0.001);
 	vpos = n2Uniform.projMat * vpos;
 	wDivide(vpos);
 
@@ -726,10 +759,13 @@ vk::UniqueShaderModule ShaderManager::compileShader(const FragmentShaderParams& 
 		.addConstant("pp_BumpMap", (int)params.bumpmap)
 		.addConstant("ColorClamping", (int)params.clamping)
 		.addConstant("pp_TriLinear", (int)params.trilinear)
-		.addConstant("pp_Palette", (int)params.palette)
+		.addConstant("pp_Palette", params.palette)
 		.addConstant("DIV_POS_Z", (int)params.divPosZ)
+		.addConstant("DITHERING", (int)params.dithering)
 		.addSource(GouraudSource)
-		.addSource(FragmentShaderSource);
+		.addSource(FragmentShaderTop)
+		.addSource(FragmentShaderCommon)
+		.addSource(FragmentShaderMain);
 	return ShaderCompiler::Compile(vk::ShaderStageFlagBits::eFragment, src.generate());
 }
 
@@ -761,14 +797,4 @@ vk::UniqueShaderModule ShaderManager::compileQuadFragmentShader(bool ignoreTexAl
 	src.addConstant("IGNORE_TEX_ALPHA", (int)ignoreTexAlpha)
 			.addSource(QuadFragmentShaderSource);
 	return ShaderCompiler::Compile(vk::ShaderStageFlagBits::eFragment,src.generate());
-}
-
-vk::UniqueShaderModule ShaderManager::compileOSDVertexShader()
-{
-	return ShaderCompiler::Compile(vk::ShaderStageFlagBits::eVertex, VulkanSource().addSource(OSDVertexShaderSource).generate());
-}
-
-vk::UniqueShaderModule ShaderManager::compileOSDFragmentShader()
-{
-	return ShaderCompiler::Compile(vk::ShaderStageFlagBits::eFragment, VulkanSource().addSource(OSDFragmentShaderSource).generate());
 }
