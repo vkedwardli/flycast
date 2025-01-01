@@ -113,7 +113,6 @@ public:
 	void Present() noexcept;
 	void PresentFrame(vk::Image image, vk::ImageView imageView, const vk::Extent2D& extent, float aspectRatio) noexcept;
 	void PresentLastFrame();
-	void initVideoRouting() override;
 	bool GetLastFrame(std::vector<u8>& data, int& width, int& height);
 
 	vk::PhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
