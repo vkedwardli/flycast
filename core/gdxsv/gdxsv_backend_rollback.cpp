@@ -18,7 +18,7 @@
 #include "network/ggpo.h"
 #include "network/net_platform.h"
 #include "oslib/http_client.h"
-#include "rend/gui_util.h"
+#include "ui/gui_util.h"
 #include "rend/transform_matrix.h"
 
 namespace {

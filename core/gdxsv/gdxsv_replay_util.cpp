@@ -22,7 +22,7 @@
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
 #include "oslib/http_client.h"
-#include "rend/gui_util.h"
+#include "ui/gui_util.h"
 #include "stdclass.h"
 
 // For macOS
