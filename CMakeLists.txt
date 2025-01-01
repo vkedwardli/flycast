@@ -1441,7 +1441,7 @@ if(USE_VULKAN)
 	elseif(WIN32)
 		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 	elseif(APPLE)
-		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_MACOS_MVK VK_USE_PLATFORM_METAL_EXT
+		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_MACOS_MVK VK_USE_PLATFORM_METAL_EXT)
 	endif()
 
 	add_subdirectory(core/deps/Vulkan-Headers)
