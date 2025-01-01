@@ -18,13 +18,8 @@ if(APPLE)
 		set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum tvOS deployment version")
 		set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "")
 	else()
-<<<<<<< HEAD
-		set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Minimum macOS deployment version")
-		set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "")
-=======
 		set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS deployment version")
-		set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "")
->>>>>>> upstream/master
+		set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "")
 	endif()
 	set(ZLIB_LIBRARY "-lz" CACHE STRING "Use generic linker flag for Xcode to support multiple SDKs")
 endif()
@@ -72,17 +67,14 @@ option(USE_DX11 "Build with Direct3D 11 support" ON)
 option(LIBRETRO "Build libretro core" OFF)
 option(USE_OPENGL "Use OpenGL API" ON)
 option(USE_VIDEOCORE "RPI: use the legacy Broadcom GLES libraries" OFF)
-<<<<<<< HEAD
 option(APPLE_BREAKPAD "macOS: Build breakpad client and dump symbols" OFF)
 option(MSVC_BREAKPAD "Windows MSVC: Build breakpad client" OFF)
-=======
 option(USE_ALSA "Build with ALSA support" ON)
 option(USE_LIBAO "Build with AO support" ON)
 option(USE_OSS "Build with OSS support" OFF)
 option(USE_PULSEAUDIO "Build with PulseAudio support" ON)
 option(USE_BREAKPAD "Build and link with breakpad library" ON)
 option(USE_LUA "Build with Lua support" ON)
->>>>>>> upstream/master
 option(ENABLE_GDB_SERVER "Build with GDB debugging support" OFF)
 option(ENABLE_DC_PROFILER "Build with support for target machine (SH4) profiler" OFF)
 option(ENABLE_FC_PROFILER "Build with support for host app (Flycast) profiler" OFF)
@@ -130,18 +122,6 @@ if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
 		OUTPUT_VARIABLE GIT_HASH
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
-<<<<<<< HEAD
-	if(WINDOWS_STORE)
-		string(REGEX REPLACE "[Vv]" "" MS_VERSION ${GIT_VERSION})
-		string(REPLACE "-" "." MS_VERSION ${MS_VERSION})
-		string(REGEX REPLACE "\.g[0-9a-f]+" "" MS_VERSION ${MS_VERSION})
-		string(REGEX MATCH "[0-9]+\.[0-9]+\.[0-9]+" VERSION_3PARTS ${MS_VERSION})
-		if (VERSION_3PARTS STREQUAL "")
-			string(APPEND MS_VERSION ".0.0")
-		else()
-			string(APPEND MS_VERSION ".0")
-		endif()
-=======
 else()
 	set(GIT_VERSION "v0.0.0-0-g000000000")
 	set(GIT_HASH "000000000")
@@ -157,7 +137,6 @@ if(WINDOWS_STORE)
 		string(APPEND MS_VERSION ".0.0")
 	elseif(VERSION_PARTS_LENGTH EQUAL 3)
 		string(APPEND MS_VERSION ".0")
->>>>>>> upstream/master
 	endif()
 endif()
 
@@ -321,7 +300,6 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 		endif()
 		target_link_libraries(${PROJECT_NAME} PUBLIC breakpad_client)
 		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
-<<<<<<< HEAD
 	elseif(MSVC AND MSVC_BREAKPAD)
 		target_sources(${PROJECT_NAME} PRIVATE
 			core/deps/breakpad/src/client/windows/common/ipc_protocol.h
@@ -348,9 +326,6 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 		target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/deps/breakpad/src)
 		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
 	elseif(APPLE AND NOT IOS AND APPLE_BREAKPAD)
-=======
-	elseif(APPLE AND NOT IOS)
->>>>>>> upstream/master
 		target_sources(${PROJECT_NAME} PRIVATE
 			core/deps/breakpad/src/client/minidump_file_writer-inl.h
 			core/deps/breakpad/src/client/minidump_file_writer.cc
@@ -555,15 +530,6 @@ if(NOT LIBRETRO)
 		set(WITH_SYSTEM_ZLIB ON CACHE BOOL "Use system provided zlib library")
 		target_link_libraries(${PROJECT_NAME} PRIVATE ZLIB::ZLIB)
 	endif()
-<<<<<<< HEAD
-	
-	find_package(Lua)
-	if(NOT APPLE AND LUA_FOUND)
-		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_LUA)
-		target_include_directories(${PROJECT_NAME} PRIVATE ${LUA_INCLUDE_DIR} core/deps/luabridge/Source)
-		list(TRANSFORM LUA_LIBRARIES REPLACE "\.dll" "")
-		target_link_libraries(${PROJECT_NAME} PRIVATE ${LUA_LIBRARIES})
-=======
 
 	if(USE_LUA)
 		find_package(Lua 5.2)
@@ -573,7 +539,6 @@ if(NOT LIBRETRO)
 			list(TRANSFORM LUA_LIBRARIES REPLACE "\.dll" "")
 			target_link_libraries(${PROJECT_NAME} PRIVATE ${LUA_LIBRARIES})
 		endif()
->>>>>>> upstream/master
 	endif()
 endif()
 
@@ -855,13 +820,8 @@ target_sources(${PROJECT_NAME} PRIVATE core/deps/lzma/7zArcIn.c core/deps/lzma/7
 add_subdirectory(core/deps/libelf)
 target_link_libraries(${PROJECT_NAME} PRIVATE elf)
 if(NOT LIBRETRO)
-<<<<<<< HEAD
-	target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_DISABLE_DEMO_WINDOWS)
-	target_include_directories(${PROJECT_NAME} PRIVATE core/deps/imgui)
-=======
 	target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_DISABLE_DEMO_WINDOWS IMGUI_DEFINE_MATH_OPERATORS)
 	target_include_directories(${PROJECT_NAME} PRIVATE core/deps/imgui core/deps/imgui/backends)
->>>>>>> upstream/master
 	target_sources(${PROJECT_NAME} PRIVATE
 		core/deps/imgui/imgui.cpp
 		core/deps/imgui/imgui_demo.cpp
@@ -1450,30 +1410,6 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/rend/norend/norend.cpp)
 if(NOT LIBRETRO)
 	target_sources(${PROJECT_NAME} PRIVATE
-<<<<<<< HEAD
-			core/rend/game_scanner.h
-			core/rend/imgui_driver.h
-			core/rend/gui.cpp
-			core/rend/gui.h
-			core/rend/gui_android.cpp
-			core/rend/gui_android.h
-			core/rend/gui_chat.h
-			core/rend/gui_cheats.cpp
-			core/rend/gui_util.cpp
-			core/rend/gui_util.h
-			core/rend/mainui.cpp
-			core/rend/mainui.h
-			core/rend/sleep.cpp
-			core/rend/sleep.h
-			core/rend/boxart/boxart.cpp
-			core/rend/boxart/boxart.h
-			core/rend/boxart/gamesdb.cpp
-			core/rend/boxart/gamesdb.h
-			core/rend/boxart/http_client.cpp
-			core/rend/boxart/http_client.h
-			core/rend/boxart/scraper.cpp
-			core/rend/boxart/scraper.h)
-=======
 			core/ui/game_scanner.cpp
 			core/ui/game_scanner.h
 			core/ui/imgui_driver.h
@@ -1494,7 +1430,6 @@ if(NOT LIBRETRO)
 			core/ui/boxart/gamesdb.h
 			core/ui/boxart/scraper.cpp
 			core/ui/boxart/scraper.h)
->>>>>>> upstream/master
 endif()
 
 if(USE_VULKAN)
@@ -1506,11 +1441,7 @@ if(USE_VULKAN)
 	elseif(WIN32)
 		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 	elseif(APPLE)
-<<<<<<< HEAD
-		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_MACOS_MVK)
-=======
->>>>>>> upstream/master
-		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_METAL_EXT)
+		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_MACOS_MVK VK_USE_PLATFORM_METAL_EXT
 	endif()
 
 	add_subdirectory(core/deps/Vulkan-Headers)
@@ -1598,14 +1529,8 @@ if(WIN32 AND USE_DX9 AND NOT LIBRETRO AND NOT WINDOWS_STORE AND ("x86" IN_LIST A
 
 	if(NOT MINGW)
 		set_source_files_properties(${REND_DX9_FILES} PROPERTIES INCLUDE_DIRECTORIES "$ENV{DXSDK_DIR}/Include")
-<<<<<<< HEAD
-		if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-			target_link_directories(${PROJECT_NAME} PUBLIC "$ENV{DXSDK_DIR}/Lib/x64")
-		else()
-			target_link_directories(${PROJECT_NAME} PUBLIC "$ENV{DXSDK_DIR}/Lib/x86")
-		endif()
-=======
->>>>>>> upstream/master
+		# no need?
+		# if (CMAKE_SIZEOF_VOID_P EQUAL 8) target_link_directories(${PROJECT_NAME} PUBLIC "$ENV{DXSDK_DIR}/Lib/x64") else() target_link_directories(${PROJECT_NAME} PUBLIC "$ENV{DXSDK_DIR}/Lib/x86") endif()
 	endif()
 	target_compile_definitions(${PROJECT_NAME} PRIVATE USE_DX9)
 endif()
@@ -1805,13 +1730,8 @@ if(NOT LIBRETRO)
 			shell/android-studio/flycast/src/main/jni/src/jni_util.h
 			shell/android-studio/flycast/src/main/jni/src/android_input.cpp
 			shell/android-studio/flycast/src/main/jni/src/android_keyboard.h)
-<<<<<<< HEAD
-	
-		target_link_libraries(${PROJECT_NAME} PRIVATE android EGL GLESv2 log)
-=======
 
 		target_link_libraries(${PROJECT_NAME} PRIVATE android log)
->>>>>>> upstream/master
 	elseif(APPLE)
 		string(TIMESTAMP YEAR "%Y")
 		string(REGEX MATCH "gdxsv-[^-]+" TAG_VERSION ${GIT_VERSION})
@@ -1908,7 +1828,7 @@ if(NOT LIBRETRO)
 
 			add_subdirectory(core/deps/Syphon)
 			target_link_libraries(${PROJECT_NAME} PRIVATE Syphon)
-<<<<<<< HEAD
+			# same if else ?
 			if(${CMAKE_GENERATOR} MATCHES "^Xcode.*")
 				add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 					COMMAND ${CMAKE_COMMAND} -E copy ${SYPHON_METALLIB}
@@ -1918,11 +1838,6 @@ if(NOT LIBRETRO)
 					COMMAND ${CMAKE_COMMAND} -E copy ${SYPHON_METALLIB}
 					${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Flycast.app/Contents/Resources/)
 			endif()
-=======
-			add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-				COMMAND ${CMAKE_COMMAND} -E copy ${SYPHON_METALLIB}
-				$<TARGET_FILE_DIR:flycast>/../Resources/)
->>>>>>> upstream/master
 			target_compile_definitions(${PROJECT_NAME} PRIVATE VIDEO_ROUTING)
 
 			target_sources(${PROJECT_NAME} PRIVATE
@@ -1961,10 +1876,6 @@ if(NOT LIBRETRO)
 			find_library(AUDIO_UNIT_LIBRARY AudioUnit)
 			find_library(FOUNDATION_LIBRARY Foundation)
 			find_library(AUDIO_TOOLBOX_LIBRARY AudioToolbox)
-<<<<<<< HEAD
-			find_library(OPENGL_LIBRARY OpenGL)
-=======
->>>>>>> upstream/master
 			find_library(METAL_LIBRARY Metal)
 			find_library(IOSURFACE_LIBRARY IOSurface)
 			find_library(MULTITOUCH_SUPPORT_LIBRARY MultitouchSupport /System/Library/PrivateFrameworks)
@@ -1973,15 +1884,10 @@ if(NOT LIBRETRO)
 				${AUDIO_UNIT_LIBRARY}
 				${FOUNDATION_LIBRARY}
 				${AUDIO_TOOLBOX_LIBRARY}
-<<<<<<< HEAD
-				${OPENGL_LIBRARY}
-=======
->>>>>>> upstream/master
 				${METAL_LIBRARY}
 				${IOSURFACE_LIBRARY}
 				${MULTITOUCH_SUPPORT_LIBRARY})
 
-<<<<<<< HEAD
 			find_library(SYSTEMCONFIGURATION_LIBRARY SystemConfiguration) #gdxsv
 			target_link_libraries(${PROJECT_NAME} PRIVATE ${SYSTEMCONFIGURATION_LIBRARY}) #gdxsv
 
@@ -1994,11 +1900,6 @@ if(NOT LIBRETRO)
 					COMMAND ${CMAKE_COMMAND} -E copy "$ENV{VULKAN_SDK}/lib/libMoltenVK.dylib"
 					${CMAKE_CURRENT_BINARY_DIR}/Flycast.app/Contents/Frameworks/libvulkan.dylib)
 			endif()
-=======
-			add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-				COMMAND ${CMAKE_COMMAND} -E copy "$ENV{VULKAN_SDK}/lib/libMoltenVK.dylib"
-				$<TARGET_FILE_DIR:flycast>/../Frameworks/libvulkan.dylib)
->>>>>>> upstream/master
 		endif()
 	elseif(UNIX)
 		if(NOT BUILD_TESTING)
@@ -2034,21 +1935,6 @@ if(NOT LIBRETRO)
 			endif()
 			set_target_properties(${PROJECT_NAME} PROPERTIES RESOURCE "${ResourceFiles}")
 		else()
-<<<<<<< HEAD
-			target_include_directories(${PROJECT_NAME} PRIVATE core/deps/Spout/SPOUTSDK/SpoutGL)
-			target_include_directories(${PROJECT_NAME} PRIVATE core/deps/Spout/SPOUTSDK/SpoutDirectX/SpoutDX)
-			SET(SPOUT_BUILD_CMT OFF CACHE BOOL "For Visual Studio - build /MT to link runtime libraries" FORCE)
-			SET(SPOUT_BUILD_SPOUTDX ON CACHE BOOL "Build SpoutDX DirectX11 support library" FORCE)
-			SET(SPOUT_BUILD_LIBRARY OFF CACHE BOOL "Build C-compatible cross compiler library" FORCE)
-			SET(SKIP_INSTALL_ALL ON CACHE BOOL "Install headers and libraries" FORCE)
-			add_subdirectory(core/deps/Spout)
-			target_link_libraries(${PROJECT_NAME} PRIVATE Spout_static SpoutDX_static)
-			target_compile_definitions(${PROJECT_NAME} PRIVATE VIDEO_ROUTING)
-
-			target_sources(${PROJECT_NAME} PRIVATE shell/windows/flycast.rc)
-			target_link_libraries(${PROJECT_NAME} PRIVATE dsound opengl32 winmm ws2_32 wsock32 xinput9_1_0 cfgmgr32 wininet)
-			target_link_libraries(${PROJECT_NAME} PRIVATE iphlpapi.lib) #gdxsv
-=======
 			if(NOT BUILD_TESTING AND ("x86" IN_LIST ARCHITECTURE OR "x86_64" IN_LIST ARCHITECTURE))
 				target_include_directories(${PROJECT_NAME} PRIVATE core/deps/Spout/SPOUTSDK/SpoutGL)
 				target_include_directories(${PROJECT_NAME} PRIVATE core/deps/Spout/SPOUTSDK/SpoutDirectX/SpoutDX)
@@ -2062,8 +1948,8 @@ if(NOT LIBRETRO)
 			endif()
 
 			target_sources(${PROJECT_NAME} PRIVATE shell/windows/flycast.rc)
-			target_link_libraries(${PROJECT_NAME} PRIVATE dsound winmm ws2_32 wsock32 xinput9_1_0 cfgmgr32 wininet)
->>>>>>> upstream/master
+			target_link_libraries(${PROJECT_NAME} PRIVATE dsound opengl32 winmm ws2_32 wsock32 xinput9_1_0 cfgmgr32 wininet)
+			target_link_libraries(${PROJECT_NAME} PRIVATE iphlpapi.lib) #gdxsv
 		endif()
 	endif()
 endif()
@@ -2137,7 +2023,6 @@ if(UNIX AND NOT APPLE AND NOT ANDROID AND NOT LIBRETRO)
 	endforeach()
 endif()
 
-<<<<<<< HEAD
 ## gdxsv
 target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_PTHREAD)
 target_include_directories(${PROJECT_NAME} PRIVATE core/deps/protobuf-3.13.0/src)
@@ -2388,11 +2273,7 @@ if(APPLE)
 endif()
 ## End of gdxsv
 
-file(GLOB_RECURSE SRC_FILES *.h *.cpp *.c *.cc *.mm)
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC_FILES})
-=======
 if(${CMAKE_GENERATOR} MATCHES "^Xcode.*|^Visual Studio.*")
 	file(GLOB_RECURSE SRC_FILES *.h *.cpp *.c *.cc *.mm)
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC_FILES})
 endif()
->>>>>>> upstream/master
