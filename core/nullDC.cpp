@@ -290,11 +290,9 @@ void dc_loadstate(int index)
 	}
 
 	free(data);
-<<<<<<< HEAD
 	EventManager::event(Event::LoadState);
 	gdxsv_emu_loadstate(index);
 	
-=======
 }
 
 time_t dc_getStateCreationDate(int index)
@@ -343,7 +341,6 @@ void dc_getStateScreenshot(int index, std::vector<u8>& pngData)
 			pngData.clear();
 	}
 	std::fclose(f);
->>>>>>> upstream/master
 }
 
 #endif

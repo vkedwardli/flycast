@@ -66,11 +66,8 @@ enum class GuiState {
 	Loading,
 	NetworkStart,
 	Cheats,
-<<<<<<< HEAD:core/rend/gui.h
 	GdxsvReplay,
-=======
 	Achievements,
->>>>>>> upstream/master:core/ui/gui.h
 };
 extern GuiState gui_state;
 

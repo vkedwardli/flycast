@@ -20,15 +20,9 @@
 */
 #include "vulkan_context.h"
 #include "vulkan_renderer.h"
-<<<<<<< HEAD
-#include "imgui/imgui.h"
-#include "imgui/backends/imgui_impl_vulkan.h"
-#include "../gui.h"
-=======
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 #include "ui/gui.h"
->>>>>>> upstream/master
 #ifdef USE_SDL
 #include <sdl/sdl.h>
 #include <SDL_vulkan.h>
@@ -415,41 +409,7 @@ bool VulkanContext::InitDevice()
 		const auto deviceExtensionProperties = physicalDevice.enumerateDeviceExtensionProperties();
 		for (const auto& property : deviceExtensionProperties)
 		{
-<<<<<<< HEAD
-			if (!strcmp(property.extensionName, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME))
-			{
-				deviceExtensions.push_back(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
-				getMemReq2Supported = true;
-			}
-			else if (!strcmp(property.extensionName, VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME))
-			{
-				deviceExtensions.push_back(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
-				dedicatedAllocationSupported = true;
-			}
-			else if (!strcmp(property.extensionName, "VK_KHR_portability_subset"))
-				deviceExtensions.push_back("VK_KHR_portability_subset");
-			else if (!strcmp(property.extensionName, "VK_EXT_metal_objects"))
-				deviceExtensions.push_back("VK_EXT_metal_objects");
-#ifdef VK_DEBUG
-			else if (!strcmp(property.extensionName, VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
-			{
-				NOTICE_LOG(RENDERER, "Debug extension %s available", property.extensionName.data());
-				deviceExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
-			}
-			else if(!strcmp(property.extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME))
-			{
-				NOTICE_LOG(RENDERER, "Debug extension %s available", property.extensionName.data());
-				deviceExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-			}
-			else if (!strcmp(property.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
-			{
-				NOTICE_LOG(RENDERER, "Debug extension %s available", property.extensionName.data());
-				deviceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-			}
-#endif
-=======
 			supportedExtensions.insert(property.extensionName);
->>>>>>> upstream/master
 		}
 
 		std::vector<const char*> enabledExtensions;

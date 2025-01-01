@@ -547,32 +547,16 @@ void os_SetThreadName(const char *name)
 static SpoutSender* spoutSender;
 static spoutDX* spoutDXSender;
 
-<<<<<<< HEAD
-=======
 void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w, float h)
->>>>>>> upstream/master
 {
 	if (spoutSender == nullptr)
 	{
 		spoutSender = new SpoutSender();
-<<<<<<< HEAD
-	}
-	
-	int boardID = cfgLoadInt("naomi", "BoardId", 0);
-	char buf[32] = {0};
-	vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
-	spoutSender->SetSenderName(buf);
-}
-
-void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w, float h)
-{
-=======
 		int boardID = cfgLoadInt("naomi", "BoardId", 0);
 		char buf[32] = { 0 };
 		vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
 		spoutSender->SetSenderName(buf);
 	}	
->>>>>>> upstream/master
 	spoutSender->SendTexture(texID, texTarget, w, h, true);
 }
 
@@ -585,27 +569,11 @@ void os_VideoRoutingTermGL()
 	}
 }
 
-<<<<<<< HEAD
-void os_VideoRoutingInitSpoutDXWithDevice(ID3D11Device* pDevice)
-=======
 void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
->>>>>>> upstream/master
 {
 	if (spoutDXSender == nullptr)
 	{
 		spoutDXSender = new spoutDX();
-<<<<<<< HEAD
-	}
-	spoutDXSender->OpenDirectX11(pDevice);
-	int boardID = cfgLoadInt("naomi", "BoardId", 0);
-	char buf[32] = {0};
-	vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
-	spoutDXSender->SetSenderName(buf);
-}
-
-void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
-{
-=======
 		ID3D11Resource* resource = nullptr;
 		HRESULT hr = pTexture->QueryInterface(__uuidof(ID3D11Resource), reinterpret_cast<void**>(&resource));
 		if (SUCCEEDED(hr))
@@ -625,7 +593,6 @@ void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
 			return;
 		}
 	}
->>>>>>> upstream/master
 	spoutDXSender->SendTexture(pTexture);
 }
 

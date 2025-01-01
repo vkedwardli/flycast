@@ -808,12 +808,8 @@ static void resize(int w, int h)
 
 bool OpenGL4Renderer::renderFrame(int width, int height)
 {
-<<<<<<< HEAD
-	initVideoRoutingFrameBuffer();
-=======
 	if (!config::EmulateFramebuffer)
 		initVideoRoutingFrameBuffer();
->>>>>>> upstream/master
 	
 	const bool is_rtt = pvrrc.isRTT;
 

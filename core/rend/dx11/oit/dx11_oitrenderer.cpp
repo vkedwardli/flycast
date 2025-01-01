@@ -684,11 +684,7 @@ struct DX11OITRenderer : public DX11Renderer
 #ifndef LIBRETRO
 			deviceContext->OMSetRenderTargets(1, &theDX11Context.getRenderTarget().get(), nullptr);
 			displayFramebuffer();
-<<<<<<< HEAD
-			DrawOSD(false);
-=======
 			drawOSD();
->>>>>>> upstream/master
 			renderVideoRouting();
 			theDX11Context.setFrameRendered();
 #else

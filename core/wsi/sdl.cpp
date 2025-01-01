@@ -111,18 +111,6 @@ bool SDLGLGraphicsContext::init()
 	}
 #endif
 	postInit();
-<<<<<<< HEAD
-
-#ifdef TARGET_UWP
-	// Force link with libGLESv2.dll and libEGL.dll
-#undef glGetError
-	glGetError();
-	eglGetError();
-#endif
-	
-	initVideoRouting();
-=======
->>>>>>> upstream/master
 	
 	return true;
 }

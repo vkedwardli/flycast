@@ -909,8 +909,6 @@ static u8 *loadImage(const std::string& path, int& width, int& height)
 	return imgData;
 }
 
-<<<<<<< HEAD:core/rend/gui_util.cpp
-=======
 int ImguiFileTexture::textureLoadCount;
 
 ImTextureID ImguiFileTexture::getId()
@@ -1171,4 +1169,3 @@ std::string middleEllipsis(const std::string& s, float width)
 			l += d;
 	}
 }
->>>>>>> upstream/master:core/ui/gui_util.cpp

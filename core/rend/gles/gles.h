@@ -295,10 +295,7 @@ struct gl_ctx
 		std::unique_ptr<GlFramebuffer> framebuffer;
 	} videorouting;
 
-<<<<<<< HEAD
-=======
 	std::unique_ptr<GlQuadDrawer> quad;
->>>>>>> upstream/master
 	const char *gl_version;
 	const char *glsl_version_header;
 	int gl_major;
@@ -550,10 +547,7 @@ protected:
 
 	bool renderLastFrame();
 	void renderVideoRouting();
-<<<<<<< HEAD
-=======
 	void drawOSD();
->>>>>>> upstream/master
 
 private:
 	bool renderFrame(int width, int height);

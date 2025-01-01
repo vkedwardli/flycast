@@ -479,10 +479,7 @@ void termGLCommon()
 	gl.ofbo2.framebuffer.reset();
 	gl.fbscaling.framebuffer.reset();
 	gl.videorouting.framebuffer.reset();
-<<<<<<< HEAD
-=======
 	termVmuLightgun();
->>>>>>> upstream/master
 #ifdef LIBRETRO
 	postProcessor.term();
 #endif
@@ -1086,12 +1083,8 @@ static void upload_vertex_indices()
 
 bool OpenGLRenderer::renderFrame(int width, int height)
 {
-<<<<<<< HEAD
-	initVideoRoutingFrameBuffer();
-=======
 	if (!config::EmulateFramebuffer)
 		initVideoRoutingFrameBuffer();
->>>>>>> upstream/master
 	
 	bool is_rtt = pvrrc.isRTT;
 
@@ -1395,13 +1388,10 @@ void OpenGLRenderer::renderVideoRouting()
 		extern void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w, float h);
 		os_VideoRoutingPublishFrameTexture(gl.videorouting.framebuffer->getTexture(), GL_TEXTURE_2D, targetWidth, targetHeight);
 	}
-<<<<<<< HEAD
-=======
 	else
 	{
 		os_VideoRoutingTermGL();
 	}
->>>>>>> upstream/master
 #endif
 }
 

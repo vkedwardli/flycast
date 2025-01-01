@@ -204,7 +204,6 @@ struct settings_t
 		int drivingSimSlave;
 	} naomi;
 
-<<<<<<< HEAD
 	struct
 	{
 		int disk;
@@ -212,9 +211,7 @@ struct settings_t
 	} gdxsv;
 
 	bool disableRenderer;
-=======
 	bool raHardcoreMode;
->>>>>>> upstream/master
 };
 
 extern settings_t settings;

@@ -101,12 +101,9 @@ protected:
 	virtual void setRTTSize(int width, int height) {}
 	void writeFramebufferToVRAM();
 	void renderVideoRouting();
-<<<<<<< HEAD
-=======
 	void resetContextState();
 	void drawOSD();
 	TileClipping setTileClip(u32 val, int clip_rect[4]);
->>>>>>> upstream/master
 
 	ComPtr<ID3D11Device> device;
 	ComPtr<ID3D11DeviceContext> deviceContext;

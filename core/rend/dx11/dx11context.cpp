@@ -252,16 +252,8 @@ void DX11Context::Present()
 	if (!swapchain) {
 		hr = DXGI_ERROR_DEVICE_RESET;
 	}
-<<<<<<< HEAD
-	else if (swapOnVSync)
-	{
-		int swapInterval = 1;
-		if (config::DupeFrames)
-			swapInterval = std::min(4, std::max(1, (int)(settings.display.refreshRate / 60)));
-=======
 	else if (swapOnVSync) {
 		int swapInterval = std::min(4, std::max(1, (int)(settings.display.refreshRate / 60)));
->>>>>>> upstream/master
 		hr = swapchain->Present(swapInterval, 0);
 	}
 	else {

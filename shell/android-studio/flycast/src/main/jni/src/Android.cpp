@@ -447,33 +447,7 @@ void SaveAndroidSettings()
     jni::env()->CallVoidMethod(g_emulator, saveAndroidSettingsMid, (jstring)homeDirectory);
 }
 
-<<<<<<< HEAD
-void os_LaunchFromURL(const std::string& url)
-{
-    jstring jurl = jvm_attacher.getEnv()->NewStringUTF(url.c_str());
-
-    jvm_attacher.getEnv()->CallVoidMethod(g_emulator, launchFromUrlMid, jurl);
-    jvm_attacher.getEnv()->DeleteLocalRef(jurl);
-}
-
-std::string os_GetMachineID()
-{
-    //Not implemented
-    std::string empty;
-    return empty;
-}
-
-std::string os_GetConnectionMedium()
-{
-    //Not implemented
-    std::string empty;
-    return empty;
-}
-
-extern "C" JNIEXPORT void JNICALL Java_com_reicast_emulator_periph_InputDeviceManager_init(JNIEnv *env, jobject obj)
-=======
 extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_BaseGLActivity_register(JNIEnv *env, jobject obj, jobject activity)
->>>>>>> upstream/master
 {
     if (g_activity != nullptr) {
         env->DeleteGlobalRef(g_activity);
