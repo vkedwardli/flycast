@@ -14,6 +14,7 @@ ImTextureID arrowsTexture = ImTextureID{};
 
 namespace {
 void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1);
+std::string getArrowsStr(u16 mcs_key);
 float getScale();
 }  // namespace
 
@@ -82,8 +83,13 @@ void GdxsvKeyDisplay::DisplayOSD() {
 		ImGui::SameLine();
 
 		ImVec2 uv0, uv1;
-		getArrowsUV(e.code, uv0, uv1);
-		ImGui::Image(arrowsTexture, button_size, uv0, uv1);
+		if (buttonsTexture == ImTextureID{}) {
+			const auto s = getArrowsStr(e.code);
+			ImGui::Text("%s", s.c_str());
+		} else {
+			getArrowsUV(e.code, uv0, uv1);
+			ImGui::Image(arrowsTexture, button_size, uv0, uv1);
+		}
 
 		uv0 = ImVec2{0, 0};
 		uv1 = ImVec2{0, 1};
@@ -91,43 +97,50 @@ void GdxsvKeyDisplay::DisplayOSD() {
 			uv0.x = 0.f / 7;
 			uv1.x = 1.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("A");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 		if (e.code & McsKeyCode::B) {
 			uv0.x = 1.f / 7;
 			uv1.x = 2.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("B");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 		if (e.code & McsKeyCode::X) {
 			uv0.x = 2.f / 7;
 			uv1.x = 3.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("X");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 		if (e.code & McsKeyCode::Y) {
 			uv0.x = 3.f / 7;
 			uv1.x = 4.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("Y");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 		if (e.code & McsKeyCode::RT) {
 			uv0.x = 4.f / 7;
 			uv1.x = 5.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("RT");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 		if (e.code & McsKeyCode::LT) {
 			uv0.x = 5.f / 7;
 			uv1.x = 6.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("LT");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 		if (e.code & McsKeyCode::START) {
 			uv0.x = 6.f / 7;
 			uv1.x = 7.f / 7;
 			ImGui::SameLine();
-			ImGui::Image(buttonsTexture, button_size, uv0, uv1);
+			if (buttonsTexture == ImTextureID{}) ImGui::Text("ST");
+			else ImGui::Image(buttonsTexture, button_size, uv0, uv1);
 		}
 	}
 	if (!history_[display_player_].empty()) {
@@ -207,6 +220,26 @@ void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1) {
 		uv0 = ImVec2{2.f / 3, 1.f / 3};
 		uv1 = ImVec2{3.f / 3, 2.f / 3};
 	}
+}
+
+std::string getArrowsStr(u16 mcs_key) {
+	if (mcs_key & McsKeyCode::UP) {
+		if (mcs_key & McsKeyCode::LEFT) return u8"←↑";
+		if (mcs_key & McsKeyCode::RIGHT) return u8"↑→";
+		return u8"↑";
+	}
+	if (mcs_key & McsKeyCode::DOWN) {
+		if (mcs_key & McsKeyCode::LEFT) return u8"←↓";
+		if (mcs_key & McsKeyCode::RIGHT) return u8"↓→";
+		return u8"↓";
+	}
+	if (mcs_key & McsKeyCode::LEFT) {
+		return u8"←";
+	}
+	if (mcs_key & McsKeyCode::RIGHT) {
+		return u8"→";
+	}
+	return "";
 }
 
 }  // namespace

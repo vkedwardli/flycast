@@ -355,6 +355,7 @@ void gui_initFonts()
 
 	// gdxsv: need this?
 	io.Fonts->Build();
+
     NOTICE_LOG(RENDERER, "Screen DPI is %.0f, size %d x %d. Scaling by %.2f", settings.display.dpi, settings.display.width, settings.display.height, settings.display.uiScale);
 	vgamepad::applyUiScale();
 }
@@ -3755,6 +3756,7 @@ void gui_draw_osd()
 	if (!settings.raHardcoreMode)
 		lua::overlay();
 	vgamepad::draw();
+	gdxsv_gui_display_osd();
     ImGui::Render();
 	uiThreadRunner.execTasks();
 }

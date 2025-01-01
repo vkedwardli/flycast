@@ -995,8 +995,11 @@ void GdxsvBackendReplay::RestorePatch() {
 }
 
 void GdxsvBackendReplay::RenderPauseMenu() {
+	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
+	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
 	ImGui::SetNextWindowSize(ScaledVec2(330, 0));
+	ImGui::SetNextWindowBgAlpha(0.7f);
 
 	ImGui::Begin("##gdxsv-replay-pause", NULL,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
