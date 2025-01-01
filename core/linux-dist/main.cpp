@@ -36,29 +36,6 @@ void os_DoEvents()
 	#endif
 }
 
-void os_SetWindowText(const char * text)
-{
-	#if defined(SUPPORT_X11)
-		x11_window_set_text(text);
-	#endif
-	#if defined(USE_SDL)
-		sdl_window_set_text(text);
-	#endif
-}
-
-void os_CreateWindow()
-{
-	#if defined(SUPPORT_DISPMANX)
-		dispmanx_window_create();
-	#endif
-	#if defined(SUPPORT_X11)
-		x11_window_create();
-	#endif
-	#if defined(USE_SDL)
-		sdl_window_create();
-	#endif
-}
-
 void os_LaunchFromURL(const std::string& url)
 {
     auto cmd = "xdg-open " + url;
