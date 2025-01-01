@@ -56,6 +56,8 @@
 #include "sdl/sdl.h"
 #endif
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+
 #include "vgamepad.h"
 #ifdef __ANDROID__
 #if HOST_CPU == CPU_ARM64 && USE_VULKAN
@@ -234,9 +236,28 @@ void gui_initFonts()
 	io.Fonts->AddFontFromMemoryTTF(data.release(), dataSize, fontSize, nullptr, ranges);
     ImFontConfig font_cfg;
     font_cfg.MergeMode = true;
+
+    // gdxsv: sjis ranges
+    ImFontGlyphRangesBuilder builder;
+    builder.AddRanges(GetGlyphRangesShiftJIS());
+    builder.AddText(gdxsv_emu_settings_text_for_preparing_font());
+    ImVector<ImWchar> cjk_ranges;
+    builder.BuildRanges(&cjk_ranges);
+
 #ifdef _WIN32
     u32 cp = GetACP();
     std::string fontDir = std::string(nowide::getenv("SYSTEMROOT")) + "\\Fonts\\";
+
+    // gdxsv: Always load ShiftJIS for Gdxsv
+    {
+        font_cfg.FontNo = 2;    // Meiryo UI
+        ImFont* font = io.Fonts->AddFontFromFileTTF((fontDir + "meiryo.ttc").c_str(), fontSize, &font_cfg, cjk_ranges.Data);
+        font_cfg.FontNo = 2;    // UIGothic
+        if (font == nullptr)
+            io.Fonts->AddFontFromFileTTF((fontDir + "msgothic.ttc").c_str(), fontSize, &font_cfg, cjk_ranges.Data);
+    }
+
+/* gdxsv: Load ShiftJIS only to prevent crash with older GPU
     switch (cp)
     {
     case 932:	// Japanese
@@ -273,9 +294,12 @@ void gui_initFonts()
     default:
     	break;
     }
+*/
 #elif defined(__APPLE__) && !defined(TARGET_IPHONE)
     std::string fontDir = std::string("/System/Library/Fonts/");
-
+    // Always load ShiftJIS for Gdxsv
+    io.Fonts->AddFontFromFileTTF((fontDir + "ヒラギノ角ゴシック W4.ttc").c_str(), fontSize, &font_cfg, cjk_ranges.Data);
+/* gdxsv: Load ShiftJIS only to prevent crash with older GPU
     extern std::string os_Locale();
     std::string locale = os_Locale();
 
@@ -295,6 +319,7 @@ void gui_initFonts()
     {
         io.Fonts->AddFontFromFileTTF((fontDir + "PingFang.ttc").c_str(), fontSize, &font_cfg, GetGlyphRangesChineseSimplifiedOfficial());
     }
+*/
 #elif defined(__ANDROID__)
     if (getenv("FLYCAST_LOCALE") != nullptr)
     {
@@ -328,6 +353,8 @@ void gui_initFonts()
 	const float largeFontSize = uiScaled(21.f);
 	largeFont = io.Fonts->AddFontFromMemoryTTF(data.release(), dataSize, largeFontSize, nullptr, ranges);
 
+	// gdxsv: need this?
+	io.Fonts->Build();
     NOTICE_LOG(RENDERER, "Screen DPI is %.0f, size %d x %d. Scaling by %.2f", settings.display.dpi, settings.display.width, settings.display.height, settings.display.uiScale);
 	vgamepad::applyUiScale();
 }
@@ -514,22 +541,25 @@ void gui_open_settings()
 	const LockGuard lock(guiMutex);
 	if (gui_state == GuiState::Closed && !settings.naomi.slave)
 	{
-		if (!ggpo::active())
+		if (gdxsv_emu_menu_open())
 		{
-			if (achievements::canPause())
+			if (!ggpo::active())
 			{
-				vgamepad::hide();
-				try {
-					emu.stop();
-					gui_setState(GuiState::Commands);
-				} catch (const FlycastException& e) {
-					gui_stop_game(e.what());
+				if (achievements::canPause())
+				{
+					vgamepad::hide();
+					try {
+						emu.stop();
+						gui_setState(GuiState::Commands);
+					} catch (const FlycastException& e) {
+						gui_stop_game(e.what());
+					}
 				}
 			}
-		}
-		else
-		{
-			chat.toggle();
+			else
+			{
+				chat.toggle();
+			}
 		}
 	}
 	else if (gui_state == GuiState::VJoyEdit)
@@ -588,7 +618,7 @@ void gui_stop_game(const std::string& message)
 
 static bool savestateAllowed()
 {
-	return !settings.content.path.empty() && !settings.network.online && !settings.naomi.multiboard;
+	return !settings.content.path.empty() && !settings.network.online && !settings.naomi.multiboard && gdxsv_is_savestate_allowed();
 }
 
 static void appendVectorData(void *context, void *data, int size)
@@ -687,6 +717,7 @@ static void gui_display_commands()
 			gui_setState(GuiState::Closed);
 		}
 		// Cheats
+		if (!gdxsv_enabled())
 		{
 			DisabledScope _{settings.network.online || settings.raHardcoreMode};
 
@@ -694,6 +725,7 @@ static void gui_display_commands()
 				gui_setState(GuiState::Cheats);
 		}
 		// Achievements
+		if (!gdxsv_enabled())
 		{
 			DisabledScope _{!achievements::isActive()};
 
@@ -709,6 +741,21 @@ static void gui_display_commands()
 			ImGui::SetNextItemWidth(uiScaled(buttonWidth));
 			if (ImGui::InputText("##barcode", cardBuf, sizeof(cardBuf), ImGuiInputTextFlags_None, nullptr, nullptr))
 				card_reader::barcodeSetCard(cardBuf);
+		}
+
+		// GdxReplay
+		if (gdxsv_enabled())
+		{
+			DisabledScope scope(gdxsv_is_online());
+
+			if (ImGui::Button(ICON_FA_VIDEO "  Replays", ScaledVec2(buttonWidth, 50)) && !scope.isDisabled())
+			{
+				gui_state = GuiState::GdxsvReplay;
+			}
+			if (gdxsv_is_online() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			{
+				ImGui::SetTooltip("Please disconnect from the Gdxsv server first.");
+			}
 		}
 
 		ImGui::NextColumn();
@@ -3063,6 +3110,13 @@ static void gui_display_settings()
 
     if (ImGui::BeginTabBar("settings", ImGuiTabBarFlags_NoTooltip))
     {
+		if (ImGui::BeginTabItem(ICON_FA_GLOBE"  Gdxsv"))
+		{
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, normal_padding);
+			gdxsv_emu_settings_gdxsv_tab();
+			ImGui::PopStyleVar();
+			ImGui::EndTabItem();
+		}
 		if (ImGui::BeginTabItem(ICON_FA_TOOLBOX " General"))
 		{
 			ImguiStyleVar _(ImGuiStyleVar_FramePadding, normal_padding);
@@ -3618,6 +3672,8 @@ void gui_display_ui()
 	case GuiState::Cheats:
 		gui_cheats();
 		break;
+	case GuiState::GdxsvReplay:
+		break;
 	case GuiState::Achievements:
 #ifdef USE_RACHIEVEMENTS
 		achievements::achievementList();
@@ -3628,6 +3684,7 @@ void gui_display_ui()
 		break;
 	}
 	error_popup();
+	gdxsv_emu_gui_display();
     ImGui::Render();
 	gui_endFrame(gui_open);
 	uiThreadRunner.execTasks();
