@@ -145,15 +145,11 @@ public:
 			float x_coef = 2.0f / dcViewport.x;
 			float y_coef = 2.0f / dcViewport.y * flipY;
 
-<<<<<<< HEAD
 			// GDXSV: Stretch the screen to make it wider than Framebuffer's size
 			if (gdxsv_widescreen_hack_enabled())
 				x_coef *= (config::ScreenStretching / 100.f);
 
-			glm::mat4 trans = glm::translate(glm::vec3(-1 + 2 * sidebarWidth, -screenFlipY, 0));
-=======
 			glm::mat4 trans = glm::translate(glm::vec3(-1 + 2 * sidebarWidth, -flipY, 0));
->>>>>>> upstream/master
 
 			normalMatrix = trans
 				* glm::scale(glm::vec3(x_coef, y_coef, 1.f))

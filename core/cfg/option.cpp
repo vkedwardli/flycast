@@ -108,20 +108,13 @@ Option<bool> DupeFrames("rend.DupeFrames", false);
 Option<int> PerPixelLayers("rend.PerPixelLayers", 32);
 Option<bool> NativeDepthInterpolation("rend.NativeDepthInterpolation", false);
 Option<bool> EmulateFramebuffer("rend.EmulateFramebuffer", false);
-<<<<<<< HEAD
 Option<int> FixedFrequency("rend.FixedFrequency", 0);
-#ifdef VIDEO_ROUTING
-Option<bool> VideoRouting("rend.VideoRouting", false);
-Option<bool> VideoRoutingScale("rend.VideoRoutingScale", false);
-Option<int> VideoRoutingVRes("rend.VideoRoutingVRes", 720);
-=======
 Option<bool> FixUpscaleBleedingEdge("rend.FixUpscaleBleedingEdge", true);
 Option<bool> CustomGpuDriver("rend.CustomGpuDriver", false);
 #ifdef VIDEO_ROUTING
 Option<bool, false> VideoRouting("rend.VideoRouting", false);
 Option<bool, false> VideoRoutingScale("rend.VideoRoutingScale", false);
 Option<int, false> VideoRoutingVRes("rend.VideoRoutingVRes", 720);
->>>>>>> upstream/master
 #endif
 
 // Misc

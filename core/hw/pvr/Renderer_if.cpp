@@ -402,10 +402,6 @@ void rend_start_render()
 	ctx->rend.fog_clamp_min = FOG_CLAMP_MIN;
 	ctx->rend.fog_clamp_max = FOG_CLAMP_MAX;
 
-<<<<<<< HEAD
-	if (!ctx->rend.isRTT) {
-		gdxsv_emu_end_frame();
-=======
 	if (!ctx->rend.isRTT)
 	{
 		if (FB_W_SOF1 != fbAddrHistory[0] && FB_W_SOF1 != fbAddrHistory[1])
@@ -417,7 +413,8 @@ void rend_start_render()
 		else {
 			ctx->rend.clearFramebuffer = false;
 		}
->>>>>>> upstream/master
+
+		gdxsv_emu_end_frame();
 		ggpo::endOfFrame();
 	}
 

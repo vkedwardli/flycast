@@ -36,7 +36,6 @@ void os_DoEvents()
 	#endif
 }
 
-<<<<<<< HEAD
 void os_SetWindowText(const char * text)
 {
 	#if defined(SUPPORT_X11)
@@ -80,8 +79,6 @@ std::string os_GetConnectionMedium()
     return empty;
 }
 
-=======
->>>>>>> upstream/master
 void common_linux_setup();
 
 // Find the user config directory.

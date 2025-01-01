@@ -515,11 +515,7 @@ bool DX11Renderer::Render()
 #ifndef LIBRETRO
 		deviceContext->OMSetRenderTargets(1, &theDX11Context.getRenderTarget().get(), nullptr);
 		displayFramebuffer();
-<<<<<<< HEAD
-		DrawOSD(false);
-=======
 		drawOSD();
->>>>>>> upstream/master
 		renderVideoRouting();
 		theDX11Context.setFrameRendered();
 #else
@@ -1036,11 +1032,7 @@ void DX11Renderer::RenderFramebuffer(const FramebufferInfo& info)
 
 	deviceContext->OMSetRenderTargets(1, &theDX11Context.getRenderTarget().get(), nullptr);
 	displayFramebuffer();
-<<<<<<< HEAD
-	DrawOSD(false);
-=======
 	drawOSD();
->>>>>>> upstream/master
 	renderVideoRouting();
 	theDX11Context.setFrameRendered();
 #else
@@ -1379,8 +1371,6 @@ void DX11Renderer::writeFramebufferToVRAM()
 	WriteFramebuffer<2, 1, 0, 3>(width, height, (u8 *)tmp_buf.data(), texAddress, pvrrc.fb_W_CTRL, linestride, xClip, yClip);
 }
 
-<<<<<<< HEAD
-=======
 bool DX11Renderer::GetLastFrame(std::vector<u8>& data, int& width, int& height)
 {
 	if (!frameRenderedOnce)
@@ -1474,7 +1464,6 @@ bool DX11Renderer::GetLastFrame(std::vector<u8>& data, int& width, int& height)
 	return true;
 }
 
->>>>>>> upstream/master
 void DX11Renderer::renderVideoRouting()
 {
 #ifdef VIDEO_ROUTING
@@ -1484,11 +1473,7 @@ void DX11Renderer::renderVideoRouting()
 		
 		ID3D11RenderTargetView* pRenderTargetView = theDX11Context.getRenderTarget().get();
 
-<<<<<<< HEAD
-		// Backbuffer texture would be different after reszing, fetching new address everytime
-=======
 		// Backbuffer texture would be different after resizing, fetching new address everytime
->>>>>>> upstream/master
 		ID3D11Resource* pResource = nullptr;
 		pRenderTargetView->GetResource(&pResource);
 		ID3D11Texture2D* backBufferTexture = nullptr;
@@ -1496,30 +1481,6 @@ void DX11Renderer::renderVideoRouting()
 		
 		if (config::VideoRoutingScale)
 		{
-<<<<<<< HEAD
-			static int targetWidth, targetHeight, vrStagingWidth, vrStagingHeight;
-			static D3D11_VIEWPORT scaledViewPort{};
-
-			auto updateScaledTexture = [this]() -> void {
-				targetWidth = config::VideoRoutingVRes * settings.display.width / settings.display.height;
-				targetHeight = config::VideoRoutingVRes;
-
-				vrScaledTexture.reset();
-				vrScaledRenderTarget.reset();
-				createTexAndRenderTarget(vrScaledTexture, vrScaledRenderTarget, targetWidth, targetHeight);
-
-				scaledViewPort.Width = targetWidth;
-				scaledViewPort.Height = targetHeight;
-				scaledViewPort.MinDepth = 0.f;
-				scaledViewPort.MaxDepth = 1.f;
-			};
-
-			D3D11_TEXTURE2D_DESC bbDesc = {};
-			backBufferTexture->GetDesc(&bbDesc);
-
-			// Window resized
-			if (bbDesc.Width != vrStagingWidth || bbDesc.Height != vrStagingHeight)
-=======
 			D3D11_TEXTURE2D_DESC bbDesc = {};
 			backBufferTexture->GetDesc(&bbDesc);
 			D3D11_TEXTURE2D_DESC vrsDesc = {};
@@ -1528,7 +1489,6 @@ void DX11Renderer::renderVideoRouting()
 
 			// Window resized?
 			if (!vrStagingTexture || bbDesc.Width != vrsDesc.Width || bbDesc.Height != vrsDesc.Height)
->>>>>>> upstream/master
 			{
 				vrStagingTexture.reset();
 				vrStagingTextureSRV.reset();
@@ -1544,17 +1504,6 @@ void DX11Renderer::renderVideoRouting()
 				viewDesc.Texture2D.MipLevels = 1;
 				
 				device->CreateShaderResourceView(vrStagingTexture.get(), &viewDesc, &vrStagingTextureSRV.get());
-<<<<<<< HEAD
-
-				updateScaledTexture();
-			}
-
-			// Scale down value changed
-			if (targetHeight != config::VideoRoutingVRes)
-			{
-				updateScaledTexture();	
-			}
-=======
 			}
 
 			// Scale down value changed?
@@ -1574,7 +1523,6 @@ void DX11Renderer::renderVideoRouting()
 			scaledViewPort.Height = config::VideoRoutingVRes;
 			scaledViewPort.MinDepth = 0.f;
 			scaledViewPort.MaxDepth = 1.f;
->>>>>>> upstream/master
 
 			deviceContext->OMSetRenderTargets(1, &vrScaledRenderTarget.get(), nullptr);
 			deviceContext->RSSetViewports(1, &scaledViewPort);
@@ -1591,13 +1539,10 @@ void DX11Renderer::renderVideoRouting()
 		backBufferTexture->Release();
 		pResource->Release();
 	}
-<<<<<<< HEAD
-=======
 	else
 	{
 		os_VideoRoutingTermDX();
 	}
->>>>>>> upstream/master
 #endif
 }
 

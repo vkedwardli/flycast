@@ -37,9 +37,6 @@ static bool mainui_enabled;
 u32 MainFrameCount;
 static bool forceReinit;
 
-<<<<<<< HEAD:core/rend/mainui.cpp
-void UpdateInputState();
-
 int64_t get_period() {
 	const auto mode = config::FixedFrequency.get();
 	// Native NTSC/VGA
@@ -57,14 +54,12 @@ int64_t get_period() {
 	return 16683;
 }
 
-=======
->>>>>>> upstream/master:core/ui/mainui.cpp
 bool mainui_rend_frame()
 {
 	FC_PROFILE_SCOPE;
 
 	os_DoEvents();
-	os_UpdateInputState();
+	();
 
 	if (gui_is_open())
 	{

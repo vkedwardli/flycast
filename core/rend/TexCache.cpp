@@ -15,11 +15,8 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include "TexCache.h"
-<<<<<<< HEAD
-#include "CustomTexture.h"
-#include "../gdxsv/gdxsv_CustomTexture.h"
-=======
->>>>>>> upstream/master
+// #include "CustomTexture.h"
+// #include "../gdxsv/gdxsv_CustomTexture.h"
 #include "deps/xbrz/xbrz.h"
 #include "hw/pvr/pvr_mem.h"
 #include "hw/mem/addrspace.h"

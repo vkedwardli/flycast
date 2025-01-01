@@ -480,11 +480,7 @@ void bm_RamWriteAccess(u32 addr)
 		std::vector<RuntimeBlockInfo*> list_copy;
 		list_copy.insert(list_copy.begin(), block_list.begin(), block_list.end());
 		if (!list_copy.empty())
-<<<<<<< HEAD
-			WARN_LOG(DYNAREC, "bm_RamWriteAccess write access to %08x pc %08x", addr, next_pc);
-=======
 			DEBUG_LOG(DYNAREC, "bm_RamWriteAccess write access to %08x pc %08x", addr, Sh4cntx.pc);
->>>>>>> upstream/master
 		for (auto& block : list_copy)
 			bm_DiscardBlock(block);
 		verify(block_list.empty());

@@ -467,20 +467,12 @@ extern Option<bool> ThreadedRendering;
 extern Option<bool> DupeFrames;
 extern Option<bool> NativeDepthInterpolation;
 extern Option<bool> EmulateFramebuffer;
-<<<<<<< HEAD
 extern Option<int> FixedFrequency;
-#ifdef VIDEO_ROUTING
-extern Option<bool> VideoRouting;
-extern Option<bool> VideoRoutingScale;
-extern Option<int> VideoRoutingVRes;
-=======
 extern Option<bool> FixUpscaleBleedingEdge;
 extern Option<bool> CustomGpuDriver;
-#ifdef VIDEO_ROUTING
 extern Option<bool, false> VideoRouting;
 extern Option<bool, false> VideoRoutingScale;
 extern Option<int, false> VideoRoutingVRes;
->>>>>>> upstream/master
 #endif
 
 // Misc

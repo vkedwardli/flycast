@@ -26,14 +26,11 @@
 #include "oslib/oslib.h"
 #include <algorithm>
 
-<<<<<<< HEAD
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include "gdxsv/gdxsv_prof.h"
 
 void UpdateInputState();
 
-=======
->>>>>>> upstream/master
 namespace ggpo
 {
 
@@ -96,12 +93,8 @@ static void getLocalInput(MapleInputState inputState[4])
 #include <mutex>
 #include <unordered_map>
 #include <numeric>
-<<<<<<< HEAD
 #include <random>
-#include "imgui/imgui.h"
-=======
 #include "imgui.h"
->>>>>>> upstream/master
 #include "miniupnp.h"
 #include "hw/naomi/naomi_cart.h"
 
@@ -248,13 +241,8 @@ static bool on_event(GGPOEvent *info)
 {
 	switch (info->code) {
 	case GGPO_EVENTCODE_CONNECTED_TO_PEER:
-<<<<<<< HEAD
-		NOTICE_LOG(NETWORK, "Connected to peer %d", info->u.connected.player);
-		gui_display_notification("Connected to peer", 2000);
-=======
 		INFO_LOG(NETWORK, "Connected to peer %d", info->u.connected.player);
 		os_notify("Connected to peer", 2000);
->>>>>>> upstream/master
 		break;
 	case GGPO_EVENTCODE_SYNCHRONIZING_WITH_PEER:
 		INFO_LOG(NETWORK, "Synchronizing with peer %d", info->u.synchronizing.player);
@@ -265,13 +253,8 @@ static bool on_event(GGPOEvent *info)
 		os_notify("Synchronized with peer", 2000);
 		break;
 	case GGPO_EVENTCODE_RUNNING:
-<<<<<<< HEAD
-		NOTICE_LOG(NETWORK, "Running");
-		gui_display_notification("Running", 2000);
-=======
 		INFO_LOG(NETWORK, "Running");
 		os_notify("Running", 2000);
->>>>>>> upstream/master
 		synchronized = true;
 		break;
 	case GGPO_EVENTCODE_DISCONNECTED_FROM_PEER:
@@ -287,21 +270,12 @@ static bool on_event(GGPOEvent *info)
 		totalTimeSync += info->u.timesync.frames_ahead;
 		break;
 	case GGPO_EVENTCODE_CONNECTION_INTERRUPTED:
-<<<<<<< HEAD
-		NOTICE_LOG(NETWORK, "Connection interrupted with player %d", info->u.connection_interrupted.player);
-		gui_display_notification("Connection interrupted", 2000);
-		break;
-	case GGPO_EVENTCODE_CONNECTION_RESUMED:
-		NOTICE_LOG(NETWORK, "Connection resumed with player %d", info->u.connection_resumed.player);
-		gui_display_notification("Connection resumed", 2000);
-=======
 		INFO_LOG(NETWORK, "Connection interrupted with player %d", info->u.connection_interrupted.player);
 		os_notify("Connection interrupted", 2000);
 		break;
 	case GGPO_EVENTCODE_CONNECTION_RESUMED:
 		INFO_LOG(NETWORK, "Connection resumed with player %d", info->u.connection_resumed.player);
 		os_notify("Connection resumed", 2000);
->>>>>>> upstream/master
 		break;
 	}
 	return true;
@@ -743,18 +717,14 @@ void getInput(MapleInputState inputState[4])
 			state.relPos.wheel = inputs->u.relPos.wheel;
 			state.mouseButtons = ~inputs->mouseButtons;
 		}
-<<<<<<< HEAD
 
 		if (useExInput)
 		{
 			state.exInput = inputs->exInput;
 		}
-		state.halfAxes[PJTI_R] = (state.kcode & BTN_TRIGGER_RIGHT) == 0 ? 255 : 0;
-		state.halfAxes[PJTI_L] = (state.kcode & BTN_TRIGGER_LEFT) == 0 ? 255 : 0;
-=======
+
 		state.halfAxes[PJTI_R] = (state.kcode & BTN_TRIGGER_RIGHT) == 0 ? 0xffff : 0;
 		state.halfAxes[PJTI_L] = (state.kcode & BTN_TRIGGER_LEFT) == 0 ? 0xffff : 0;
->>>>>>> upstream/master
 	}
 }
 
@@ -805,13 +775,8 @@ bool nextFrame()
 	// may call save_game_state
 	int loop_count = 0;
 	do {
-<<<<<<< HEAD
 		if (!config::ThreadedRendering && !useRandInput)
-			UpdateInputState();
-=======
-		if (!config::ThreadedRendering)
 			os_UpdateInputState();
->>>>>>> upstream/master
 		Inputs inputs;
 		inputs.kcode = ~kcode[0];
 		if (rt[0] >= 0x4000)
@@ -987,58 +952,15 @@ void displayStats()
 	if (!active())
 		return;
 
-<<<<<<< HEAD
 	GGPONetworkStats stats;
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-=======
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
->>>>>>> upstream/master
 	ImGui::SetNextWindowPos(ImVec2(10, 10));
 	ImGui::SetNextWindowSize(ScaledVec2(95, 0));
 	ImGui::SetNextWindowBgAlpha(0.7f);
 	ImGui::Begin("##ggpostats", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
 	ImguiStyleColor _2(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
 
-<<<<<<< HEAD
-=======
-	// Send Queue
-	ImGui::Text("Send Q");
-	ImGui::ProgressBar(stats.network.send_queue_len / 10.f, ImVec2(-1, uiScaled(10.f)), "");
-
-	// Frame Delay
-	ImGui::Text("Delay");
-	std::string delay = std::to_string(config::GGPODelay.get());
-	ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(delay.c_str()).x);
-	ImGui::Text("%s", delay.c_str());
-
-	// Ping
-	ImGui::Text("Ping");
-	std::string ping = std::to_string(stats.network.ping);
-	ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ping.c_str()).x);
-	ImGui::Text("%s", ping.c_str());
-
-	// Predicted Frames
-	if (stats.sync.predicted_frames >= 7)
-		// red
-	    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1, 0, 0, 1));
-	else if (stats.sync.predicted_frames >= 5)
-		// yellow
-	    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.9f, .9f, .1f, 1));
-	ImGui::Text("Predicted");
-	ImGui::ProgressBar(stats.sync.predicted_frames / 7.f, ImVec2(-1, uiScaled(10.f)), "");
-	if (stats.sync.predicted_frames >= 5)
-		ImGui::PopStyleColor();
-
-	// Frames behind
-	int timesync = timesyncOccurred;
-	if (timesync > 0)
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1));
-	ImGui::Text("Behind");
-	ImGui::ProgressBar(0.5f + stats.timesync.local_frames_behind / 16.f, ImVec2(-1, uiScaled(10.f)), "");
-	if (timesync > 0)
->>>>>>> upstream/master
 	{
 		ggpo_get_network_stats(ggpoSession, localPlayerNum, &stats);
 		// Frame Delay

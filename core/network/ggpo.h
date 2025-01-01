@@ -18,12 +18,9 @@
 */
 #pragma once
 #include <future>
-<<<<<<< HEAD
 #include <vector>
 #include <atomic>
-=======
 #include <string>
->>>>>>> upstream/master
 
 struct MapleInputState;
 
