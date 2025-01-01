@@ -49,7 +49,8 @@ enum class Event {
 	VBlank,
 	Network,
 	DiskChange,
-	max = DiskChange
+	GGPOGameEnd,
+	max = GGPOGameEnd
 };
 
 class EventManager

@@ -22,7 +22,7 @@
 #include "cfg/option.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
-#include "gui.h"
+#include "ui/gui.h"
 #include "emulator.h"
 
 #include <algorithm>
@@ -57,16 +57,6 @@ static inline void centerNextWindow()
 {
 	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f, ImGui::GetIO().DisplaySize.y / 2.f),
 			ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-}
-
-static inline bool operator==(const ImVec2& l, const ImVec2& r)
-{
-	return l.x == r.x && l.y == r.y;
-}
-
-static inline bool operator!=(const ImVec2& l, const ImVec2& r)
-{
-	return !(l == r);
 }
 
 void fullScreenWindow(bool modal);
@@ -128,18 +118,6 @@ struct ScaledVec2 : public ImVec2
 
 inline static ImVec2 min(const ImVec2& l, const ImVec2& r) {
 	return ImVec2(std::min(l.x, r.x), std::min(l.y, r.y));
-}
-inline static ImVec2 operator+(const ImVec2& l, const ImVec2& r) {
-	return ImVec2(l.x + r.x, l.y + r.y);
-}
-inline static ImVec2 operator-(const ImVec2& l, const ImVec2& r) {
-	return ImVec2(l.x - r.x, l.y - r.y);
-}
-inline static ImVec2 operator*(const ImVec2& v, float f) {
-	return ImVec2(v.x * f, v.y * f);
-}
-inline static ImVec2 operator/(const ImVec2& v, float f) {
-	return ImVec2(v.x / f, v.y / f);
 }
 
 u8 *loadImage(const std::string& path, int& width, int& height);

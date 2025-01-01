@@ -16,13 +16,14 @@
 */
 #include "TexCache.h"
 // #include "CustomTexture.h"
-// #include "../gdxsv/gdxsv_CustomTexture.h"
+#include "gdxsv/gdxsv_CustomTexture.h"
 #include "deps/xbrz/xbrz.h"
 #include "hw/pvr/pvr_mem.h"
 #include "hw/mem/addrspace.h"
 
 #include <mutex>
 #include <xxhash.h>
+
 
 #ifdef _OPENMP
 #include <omp.h>

@@ -503,7 +503,7 @@ void Emulator::init()
 	else
 #endif
 		INFO_LOG(INTERPRETER, "Using Interpreter");
-	}
+
 	gdxsv_emu_reset();
 	interpreter = Get_Sh4Interpreter();
 	interpreter->Init();

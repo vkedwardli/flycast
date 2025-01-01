@@ -60,10 +60,12 @@ struct Renderer
 	Renderer() {
 		EventManager::listen(Event::Terminate, onEvent, this);
 		EventManager::listen(Event::LoadState, onEvent, this);
+		EventManager::listen(Event::GGPOGameEnd, onEvent, this);
 	}
 	virtual ~Renderer() {
 		EventManager::unlisten(Event::Terminate, onEvent, this);
 		EventManager::unlisten(Event::LoadState, onEvent, this);
+		EventManager::unlisten(Event::GGPOGameEnd, onEvent, this);
 	}
 
 	virtual bool Init() = 0;

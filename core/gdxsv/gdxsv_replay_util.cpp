@@ -21,7 +21,7 @@
 #include "libs.h"
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
-#include "rend/boxart/http_client.h"
+#include "oslib/http_client.h"
 #include "rend/gui_util.h"
 #include "stdclass.h"
 

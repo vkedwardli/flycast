@@ -3,7 +3,7 @@
 #include "gdxsv.h"
 #include "gdxsv_CustomTexture.h"
 #include "imgui/imgui.h"
-#include "rend/imgui_driver.h"
+#include "ui/imgui_driver.h"
 #include "rend/transform_matrix.h"
 #include "types.h"
 
@@ -43,7 +43,7 @@ void GdxsvKeyDisplay::DisplayOSD() {
 		u8* imgData = gdx_custom_texture.LoadExtraTexture(ButtonsTextureName, false, w, h);
 
 		if (imgData) {
-			buttonsTexture = imguiDriver->updateTexture(ButtonsTextureName, imgData, w, h);
+			buttonsTexture = imguiDriver->updateTexture(ButtonsTextureName, imgData, w, h, false);
 		}
 	}
 
@@ -52,7 +52,7 @@ void GdxsvKeyDisplay::DisplayOSD() {
 		u8* imgData = gdx_custom_texture.LoadExtraTexture(ArrowsTextureName, false, w, h);
 
 		if (imgData) {
-			arrowsTexture = imguiDriver->updateTexture(ArrowsTextureName, imgData, w, h);
+			arrowsTexture = imguiDriver->updateTexture(ArrowsTextureName, imgData, w, h, false);
 		}
 	}
 

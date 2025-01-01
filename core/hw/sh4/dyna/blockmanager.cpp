@@ -58,8 +58,8 @@ DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 	// Hack: skip something of game rendering function
 	if (settings.gdxsv.skipRenderingHack) {
 		if ((addr == 0x0c064cce && settings.gdxsv.disk == 1) || (addr == 0x0c0520e2 && settings.gdxsv.disk == 2)) {
-			next_pc += 4;
-			addr = next_pc;
+			Sh4cntx.pc += 4;
+			addr = Sh4cntx.pc;
 		}
 	}
 

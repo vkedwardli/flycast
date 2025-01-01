@@ -17,7 +17,7 @@
 #include "log/InMemoryListener.h"
 #include "network/ggpo.h"
 #include "network/net_platform.h"
-#include "rend/boxart/http_client.h"
+#include "oslib/http_client.h"
 #include "rend/gui_util.h"
 #include "rend/transform_matrix.h"
 
@@ -414,12 +414,12 @@ void GdxsvBackendRollback::Close() {
 	config::LimitFPS.load();
 	config::AudioBufferSize.load();
 	RestorePatch();
-	KillTex = true;
 	osd_network_stat_ = false;
 	error_fast_return_ = false;
 	SaveReplay();
 	gdxsv.key_display_.enabled(false);
 	state_ = State::Closed;
+	EventManager::event(Event::GGPOGameEnd);
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Close Done");
 }
 

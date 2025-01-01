@@ -5,7 +5,7 @@
 #include <random>
 #include <thread>
 
-#include "rend/boxart/http_client.h"
+#include "oslib/http_client.h"
 
 #ifndef _WIN32
 #include <sys/ioctl.h>

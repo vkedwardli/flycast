@@ -4,7 +4,7 @@
 
 #include "gdxsv.h"
 #include "libs.h"
-#include "rend/gui.h"
+#include "ui/gui.h"
 
 void GdxsvBackendUdp::Reset() {
 	CloseMcsRemoteWithReason("cl_hard_reset");
@@ -174,7 +174,7 @@ void GdxsvBackendUdp::NetThreadLoop() {
 
 				char osd_msg[128] = {};
 				sprintf(osd_msg, "PING:%.0fms DELAY:%dfr", rtt, (int)gdxsv.maxlag_);
-				gui_display_notification(osd_msg, 3000);
+				os_notify(osd_msg, 3000);
 				state = State::McsInBattle;
 			}
 		}

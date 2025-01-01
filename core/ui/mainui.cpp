@@ -59,7 +59,7 @@ bool mainui_rend_frame()
 	FC_PROFILE_SCOPE;
 
 	os_DoEvents();
-	();
+	os_UpdateInputState();
 
 	if (gui_is_open())
 	{

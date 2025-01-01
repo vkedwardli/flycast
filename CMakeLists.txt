@@ -1424,6 +1424,8 @@ if(NOT LIBRETRO)
 			core/ui/gui_util.h
 			core/ui/mainui.cpp
 			core/ui/mainui.h
+			core/ui/sleep.cpp
+			core/ui/sleep.h
 			core/ui/boxart/boxart.cpp
 			core/ui/boxart/boxart.h
 			core/ui/boxart/gamesdb.cpp

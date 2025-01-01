@@ -22,6 +22,8 @@
 #include <atomic>
 #include <string>
 
+#include "types.h"
+
 struct MapleInputState;
 
 namespace ggpo

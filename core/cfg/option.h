@@ -470,6 +470,7 @@ extern Option<bool> EmulateFramebuffer;
 extern Option<int> FixedFrequency;
 extern Option<bool> FixUpscaleBleedingEdge;
 extern Option<bool> CustomGpuDriver;
+#ifdef VIDEO_ROUTING
 extern Option<bool, false> VideoRouting;
 extern Option<bool, false> VideoRoutingScale;
 extern Option<int, false> VideoRoutingVRes;
