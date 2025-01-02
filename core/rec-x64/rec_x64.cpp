@@ -448,7 +448,7 @@ public:
 					{
 						movss(rd, rs1);
 					}
-					if (cpu.has(Cpu::tFMA) && !config::GGPOEnable)
+					if (cpu.has(Cpu::tFMA) && !config::GGPOEnable && false) // gdxsv: avoid out-sync for replay
 						vfmadd231ss(rd, rs2, rs3);
 					else
 					{
