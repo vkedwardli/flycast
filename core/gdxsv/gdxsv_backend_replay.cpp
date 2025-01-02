@@ -437,6 +437,8 @@ void GdxsvBackendReplay::Stop() {
 	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();
 	gdxsv.key_display_.enabled(false);
+	config::ThreadedRendering.reset();
+	config::ThreadedRendering.load();
 	state_ = State::End;
 
 	if (save_converted_log_) {
@@ -697,6 +699,7 @@ bool GdxsvBackendReplay::Start() {
 	key_msg_count_ = 0;
 	gdxsv_save_state.StartUsing();
 	rend_allow_rollback();
+	config::ThreadedRendering.override(false); // workaround for seeking bug..
 	NOTICE_LOG(COMMON, "Replay Start");
 	return true;
 }
