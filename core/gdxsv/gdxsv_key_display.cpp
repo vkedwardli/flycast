@@ -223,23 +223,41 @@ void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1) {
 }
 
 std::string getArrowsStr(u16 mcs_key) {
+#define AR_L u8"\u2190"
+#define AR_U u8"\u2191"
+#define AR_R u8"\u2192"
+#define AR_D u8"\u2193"
+#define AR_UL u8"\u2196"
+#define AR_UR u8"\u2197"
+#define AR_DR u8"\u2198"
+#define AR_DL u8"\u2199"
+
 	if (mcs_key & McsKeyCode::UP) {
-		if (mcs_key & McsKeyCode::LEFT) return u8"\u2190\u2191";
-		if (mcs_key & McsKeyCode::RIGHT) return u8"\u2191\u2192";
-		return u8"\u2191";
+		if (mcs_key & McsKeyCode::LEFT) return AR_UL;
+		if (mcs_key & McsKeyCode::RIGHT) return AR_UR;
+		return AR_U;
 	}
 	if (mcs_key & McsKeyCode::DOWN) {
-		if (mcs_key & McsKeyCode::LEFT) return u8"\u2190\u2193";
-		if (mcs_key & McsKeyCode::RIGHT) return u8"\u2193\u2192";
-		return u8"\u2193";
+		if (mcs_key & McsKeyCode::LEFT) return AR_DL;
+		if (mcs_key & McsKeyCode::RIGHT) return AR_DR;
+		return AR_D;
 	}
 	if (mcs_key & McsKeyCode::LEFT) {
-		return u8"\u2190";
+		return AR_L;
 	}
 	if (mcs_key & McsKeyCode::RIGHT) {
-		return u8"\u2192";
+		return AR_R;
 	}
-	return "";
+	return "    ";
+
+#undef AR_L
+#undef AR_R
+#undef AR_U
+#undef AR_D
+#undef AR_UL
+#undef AR_UR
+#undef AR_DL
+#undef AR_DR
 }
 
 }  // namespace
