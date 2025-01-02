@@ -224,20 +224,20 @@ void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1) {
 
 std::string getArrowsStr(u16 mcs_key) {
 	if (mcs_key & McsKeyCode::UP) {
-		if (mcs_key & McsKeyCode::LEFT) return u8"←↑";
-		if (mcs_key & McsKeyCode::RIGHT) return u8"↑→";
-		return u8"↑";
+		if (mcs_key & McsKeyCode::LEFT) return u8"\u2190\u2191";
+		if (mcs_key & McsKeyCode::RIGHT) return u8"\u2191\u2192";
+		return u8"\u2191";
 	}
 	if (mcs_key & McsKeyCode::DOWN) {
-		if (mcs_key & McsKeyCode::LEFT) return u8"←↓";
-		if (mcs_key & McsKeyCode::RIGHT) return u8"↓→";
-		return u8"↓";
+		if (mcs_key & McsKeyCode::LEFT) return u8"\u2190\u2193";
+		if (mcs_key & McsKeyCode::RIGHT) return u8"\u2193\u2192";
+		return u8"\u2193";
 	}
 	if (mcs_key & McsKeyCode::LEFT) {
-		return u8"←";
+		return u8"\u2190";
 	}
 	if (mcs_key & McsKeyCode::RIGHT) {
-		return u8"→";
+		return u8"\u2192";
 	}
 	return "";
 }
