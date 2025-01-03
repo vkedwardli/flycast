@@ -991,6 +991,7 @@ void Emulator::start()
 						runInternal();
 						gdxsv_emu_next_frame();
 						if (ggpo::active()) ggpo::nextFrame();
+						if (!singleStep && stepRangeTo == 0) emu.getSh4Executor()->Start(); // gdxsv: fix blackout on threaded rendering
 					}
 					TermAudio();
 				} catch (...) {
