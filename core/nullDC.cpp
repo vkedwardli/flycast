@@ -290,9 +290,7 @@ void dc_loadstate(int index)
 	}
 
 	free(data);
-	EventManager::event(Event::LoadState);
 	gdxsv_emu_loadstate(index);
-	
 }
 
 time_t dc_getStateCreationDate(int index)
