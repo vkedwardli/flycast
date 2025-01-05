@@ -142,7 +142,8 @@ T DYNACALL ReadMem_area0(u32 paddr)
 		}
 	}
 	if (addr == 0x00400000) {
-	    gdxsv_emu_rpc();
+		gdxsv_emu_rpc();
+		return 0;
 	}
     INFO_LOG(MEMORY, "Read from area0<%d> not implemented [Unassigned], addr=%x", sz, addr);
 	return 0;
