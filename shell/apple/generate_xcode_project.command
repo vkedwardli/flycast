@@ -6,11 +6,7 @@ echo "2) iOS"
 read -p "Choose your target platform: " x
 
 if [ $x -eq 2 ]; then
-    if [ "$(uname -m)" = "arm64" ]; then
-        option="-DCMAKE_SYSTEM_NAME=iOS"
-    else
-        option="-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
-    fi
+    option="-DCMAKE_SYSTEM_NAME=iOS"
     lldbinitfolder="emulator-ios"
     echo 'Building iOS xcodeproj for debugging'
     echo 'Remove CODE_SIGNING_ALLOWED=NO in Build Settings if you are using your Apple Developer Certificate for signing'

@@ -21,7 +21,6 @@ if(APPLE)
 		set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS deployment version")
 		set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "")
 	endif()
-	set(ZLIB_LIBRARY "-lz" CACHE STRING "Use generic linker flag for Xcode to support multiple SDKs")
 endif()
 
 if(LIBRETRO)
