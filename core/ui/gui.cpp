@@ -3048,6 +3048,12 @@ static void gui_settings_about()
 			}, true, "zip");
 	}
 #endif
+
+	if (ImGui::Button("Die", ImVec2(0, 40))) {
+		die("Die Button");
+	}
+	ImGui::SameLine();
+	ShowHelpMarker("Crash flycast to test crash reporting");
 }
 
 static void gui_display_settings()
