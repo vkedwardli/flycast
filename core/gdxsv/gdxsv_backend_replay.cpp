@@ -145,6 +145,8 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 		prev_kcode = input.kcode;
 	}
+
+	gui_delayed_keys_up();
 }
 
 void GdxsvBackendReplay::OnEndOfFrame() {

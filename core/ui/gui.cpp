@@ -492,7 +492,7 @@ static void gui_newFrame()
 #endif
 }
 
-static void delayedKeysUp()
+void gui_delayed_keys_up()
 {
 	ImGuiIO& io = ImGui::GetIO();
 	for (u32 i = 0; i < std::size(keysUpNextFrame); i++)
@@ -504,7 +504,7 @@ static void delayedKeysUp()
 static void gui_endFrame(bool gui_open)
 {
     imguiDriver->renderDrawData(ImGui::GetDrawData(), gui_open);
-    delayedKeysUp();
+    gui_delayed_keys_up();
 }
 
 void gui_setOnScreenKeyboardCallback(void (*callback)(bool show))
