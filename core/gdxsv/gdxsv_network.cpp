@@ -11,9 +11,9 @@
 #include <sys/ioctl.h>
 #endif
 
-static std::vector<std::string> v4_urls = {"https://api4.my-ip.io/ip", "https://api.ipify.org/", "https://ipv4.seeip.org"};
+static std::vector<std::string> v4_urls = {"https://api.ipify.org", "https://ipv4.seeip.org"};
 
-static std::vector<std::string> v6_urls = {"https://api.my-ip.io/ip", "https://api.seeip.org"};
+static std::vector<std::string> v6_urls = {"https://api64.ipify.org", "https://api.seeip.org"};
 
 std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6) {
 	return std::async(std::launch::async, [ipv6]() -> std::pair<bool, std::string> {
