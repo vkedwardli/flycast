@@ -23,7 +23,9 @@
 #include "oslib/oslib.h"
 #include "oslib/http_client.h"
 #include "ui/gui_util.h"
+#include "ui/IconsFontAwesome6.h"
 #include "stdclass.h"
+
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
@@ -176,6 +178,10 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
 	ImGui::Text("BattleCode: %s", battle_code.c_str());
+	ImGui::SameLine();
+	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
+		ImGui::SetClipboardText(battle_code.c_str());
+	}
 	ImGui::Text("Game: %s", game_disk.c_str());
 	ImGui::Text("Players: %d", users_size);
 
