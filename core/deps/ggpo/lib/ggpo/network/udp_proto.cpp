@@ -354,10 +354,6 @@ UdpProtocol::HandlesMsg(sockaddr_storage &from, UdpMsg *msg)
            _peer_addr_len = sizeof(from); // XXX
        }
 
-       if (msg->hdr.type == UdpMsg::QualityReply) {
-           // Since peer_addr and from addr may differ, send keep-alive packets to from addr.
-           SendMsg(new UdpMsg(UdpMsg::KeepAlive), &from);
-       }
        return true;
    }
 
@@ -901,10 +897,18 @@ bool UdpProtocol::OnAppData(UdpMsg *msg, int len)
 
 void UdpProtocol::SendUnmanagedMsg(UdpMsg* msg, int len)
 {
-	if (_udp == nullptr)
-		return;
+    if (_udp == nullptr)
+        return;
 
-	if (_peer_addr_len != 0) {
-		_udp->SendTo((char*)msg, len, 0, (struct sockaddr*)&_peer_addr, sizeof(_peer_addr));
-	}
+    if (_relay) {
+        Log("Relay SendUnmanagedMsg %d->%d me:%d q:%d", msg->hdr.remote_endpoint, msg->hdr.relay_to_endpoint, _local_player_queue, _queue);
+        msg->hdr.relay_magic = RELAY_MAGIC;
+        msg->hdr.relay_to_endpoint = _queue;
+        msg->hdr.org_type = msg->hdr.type;
+        msg->hdr.type = UdpMsg::MsgType::Relay;
+    }
+
+    if (_peer_addr_len != 0) {
+        _udp->SendTo((char*)msg, len, 0, (struct sockaddr*)&_peer_addr, sizeof(_peer_addr));
+    }
 }

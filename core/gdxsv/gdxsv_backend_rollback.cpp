@@ -142,6 +142,21 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	static auto session_start_time = std::chrono::high_resolution_clock::now();
 	if (state_ == State::StartGGPOSession) {
 		NOTICE_LOG(COMMON, "StartGGPOSession");
+
+		/*
+		if (matching_.peer_id() == 0) {
+			ping_pong_.DebugSetRtt(0, 1, 10);
+			ping_pong_.DebugSetRtt(0, 2, 50);
+			ping_pong_.DebugSetRtt(0, 3, 200);
+			ping_pong_.PrintRttMatrix();
+		}
+		if (matching_.peer_id() == 1) {
+			ping_pong_.DebugSetRtt(1, 2, 10);
+			ping_pong_.DebugSetRtt(1, 3, 200);
+			ping_pong_.PrintRttMatrix();
+		}
+		*/
+
 		bool ok = true;
 		uint8_t rtt_matrix[4][4] = {};
 		ping_pong_.GetRttMatrix(rtt_matrix);
@@ -165,6 +180,25 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 			return {"", 0};
 		};
 
+		auto find_relay_peer = [&](int dst_peer) -> std::pair<int, int> {
+			int i = dst_peer;
+			int relay_rtt = INT_MAX;
+			int relay_peer = -1;
+			for (int j = 0; j < matching_.player_count(); j++) {
+				if (j == i) continue;
+				if (j == matching_.peer_id()) continue;
+				if (rtt_matrix[matching_.peer_id()][j] && 0 < rtt_matrix[j][i] && rtt_matrix[j][i] < 255) {
+					int rtt = rtt_matrix[matching_.peer_id()][j] + rtt_matrix[j][i];
+					if (rtt < relay_rtt) {
+						relay_rtt = rtt;
+						relay_peer = j;
+					}
+				}
+			}
+
+			return {relay_peer, relay_rtt};
+		};
+
 		float max_rtt = 0;
 		NOTICE_LOG(COMMON, "Peer count %d", matching_.player_count());
 		for (int i = 0; i < matching_.player_count(); i++) {
@@ -172,41 +206,28 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 				NOTICE_LOG(COMMON, "Peer%d is self", i);
 				ips[i] = "";
 				ports[i] = static_cast<u16>(port_);
-			} else {
-				sockaddr_storage addr_storage{};
-				float rtt;
-				if (ping_pong_.GetAvailableAddress(i, &addr_storage, &rtt)) {
-					max_rtt = std::max(max_rtt, rtt);
-					std::tie(ips[i], ports[i]) = get_ip_port(addr_storage);
-					NOTICE_LOG(COMMON, "Peer%d %.2fms IP:%s Port:%d Relay:%d", i, rtt, mask_ip_address(ips[i]).c_str(), ports[i],
-							   relays[i]);
-				} else {
-					int relay_rtt = INT_MAX;
-					int relay_peer = -1;
-					for (int j = 0; j < matching_.player_count(); j++) {
-						if (j == i) continue;
-						if (j == matching_.peer_id()) continue;
-						if (rtt_matrix[matching_.peer_id()][j] && 0 < rtt_matrix[j][i] && rtt_matrix[j][i] < 255) {
-							int rtt = rtt_matrix[matching_.peer_id()][j] + rtt_matrix[j][i];
-							if (rtt < relay_rtt) {
-								relay_rtt = rtt;
-								relay_peer = j;
-							}
-						}
-					}
+				continue;
+			}
 
-					if (relay_peer != -1 && ping_pong_.GetAvailableAddress(relay_peer, &addr_storage, &rtt)) {
-						rtt += static_cast<float>(rtt_matrix[relay_peer][i]);
-						max_rtt = std::max(max_rtt, rtt);
-						std::tie(ips[i], ports[i]) = get_ip_port(addr_storage);
-						relays[i] = true;
-						NOTICE_LOG(COMMON, "Peer%d %.2fms IP:%s Port:%d Relay:%d", i, rtt, mask_ip_address(ips[i]).c_str(), ports[i],
-								   relays[i]);
-					} else {
-						NOTICE_LOG(COMMON, "Peer%d unreachable", i);
-						ok = false;
-					}
-				}
+			sockaddr_storage addr_storage{};
+
+			float rtt;
+			bool direct_ok = ping_pong_.GetAvailableAddress(i, &addr_storage, &rtt);
+			bool relay_ok = false;
+			auto [relay_peer, relay_rtt] = find_relay_peer(i);
+			if (relay_peer != -1 && (!direct_ok || relay_rtt + 32 < rtt)) {
+				relay_ok = ping_pong_.GetAvailableAddress(relay_peer, &addr_storage, &rtt);
+				rtt += static_cast<float>(rtt_matrix[relay_peer][i]);
+				relays[i] = true;
+			}
+
+			if (direct_ok || relay_ok) {
+				max_rtt = std::max(max_rtt, rtt);
+				std::tie(ips[i], ports[i]) = get_ip_port(addr_storage);
+				NOTICE_LOG(COMMON, "Peer%d %.2fms IP:%s Port:%d Relay:%d", i, rtt, mask_ip_address(ips[i]).c_str(), ports[i], relays[i]);
+			} else {
+				ok = false;
+				NOTICE_LOG(COMMON, "Peer%d unreachable", i);
 			}
 		}
 

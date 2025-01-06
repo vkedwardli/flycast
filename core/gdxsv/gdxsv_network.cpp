@@ -674,6 +674,7 @@ void UdpPingPong::Start(uint32_t session_id, uint8_t peer_id, int port, int dura
 		NOTICE_LOG(COMMON, "GGPO_NETWORK_DELAY is %d", network_delay);
 	}
 
+	peer_id_ = peer_id;
 	std::thread([this, session_id, peer_id, duration_ms, network_delay]() {
 		WARN_LOG(COMMON, "Start UdpPingPong Thread");
 		start_time_ = std::chrono::high_resolution_clock::now();
@@ -813,22 +814,7 @@ void UdpPingPong::Start(uint32_t session_id, uint8_t peer_id, int port, int dura
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 
-		{
-			std::lock_guard lock(mutex_);
-
-			NOTICE_LOG(COMMON, "UdpPingTest Finish");
-			NOTICE_LOG(COMMON, "RTT MATRIX");
-			NOTICE_LOG(COMMON, "  %4d%4d%4d%4d", 0, 1, 2, 3);
-			for (int i = 0; i < 4; i++) {
-				NOTICE_LOG(COMMON, "%d>%4d%4d%4d%4d", i, rtt_matrix_[i][0], rtt_matrix_[i][1], rtt_matrix_[i][2], rtt_matrix_[i][3]);
-			}
-
-			NOTICE_LOG(COMMON, "CANDIDATES");
-			for (const auto &c : candidates_) {
-				NOTICE_LOG(COMMON, "[%s] Peer%d %s: ping=%d pong=%d rtt=%.2f addr=%s", 0 < c.pong_count ? "x" : " ", c.peer_id,
-						   peer_to_user_[c.peer_id].c_str(), c.ping_count, c.pong_count, c.rtt, c.remote.masked_addr().c_str());
-			}
-		}
+		PrintRttMatrix();
 
 		NOTICE_LOG(COMMON, "End UdpPingPong Thread");
 		client_.Close();
@@ -906,13 +892,42 @@ void UdpPingPong::GetRttMatrix(uint8_t matrix[N][N]) {
 	memcpy(matrix, rtt_matrix_, sizeof(rtt_matrix_));
 }
 
+void UdpPingPong::PrintRttMatrix() {
+	std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+	NOTICE_LOG(COMMON, "UdpPingTest Finish");
+	NOTICE_LOG(COMMON, "RTT MATRIX");
+	NOTICE_LOG(COMMON, "  %4d%4d%4d%4d", 0, 1, 2, 3);
+	for (int i = 0; i < 4; i++) {
+		NOTICE_LOG(COMMON, "%d>%4d%4d%4d%4d", i, rtt_matrix_[i][0], rtt_matrix_[i][1], rtt_matrix_[i][2], rtt_matrix_[i][3]);
+	}
+
+	NOTICE_LOG(COMMON, "CANDIDATES");
+	for (const auto& c : candidates_) {
+		NOTICE_LOG(COMMON, "[%s] Peer%d %s: ping=%d pong=%d rtt=%.2f addr=%s", 0 < c.pong_count ? "x" : " ", c.peer_id,
+			peer_to_user_[c.peer_id].c_str(), c.ping_count, c.pong_count, c.rtt, c.remote.masked_addr().c_str());
+	}
+}
+
 void UdpPingPong::DebugUnreachable(uint8_t peer_id, uint8_t remote_peer_id) {
 	std::lock_guard<std::recursive_mutex> lock(mutex_);
-	for (auto &c : candidates_) {
+	rtt_matrix_[peer_id][remote_peer_id] = 0;
+	if (peer_id != peer_id_) return;
+	for (auto& c : candidates_) {
 		if (c.peer_id == remote_peer_id) {
 			c.pong_count = 0;
 			c.rtt = 0;
 		}
 	}
-	rtt_matrix_[peer_id][remote_peer_id] = 0;
+}
+
+void UdpPingPong::DebugSetRtt(uint8_t peer_id, uint8_t remote_peer_id, uint8_t rtt) {
+	std::lock_guard<std::recursive_mutex> lock(mutex_);
+	rtt_matrix_[peer_id][remote_peer_id] = rtt;
+	if (peer_id != peer_id_) return;
+	for (auto& c : candidates_) {
+		if (c.peer_id == remote_peer_id) {
+			c.rtt = rtt;
+		}
+	}
 }
