@@ -10,8 +10,8 @@
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
-#include "rend/gui.h"
-#include "rend/gui_util.h"
+#include "ui/gui.h"
+#include "ui/gui_util.h"
 #include "sdl/sdl.h"
 
 using namespace std::chrono;
@@ -145,11 +145,13 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 		prev_kcode = input.kcode;
 	}
+
+	gui_delayed_keys_up();
 }
 
 void GdxsvBackendReplay::OnEndOfFrame() {
 	end_of_frame_ = true;
-	sh4_cpu.Stop();
+	emu.getSh4Executor()->Stop();
 }
 
 void GdxsvBackendReplay::OnNextFrame() {
@@ -226,9 +228,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 			if (state_ == State::McsInBattle) {
 				ctrl_pause_ = !ctrl_pause_;
 				if (ctrl_pause_)
-					gui_display_notification("Paused", duration);
+					os_notify("Paused", duration);
 				else
-					gui_display_notification("Resumed", duration);
+					os_notify("Resumed", duration);
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -236,13 +238,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::StepFrame) {
 			if (ctrl_pause_) {
 				ctrl_step_frame_ = true;
-				gui_display_notification(("StepFrame:" + std::to_string(key_msg_count_)).c_str(), duration);
+				os_notify(("StepFrame:" + std::to_string(key_msg_count_)).c_str(), duration);
 			}
 			ctrl_commands_.pop_front();
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekForward) {
-			gui_display_notification(">>", duration);
+			os_notify(">>", duration);
 			const int skip_frames = 1 <= ctrl.arg1 ? ctrl.arg1 : save_interval;
 			int skipped_frame;
 			auto t0 = high_resolution_clock::now();
@@ -269,7 +271,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
 				char buf[256];
 				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
-				gui_display_notification(buf, duration);
+				os_notify(buf, duration);
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -301,7 +303,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				NOTICE_LOG(COMMON, "SeekToBriefing skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skipped_frame, ms, (float)ms / skipped_frame);
 				char buf[256];
 				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
-				gui_display_notification(buf, duration);
+				os_notify(buf, duration);
 			}
 
 			ctrl_play_speed_ = org_speed;
@@ -318,9 +320,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 					recv_buf_.clear();
 					gdxsv.key_display_.Clear();
 					if (!in_game()) {
-						KillTex = true;
+						EventManager::event(Event::GGPOGameEnd);
 					}
-					gui_display_notification("<<", duration);
+					os_notify("<<", duration);
 				}
 			}
 			ctrl_commands_.pop_front();
@@ -337,7 +339,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				if (ctrl_play_speed_ == 2) speed_text = "Speed:300%";
 				if (ctrl_play_speed_ == -1) speed_text = "Speed:50%";
 				if (ctrl_play_speed_ == -2) speed_text = "Speed:33%";
-				gui_display_notification(speed_text.c_str(), duration);
+				os_notify(speed_text.c_str(), duration);
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -347,7 +349,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 			if (0 < round && round != start_msg_count_ && round - 1 < log_file_.start_msg_indexes_size() &&
 				round - 1 < log_file_.start_msg_randoms_size() && gdxsv_save_state.FirstSavedFrame() != -1) {
 				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame());
-				KillTex = true;
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
 				start_msg_count_ = round;
 				const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
@@ -367,6 +368,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+
+				EventManager::event(Event::GGPOGameEnd);
 			}
 
 			ctrl_commands_.pop_front();
@@ -994,8 +997,11 @@ void GdxsvBackendReplay::RestorePatch() {
 }
 
 void GdxsvBackendReplay::RenderPauseMenu() {
+	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
+	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
 	ImGui::SetNextWindowSize(ScaledVec2(330, 0));
+	ImGui::SetNextWindowBgAlpha(0.7f);
 
 	ImGui::Begin("##gdxsv-replay-pause", NULL,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);

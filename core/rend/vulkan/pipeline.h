@@ -41,8 +41,8 @@ public:
 	}
 	void updateUniforms(vk::Buffer buffer, u32 vertexUniformOffset, u32 fragmentUniformOffset, vk::ImageView fogImageView, vk::ImageView paletteImageView)
 	{
-		if (!perFrameDescSet)
-			perFrameDescSet = perFrameAlloc.alloc();
+		perFrameDescSet = perFrameAlloc.alloc();
+		perPolyDescSets.clear();
 
 		std::vector<vk::DescriptorBufferInfo> bufferInfos;
 		bufferInfos.emplace_back(buffer, vertexUniformOffset, sizeof(VertexShaderUniforms));
@@ -77,7 +77,7 @@ public:
 	}
 
 	void bindPerPolyDescriptorSets(vk::CommandBuffer cmdBuffer, const PolyParam& poly, int polyNumber, vk::Buffer buffer,
-			vk::DeviceSize uniformOffset, vk::DeviceSize lightOffset)
+			vk::DeviceSize uniformOffset, vk::DeviceSize lightOffset, bool punchThrough)
 	{
 		vk::DescriptorSet perPolyDescSet;
 		auto it = perPolyDescSets.find(&poly);
@@ -89,7 +89,7 @@ public:
 			vk::DescriptorImageInfo imageInfo;
 			if (poly.texture != nullptr)
 			{
-				imageInfo = vk::DescriptorImageInfo(samplerManager->GetSampler(poly.tsp),
+				imageInfo = vk::DescriptorImageInfo(samplerManager->GetSampler(poly, punchThrough),
 						((Texture *)poly.texture)->GetReadOnlyImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 				writeDescriptorSets.emplace_back(perPolyDescSet, 0, 0, vk::DescriptorType::eCombinedImageSampler, imageInfo);
 			}
@@ -211,14 +211,14 @@ public:
 		}
 	}
 
-	vk::Pipeline GetPipeline(u32 listType, bool sortTriangles, const PolyParam& pp, bool gpuPalette)
+	vk::Pipeline GetPipeline(u32 listType, bool sortTriangles, const PolyParam& pp, int gpuPalette, bool dithering)
 	{
-		u32 pipehash = hash(listType, sortTriangles, &pp, gpuPalette);
+		u64 pipehash = hash(listType, sortTriangles, &pp, gpuPalette, dithering);
 		const auto &pipeline = pipelines.find(pipehash);
 		if (pipeline != pipelines.end())
 			return pipeline->second.get();
 
-		CreatePipeline(listType, sortTriangles, pp, gpuPalette);
+		CreatePipeline(listType, sortTriangles, pp, gpuPalette, dithering);
 
 		return *pipelines[pipehash];
 	}
@@ -260,9 +260,9 @@ private:
 	void CreateModVolPipeline(ModVolMode mode, int cullMode, bool naomi2);
 	void CreateDepthPassPipeline(int cullMode, bool naomi2);
 
-	u32 hash(u32 listType, bool sortTriangles, const PolyParam *pp, bool gpuPalette) const
+	u64 hash(u32 listType, bool sortTriangles, const PolyParam *pp, int gpuPalette, bool dithering) const
 	{
-		u32 hash = pp->pcw.Gouraud | (pp->pcw.Offset << 1) | (pp->pcw.Texture << 2) | (pp->pcw.Shadow << 3)
+		u64 hash = pp->pcw.Gouraud | (pp->pcw.Offset << 1) | (pp->pcw.Texture << 2) | (pp->pcw.Shadow << 3)
 			| (((pp->tileclip >> 28) == 3) << 4);
 		hash |= ((listType >> 1) << 5);
 		bool ignoreTexAlpha = pp->tsp.IgnoreTexA || pp->tcw.PixelFmt == Pixel565;
@@ -270,9 +270,10 @@ private:
 			| (pp->tsp.ColorClamp << 11) | ((config::Fog ? pp->tsp.FogCtrl : 2) << 12) | (pp->tsp.SrcInstr << 14)
 			| (pp->tsp.DstInstr << 17);
 		hash |= (pp->isp.ZWriteDis << 20) | (pp->isp.CullMode << 21) | (pp->isp.DepthMode << 23);
-		hash |= ((u32)sortTriangles << 26) | ((u32)gpuPalette << 27) | ((u32)pp->isNaomi2() << 28);
-		hash |= (u32)(!settings.platform.isNaomi2() && config::NativeDepthInterpolation) << 29;
-		hash |= (u32)(pp->tcw.PixelFmt == PixelBumpMap) << 30;
+		hash |= ((u64)sortTriangles << 26) | ((u64)gpuPalette << 27) | ((u64)pp->isNaomi2() << 29);
+		hash |= (u64)(!settings.platform.isNaomi2() && config::NativeDepthInterpolation) << 30;
+		hash |= (u64)(pp->tcw.PixelFmt == PixelBumpMap) << 31;
+		hash |= (u64)dithering << 32;
 
 		return hash;
 	}
@@ -285,7 +286,7 @@ private:
 		return cullMode | ((int)naomi2 << 2) | ((int)(!settings.platform.isNaomi2() && config::NativeDepthInterpolation) << 3);
 	}
 
-	vk::PipelineVertexInputStateCreateInfo GetMainVertexInputStateCreateInfo(bool full = true) const
+	vk::PipelineVertexInputStateCreateInfo GetMainVertexInputStateCreateInfo(bool full = true, bool naomi2 = false) const
 	{
 		// Vertex input state
 		static const vk::VertexInputBindingDescription vertexBindingDescriptions[] =
@@ -295,8 +296,8 @@ private:
 		static const vk::VertexInputAttributeDescription vertexInputAttributeDescriptions[] =
 		{
 				vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, x)),	// pos
-				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR8G8B8A8Uint, offsetof(Vertex, col)),	// base color
-				vk::VertexInputAttributeDescription(2, 0, vk::Format::eR8G8B8A8Uint, offsetof(Vertex, spc)),	// offset color
+				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR8G8B8A8Unorm, offsetof(Vertex, col)),	// base color
+				vk::VertexInputAttributeDescription(2, 0, vk::Format::eR8G8B8A8Unorm, offsetof(Vertex, spc)),	// offset color
 				vk::VertexInputAttributeDescription(3, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, u)),		// tex coord
 				vk::VertexInputAttributeDescription(4, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, nx)),	// naomi2 normal
 		};
@@ -304,17 +305,38 @@ private:
 		{
 				vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, x)),	// pos
 		};
+
+
+		const vk::VertexInputAttributeDescription* attributeDescription = vertexInputLightAttributeDescriptions;
+		u32 attributeDescriptionSize = std::size(vertexInputLightAttributeDescriptions);
+
+		if (full)
+		{
+			attributeDescription = vertexInputAttributeDescriptions;
+
+			if (naomi2)
+			{
+				attributeDescriptionSize = std::size(vertexInputAttributeDescriptions);
+			}
+			else
+			{
+				// naomi2 normal not needed
+				attributeDescriptionSize = std::size(vertexInputAttributeDescriptions) - 1;
+			}
+		}
+		
+
+
 		return vk::PipelineVertexInputStateCreateInfo(
 				vk::PipelineVertexInputStateCreateFlags(),
-				std::size(vertexBindingDescriptions),
-				vertexBindingDescriptions,
-				full ? std::size(vertexInputAttributeDescriptions) : std::size(vertexInputLightAttributeDescriptions),
-				full ? vertexInputAttributeDescriptions : vertexInputLightAttributeDescriptions);
+				std::size(vertexBindingDescriptions), vertexBindingDescriptions,
+				attributeDescriptionSize, attributeDescription
+		);
 	}
 
-	void CreatePipeline(u32 listType, bool sortTriangles, const PolyParam& pp, bool gpuPalette);
+	void CreatePipeline(u32 listType, bool sortTriangles, const PolyParam& pp, int gpuPalette, bool dithering);
 
-	std::map<u32, vk::UniquePipeline> pipelines;
+	std::map<u64, vk::UniquePipeline> pipelines;
 	std::map<u32, vk::UniquePipeline> modVolPipelines;
 	std::map<u32, vk::UniquePipeline> depthPassPipelines;
 
@@ -375,75 +397,4 @@ public:
 private:
 	vk::UniqueRenderPass rttRenderPass;
 	bool renderToTextureBuffer = false;
-};
-
-class OSDPipeline
-{
-public:
-	void Init(ShaderManager *shaderManager, vk::ImageView imageView, vk::RenderPass renderPass)
-	{
-		this->shaderManager = shaderManager;
-		if (!pipelineLayout)
-		{
-			vk::DescriptorSetLayoutBinding binding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment); // texture
-			descSetLayout = GetContext()->GetDevice().createDescriptorSetLayoutUnique(
-					vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding));
-			pipelineLayout = GetContext()->GetDevice().createPipelineLayoutUnique(
-					vk::PipelineLayoutCreateInfo(vk::PipelineLayoutCreateFlags(), descSetLayout.get()));
-		}
-		if (!sampler)
-		{
-			sampler = GetContext()->GetDevice().createSamplerUnique(
-					vk::SamplerCreateInfo(vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
-										vk::SamplerMipmapMode::eLinear, vk::SamplerAddressMode::eClampToEdge, vk::SamplerAddressMode::eClampToEdge,
-										vk::SamplerAddressMode::eClampToEdge, 0.0f, false, 16.0f, false,
-										vk::CompareOp::eNever, 0.0f, 0.0f, vk::BorderColor::eFloatOpaqueBlack));
-		}
-		if (this->renderPass != renderPass)
-		{
-			this->renderPass = renderPass;
-			pipeline.reset();
-		}
-		if (!descriptorSet)
-		{
-			descriptorSet = std::move(GetContext()->GetDevice().allocateDescriptorSetsUnique(
-					vk::DescriptorSetAllocateInfo(GetContext()->GetDescriptorPool(), descSetLayout.get())).front());
-		}
-		vk::DescriptorImageInfo imageInfo(*sampler, imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-		vk::WriteDescriptorSet writeDescriptorSet(*descriptorSet, 0, 0, vk::DescriptorType::eCombinedImageSampler, imageInfo);
-		GetContext()->GetDevice().updateDescriptorSets(writeDescriptorSet, nullptr);
-	}
-
-	void Term()
-	{
-		descriptorSet.reset();
-		pipeline.reset();
-		sampler.reset();
-		pipelineLayout.reset();
-		descSetLayout.reset();
-	}
-
-	vk::Pipeline GetPipeline()
-	{
-		if (!pipeline)
-			CreatePipeline();
-		return *pipeline;
-	}
-
-	void BindDescriptorSets(vk::CommandBuffer cmdBuffer) const
-	{
-		cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet.get(), nullptr);
-	}
-
-private:
-	VulkanContext *GetContext() const { return VulkanContext::Instance(); }
-	void CreatePipeline();
-
-	vk::RenderPass renderPass;
-	vk::UniquePipeline pipeline;
-	vk::UniqueSampler sampler;
-	vk::UniqueDescriptorSet descriptorSet;
-	vk::UniquePipelineLayout pipelineLayout;
-	vk::UniqueDescriptorSetLayout descSetLayout;
-	ShaderManager *shaderManager = nullptr;
 };

@@ -6,14 +6,8 @@
 #include "modules/dmac.h"
 
 //For mem mapping
-void map_area7_init();
-void map_area7(u32 base);
+void map_area7();
 void map_p4();
-
-#define OnChipRAM_SIZE (0x2000)
-#define OnChipRAM_MASK (OnChipRAM_SIZE-1)
-
-#define sq_both (sh4rcb.sq_buffer)
 
 void sh4_mmr_init();
 void sh4_mmr_reset(bool hard);
@@ -435,7 +429,7 @@ union BSC_BCR1_type
 	struct
 	{
 		u32 A56PCM  : 1;
-		u32 res_0   : 1;
+		u32         : 1;
 		u32 DRAMTP0 : 1;
 		u32 DRAMTP1 : 1;
 		u32 DRAMTP2 : 1;
@@ -452,20 +446,17 @@ union BSC_BCR1_type
 		u32 HIZCNT : 1;
 		u32 HIZMEM : 1;
 		//16
-		u32 res_1  : 1;
+		u32        : 1;
 		u32 MEMMPX : 1;
 		u32 PSHR   : 1;
 		u32 BREQEN : 1;
 		u32 A4MBC  : 1;
 		u32 A1MBC  : 1;
-		u32 res_2  : 1;
-		u32 res_3  : 1;
+		u32        : 2;
 		//24
 		u32 OPUP   : 1;
 		u32 IPUP   : 1;
-		u32 res_4  : 1;
-		u32 res_5  : 1;
-		u32 res_6  : 1;
+		u32        : 3;
 		u32 A0MPX  : 1;  // Set to 1 (area 0 is mpx)
 		u32 MASTER : 1; // What is it on the Dreamcast ?
 		u32 ENDIAN : 1; // This is 1 on the Dreamcast
@@ -483,7 +474,7 @@ union BSC_BCR2_type
 	struct
 	{
 		u32 PORTEN    : 1;
-		u32 res_0     : 1;
+		u32           : 1;
 		u32 A0SZ0     : 1;
 		u32 A1SZ1     : 1;
 		u32 A2SZ0     : 1;
@@ -514,38 +505,38 @@ union BSC_WCR1_type
 		u32 A0IW0  : 1;
 		u32 A0IW1  : 1;
 		u32 A0IW2  : 1;
-		u32 res_0  : 1;
+		u32        : 1;
 		u32 A1IW0  : 1;
 		u32 A1IW1  : 1;
 		u32 A1IW2  : 1;
-		u32 res_1  : 1;
+		u32        : 1;
 		//8
 		u32 A2IW0  : 1;
 		u32 A2IW1  : 1;
 		u32 A2IW2  : 1;
-		u32 res_2  : 1;
+		u32        : 1;
 		u32 A3IW0  : 1;
 		u32 A3IW1  : 1;
 		u32 A3IW2  : 1;
-		u32 res_3  : 1;
+		u32        : 1;
 		//16
 		u32 A4IW0  : 1;
 		u32 A4IW1  : 1;
 		u32 A4IW2  : 1;
-		u32 res_4  : 1;
+		u32        : 1;
 		u32 A5IW0  : 1;
 		u32 A5IW1  : 1;
 		u32 A5IW2  : 1;
-		u32 res_5  : 1;
+		u32        : 1;
 		//24
 		u32 A6IW0  : 1;
 		u32 A6IW1  : 1;
 		u32 A6IW2  : 1;
-		u32 res_6  : 1;
+		u32        : 1;
 		u32 DMAIW0 : 1;
 		u32 DMAIW1 : 1;
 		u32 DMAIW2 : 1;
-		u32 res_7  : 1;
+		u32        : 1;
 	};
 
 	u32 full;
@@ -570,12 +561,12 @@ union BSC_WCR2_type
 		u32 A2W0  : 1;
 		u32 A2W1  : 1;
 		u32 A2W2  : 1;
-		u32 res_0 : 1;
+		u32       : 1;
 		u32 A3W0  : 1;
 		u32 A3W1  : 1;
 		u32 A3W2  : 1;
 		//16
-		u32 res_1 : 1;
+		u32       : 1;
 		u32 A4W0  : 1;
 		u32 A4W1  : 1;
 		u32 A4W2  : 1;
@@ -607,38 +598,34 @@ union BSC_WCR3_type
 		u32 A0H0   : 1;
 		u32 A0H1   : 1;
 		u32 A0S0   : 1;
-		u32 res_0  : 1;
+		u32        : 1;
 		u32 A1H0   : 1; //TODO: check if this is correct, on the manual it says A1H0 .. typo in the manual ? 
 		u32 A1H1   : 1;
 		u32 A1S0   : 1;
-		u32 res_1  : 1;
+		u32        : 1;
 		//8
 		u32 A2H0   : 1;
 		u32 A2H1   : 1;
 		u32 A2S0   : 1;
-		u32 res_2  : 1;
+		u32        : 1;
 		u32 A3H0   : 1;
 		u32 A3H1   : 1;
 		u32 A3S0   : 1;
-		u32 res_3  : 1;
+		u32        : 1;
 		//16
 		u32 A4H0   : 1;
 		u32 A4H1   : 1;
 		u32 A4S0   : 1;
-		u32 res_4  : 1;
+		u32        : 1;
 		u32 A5H0   : 1;
 		u32 A5H1   : 1;
 		u32 A5S0   : 1;
-		u32 res_5  : 1;
+		u32        : 1;
 		//24
 		u32 A6H0   : 1;
 		u32 A6H1   : 1;
 		u32 A6S0   : 1;
-		u32 res_6  : 1;
-		u32 res_7  : 1;
-		u32 res_8  : 1;
-		u32 res_9  : 1;
-		u32 res_10 : 1;
+		u32        : 5;
 	};
 
 	u32 full;
@@ -672,16 +659,14 @@ union BSC_MCR_type
 		//16
 		u32 RCD0     : 1;
 		u32 RCD1     : 1;
-		u32 res_0    : 1;
+		u32          : 1;
 		u32 TPC0     : 1;
 		u32 TPC1     : 1;
 		u32 TPC2     : 1;
-		u32 res_1    : 1;
+		u32          : 1;
 		u32 TCAS     : 1;
 		//24
-		u32 res_2    : 1;
-		u32 res_3    : 1;
-		u32 res_4    : 1;
+		u32          : 3;
 		u32 TRC0     : 1;
 		u32 TRC1     : 1;
 		u32 TRC2     : 1;
@@ -738,14 +723,7 @@ union BSC_RTCSR_type
 		u32 CMIE : 1;
 		u32 CMF  : 1;
 		//8
-		u32 res_0 : 1;
-		u32 res_1 : 1;
-		u32 res_2 : 1;
-		u32 res_3 : 1;
-		u32 res_4 : 1;
-		u32 res_5 : 1;
-		u32 res_6 : 1;
-		u32 res_7 : 1;
+		u32       : 8;
 		//16
 	};
 	u16 full;
@@ -760,14 +738,7 @@ union BSC_RTCNT_type
 	{
 		u32 VALUE : 8;
 		//8
-		u32 res_0 : 1;
-		u32 res_1 : 1;
-		u32 res_2 : 1;
-		u32 res_3 : 1;
-		u32 res_4 : 1;
-		u32 res_5 : 1;
-		u32 res_6 : 1;
-		u32 res_7 : 1;
+		u32       : 8;
 		//16
 	};
 	u16 full;
@@ -782,14 +753,7 @@ union BSC_RTCOR_type
 	{
 		u32 VALUE : 8;
 		//8
-		u32 res_0 : 1;
-		u32 res_1 : 1;
-		u32 res_2 : 1;
-		u32 res_3 : 1;
-		u32 res_4 : 1;
-		u32 res_5 : 1;
-		u32 res_6 : 1;
-		u32 res_7 : 1;
+		u32       : 8;
 		//16
 	};
 	u16 full;
@@ -804,13 +768,7 @@ union BSC_RFCR_type
 	struct
 	{
 		u32 VALUE : 10;
-		//10
-		u32 res_2 : 1;
-		u32 res_3 : 1;
-		u32 res_4 : 1;
-		u32 res_5 : 1;
-		u32 res_6 : 1;
-		u32 res_7 : 1;
+		u32       : 6;
 		//16
 	};
 	u16 full;
@@ -908,32 +866,7 @@ union BSC_PCTRB_type
 		u32 PB19IO  : 1;
 		u32 PB19PUP : 1;
 		//8
-		u32 res_0   : 1;
-		u32 res_1   : 1;
-		u32 res_2   : 1;
-		u32 res_3   : 1;
-		u32 res_4   : 1;
-		u32 res_5   : 1;
-		u32 res_6   : 1;
-		u32 res_7   : 1;
-		//16
-		u32 res_8   : 1;
-		u32 res_9   : 1;
-		u32 res_10  : 1;
-		u32 res_11  : 1;
-		u32 res_12  : 1;
-		u32 res_13  : 1;
-		u32 res_14  : 1;
-		u32 res_15  : 1;
-		//24
-		u32 res_16  : 1;
-		u32 res_17  : 1;
-		u32 res_18  : 1;
-		u32 res_19  : 1;
-		u32 res_20  : 1;
-		u32 res_21  : 1;
-		u32 res_22  : 1;
-		u32 res_23  : 1;
+		u32         :24;
 	};
 
 	u32 full;
@@ -950,19 +883,7 @@ union BSC_PDTRB_type
 		u32 PB17DT : 1;
 		u32 PB18DT : 1;
 		u32 PB19DT : 1;
-		u32 res_0  : 1;
-		u32 res_1  : 1;
-		u32 res_2  : 1;
-		u32 res_3  : 1;
-		//8
-		u32 res_4  : 1;
-		u32 res_5  : 1;
-		u32 res_6  : 1;
-		u32 res_7  : 1;
-		u32 res_8  : 1;
-		u32 res_9  : 1;
-		u32 res_10 : 1;
-		u32 res_11 : 1;
+		u32        :12;
 		//16
 	};
 	u16 full;
@@ -1006,7 +927,7 @@ union CCN_PTEH_type
 	struct
 	{
 		u32 ASID : 8;  //0-7 ASID
-		u32 res  : 2;  //8,9 reserved
+		u32      : 2;
 		u32 VPN  : 22; //10-31 VPN
 	};
 	u32 reg_data;
@@ -1026,9 +947,9 @@ union CCN_PTEL_type
 		u32 SZ1   : 1;
 
 		u32 V     : 1;
-		u32 res_0 : 1;
+		u32       : 1;
 		u32 PPN   : 19; //PPN 10-28
-		u32 res_1 : 3;
+		u32       : 3;
 	};
 	u32 reg_data;
 };
@@ -1058,7 +979,7 @@ union CCN_PTEA_type
 	{
 		u32 SA  : 3;
 		u32 TC  : 1;
-		u32 res : 28;
+		u32     : 28;
 	};
 	u32 reg_data;
 };
@@ -1071,16 +992,16 @@ union CCN_CCR_type
 		u32 WT    : 1;
 		u32 CB    : 1;
 		u32 OCI   : 1;
-		u32 res   : 1;
+		u32       : 1;
 		u32 ORA   : 1;
-		u32 res_1 : 1;
+		u32       : 1;
 		u32 OIX   : 1;
 		u32 ICE   : 1;
-		u32 res_2 : 2;
+		u32       : 2;
 		u32 ICI   : 1;
-		u32 res_3 : 3;
+		u32       : 3;
 		u32 IIX   : 1;
-		u32 res_4 : 16;
+		u32       : 16;
 	};
 	u32 reg_data;
 };
@@ -1089,9 +1010,9 @@ union CCN_QACR_type
 {
 	struct
 	{
-		u32 res   : 2;
+		u32       : 2;
 		u32 Area  : 3;
-		u32 res_1 : 27;
+		u32       : 27;
 	};
 	u32 reg_data;
 };
@@ -1129,39 +1050,28 @@ union DMAC_CHCR_type
 		u32 DE    : 1; //Channel Enable
 		u32 TE    : 1; //Transfer End
 		u32 IE    : 1; //Interrupt Enable
-		u32 res0  : 1;
+		u32       : 1;
 
 		u32 TS    : 3; //Transmit Size
-		//u32 TS1 :1;
-		//u32 TS2 :1;
 		u32 TM    : 1; //Transmit Mode
 
 		u32 RS    : 4; //Resource Select
-		//u32 RS1 :1;
-		//u32 RS2 :1;
-		//u32 RS3 :1;
 
 		u32 SM    : 2; //SRC mode
-		//u32 SM1 :1;
 		u32 DM    : 2; //DST mode
-		//u32 DM1 :1;
 
 		u32 AL    : 1; //Acknowledge Level
 		u32 AM    : 1; //Acknowledge Mode
 		u32 RL    : 1; //In normal DMA mode, this bit is valid only in CHCR0 and CHCR1. In DDT mode, this bit is invalid.
 		u32 DS    : 1; //In normal DMA mode, this bit is valid only in CHCR0 and CHCR1. In DDT mode, it is valid in CHCR0�CHCR3.
 
-		u32 res1  : 4;
+		u32       : 4;
 
 		u32 DTC   : 1;
 		u32 DSA   : 3;
-		//u32 DSA1:1;
-		//u32 DSA2:1;
 
 		u32 STC   : 1;
 		u32 SSA   : 3;
-		//u32 SSA1:1;
-		//u32 SSA2:1;
 	};
 	u32 full;
 };
@@ -1170,22 +1080,19 @@ union DMAC_DMAOR_type
 {
 	struct
 	{
-		u32 DME  : 1;
-		u32 NMIF : 1;
-		u32 AE   : 1;
-		u32 res0 : 1;
+		u32 DME  : 1;	// DMAC master enable
+		u32 NMIF : 1;	// NMI flag
+		u32 AE   : 1;	// address error flag
+		u32      : 1;
+		u32 COD  : 1;	// check overrun for DREQ
+		u32      : 3;
 
-		u32 COD  : 1;
-		u32 res1 : 3;
+		u32 PR0  : 1;	// priority mode:
+		u32 PR1  : 1;	// PR0: 0, PR1: 1 => CH2 > CH0 > CH1 > CH3
+		u32      : 5;
+		u32 DDT  : 1;	// 0: normal DMA mode, 1: on-demand data transfer mode
 
-		u32 PR0  : 1;
-		u32 PR1  : 1;
-		u32 res2 : 2;
-
-		u32 res3 : 3;
-		u32 DDT  : 1;
-
-		u32 res4 : 16;
+		u32      : 16;
 	};
 	u32 full;
 };
@@ -1233,23 +1140,13 @@ union SCIF_SCSMR2_type
 {
 	struct
 	{
-		u32 CKS0          : 1;
-		u32 CKS1          : 1;
-		u32 res_0         : 1;
-		u32 STOP          : 1;
-		u32 OE_paritymode : 1;
-		u32 PE            : 1;
-		u32 CHR           : 1;
-		u32 res_1         : 1;
-		//8
-		u32 res_2         : 1;
-		u32 res_3         : 1;
-		u32 res_4         : 1;
-		u32 res_5         : 1;
-		u32 res_6         : 1;
-		u32 res_7         : 1;
-		u32 res_8         : 1;
-		u32 res_9         : 1;
+		u32 CKS           : 2;	// Clock Select
+		u32               : 1;
+		u32 STOP          : 1;	// Stop Bit Length
+		u32 OE_paritymode : 1;	// Parity Mode
+		u32 PE            : 1;	// Parity Enable
+		u32 CHR           : 1;	// Character Length
+		u32               : 9;
 		//16
 	};
 	u16 full;
@@ -1265,23 +1162,16 @@ union SCIF_SCSCR2_type
 {
 	struct
 	{
-		u32 res_0 : 1;
-		u32 CKE1  : 1;
-		u32 res_1 : 1;
-		u32 REIE  : 1;
-		u32 RE    : 1;
-		u32 TE    : 1;
-		u32 RIE   : 1;
-		u32 TIE   : 1;
+		u32       : 1;
+		u32 CKE1  : 1;	// Clock Enable 1
+		u32       : 1;
+		u32 REIE  : 1;	// Receive Error Interrupt Enable
+		u32 RE    : 1;	// Receive Enable
+		u32 TE    : 1;	// Transmit Enable
+		u32 RIE   : 1;	// Receive Interrupt Enable
+		u32 TIE   : 1;	// Transmit Interrupt Enable
 		//8
-		u32 res_2 : 1;
-		u32 res_3 : 1;
-		u32 res_4 : 1;
-		u32 res_5 : 1;
-		u32 res_6 : 1;
-		u32 res_7 : 1;
-		u32 res_8 : 1;
-		u32 res_9 : 1;
+		u32       : 8;
 		//16
 	};
 	u16 full;
@@ -1296,23 +1186,17 @@ union SCIF_SCFSR2_type
 {
 	struct
 	{
-		u32 DR   : 1;
-		u32 RDF  : 1;
-		u32 PER  : 1;
-		u32 FER  : 1;
-		u32 BRK  : 1;
-		u32 TDFE : 1;
-		u32 TEND : 1;
-		u32 ER   : 1;
+		u32 DR   : 1;	// Receive Data Ready
+		u32 RDF  : 1;	// Receive FIFO Data Full
+		u32 PER  : 1;	// Parity Error
+		u32 FER  : 1;	// Framing Error
+		u32 BRK  : 1;	// Break Detect
+		u32 TDFE : 1;	// Transmit FIFO Data Empty
+		u32 TEND : 1;	// Transmit End
+		u32 ER   : 1;	// Receive Error
 		//8
-		u32 FER0 : 1;
-		u32 FER1 : 1;
-		u32 FER2 : 1;
-		u32 FER3 : 1;
-		u32 PER0 : 1;
-		u32 PER1 : 1;
-		u32 PER2 : 1;
-		u32 PER3 : 1;
+		u32 FERn : 4;	// Number of Framing Errors
+		u32 PERn : 4;	// Number of Parity Errors
 		//16
 	};
 	u16 full;
@@ -1327,40 +1211,31 @@ union SCIF_SCFCR2_type
 {
 	struct
 	{
-		u32 LOOP  : 1;
-		u32 RFRST : 1;
-		u32 TFRST : 1;
-		u32 MCE   : 1;
-		u32 TTRG0 : 1;
-		u32 TTRG1 : 1;
-		u32 RTRG0 : 1;
-		u32 RTRG1 : 1;
+		u32 LOOP  : 1;	// Loopback Test
+		u32 RFRST : 1;	// Receive FIFO Data Register Reset
+		u32 TFRST : 1;	// Transmit FIFO Data Register Reset
+		u32 MCE   : 1;	// Modem Control Enable
+		u32 TTRG  : 2;	// Transmit FIFO Data Number Trigger
+		u32 RTRG  : 2;	// Receive FIFO Data Number Trigger
 		//8
-		u32 res_0 : 1;
-		u32 res_1 : 1;
-		u32 res_2 : 1;
-		u32 res_3 : 1;
-		u32 res_4 : 1;
-		u32 res_5 : 1;
-		u32 res_6 : 1;
-		u32 res_7 : 1;
+		u32       : 8;
 		//16
 	};
 	u16 full;
 };
 #define SCIF_SCFCR2 SH4IO_REG_T(SCIF, SCFCR2)
 
-//Read OLNY
+//Read ONLY
 //SCIF SCFDR2 0xFFE8001C 0x1FE8001C 16 0x0000 0x0000 Held Held Pclk
 union SCIF_SCFDR2_type
 {
 	struct
 	{
-		u32 R     : 5;
-		u32 res_0 : 3;
+		u32 R     : 5;	// Number of received data bytes
+		u32       : 3;
 		//8
-		u32 T     : 5;
-		u32 res_1 : 3;
+		u32 T     : 5;	// Number of untransmitted data bytes
+		u32       : 3;
 		//16
 	};
 	u16 full;
@@ -1371,23 +1246,15 @@ union SCIF_SCSPTR2_type
 {
 	struct
 	{
-		u32 SPB2DT : 1;
-		u32 SPB2IO : 1;
-		u32 res_0  : 1;
-		u32 res_1  : 1;
-		u32 CTSDT  : 1;
-		u32 CTSIO  : 1;
-		u32 RTSDT  : 1;
-		u32 RTSIO  : 1;
+		u32 SPB2DT : 1;	// Serial Port Break Data
+		u32 SPB2IO : 1;	// Serial Port Break I/O
+		u32        : 2;
+		u32 CTSDT  : 1;	// Serial Port CTS Port Data
+		u32 CTSIO  : 1;	// Serial Port CTS Port I/O
+		u32 RTSDT  : 1;	// Serial Port RTS Port Data
+		u32 RTSIO  : 1;	// Serial Port RTS Port I/O
 		//8
-		u32 res_2  : 1;
-		u32 res_3  : 1;
-		u32 res_4  : 1;
-		u32 res_5  : 1;
-		u32 res_6  : 1;
-		u32 res_7  : 1;
-		u32 res_8  : 1;
-		u32 res_9  : 1;
+		u32        : 8;
 		//16
 	};
 	u16 full;
@@ -1399,10 +1266,8 @@ union SCIF_SCLSR2_type
 {
 	struct
 	{
-		u32 ORER  : 1;
-		u32 res_0 : 7;
-		//8
-		u32 res_1 : 8;
+		u32 ORER  : 1;	// Overrun Error
+		u32       :15;
 		//16
 	};
 	u16 full;
@@ -1435,11 +1300,11 @@ union INTC_ICR_type
 	u16 reg_data;
 	struct
 	{
-		u32 res   : 7;
+		u32       : 7;
 		u32 IRLM  : 1;
 		u32 NMIE  : 1;
 		u32 NMIB  : 1;
-		u32 res_2 : 4;
+		u32       : 4;
 		u32 MAI   : 1;
 		u32 NMIL  : 1;
 	};
@@ -1462,7 +1327,7 @@ union INTC_IPRB_type
 	u16 reg_data;
 	struct
 	{
-		u32 Reserved : 4;
+		u32          : 4;
 		u32 SCI1     : 4;
 		u32 REF      : 4;
 		u32 WDT      : 4;

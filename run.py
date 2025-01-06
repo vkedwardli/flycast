@@ -102,7 +102,8 @@ def run(idx, *arg_list) -> subprocess.Popen:
     new_env["GGPO_NETWORK_DELAY"] = "16"
     # new_env["GGPO_OOP_PERCENT"] = "1"
     if idx == 0:
-        new_env["GGPO_NETWORK_JAM_DELAY"] = "500"
+        # new_env["GGPO_NETWORK_JAM_DELAY"] = "500"
+        pass
     # else: new_env["GGPO_NETWORK_DELAY"] = "100"
     return subprocess.Popen(cmd, shell=True, env=new_env)
 

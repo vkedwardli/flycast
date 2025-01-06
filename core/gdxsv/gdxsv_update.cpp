@@ -10,7 +10,7 @@
 
 #include "json.hpp"
 #include "libs.h"
-#include "rend/boxart/http_client.h"
+#include "oslib/http_client.h"
 #include "version.h"
 
 #if defined(_WIN32)

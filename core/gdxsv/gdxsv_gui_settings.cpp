@@ -6,7 +6,7 @@
 #include "imgui.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
-#include "rend/gui_util.h"
+#include "ui/gui_util.h"
 
 inline static void header(const char* title) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));	// Left
@@ -376,5 +376,5 @@ u8"網絡對戰時顯示連線状態。\n按下Menu button可以切換顯示或�
 
 const char* gdxsv_gui_settings_text_for_preparing_font()
 {
-	return u8"檔嘅黑吓增開另幫你";
+	return u8"檔嘅黑吓增開另幫你←↑→↓↖↗↘↙";
 }

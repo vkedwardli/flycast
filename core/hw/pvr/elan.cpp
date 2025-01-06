@@ -57,6 +57,7 @@
 #include "hw/holly/sb.h"
 #include "hw/sh4/sh4_mem.h"
 #include "hw/sh4/sh4_mmr.h"
+#include "hw/sh4/sh4_sched.h"
 #include "serialize.h"
 #include "elan_struct.h"
 #include "network/ggpo.h"
@@ -81,6 +82,8 @@ static u32 reg74;
 static u32 reg30 = 0x31;
 
 static u32 elanCmd[32 / 4];
+
+static int schedId = -1;
 
 static u32 DYNACALL read_elanreg(u32 paddr)
 {
@@ -252,7 +255,6 @@ static glm::mat4x4 curMatrix;
 static int taMVMatrix = -1;
 static int taNormalMatrix = -1;
 static glm::mat4 projectionMatrix;
-static int taProjMatrix = -1;
 static LightModel *curLightModel;
 static ElanBase *curLights[MAX_LIGHTS];
 static float nearPlane = 0.001f;
@@ -273,7 +275,6 @@ struct State
 
 	u32 gmp = Null;
 	u32 instance = Null;
-	u32 projMatrix = Null;
 	u32 lightModel = Null;
 	u32 lights[MAX_LIGHTS] = {
 			Null, Null, Null, Null, Null, Null, Null, Null,
@@ -282,15 +283,17 @@ struct State
 	bool lightModelUpdated = false;
 	float envMapUOffset = 0.f;
 	float envMapVOffset = 0.f;
+	float projMatrix[4] = { 579.411194f, -320.f, -579.411194f, -240.f };
+	int projMatrixIdx = -1;
 
 	void reset()
 	{
 		gmp = Null;
 		instance = Null;
-		projMatrix = Null;
 		lightModel = Null;
 		for (auto& light : lights)
 			light = Null;
+		projMatrixIdx = -1;
 		update();
 		if (isDirectX(config::RendererType))
 			packColor = packColorBGRA;
@@ -347,30 +350,43 @@ struct State
 
 	void setProjectionMatrix(void *p)
 	{
-		projMatrix = elanRamAddress(p);
+		ProjMatrix *pm = (ProjMatrix *)&RAM[elanRamAddress(p)];
+		projMatrix[0] = pm->fx;
+		projMatrix[1] = pm->tx;
+		projMatrix[2] = pm->fy;
+		projMatrix[3] = pm->ty;
+		DEBUG_LOG(PVR, "Proj matrix x: %f %f y: %f %f near %f far %f", pm->fx, pm->tx, pm->fy, pm->ty, nearPlane, farPlane);
 		updateProjectionMatrix();
 	}
 
 	void updateProjectionMatrix()
 	{
-		if (projMatrix == Null)
-		{
-			taProjMatrix = -1;
-			return;
-		}
-		ProjMatrix *pm = (ProjMatrix *)&RAM[projMatrix];
-		DEBUG_LOG(PVR, "Proj matrix x: %f %f y: %f %f near %f far %f", pm->fx, pm->tx, pm->fy, pm->ty, nearPlane, farPlane);
 		// fx = -m00 * w/2
 		// tx = -m20 * w/2 + left + w/2
 		// fy = -m11 * h/2
 		// ty = -m21 * h/2 + top + h/2
 		projectionMatrix = glm::mat4(
-				-pm->fx,  0,       0,  0,
-				0,        pm->fy,  0,  0,
-				-pm->tx, -pm->ty, -1, -1,
-				0,        0,       0,  0
+				-projMatrix[0], 0,               0,  0,
+				0,              projMatrix[2],   0,  0,
+				-projMatrix[1], -projMatrix[3], -1, -1,
+				0,              0,               0,  0
 		);
-		taProjMatrix = ta_add_matrix(glm::value_ptr(projectionMatrix));
+		projMatrixIdx = ta_add_matrix(glm::value_ptr(projectionMatrix));
+	}
+
+	void resetProjectionMatrix()
+	{
+		projMatrix[0] = 579.411194f;
+		projMatrix[1] = -320.f;
+		projMatrix[2] = -579.411194f;
+		projMatrix[3] = -240.f;
+	}
+
+	int getProjectionMatrixIndex()
+	{
+		if (projMatrixIdx == -1)
+			updateProjectionMatrix();
+		return projMatrixIdx;
 	}
 
 	void setGMP(void *p)
@@ -470,7 +486,6 @@ struct State
 	void update()
 	{
 		updateMatrix();
-		updateProjectionMatrix();
 		updateGMP();
 		updateLightModel();
 		for (u32 i = 0; i < MAX_LIGHTS; i++)
@@ -498,9 +513,11 @@ struct State
 
 	void deserialize(Deserializer& deser)
 	{
+		projMatrixIdx = -1;
 		if (deser.version() < Deserializer::V24)
 		{
 			reset();
+			resetProjectionMatrix();
 			return;
 		}
 		ta_parse_reset();
@@ -509,7 +526,14 @@ struct State
 		ta_set_list_type(listType);
 		deser >> gmp;
 		deser >> instance;
-		deser >> projMatrix;
+		if (deser.version() < Deserializer::V40)
+		{
+			deser.skip<u32>();	// projMatrix address
+			resetProjectionMatrix();
+		}
+		else {
+			deser >> projMatrix;
+		}
 		u32 tileclip;
 		deser >> tileclip;
 		ta_set_tileclip(tileclip);
@@ -959,7 +983,7 @@ public:
 				tri.x2 * curMatrix[0][2] + tri.y2 * curMatrix[1][2] + tri.z2 * curMatrix[2][2] + curMatrix[3][2]
 			};
 			dist = -dist - nearPlane;
-			ModTriangle newTri;
+			ModTriangle newTri[2];
 			int n = sutherlandHodgmanClip(dist, tri, newTri);
 			switch (n)
 			{
@@ -969,9 +993,10 @@ public:
 			case 3:
 				ta_add_triangle(tri);
 				break;
-			case 4:
+			case 5:
 				ta_add_triangle(tri);
-				ta_add_triangle(newTri);
+				ta_add_triangle(newTri[0]);
+				ta_add_triangle(newTri[1]);
 				break;
 			}
 		}
@@ -992,86 +1017,78 @@ private:
 	}
 
 	// Clip the triangle 'trig' with respect to the provided distances to the clipping plane.
-	int sutherlandHodgmanClip(glm::vec3& dist, ModTriangle& trig, ModTriangle& newTrig)
+	int sutherlandHodgmanClip(glm::vec3& dist, ModTriangle& trig, ModTriangle *newTrig)
 	{
 		constexpr float clipEpsilon = 0.f; //0.00001;
 		constexpr float clipEpsilon2 = 0.f; //0.01;
 
-		if (!glm::any(glm::greaterThanEqual(dist , glm::vec3(clipEpsilon2))))
-			// all clipped
-			return 0;
+		if (!glm::any(glm::greaterThanEqual(dist , glm::vec3(clipEpsilon2)))) {
+			// all clipped: leave it alone as it will be projected onto the near plane in the shader
+			return 3;
+		}
 		if (glm::all(glm::greaterThanEqual(dist , glm::vec3(-clipEpsilon))))
 			// none clipped
 			return 3;
 
-		// There are either 1 or 2 vertices above the clipping plane.
+		// There are either 1 or 2 vertices above the clipping plane. Tesselate into 3 triangles along the plane.
 		glm::bvec3 above = glm::greaterThanEqual(dist, glm::vec3(0.f));
-		bool nextIsAbove;
 		glm::vec3 v0(trig.x0, trig.y0, trig.z0);
 		glm::vec3 v1(trig.x1, trig.y1, trig.z1);
 		glm::vec3 v2(trig.x2, trig.y2, trig.z2);
-		glm::vec3 v3;
-		// Find the CCW-most vertex above the plane.
-		if (above[1] && !above[0])
+		glm::vec3 v3, v4;
+		// Find the lonely vertex on one side of the plane
+		if (above[0] == above[2])
 		{
-			// Cycle once CCW. Use v3 as a temp
-			nextIsAbove = above[2];
+			// this is vertex 1 so cycle CCW
 			v3 = v0;
 			v0 = v1;
 			v1 = v2;
 			v2 = v3;
 			dist = glm::vec3(dist.y, dist.z, dist.x);
 		}
-		else if (above[2] && !above[1])
+		else if (above[0] == above[1])
 		{
-			// Cycle once CW. Use v3 as a temp.
-			nextIsAbove = above[0];
+			// this is vertex 2 so cycle CW
 			v3 = v2;
 			v2 = v1;
 			v1 = v0;
 			v0 = v3;
 			dist = glm::vec3(dist.z, dist.x, dist.y);
 		}
-		else
-			nextIsAbove = above[1];
+		v3 = intersect(v0, dist[0], v1, dist[1]);
+		v4 = intersect(v0, dist[0], v2, dist[2]);
+		// v0 v3 v4
 		trig.x0 = v0.x;
 		trig.y0 = v0.y;
 		trig.z0 = v0.z;
-		// We always need to clip v2-v0.
-		v3 = intersect(v0, dist[0], v2, dist[2]);
-		if (nextIsAbove)
-		{
-			v2 = intersect(v1, dist[1], v2, dist[2]);
-			trig.x1 = v1.x;
-			trig.y1 = v1.y;
-			trig.z1 = v1.z;
-			trig.x2 = v2.x;
-			trig.y2 = v2.y;
-			trig.z2 = v2.z;
-			newTrig.x0 = v0.x;
-			newTrig.y0 = v0.y;
-			newTrig.z0 = v0.z;
-			newTrig.x1 = v2.x;
-			newTrig.y1 = v2.y;
-			newTrig.z1 = v2.z;
-			newTrig.x2 = v3.x;
-			newTrig.y2 = v3.y;
-			newTrig.z2 = v3.z;
+		trig.x1 = v3.x;
+		trig.y1 = v3.y;
+		trig.z1 = v3.z;
+		trig.x2 = v4.x;
+		trig.y2 = v4.y;
+		trig.z2 = v4.z;
+		// v3 v1 v4
+		newTrig[0].x0 = v3.x;
+		newTrig[0].y0 = v3.y;
+		newTrig[0].z0 = v3.z;
+		newTrig[0].x1 = v1.x;
+		newTrig[0].y1 = v1.y;
+		newTrig[0].z1 = v1.z;
+		newTrig[0].x2 = v4.x;
+		newTrig[0].y2 = v4.y;
+		newTrig[0].z2 = v4.z;
+		// v2 v4 v1
+		newTrig[1].x0 = v2.x;
+		newTrig[1].y0 = v2.y;
+		newTrig[1].z0 = v2.z;
+		newTrig[1].x1 = v4.x;
+		newTrig[1].y1 = v4.y;
+		newTrig[1].z1 = v4.z;
+		newTrig[1].x2 = v1.x;
+		newTrig[1].y2 = v1.y;
+		newTrig[1].z2 = v1.z;
 
-			return 4;
-		}
-		else
-		{
-			v1 = intersect(v0, dist[0], v1, dist[1]);
-			trig.x1 = v1.x;
-			trig.y1 = v1.y;
-			trig.z1 = v1.z;
-			trig.x2 = v3.x;
-			trig.y2 = v3.y;
-			trig.z2 = v3.z;
-
-			return 3;
-		}
+		return 5;
 	}
 
 	bool enabled;
@@ -1087,7 +1104,7 @@ static void sendMVPolygon(ICHList *list, const T *vtx, bool needClipping)
 	mvp.isp.VolumeLast = list->pcw.volume;
 	mvp.isp.DepthMode &= 3;
 	mvp.mvMatrix = taMVMatrix;
-	mvp.projMatrix = taProjMatrix;
+	mvp.projMatrix = state.getProjectionMatrixIndex();
 	ta_add_poly(list->pcw.listType, mvp);
 
 	ModifierVolumeClipper clipper(needClipping);
@@ -1242,7 +1259,7 @@ static void setStateParams(PolyParam& pp, const ICHList *list)
 	sendLights();
 	pp.mvMatrix = taMVMatrix;
 	pp.normalMatrix = taNormalMatrix;
-	pp.projMatrix = taProjMatrix;
+	pp.projMatrix = state.getProjectionMatrixIndex();
 	pp.lightModel = taLightModel;
 	pp.envMapping[0] = false;
 	pp.envMapping[1] = false;
@@ -1279,7 +1296,7 @@ static void setStateParams(PolyParam& pp, const ICHList *list)
 	pp.tsp1.full ^= modelTSP.full;
 
 	// projFlip is for left-handed projection matrices (initd rear view mirror)
-	bool projFlip = taProjMatrix != -1 && std::signbit(projectionMatrix[0][0]) == std::signbit(projectionMatrix[1][1]);
+	bool projFlip = std::signbit(projectionMatrix[0][0]) == std::signbit(projectionMatrix[1][1]);
 	pp.isp.CullMode ^= (u32)cullingReversed ^ (u32)projFlip;
 	pp.pcw.Shadow ^= shadowedVolume;
 	if (pp.pcw.Shadow == 0 || pp.pcw.Volume == 0)
@@ -1303,15 +1320,15 @@ static void sendPolygon(ICHList *list)
 	case ICHList::VTX_TYPE_V:
 		{
 			N2_VERTEX *vtx = (N2_VERTEX *)((u8 *)list + sizeof(ICHList));
-			if (!isBetweenNearAndFar(vtx, list->vtxCount, needClipping))
-				break;
 			int listType = ta_get_list_type();
 			if (listType == -1)
 				listType = list->pcw.listType;
 			if (listType & 1)
-				sendMVPolygon(list, vtx, needClipping);
+				sendMVPolygon(list, vtx, true);
 			else
 			{
+				if (!isBetweenNearAndFar(vtx, list->vtxCount, needClipping))
+					break;
 				PolyParam pp{};
 				pp.pcw.Shadow = list->pcw.shadow;
 				pp.pcw.Texture = 0;
@@ -1332,15 +1349,15 @@ static void sendPolygon(ICHList *list)
 	case ICHList::VTX_TYPE_VU:
 		{
 			N2_VERTEX_VU *vtx = (N2_VERTEX_VU *)((u8 *)list + sizeof(ICHList));
-			if (!isBetweenNearAndFar(vtx, list->vtxCount, needClipping))
-				break;
 			int listType = ta_get_list_type();
 			if (listType == -1)
 				listType = list->pcw.listType;
 			if (listType  & 1)
-				sendMVPolygon(list, vtx, needClipping);
+				sendMVPolygon(list, vtx, true);
 			else
 			{
+				if (!isBetweenNearAndFar(vtx, list->vtxCount, needClipping))
+					break;
 				PolyParam pp{};
 				pp.pcw.Shadow = list->pcw.shadow;
 				pp.pcw.Texture = list->pcw.texture;
@@ -1436,6 +1453,13 @@ static void sendPolygon(ICHList *list)
 		break;
 	}
 	envMapping = false;
+}
+
+[[noreturn]] static void raiseError()
+{
+	// no idea if this is correct but it stops initdv2/v3jb sending garbage
+	reg74 |= 0x12;
+	throw TAParserException();
 }
 
 template<bool Active = true>
@@ -1556,7 +1580,7 @@ static void executeCommand(u8 *data, int size)
 							WARN_LOG(PVR, "Unknown interrupt mask %x", wait->mask);
 							// initdv2j: happens at end of race, garbage data after end of model due to wrong size?
 							//die("unexpected");
-							inter = (HollyInterruptID)-1;
+							raiseError();
 							break;
 						}
 						if (inter != (HollyInterruptID)-1)
@@ -1580,12 +1604,14 @@ static void executeCommand(u8 *data, int size)
 						if (link->size > VRAM_SIZE)
 						{
 							WARN_LOG(PVR, "Texture DMA from %x to %x (%x invalid)", DMAC_SAR(2), link->vramAddress & 0x1ffffff8, link->size);
-							size = 0;
-							break;
+							raiseError();
 						}
-						DEBUG_LOG(PVR, "Texture DMA from %x to %x (%x)", DMAC_SAR(2), link->vramAddress & 0x1ffffff8, link->size);
+						DEBUG_LOG(PVR, "Texture DMA from %x to %x (%x) %s", DMAC_SAR(2), link->vramAddress & 0x1ffffff8, link->size,
+								data >= (u8 *)elanCmd && data < (u8 *)elanCmd + sizeof(elanCmd) ? "CMD" : "ERAM");
 						memcpy(&vram[link->vramAddress & VRAM_MASK], &mem_b[DMAC_SAR(2) & RAM_MASK], link->size);
-						reg74 |= 1;
+						// theoretical bandwidth: 64 bits @ 100 MHz
+						// but initdv3j needs ~50 MB/s to boot
+						sh4_sched_request(schedId, 512);
 					}
 					else if (link->offset & 0x20000000)
 					{
@@ -1593,12 +1619,12 @@ static void executeCommand(u8 *data, int size)
 						if (link->size > VRAM_SIZE)
 						{
 							WARN_LOG(PVR, "Texture DMA from eram %x -> %x (%x invalid)", link->offset & ELAN_RAM_MASK, link->vramAddress & VRAM_MASK, link->size);
-							size = 0;
-							break;
+							raiseError();
 						}
-						DEBUG_LOG(PVR, "Texture DMA from eram %x -> %x (%x)", link->offset & ELAN_RAM_MASK, link->vramAddress & VRAM_MASK, link->size);
+						DEBUG_LOG(PVR, "Texture DMA from eram %x -> %x (%x) %s", link->offset & ELAN_RAM_MASK, link->vramAddress & VRAM_MASK, link->size,
+								data >= (u8 *)elanCmd && data < (u8 *)elanCmd + sizeof(elanCmd) ? "CMD" : "ERAM");
 						memcpy(&vram[link->vramAddress & VRAM_MASK], &RAM[link->offset & ELAN_RAM_MASK], link->size);
-						reg74 |= 1;
+						sh4_sched_request(schedId, 512);
 					}
 					else
 					{
@@ -1629,7 +1655,7 @@ static void executeCommand(u8 *data, int size)
 
 			default:
 				WARN_LOG(PVR, "Unhandled Elan command %x", cmd->pcw.n2Command);
-				size -= 32;
+				raiseError();
 				break;
 			}
 		}
@@ -1642,7 +1668,7 @@ static void executeCommand(u8 *data, int size)
 				try {
 					size -= ta_add_ta_data((u32 *)data, size);
 				} catch (const TAParserException& e) {
-					size = 0;
+					raiseError();
 				}
 			}
 			else
@@ -1701,7 +1727,7 @@ static void executeCommand(u8 *data, int size)
 						break;
 					default:
 						WARN_LOG(PVR, "Invalid param type %d", pcw.paraType);
-						i = size;
+						raiseError();
 						break;
 					}
 				}
@@ -1720,12 +1746,15 @@ static void DYNACALL write_elancmd(u32 addr, u32 data)
 
 	if (addr == 7)
 	{
-		if (!ggpo::rollbacking())
-			executeCommand<true>((u8 *)elanCmd, sizeof(elanCmd));
-		else
-			executeCommand<false>((u8 *)elanCmd, sizeof(elanCmd));
-		if (!(reg74 & 1))
-			reg74 |= 2;
+		try {
+			if (!ggpo::rollbacking())
+				executeCommand<true>((u8 *)elanCmd, sizeof(elanCmd));
+			else
+				executeCommand<false>((u8 *)elanCmd, sizeof(elanCmd));
+			if (!sh4_sched_is_scheduled(schedId))
+				reg74 |= 2;
+		} catch (const TAParserException& e) {
+		}
 	}
 }
 
@@ -1741,8 +1770,17 @@ static void DYNACALL write_elanram(u32 addr, T data)
 	*(T *)&RAM[addr & ELAN_RAM_MASK] = data;
 }
 
+int schedCallback(int tag, int cycles, int lag, void *arg)
+{
+	// DMA done
+	reg74 |= 1;
+	return 0;
+}
+
 void init()
 {
+	if (schedId == -1)
+		schedId = sh4_sched_register(0, schedCallback);
 }
 
 void reset(bool hard)
@@ -1751,11 +1789,16 @@ void reset(bool hard)
 	{
 		memset(RAM, 0, ERAM_SIZE);
 		state.reset();
+		state.resetProjectionMatrix();
 	}
 }
 
 void term()
 {
+	if (schedId != -1) {
+		sh4_sched_unregister(schedId);
+		schedId = -1;
+	}
 }
 
 void vmem_init()
@@ -1785,6 +1828,7 @@ void serialize(Serializer& ser)
 	if (!ser.rollback())
 		ser.serialize(RAM, ERAM_SIZE);
 	state.serialize(ser);
+	sh4_sched_serialize(ser, schedId);
 }
 
 void deserialize(Deserializer& deser)
@@ -1797,6 +1841,8 @@ void deserialize(Deserializer& deser)
 	if (!deser.rollback())
 		deser.deserialize(RAM, ERAM_SIZE);
 	state.deserialize(deser);
+	if (deser.version() >= Deserializer::V44)
+		sh4_sched_deserialize(deser, schedId);
 }
 
 }

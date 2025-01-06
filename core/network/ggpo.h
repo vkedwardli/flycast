@@ -17,10 +17,12 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #pragma once
-#include "types.h"
 #include <future>
 #include <vector>
 #include <atomic>
+#include <string>
+
+#include "types.h"
 
 struct MapleInputState;
 

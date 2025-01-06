@@ -21,9 +21,9 @@
 #include "oit_pipeline.h"
 #include "../quad.h"
 
-void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyParam& pp, Pass pass, bool gpuPalette)
+void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyParam& pp, Pass pass, int gpuPalette)
 {
-	vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = GetMainVertexInputStateCreateInfo();
+	vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = GetMainVertexInputStateCreateInfo(true, pp.isNaomi2());
 
 	// Input assembly state
 	vk::PipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(vk::PipelineInputAssemblyStateCreateFlags(),
@@ -49,6 +49,17 @@ void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyP
 	  0.0f,                                         // depthBiasSlopeFactor
 	  1.0f                                          // lineWidth
 	);
+
+	// Dreamcast uses the last vertex as the provoking vertex, but Vulkan uses the first.
+	// Utilize VK_EXT_provoking_vertex when available to set the provoking vertex to be the
+	// last vertex
+	vk::PipelineRasterizationProvokingVertexStateCreateInfoEXT provokingVertexInfo{};
+	if (GetContext()->hasProvokingVertex())
+	{
+		provokingVertexInfo.provokingVertexMode = vk::ProvokingVertexModeEXT::eLastVertex;
+		pipelineRasterizationStateCreateInfo.pNext = &provokingVertexInfo;
+	}
+
 	vk::PipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo;
 
 	// Depth and stencil
@@ -90,10 +101,10 @@ void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyP
 
 	// Color flags and blending
 	vk::PipelineColorBlendAttachmentState pipelineColorBlendAttachmentState;
+	vk::ColorComponentFlags colorComponentFlags(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
 	// Apparently punch-through polys support blending, or at least some combinations
 	if (listType == ListType_Punch_Through || pass == Pass::Color)
 	{
-		vk::ColorComponentFlags colorComponentFlags(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
 		u32 src = pp.tsp.SrcInstr;
 		u32 dst = pp.tsp.DstInstr;
 		pipelineColorBlendAttachmentState =
@@ -110,6 +121,8 @@ void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyP
 	}
 	else
 	{
+		if (pass == Pass::Depth || pass == Pass::OIT)
+			colorComponentFlags = vk::ColorComponentFlags();
 		pipelineColorBlendAttachmentState =
 		{
 		  false,                      // blendEnable
@@ -119,7 +132,7 @@ void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyP
 		  vk::BlendFactor::eZero,     // srcAlphaBlendFactor
 		  vk::BlendFactor::eZero,     // dstAlphaBlendFactor
 		  vk::BlendOp::eAdd,          // alphaBlendOp
-		  vk::ColorComponentFlags()   // colorWriteMask
+		  colorComponentFlags		  // colorWriteMask
 		};
 	}
 
@@ -142,7 +155,7 @@ void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyP
 	OITShaderManager::FragmentShaderParams params = {};
 	params.alphaTest = listType == ListType_Punch_Through;
 	params.bumpmap = pp.tcw.PixelFmt == PixelBumpMap;
-	params.clamping = pp.tsp.ColorClamp && (pvrrc.fog_clamp_min.full != 0 || pvrrc.fog_clamp_max.full != 0xffffffff);
+	params.clamping = pp.tsp.ColorClamp;
 	params.insideClipTest = (pp.tileclip >> 28) == 3;
 	params.fog = config::Fog ? pp.tsp.FogCtrl : 2;
 	params.gouraud = pp.pcw.Gouraud;
@@ -183,7 +196,7 @@ void OITPipelineManager::CreatePipeline(u32 listType, bool autosort, const PolyP
 			graphicsPipelineCreateInfo).value;
 }
 
-void OITPipelineManager::CreateFinalPipeline()
+void OITPipelineManager::CreateFinalPipeline(bool dithering)
 {
 	vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = GetQuadInputStateCreateInfo(false);
 
@@ -240,7 +253,7 @@ void OITPipelineManager::CreateFinalPipeline()
 	vk::PipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo(vk::PipelineDynamicStateCreateFlags(), dynamicStates);
 
 	vk::ShaderModule vertex_module = shaderManager->GetFinalVertexShader();
-	vk::ShaderModule fragment_module = shaderManager->GetFinalShader();
+	vk::ShaderModule fragment_module = shaderManager->GetFinalShader(dithering);
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> stages = {
 			vk::PipelineShaderStageCreateInfo(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eVertex, vertex_module, "main"),
@@ -264,7 +277,7 @@ void OITPipelineManager::CreateFinalPipeline()
 	  2                                           // subpass
 	);
 
-	finalPipeline = GetContext()->GetDevice().createGraphicsPipelineUnique(GetContext()->GetPipelineCache(), graphicsPipelineCreateInfo).value;
+	finalPipelines[dithering] = GetContext()->GetDevice().createGraphicsPipelineUnique(GetContext()->GetPipelineCache(), graphicsPipelineCreateInfo).value;
 }
 
 void OITPipelineManager::CreateClearPipeline()
@@ -334,7 +347,7 @@ void OITPipelineManager::CreateClearPipeline()
 	  &pipelineDynamicStateCreateInfo,            // pDynamicState
 	  *pipelineLayout,                            // layout
 	  renderPasses->GetRenderPass(true, true),    // renderPass
-	  2                                           // subpass
+	  1                                           // subpass
 	);
 
 	clearPipeline = GetContext()->GetDevice().createGraphicsPipelineUnique(GetContext()->GetPipelineCache(), graphicsPipelineCreateInfo).value;

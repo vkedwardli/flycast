@@ -397,7 +397,7 @@ strip_end:
 
 				//32B
 			case ParamType_User_Tile_Clip:
-				SetTileClip(data->data_32[3] & 63, data->data_32[4] & 31, data->data_32[5] & 63, data->data_32[6] & 31);
+				setClipRect(data->data_32[3] & 63, data->data_32[4] & 31, data->data_32[5] & 63, data->data_32[6] & 31);
 				data += SZ32;
 				break;
 
@@ -413,7 +413,7 @@ strip_end:
 				//PolyType :32B/64B
 			case ParamType_Polygon_or_Modifier_Volume:
 				{
-					TileClipMode(data->pcw.User_Clip);
+					setClipMode(data->pcw.User_Clip);
 					//Yep , C++ IS lame & limited
 					#include "ta_const_df.h"
 					if (CurrentList == ListType_None && !startList(data->pcw.ListType))
@@ -465,7 +465,7 @@ strip_end:
 				//32B
 				//Sets Sprite info , and switches to ta_sprite_data function
 			case ParamType_Sprite:
-				TileClipMode(data->pcw.User_Clip);
+				setClipMode(data->pcw.User_Clip);
 				if (CurrentList != ListType_None || startList(data->pcw.ListType))
 				{
 					VertexDataFP = ta_sprite_data;
@@ -501,23 +501,25 @@ public:
 	{
 		TaCmd = ta_main;
 		BaseTAParser::reset();
+		setClipRect(0, 0, 39, 14);
+		setClipMode(0);
 	}
 
 private:
-	static void SetTileClip(u32 xmin,u32 ymin,u32 xmax,u32 ymax)
+	static void setClipRect(u32 xmin, u32 ymin, u32 xmax, u32 ymax)
 	{
-		u32 rv=tileclip_val & 0xF0000000;
-		rv|=xmin; //6 bits
-		rv|=xmax<<6; //6 bits
-		rv|=ymin<<12; //5 bits
-		rv|=ymax<<17; //5 bits
-		tileclip_val=rv;
+		u32 rv = tileclip_val & 0xF0000000;
+		rv |= xmin; 		// 6 bits
+		rv |= xmax << 6;	// 6 bits
+		rv |= ymin << 12;	// 5 bits
+		rv |= ymax << 17;	// 5 bits
+		tileclip_val = rv;
 	}
 
-	static void TileClipMode(u32 mode)
+	static void setClipMode(u32 mode)
 	{
 		//Group_En bit seems ignored, thanks p1pkin
-		tileclip_val=(tileclip_val&(~0xF0000000)) | (mode<<28);
+		tileclip_val = (tileclip_val & ~0xF0000000) | (mode << 28);
 	}
 
 	//Polys  -- update code on sprites if that gets updated too --
@@ -1117,6 +1119,7 @@ private:
 		p->isp.full = param->isp.full;
 		p->isp.VolumeLast = param->pcw.Volume != 0;
 		p->first = vd_rc.modtrig.size();
+		p->tileclip = tileclip_val;
 	}
 
 	static void AppendModVolVertexA(TA_ModVolA* mvv)
@@ -1159,7 +1162,7 @@ static void parseRenderPass(RenderPass& pass, const RenderPass& previousPass, re
 			|| config::RendererType == RenderType::Vulkan_OIT;
 	const bool mergeTranslucent = config::PerStripSorting || perPixel;
 
-	if (config::RenderResolution > 480 && !config::EmulateFramebuffer)
+	if (config::RenderResolution > 480 && !config::EmulateFramebuffer && config::FixUpscaleBleedingEdge)
 	{
 		fix_texture_bleeding(ctx.global_param_op, previousPass.op_count, pass.op_count, ctx);
 		fix_texture_bleeding(ctx.global_param_pt, previousPass.pt_count, pass.pt_count, ctx);
@@ -1210,12 +1213,8 @@ static void ta_parse_vdrc(TA_context* ctx, bool primRestart)
 
 	while (childCtx != nullptr)
 	{
-		childCtx->MarkRend();
-		vd_rc.proc_start = childCtx->rend.proc_start;
-		vd_rc.proc_end = childCtx->rend.proc_end;
-
-		Ta_Dma* ta_data = (Ta_Dma *)vd_rc.proc_start;
-		Ta_Dma* ta_data_end = (Ta_Dma *)vd_rc.proc_end;
+		Ta_Dma* ta_data = (Ta_Dma *)childCtx->getTADataBegin();
+		Ta_Dma* ta_data_end = (Ta_Dma *)childCtx->getTADataEnd();
 
 		while (ta_data < ta_data_end)
 			try {
@@ -1223,6 +1222,15 @@ static void ta_parse_vdrc(TA_context* ctx, bool primRestart)
 			} catch (const TAParserException& e) {
 				break;
 			}
+
+		// Disable blending for opaque polys of the first pass
+		if (pass == 0)
+		{
+			for (PolyParam& pp : vd_rc.global_param_op) {
+				pp.tsp.DstInstr = 0;
+				pp.tsp.SrcInstr = 1;
+			}
+		}
 
 		bool empty_pass = vd_rc.global_param_op.size() == (pass == 0 ? 0u : (int)vd_rc.render_passes.back().op_count)
 				&& vd_rc.global_param_pt.size() == (pass == 0 ? 0u : (int)vd_rc.render_passes.back().pt_count)
@@ -1287,6 +1295,14 @@ static void ta_parse_naomi2(TA_context* ctx, bool primRestart)
 	for (RenderPass& pass : ctx->rend.render_passes)
 	{
 		parseRenderPass(pass, previousPass, ctx->rend, primRestart);
+		// Disable blending for opaque polys of the first pass
+		if (&pass == &ctx->rend.render_passes[0])
+		{
+			for (PolyParam& pp : ctx->rend.global_param_op) {
+				pp.tsp.DstInstr = 0;
+				pp.tsp.SrcInstr = 1;
+			}
+		}
 		previousPass = pass;
 	}
 
@@ -1319,24 +1335,13 @@ const float identityMat[] {
 	0.f, 0.f, 0.f, 1.f
 };
 
-const float defaultProjMat[] {
-	579.411194f,   0.f,       0.f,  0.f,
-	  0.f,      -579.411194f, 0.f,  0.f,
-   -320.f,      -240.f,      -1.f, -1.f,
-	  0.f,         0.f,       0.f,  0.f
-};
-
 constexpr int IdentityMatIndex = 0;
-constexpr int DefaultProjMatIndex = 1;
 constexpr int NoLightIndex = 0;
 
 static void setDefaultMatrices()
 {
 	if (ta_ctx->rend.matrices.empty())
-	{
 		ta_ctx->rend.matrices.push_back(*(N2Matrix *)identityMat);
-		ta_ctx->rend.matrices.push_back(*(N2Matrix *)defaultProjMat);
-	}
 }
 
 static void setDefaultLight()
@@ -1363,8 +1368,6 @@ void ta_add_poly(const PolyParam& pp)
 		n2CurrentPP->mvMatrix = IdentityMatIndex;
 	if (n2CurrentPP->normalMatrix == -1)
 		n2CurrentPP->normalMatrix = IdentityMatIndex;
-	if (n2CurrentPP->projMatrix == -1)
-		n2CurrentPP->projMatrix = DefaultProjMatIndex;
 	setDefaultLight();
 	if (n2CurrentPP->lightModel == -1)
 		n2CurrentPP->lightModel = NoLightIndex;
@@ -1397,8 +1400,6 @@ void ta_add_poly(int listType, const ModifierVolumeParam& mvp)
 	setDefaultMatrices();
 	if (n2CurrentMVP->mvMatrix == -1)
 		n2CurrentMVP->mvMatrix = IdentityMatIndex;
-	if (n2CurrentMVP->projMatrix == -1)
-		n2CurrentMVP->projMatrix = DefaultProjMatIndex;
 	vd_ctx = nullptr;
 }
 
@@ -1606,8 +1607,9 @@ void FillBGP(TA_context* ctx)
 		vertex_ptr += strip_vs;
 	}
 
-	f32 bg_depth = ISP_BACKGND_D.f;
-	reinterpret_cast<u32&>(bg_depth) &= 0xFFFFFFF0;	// ISP_BACKGND_D has only 28 bits
+	// Apply a negative 1e-6 bias since the background plane is clipping too much
+	// (Fixes Xtreme Sports, Blue Stinger (JP) and many WinCE games using yuv FMV)
+	float bg_depth = std::max(ISP_BACKGND_D.f - 1e-6f, 1e-11f);
 	cv[0].z = bg_depth;
 	cv[1].z = bg_depth;
 	cv[2].z = bg_depth;
@@ -1629,23 +1631,25 @@ void FillBGP(TA_context* ctx)
 	}
 	else
 	{
+		if (cv[2].x == cv[1].x) {
+			cv[2].x = cv[0].x;
+			cv[2].u = cv[0].u;
+		}
 		const float deltaU = (cv[1].u - cv[0].u) * 0.4f;
 		cv[0].x -= 256.f;
 		cv[0].u -= deltaU;
 		cv[1].x += 256.f;
 		cv[1].u += deltaU;
-		cv[2].x += 256.f;
-		cv[2].u += deltaU;
+		cv[2].x -= 256.f;
+		cv[2].u -= deltaU;
 
 		cv[0].x *= scale_x;
 		cv[1].x *= scale_x;
 		cv[2].x *= scale_x;
 
 		cv[3] = cv[2];
-		cv[3].x = cv[0].x;
-		cv[3].u = cv[0].u;
-
-		std::swap(cv[0], cv[1]);
+		cv[3].x = cv[1].x;
+		cv[3].u = cv[1].u;
 	}
 }
 
@@ -1661,6 +1665,7 @@ static void getRegionTileClipping(u32& xmin, u32& xmax, u32& ymin, u32& ymax)
 	getRegionTileAddrAndSize(addr, tile_size);
 
 	RegionArrayTile tile;
+	int maxTiles = 3000;
 	do {
 		tile.full = pvr_read32p<u32>(addr);
 		xmin = std::min(xmin, tile.X);
@@ -1668,7 +1673,9 @@ static void getRegionTileClipping(u32& xmin, u32& xmax, u32& ymin, u32& ymax)
 		ymin = std::min(ymin, tile.Y);
 		ymax = std::max(ymax, tile.Y);
 		addr += tile_size;
-	} while (!tile.LastRegion);
+	} while (!tile.LastRegion && --maxTiles >= 0);
+	if (maxTiles < 0)
+		WARN_LOG(PVR, "getRegionTileClipping overflow");
 
 	xmin *= 32;
 	xmax *= 32;

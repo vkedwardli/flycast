@@ -9,13 +9,16 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <functional>
+#include <cassert>
+#include <time.h>
 
 #ifdef __ANDROID__
 #include <sys/mman.h>
 #undef PAGE_MASK
 #elif defined(__APPLE__) && defined(__aarch64__)
 #define PAGE_SIZE 16384
-#else
+#elif !defined(PAGE_SIZE)
 #define PAGE_SIZE 4096
 #endif
 #ifndef PAGE_MASK
@@ -28,12 +31,13 @@ private:
 	typedef void* ThreadEntryFP(void* param);
 	ThreadEntryFP* entry;
 	void* param;
+	const char *name;
 
 public:
 	std::thread thread;
 
-	cThread(ThreadEntryFP* function, void* param)
-		:entry(function), param(param) {}
+	cThread(ThreadEntryFP* function, void* param, const char *name)
+		:entry(function), param(param), name(name) {}
 	~cThread() { WaitToEnd(); }
 	void Start();
 	void WaitToEnd();
@@ -106,6 +110,11 @@ static inline void string_tolower(std::string& s)
 	std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
 }
 
+static inline void string_toupper(std::string& s)
+{
+	std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::toupper(c); });
+}
+
 static inline std::string get_file_extension(const std::string& s)
 {
 	size_t dot = s.find_last_of('.');
@@ -124,8 +133,10 @@ static inline std::string get_file_basename(const std::string& s)
 	return s.substr(0, dot);
 }
 
+extern const std::string defaultWs;
+
 static inline std::string trim_trailing_ws(const std::string& str,
-                 const std::string& whitespace = " ")
+                 const std::string& whitespace = defaultWs)
 {
     const auto strEnd = str.find_last_not_of(whitespace);
 	if (strEnd == std::string::npos)
@@ -135,7 +146,7 @@ static inline std::string trim_trailing_ws(const std::string& str,
 }
 
 static inline std::string trim_ws(const std::string& str,
-                 const std::string& whitespace = " ")
+                 const std::string& whitespace = defaultWs)
 {
     const auto strStart = str.find_first_not_of(whitespace);
 	if (strStart == std::string::npos)
@@ -188,4 +199,43 @@ public:
 		MD5_Final(v.data(), &ctx);
 		return v;
 	}
+};
+
+u64 getTimeMs();
+std::string timeToISO8601(time_t time);
+
+class ThreadRunner
+{
+public:
+	void init() {
+		threadId = std::this_thread::get_id();
+	}
+	void runOnThread(std::function<void()> func)
+	{
+		if (threadId == std::this_thread::get_id()) {
+			func();
+		}
+		else {
+			LockGuard _(mutex);
+			tasks.push_back(func);
+		}
+	}
+	void execTasks()
+	{
+		assert(threadId == std::this_thread::get_id());
+		std::vector<std::function<void()>> localTasks;
+		{
+			LockGuard _(mutex);
+			std::swap(localTasks, tasks);
+		}
+		for (auto& func : localTasks)
+			func();
+	}
+
+private:
+	using LockGuard = std::lock_guard<std::mutex>;
+
+	std::thread::id threadId;
+	std::vector<std::function<void()>> tasks;
+	std::mutex mutex;
 };

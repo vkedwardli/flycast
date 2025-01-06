@@ -33,7 +33,6 @@ class DX11Context : public GraphicsContext
 {
 public:
 	bool init(bool keepCurrentWindow = false);
-	void initVideoRouting() override;
 	void term() override;
 	void EndImGuiFrame();
 	void Present();
@@ -55,6 +54,9 @@ public:
 	}
 	bool isIntel() const {
 		return vendorId == VENDOR_INTEL;
+	}
+	bool isAMD() override {
+		return vendorId == VENDOR_ATI || vendorId == VENDOR_AMD;
 	}
 
 	void setFrameRendered() {
@@ -84,6 +86,7 @@ private:
 	ComPtr<ID3D11RenderTargetView> renderTargetView;
 	bool overlayOnly = false;
 	DX11Overlay overlay;
+	bool allowTearing = false;
 	bool swapOnVSync = false;
 	bool frameRendered = false;
 	std::string adapterDesc;
@@ -98,6 +101,8 @@ private:
 	pD3DCompile d3dcompiler = nullptr;
 
 	static constexpr UINT VENDOR_INTEL = 0x8086;
+	static constexpr UINT VENDOR_ATI = 0x1002;
+	static constexpr UINT VENDOR_AMD = 0x1022;
 };
 extern DX11Context theDX11Context;
 #endif

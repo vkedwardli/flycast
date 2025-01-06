@@ -20,7 +20,8 @@
 #include "types.h"
 #include "cfg/option.h"
 #include "gamepad_device.h"
-#include "rend/gui.h"
+#include "ui/gui.h"
+#include "hw/maple/maple_devs.h"
 #include <memory>
 
 extern u8 kb_key[4][6];	// normal keys pressed
@@ -61,6 +62,7 @@ public:
 		set_button(DC_AXIS_LEFT, 13);			// J
 		set_button(DC_AXIS_RIGHT, 15);			// L
 		set_button(DC_BTN_D, 4);				// Q (Coin)
+		set_button(EMU_BTN_SCREENSHOT, 69);		// F12
 
 		dirty = false;
 	}
@@ -80,6 +82,27 @@ protected:
 
 	void input(u8 keycode, bool pressed, int modifier_keys)
 	{
+		const int port = maple_port();
+		const bool portIsValid = port >= 0 && port < MAPLE_PORTS;
+
+		// Checking if we're in-game with an emulated keyboard first,
+		// then check if the "Bypass Emulated Keyboard" hotkey is held and we're not in GUI,
+		// if so: send emu hotkeys only and return earlier.
+		if ((settings.platform.isConsole() && portIsValid && config::MapleMainDevices[port] == MDT_Keyboard)
+				|| (settings.platform.isArcade() && settings.input.keyboardGame))
+		{
+			if (keycode == input_mapper->get_button_code(0, EMU_BTN_BYPASS_KB))
+				bypass_kb = pressed && !gui_keyboard_captured();
+
+			if (bypass_kb)
+			{
+				set_maple_port(-1);
+				gamepad_btn_input(keycode, pressed);
+				set_maple_port(port);
+				return;
+			}
+		}
+
 		// Some OSes (Mac OS) don't distinguish left and right modifier keys so we set them both.
 		// But not for Alt since Right Alt is used as a special modifier keys on some international
 		// keyboards.
@@ -105,14 +128,13 @@ protected:
 			default:
 				break;
 		}
-		const int port = maple_port();
-		if (port >= 0 && port < (int)std::size(kb_shift))
+		if (portIsValid)
 			kb_shift[port] = _modifier_keys;
 
 		if (keycode != 0)
 		{
 			gui_keyboard_key(keycode, pressed);
-			if (keycode < 0xE0 && port >= 0 && port < (int)std::size(kb_key))
+			if (keycode < 0xE0 && portIsValid)
 			{
 				if (pressed)
 				{
@@ -156,9 +178,8 @@ protected:
 		// or the corresponding maple device (if any) isn't a keyboard
 		else if (gui_is_open()
 				|| port == (int)std::size(kb_key)
-				|| (settings.platform.isConsole() && config::MapleMainDevices[port] != MDT_Keyboard)
-				|| (settings.platform.isNaomi() && settings.input.JammaSetup != JVS::Keyboard)
-				|| settings.platform.isAtomiswave())
+				|| (settings.platform.isConsole() && (!portIsValid || config::MapleMainDevices[port] != MDT_Keyboard))
+				|| (settings.platform.isArcade() && !settings.input.keyboardGame))
 			gamepad_btn_input(keycode, pressed);
 	}
 
@@ -471,4 +492,5 @@ private:
 
 	int _modifier_keys = 0;
 	u32 _kb_used = 0;
+	bool bypass_kb = false;
 };

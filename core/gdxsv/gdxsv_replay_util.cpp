@@ -2,11 +2,11 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #define stat _stat
 #define WIN32_LEAN_AND_MEAN
 // clang-format off
@@ -21,8 +21,8 @@
 #include "libs.h"
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
-#include "rend/boxart/http_client.h"
-#include "rend/gui_util.h"
+#include "oslib/http_client.h"
+#include "ui/gui_util.h"
 #include "stdclass.h"
 
 // For macOS

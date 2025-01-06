@@ -8,7 +8,7 @@
 		#define __USE_GNU 1
 	#endif
 
-	#if !defined(TARGET_NO_EXCEPTIONS) && !defined(__OpenBSD__)
+	#if !defined(__OpenBSD__)
 		#include <ucontext.h>
 	#endif
 
@@ -39,7 +39,6 @@ static void bicopy(Tctx& ctx, Tseg& seg)
 template<bool ToSegfault>
 static void context_segfault(host_context_t* hostctx, void* segfault_ctx)
 {
-#if !defined(TARGET_NO_EXCEPTIONS)
 #if HOST_CPU == CPU_ARM
 	#if defined(__FreeBSD__)
 		bicopy<ToSegfault>(hostctx->pc, MCTX(.__gregs[_REG_PC]));
@@ -65,6 +64,15 @@ static void context_segfault(host_context_t* hostctx, void* segfault_ctx)
 	#if defined(__APPLE__)
 		bicopy<ToSegfault>(hostctx->pc, MCTX(->__ss.__pc));
 		bicopy<ToSegfault>(hostctx->x0, MCTX(->__ss.__x[0]));
+	#elif defined(__FreeBSD__)
+		bicopy<ToSegfault>(hostctx->pc, MCTX(.mc_gpregs.gp_elr));
+		bicopy<ToSegfault>(hostctx->x0, MCTX(.mc_gpregs.gp_x[0]));
+	#elif defined(__NetBSD__)
+		bicopy<ToSegfault>(hostctx->pc, MCTX(.__gregs[_REG_ELR]));
+		bicopy<ToSegfault>(hostctx->x0, MCTX(.__gregs[_REG_X0]));
+	#elif defined(__OpenBSD__)
+		bicopy<ToSegfault>(hostctx->pc, MCTX(->sc_elr));
+		bicopy<ToSegfault>(hostctx->x0, MCTX(->sc_x[0]));
  	#else
  		bicopy<ToSegfault>(hostctx->pc, MCTX(.pc));
  		bicopy<ToSegfault>(hostctx->x0, MCTX(.regs[0]));
@@ -91,6 +99,9 @@ static void context_segfault(host_context_t* hostctx, void* segfault_ctx)
 #elif HOST_CPU == CPU_X64
 	#if defined(__FreeBSD__) || defined(__DragonFly__)
 		bicopy<ToSegfault>(hostctx->pc, MCTX(.mc_rip));
+		bicopy<ToSegfault>(hostctx->rsp, MCTX(.mc_rsp));
+		bicopy<ToSegfault>(hostctx->r9, MCTX(.mc_r9));
+		bicopy<ToSegfault>(hostctx->rdi, MCTX(.mc_rdi));
 	#elif defined(__OpenBSD__)
 		bicopy<ToSegfault>(hostctx->pc, MCTX(->sc_rip));
 		bicopy<ToSegfault>(hostctx->rsp, MCTX(->sc_rsp));
@@ -114,15 +125,9 @@ static void context_segfault(host_context_t* hostctx, void* segfault_ctx)
     #else
         #error "Unsupported OS"
 	#endif
-#elif HOST_CPU == CPU_MIPS
-	bicopy<ToSegfault>(hostctx->pc, MCTX(.pc));
-#elif HOST_CPU == CPU_GENERIC
-    //nothing!
 #else
 	#error Unsupported HOST_CPU
 #endif
-	#endif
-	
 }
 
 void context_from_segfault(host_context_t* hostctx, void* segfault_ctx) {

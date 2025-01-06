@@ -13,6 +13,7 @@
 #include <mach/mach_port.h>
 
 #include "types.h"
+#include "cfg/option.h"
 #include "log/LogManager.h"
 #if defined(USE_SDL)
 #include "sdl/sdl.h"
@@ -20,7 +21,7 @@
 #include "stdclass.h"
 #include "oslib/oslib.h"
 #include "emulator.h"
-#include "rend/mainui.h"
+#include "ui/mainui.h"
 #include <future>
 
 #import <SystemConfiguration/SystemConfiguration.h>
@@ -35,7 +36,9 @@ int darw_printf(const char* text, ...)
     va_end(args);
     
     NSString* log = [NSString stringWithCString:temp encoding: NSUTF8StringEncoding];
-    static bool isXcode = [[[NSProcessInfo processInfo] environment][@"OS_ACTIVITY_DT_MODE"] boolValue];
+    NSDictionary<NSString *, NSString *>* env = [[NSProcessInfo processInfo] environment];
+    static bool isXcode = [env[@"OS_ACTIVITY_DT_MODE"] boolValue] || [env[@"COMMAND_MODE"] isEqualToString:@"unix2003"] || [env[@"TERM"] isEqualToString:@"dumb"];
+	
     if (isXcode) // Xcode console does not support colors
     {
         log = [log stringByReplacingOccurrencesOfString:@"\x1b[0m" withString:@""];
@@ -48,10 +51,6 @@ int darw_printf(const char* text, ...)
     return 0;
 }
 
-void os_SetWindowText(const char * text) {
-    puts(text);
-}
-
 void os_DoEvents() {
 #if defined(USE_SDL)
 	NSMenuItem *editMenuItem = [[NSApp mainMenu] itemAtIndex:1];
@@ -59,45 +58,6 @@ void os_DoEvents() {
 #endif
 }
 
-void UpdateInputState() {
-#if defined(USE_SDL)
-	input_sdl_handle();
-#endif
-}
-
-void os_CreateWindow() {
-#ifdef DEBUG
-    int ret = task_set_exception_ports(
-                                       mach_task_self(),
-                                       EXC_MASK_BAD_ACCESS,
-                                       MACH_PORT_NULL,
-                                       EXCEPTION_DEFAULT,
-                                       0);
-    
-    if (ret != KERN_SUCCESS) {
-        printf("task_set_exception_ports: %s\n", mach_error_string(ret));
-    }
-#endif
-	//For settings.dreamcast.ContentPath.emplace_back("./"), Since macOS app bundle cwd is at "/"
-	chdir([[[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent] cStringUsingEncoding:NSUTF8StringEncoding]);
-	sdl_window_create();
-}
-
-void os_SetupInput()
-{
-#if defined(USE_SDL)
-	input_sdl_init();
-#endif
-}
-
-void os_TermInput()
-{
-#if defined(USE_SDL)
-	input_sdl_quit();
-#endif
-}
-
-void common_linux_setup();
 static int emu_flycast_init();
 
 static void emu_flycast_term()
@@ -148,13 +108,33 @@ extern "C" int SDL_main(int argc, char *argv[])
     CFRelease(mainBundle);
 
 	emu_flycast_init();
+	
+	int boardId = cfgLoadInt("naomi", "BoardId", 0);
+	if (boardId > 0)
+	{
+		NSString *label = @"S";		// Slave
+		if (config::MultiboardSlaves == 2) // 1 = Single, 2 = Deluxe
+		{
+			switch (boardId) {
+				case 1:
+					label = @"C";	// Center
+					break;
+				case 2:
+					label = @"L";	// Left
+					break;
+				case 3:
+					label = @"R";	// Right
+			}
+		}
+		[[NSApp dockTile] setBadgeLabel:label];
+	}
+	
 #ifdef USE_BREAKPAD
 	auto async = std::async(std::launch::async, uploadCrashes, "/tmp");
 #endif
 
 	mainui_loop();
 
-	sdl_window_destroy();
 	emu_flycast_term();
 	os_UninstallFaultHandler();
 
@@ -164,7 +144,7 @@ extern "C" int SDL_main(int argc, char *argv[])
 static int emu_flycast_init()
 {
 	LogManager::Init();
-	common_linux_setup();
+	os_InstallFaultHandler();
 	NSArray *arguments = [[NSProcessInfo processInfo] arguments];
 	unsigned long argc = [arguments count];
 	char **argv = (char **)malloc(argc * sizeof(char*));
@@ -183,6 +163,19 @@ static int emu_flycast_init()
 	for (unsigned long i = 0; i < paramCount; i++)
 		free(argv[i]);
 	free(argv);
+
+#if defined(DEBUG) || defined(DEBUGFAST)
+    int ret = task_set_exception_ports(
+                                       mach_task_self(),
+                                       EXC_MASK_BAD_ACCESS,
+                                       MACH_PORT_NULL,
+                                       EXCEPTION_DEFAULT,
+                                       0);
+    
+    if (ret != KERN_SUCCESS) {
+        printf("task_set_exception_ports: %s\n", mach_error_string(ret));
+    }
+#endif
 	
 	return rc;
 }
@@ -299,14 +292,13 @@ void os_RunInstance(int argc, const char *argv[])
 static SyphonOpenGLServer* syphonGLServer;
 static SyphonMetalServer* syphonMtlServer;
 
-void os_VideoRoutingInitSyphonWithGLContext(void* glContext)
-{
-	int boardID = cfgLoadInt("naomi", "BoardId", 0);
-	syphonGLServer = [[SyphonOpenGLServer alloc] initWithName:[NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] context:[(__bridge NSOpenGLContext*)glContext CGLContextObj] options:nil];
-}
-
 void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w, float h)
 {
+	if (syphonGLServer == NULL)
+	{
+		int boardID = cfgLoadInt("naomi", "BoardId", 0);
+		syphonGLServer = [[SyphonOpenGLServer alloc] initWithName:[NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] context:[SDL_GL_GetCurrentContext() CGLContextObj] options:nil];
+	}
 	CGLLockContext([syphonGLServer context]);
 	[syphonGLServer publishFrameTexture:texID textureTarget:texTarget imageRegion:NSMakeRect(0, 0, w, h) textureDimensions:NSMakeSize(w, h) flipped:NO];
 	CGLUnlockContext([syphonGLServer context]);
@@ -319,18 +311,18 @@ void os_VideoRoutingTermGL()
 	syphonGLServer = NULL;
 }
 
-void os_VideoRoutingInitSyphonWithVkDevice(const vk::UniqueDevice& device)
-{
-	vk::ExportMetalDeviceInfoEXT deviceInfo;
-	auto objectsInfo = vk::ExportMetalObjectsInfoEXT(&deviceInfo);
-	device->exportMetalObjectsEXT(&objectsInfo);
-	
-	int boardID = cfgLoadInt("naomi", "BoardId", 0);
-	syphonMtlServer = [[SyphonMetalServer alloc] initWithName:[NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] device:deviceInfo.mtlDevice options:nil];
-}
-
 void os_VideoRoutingPublishFrameTexture(const vk::Device& device, const vk::Image& image, const vk::Queue& queue, float x, float y, float w, float h)
 {
+	if (syphonMtlServer == NULL)
+	{
+		vk::ExportMetalDeviceInfoEXT deviceInfo;
+		auto objectsInfo = vk::ExportMetalObjectsInfoEXT(&deviceInfo);
+		device.exportMetalObjectsEXT(&objectsInfo);
+		
+		int boardID = cfgLoadInt("naomi", "BoardId", 0);
+		syphonMtlServer = [[SyphonMetalServer alloc] initWithName:[NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] device:deviceInfo.mtlDevice options:nil];
+	}
+	
 	auto textureInfo = vk::ExportMetalTextureInfoEXT(image);
 	auto commandInfo = vk::ExportMetalCommandQueueInfoEXT(queue);
 	commandInfo.pNext = &textureInfo;
@@ -347,4 +339,15 @@ void os_VideoRoutingTermVk()
 	[syphonMtlServer stop];
 	[syphonMtlServer release];
 	syphonMtlServer = NULL;
+}
+
+namespace hostfs
+{
+
+std::string getScreenshotsPath()
+{
+	NSArray *paths = NSSearchPathForDirectoriesInDomains(NSPicturesDirectory, NSUserDomainMask, YES);
+	return [[paths objectAtIndex:0] UTF8String];
+}
+
 }
