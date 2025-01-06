@@ -107,7 +107,7 @@ Udp::SendTo(char *buffer, int len, int flags, struct sockaddr *dst, int destlen)
       if (err != WSAEWOULDBLOCK) {
          LogError("unknown error in sendto (erro: %d  wsaerr: %d).", res, err);
       }
-      ASSERT(false && "Unknown error in sendto");
+      // ASSERT(false && "Unknown error in sendto");
       return;
    }
    char dst_ip[1024];
