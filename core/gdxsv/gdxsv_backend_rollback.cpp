@@ -142,7 +142,6 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	static auto session_start_time = std::chrono::high_resolution_clock::now();
 	if (state_ == State::StartGGPOSession) {
 		NOTICE_LOG(COMMON, "StartGGPOSession");
-
 		/*
 		if (matching_.peer_id() == 0) {
 			ping_pong_.DebugSetRtt(0, 1, 10);
@@ -156,7 +155,6 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 			ping_pong_.PrintRttMatrix();
 		}
 		*/
-
 		bool ok = true;
 		uint8_t rtt_matrix[4][4] = {};
 		ping_pong_.GetRttMatrix(rtt_matrix);
@@ -1121,6 +1119,8 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	ImGui::Text(ts.c_str());
 
 	// Predicted Frames
+	if (stats[me].sync.predicted_frames < 0)
+		stats[me].sync.predicted_frames = 0;
 	if (stats[me].sync.predicted_frames >= 5)
 		// red
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.6f, .2f, .2f, 1));
@@ -1138,6 +1138,10 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 		if (is_connected[i]) {
 			// Ping
 			ImGui::Text("Ping");
+			if (stats[i].network.is_relay) {
+				ImGui::SameLine();
+				ImGui::Text("(Relay)");
+			}
 			ImGui::PushStyleColor(ImGuiCol_Text, msColor(stats[i].network.ping).Value);
 			std::string ping = std::to_string(stats[i].network.ping);
 			ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ping.c_str()).x);

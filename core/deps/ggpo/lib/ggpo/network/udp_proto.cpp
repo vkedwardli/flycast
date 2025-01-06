@@ -754,6 +754,7 @@ UdpProtocol::GetNetworkStats(struct GGPONetworkStats *s)
    s->network.kbps_sent = _kbps_sent;
    s->network.recv_packet_loss = _recv_packet_loss;
    s->network.send_packet_loss = _send_packet_loss;
+   s->network.is_relay = _relay;
    s->timesync.remote_frames_behind = _remote_frame_advantage;
    s->timesync.local_frames_behind = _local_frame_advantage;
 }

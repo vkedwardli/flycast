@@ -36,6 +36,7 @@ struct NetworkStats {
       int   kbps_sent;
       int   recv_packet_loss;
       int   send_packet_loss;
+      int   is_relay;
    } network;
    struct {
       int   local_frames_behind;
