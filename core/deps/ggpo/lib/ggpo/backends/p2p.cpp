@@ -641,10 +641,11 @@ Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
       if (msg->hdr.relay_magic == RELAY_MAGIC) {
          int i = msg->hdr.relay_to_endpoint;
          if (i < _num_players) {
+            Log("Relay msg %d->%d->%d type:%d seq:%d", msg->hdr.remote_endpoint, _local_player_queue, msg->hdr.relay_to_endpoint, msg->hdr.org_type, msg->hdr.sequence_number);
             msg->hdr.type = msg->hdr.org_type;
+            msg->hdr.org_type = UdpMsg::Invalid;
             msg->hdr.relay_magic = 0;
             msg->hdr.relay_to_endpoint = 0;
-            Log("Relay msg %d->%d type:%d", msg->hdr.remote_endpoint, msg->hdr.relay_to_endpoint, msg->hdr.type);
             _endpoints[i].SendUnmanagedMsg(msg, len);
          }
       }

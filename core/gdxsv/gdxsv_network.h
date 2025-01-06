@@ -110,7 +110,9 @@ class UdpPingPong {
 	void AddCandidate(const std::string &user_id, uint8_t peer_id, const std::string &ip, int port);
 	bool GetAvailableAddress(uint8_t peer_id, sockaddr_storage *dst, float *rtt);
 	void GetRttMatrix(uint8_t matrix[N][N]);
+	void PrintRttMatrix();
 	void DebugUnreachable(uint8_t peer_id, uint8_t remote_peer_id);
+	void DebugSetRtt(uint8_t peer_id, uint8_t remote_peer_id, uint8_t rtt);
 
    private:
 	static const uint32_t MAGIC = 2205246188;
@@ -144,6 +146,7 @@ class UdpPingPong {
 	UdpClient client_ = UdpClient{};
 
 	std::recursive_mutex mutex_;
+	uint8_t peer_id_;
 	uint8_t rtt_matrix_[N][N] = {};
 	std::vector<Candidate> candidates_;
 	std::map<std::string, int> user_to_peer_;
