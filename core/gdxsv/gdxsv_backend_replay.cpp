@@ -12,7 +12,9 @@
 #include "libs.h"
 #include "ui/gui.h"
 #include "ui/gui_util.h"
+#include "ui/IconsFontAwesome6.h"
 #include "sdl/sdl.h"
+
 
 using namespace std::chrono;
 
@@ -1001,18 +1003,18 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
 	ImGui::SetNextWindowSize(ScaledVec2(330, 0));
-	ImGui::SetNextWindowBgAlpha(0.7f);
+	ImGui::SetNextWindowBgAlpha(0.9f);
 
 	ImGui::Begin("##gdxsv-replay-pause", NULL,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
 
 	ImGui::Columns(2, "buttons", false);
-	if (ImGui::Button("Stop Replay", ScaledVec2(150, 50))) {
+	if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(150, 50))) {
 		pause_menu_opend_ = false;
 		Stop();
 	}
 	ImGui::NextColumn();
-	if (ImGui::Button("Resume", ScaledVec2(150, 50))) {
+	if (ImGui::Button(ICON_FA_PLAY "  Resume", ScaledVec2(150, 50))) {
 		pause_menu_opend_ = false;
 	}
 	ImGui::EndColumns();
