@@ -449,18 +449,24 @@ bool GamepadDevice::find_mapping(int system /* = settings.platform.system */)
 	return false;
 }
 
-int GamepadDevice::GetGamepadCount() {
-	Lock _(_gamepads_mutex);
-	return _gamepads.size();
+int GamepadDevice::GetGamepadCount()
+{
+	_gamepads_mutex.lock();
+	int count = _gamepads.size();
+	_gamepads_mutex.unlock();
+	return count;
 }
 
 std::shared_ptr<GamepadDevice> GamepadDevice::GetGamepad(int index)
 {
-	Lock _(_gamepads_mutex);
+	_gamepads_mutex.lock();
+	std::shared_ptr<GamepadDevice> dev;
 	if (index >= 0 && index < (int)_gamepads.size())
-		return _gamepads[index];
+		dev = _gamepads[index];
 	else
-		return nullptr;
+		dev = NULL;
+	_gamepads_mutex.unlock();
+	return dev;
 }
 
 void GamepadDevice::save_mapping(int system /* = settings.platform.system */)
@@ -553,19 +559,21 @@ void GamepadDevice::Register(const std::shared_ptr<GamepadDevice>& gamepad)
 			setbuf(record_input, NULL);
 	}
 #endif
-	Lock _(_gamepads_mutex);
+	_gamepads_mutex.lock();
 	_gamepads.push_back(gamepad);
+	_gamepads_mutex.unlock();
 	MapleConfigMap::UpdateVibration = updateVibration;
 }
 
 void GamepadDevice::Unregister(const std::shared_ptr<GamepadDevice>& gamepad)
 {
-	Lock _(_gamepads_mutex);
+	_gamepads_mutex.lock();
 	for (auto it = _gamepads.begin(); it != _gamepads.end(); it++)
 		if (*it == gamepad) {
 			_gamepads.erase(it);
 			break;
 		}
+	_gamepads_mutex.unlock();
 }
 
 void GamepadDevice::SaveMaplePorts()
@@ -607,7 +615,6 @@ s16 (&GamepadDevice::getTargetArray(DigAnalog axis))[4]
 
 void GamepadDevice::rampAnalog()
 {
-	Lock _(rampMutex);
 	if (lastAnalogUpdate == 0)
 		// also used as a flag that no analog ramping is needed on this device (yet)
 		return;
@@ -650,7 +657,7 @@ void GamepadDevice::rampAnalog()
 
 void GamepadDevice::RampAnalog()
 {
-	Lock _(_gamepads_mutex);
+	std::lock_guard<std::mutex> _(_gamepads_mutex);
 	for (auto& gamepad : _gamepads)
 		gamepad->rampAnalog();
 }
