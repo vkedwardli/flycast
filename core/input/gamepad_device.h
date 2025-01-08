@@ -195,6 +195,8 @@ private:
 	
 	static std::vector<std::shared_ptr<GamepadDevice>> _gamepads;
 	static std::mutex _gamepads_mutex;
+
+	using Lock = std::lock_guard<std::mutex>;
 };
 
 #ifdef TEST_AUTOMATION
