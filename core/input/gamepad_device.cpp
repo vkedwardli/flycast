@@ -650,6 +650,7 @@ void GamepadDevice::rampAnalog()
 
 void GamepadDevice::RampAnalog()
 {
+	if ( gdxsv_enabled() ) return;
 	Lock _(_gamepads_mutex);
 	for (auto& gamepad : _gamepads)
 		gamepad->rampAnalog();

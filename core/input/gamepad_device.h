@@ -174,9 +174,24 @@ private:
 			digitalToAnalogState[port] |= axis;
 		else
 			digitalToAnalogState[port] &= ~axis;
+		
+		extern bool gdxsv_enabled();
+		if ( gdxsv_enabled() )
+		{
+			const u32 socd = digitalToAnalogState[port] & (NegDir | PosDir);
+			if (socd == 0 || socd == (NegDir | PosDir))
+				joystick = 0;
+			else if (socd == NegDir)
+				joystick = -32768;
+			else
+				joystick = 32767;
+		} else {
+			
 		rampAnalogState[port] |= NegDir;
 		if (lastAnalogUpdate == 0)
 			lastAnalogUpdate = getTimeMs();
+		
+		} // gdxsv_enabled()
 	}
 
 	s16 (&getTargetArray(DigAnalog axis))[4];
