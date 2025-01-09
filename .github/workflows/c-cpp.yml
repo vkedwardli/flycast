@@ -14,7 +14,7 @@ jobs:
           - {name: apple-darwin, os: macos-latest, cmakeArgs: -G "Xcode", destDir: osx, buildType: Release}
           - {name: apple-ios, os: macos-latest, cmakeArgs: -DCMAKE_SYSTEM_NAME=iOS -G "Xcode", destDir: ios, buildType: Release}
           - {name: x86_64-pc-linux-gnu, os: ubuntu-latest, buildType: Release}
-          - {name: x86_64-pc-windows-msvc, os: windows-latest, cmakeArgs: -DCMAKE_SYSTEM_VERSION="10.0.18362.0" -G "Visual Studio 16 2019" -A x64, buildType: Release}
+          - {name: x86_64-pc-windows-msvc, os: windows-latest, cmakeArgs: -G "Visual Studio 17 2022" -A x64 -DVCPKG_TARGET_TRIPLET=x64-windows-static, buildType: Release}
           - {name: x86_64-w64-mingw32, os: windows-latest, cmakeArgs: -G "MinGW Makefiles", destDir: win, buildType: RelWithDebInfo}
           - {name: libretro-x86_64-pc-linux-gnu, os: ubuntu-latest, cmakeArgs: -DLIBRETRO=ON -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE, buildType: Release}
           - {name: libretro-x86_64-w64-mingw32, os: windows-latest, cmakeArgs: -DLIBRETRO=ON -G "MinGW Makefiles", buildType: Release}
