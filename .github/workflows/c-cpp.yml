@@ -7,147 +7,145 @@ jobs:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
 
+    defaults:
+      run:
+        shell: ${{ matrix.config.shell }}
+
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+
     strategy:
       matrix:
         config:
-          - {name: i686-pc-windows-msvc, os: windows-latest, cmakeArgs: -DCMAKE_SYSTEM_VERSION="10.0.18362.0" -G "Visual Studio 16 2019" -A Win32, buildType: Release}
-          - {name: apple-darwin, os: macos-latest, cmakeArgs: -G "Xcode", destDir: osx, buildType: Release}
-          - {name: apple-ios, os: macos-latest, cmakeArgs: -DCMAKE_SYSTEM_NAME=iOS -G "Xcode", destDir: ios, buildType: Release}
-          - {name: x86_64-pc-linux-gnu, os: ubuntu-latest, buildType: Release}
-          - {name: x86_64-pc-windows-msvc, os: windows-latest, cmakeArgs: -G "Visual Studio 17 2022" -A x64 -DVCPKG_TARGET_TRIPLET=x64-windows-static, buildType: Release}
-          - {name: x86_64-w64-mingw32, os: windows-latest, cmakeArgs: -G "MinGW Makefiles", destDir: win, buildType: RelWithDebInfo}
-          - {name: libretro-x86_64-pc-linux-gnu, os: ubuntu-latest, cmakeArgs: -DLIBRETRO=ON -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE, buildType: Release}
-          - {name: libretro-x86_64-w64-mingw32, os: windows-latest, cmakeArgs: -DLIBRETRO=ON -G "MinGW Makefiles", buildType: Release}
+          #- {name: i686-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x86, cmakeArgs: -G Ninja, buildType: Release}
+          # - {name: apple-darwin, os: macos-latest, shell: sh, cmakeArgs: -G Xcode -DUSE_DISCORD=ON, destDir: osx, buildType: RelWithDebInfo}
+          # - {name: apple-ios, os: macos-latest, shell: sh, cmakeArgs: -DCMAKE_SYSTEM_NAME=iOS -G Xcode, destDir: ios, buildType: Release}
+          # - {name: x86_64-pc-linux-gnu, os: ubuntu-20.04, shell: sh, cmakeArgs: -G Ninja -DUSE_DISCORD=ON -DUSE_LIBCDIO=ON, destDir: linux, buildType: RelWithDebInfo}
+          - {name: x86_64-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x64, cmakeArgs: -G Ninja -DUSE_DISCORD=ON, buildType: Release}
+          # - {name: x86_64-w64-mingw32, os: windows-latest, shell: 'msys2 {0}', cmakeArgs: -G Ninja -DUSE_DISCORD=ON -DUSE_LIBCDIO=ON, destDir: win, buildType: RelWithDebInfo}
+          # - {name: libretro-x86_64-pc-linux-gnu, os: ubuntu-22.04, shell: sh, cmakeArgs: -DLIBRETRO=ON -DUSE_LIBCDIO=ON -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE -G Ninja, buildType: Release}
+          # - {name: libretro-x86_64-w64-mingw32, os: windows-latest, shell: 'msys2 {0}', cmakeArgs: -DLIBRETRO=ON -DUSE_LIBCDIO=ON -G Ninja, buildType: Release}
 
     steps:
-      - name: Set up build environment (macos-latest)
+      - name: Set up build environment (macOS)
         run: |
-          brew install ccache libao libomp pulseaudio zlib ldid
-          echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
-          echo "CCACHE_DIR=/tmp/ccache" >> $GITHUB_ENV
-        if: matrix.config.os == 'macos-latest'
+          # Unlink and re-link to prevent errors when github mac runner images install python outside of brew. See https://github.com/actions/setup-python/issues/577
+          brew list -1 | grep python | while read formula; do brew unlink $formula; brew link --overwrite $formula; done
+          brew update || :
+          brew install libao ldid ninja pulseaudio
+          brew uninstall --ignore-dependencies zstd
+          VULKAN_VER=1.3.261.1 && aria2c https://sdk.lunarg.com/sdk/download/$VULKAN_VER/mac/vulkansdk-macos-$VULKAN_VER.dmg
+          hdiutil attach ./vulkansdk-macos-*.dmg -mountpoint /Volumes/VulkanSDK
+          sudo /Volumes/VulkanSDK/InstallVulkan.app/Contents/MacOS/InstallVulkan --root $HOME/VulkanSDK --accept-licenses --default-answer --confirm-command install
+          hdiutil detach /Volumes/VulkanSDK
+          echo "VULKAN_SDK=$HOME/VulkanSDK/macOS" >> $GITHUB_ENV
+        if: runner.os == 'macOS'
 
-      - name: Set up build environment (ubuntu-latest)
+      - name: Set up build environment (Linux)
         run: |
+          sudo add-apt-repository ppa:christianrauch/libdecoration
           sudo apt-get update
-          sudo apt-get -y install ccache libao-dev libasound2-dev libevdev-dev libgl1-mesa-dev libpulse-dev libsdl2-dev libudev-dev libzip-dev libminiupnpc-dev
-          echo "CCACHE_DIR=/tmp/ccache" >> $GITHUB_ENV
-        if: matrix.config.os == 'ubuntu-latest'
+          sudo apt-get -y install ccache libao-dev libasound2-dev libevdev-dev libgl1-mesa-dev liblua5.3-dev libminiupnpc-dev libpulse-dev libsdl2-dev libudev-dev libzip-dev ninja-build libcurl4-openssl-dev libcdio-dev
+          sudo apt-get -y install libwayland-dev libdecor-0-dev libaudio-dev libjack-dev libsndio-dev libsamplerate0-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev libdrm-dev libgbm-dev libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev fcitx-libs-dev
+        if: runner.os == 'Linux'
 
-      - name: Set up build environment (windows-latest)
-        run: echo "DXSDK_DIR=${Env:HOMEDRIVE}${Env:HOMEPATH}\ccache\" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
-        if: matrix.config.os == 'windows-latest' && matrix.config.name != 'libretro-x86_64-w64-mingw32'
-
-      - uses: actions/cache@v2
-        with:
-          path: /tmp/ccache
-          key: ccache-${{ matrix.config.os }}-${{ github.sha }}
-          restore-keys: ccache-${{ matrix.config.os }}-
-        if: matrix.config.os != 'windows-latest'
-
-      - uses: actions/cache@v2
-        id: cache
-        with:
-          path: $HOME/ccache
-          key: ccache-${{ matrix.config.os }}-${{ github.sha }}
-          restore-keys: ccache-${{ matrix.config.os }}-
-        if: matrix.config.os == 'windows-latest'
-
-      - name: Download DX2010
-        if: matrix.config.os == 'windows-latest' && matrix.config.name != 'libretro-x86_64-w64-mingw32'
-        run:   |
-               curl -L https://download.microsoft.com/download/a/e/7/ae743f1f-632b-4809-87a9-aa1bb3458e31/DXSDK_Jun10.exe -o _DX2010_.exe
-               7z x _DX2010_.exe DXSDK/Include -o_DX2010_
-               7z x _DX2010_.exe DXSDK/Lib/x86 -o_DX2010_
-               7z x _DX2010_.exe DXSDK/Lib/x64 -o_DX2010_
-               mv _DX2010_/DXSDK $HOME/ccache
-               rm -fR _DX*_ _DX*_.exe
-        shell: bash
-
-      - name: Install MSYS2
+      - name: Set up build environment (Windows, MinGW)
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: git base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-breakpad-git
-        if: matrix.config.os == 'windows-latest'
+          install: git make mingw-w64-x86_64-ccache mingw-w64-x86_64-cmake mingw-w64-x86_64-lua mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-toolchain mingw-w64-x86_64-libcdio
+        if: matrix.config.shell == 'msys2 {0}'
 
-      - name: Downgrade gcc to 10.3
+      - name: Set up build environment (Windows, Visual Studio)
         run: |
-          pacman -U --noconfirm https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-libs-10.3.0-8-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-10.3.0-8-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-ada-10.3.0-8-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-fortran-10.3.0-8-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-libgfortran-10.3.0-8-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-objc-10.3.0-8-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libgccjit-10.3.0-8-any.pkg.tar.zst
-          pacman -U --noconfirm https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-crt-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-headers-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libmangle-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libwinpthread-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-tools-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-winpthreads-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-winstorecompat-git-9.0.0.6246.ae63cde27-1-any.pkg.tar.zst
-          pacman -U --noconfirm https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-cmake-3.20.5-2-any.pkg.tar.zst
-        shell: msys2 {0}
-        if: matrix.config.os == 'windows-latest-disable'
+          choco install ccache directx-sdk ninja
+          echo DXSDK_DIR=C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)>> %GITHUB_ENV%
+        if: matrix.config.shell == 'cmd'
 
-      - uses: actions/checkout@v2
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.config.arch }}
+        if: matrix.config.shell == 'cmd'
+
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: true
+          submodules: recursive
 
-      - name: Create artifact directory
-        run: mkdir -p build/artifact
-
-      - name: Build SDL (macos)
-        run: |
-          cd shell/apple
-          mkdir artifacts
-          brew install --build-from-source ./sdl2.rb
+      - name: Compile a universal OpenMP (macOS)
+        run: HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew reinstall --build-from-source --formula ./shell/apple/libomp.rb
         if: matrix.config.name == 'apple-darwin'
+
+      - name: Compile OpenMP.xcframework (iOS)
+        run: ./shell/apple/emulator-ios/OpenMP/build_ios_openmp.sh --disableSimulator
+        if: matrix.config.name == 'apple-ios'
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ matrix.config.name }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.config.name }}-
+        if: runner.os != 'macOS'
 
       - name: CMake
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=artifact -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=artifact ${{ matrix.config.cmakeArgs }}
-          cmake --build build --config Release --parallel 2
-        if: matrix.config.os != 'windows-latest'
-
-      - name: CMake (windows)
-        shell: msys2 {0}
-        run: |
-          unset temp tmp
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=artifact -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO=artifact -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=artifact ${{ matrix.config.cmakeArgs }}
-          cmake --build build --config Release --parallel 2
-        if: matrix.config.os == 'windows-latest'
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_INSTALL_PREFIX=artifact ${{ matrix.config.cmakeArgs }} -DSENTRY_UPLOAD_URL=${{ env.SENTRY_UPLOAD_URL }}
+          cmake --build build --config ${{ matrix.config.buildType }} --target install
+        env:
+          SENTRY_UPLOAD_URL: ${{ secrets.SENTRY_UPLOAD_URL }}
 
       - name: Unit Tests
         run: |
-          mkdir -p build/tests
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=tests -DENABLE_CTEST=ON ${{ matrix.config.cmakeArgs }}
-          cmake --build build --config Release --parallel 2
-          ./build/tests/flycast
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_INSTALL_PREFIX=artifact -DENABLE_CTEST=ON ${{ matrix.config.cmakeArgs }}
+          cmake --build build --config ${{ matrix.config.buildType }}
+          ./build/flycast
         if: matrix.config.name == 'x86_64-pc-linux-gnu'
 
       - name: Dump symbols
-        shell: msys2 {0}
         run: |
-          dump_syms build/artifact/flycast.exe > flycast.exe.sym 2>/dev/null
-          BUILD_ID=`head -1 flycast.exe.sym | awk '{ print $4 }'`
-          mkdir -p symbols/flycast.exe/$BUILD_ID
-          mv flycast.exe.sym symbols/flycast.exe/$BUILD_ID
-          strip build/artifact/flycast.exe
+          mkdir -p symbols
+          core/deps/breakpad/bin/dump_syms artifact/bin/flycast.exe > symbols/flycast.sym 2>/dev/null
+          strip artifact/bin/flycast.exe
         if: matrix.config.name == 'x86_64-w64-mingw32'
+
+      - name: Build breakpad (linux)
+        working-directory: core/deps/breakpad
+        run: |
+          ./configure
+          make
+          sudo make install
+        if: matrix.config.name == 'x86_64-pc-linux-gnu'
+
+      - name: Dump symbols and make AppImage (linux)
+        run: |
+          mkdir -p symbols
+          dump_syms artifact/bin/flycast > symbols/flycast.sym 2>/dev/null
+          strip artifact/bin/flycast
+          shell/linux/make-appimage.sh . artifact/bin appimage
+          mv flycast-x86_64.AppImage artifact/bin
+          rm artifact/bin/flycast
+        if: matrix.config.name == 'x86_64-pc-linux-gnu'
 
       - uses: actions/upload-artifact@v4
         with:
           name: flycast-${{ matrix.config.name }}
-          path: build/artifact
+          path: artifact/bin
 
       - name: Package app (macos)
         run: |
-          cd build/artifact
-          rm -rf Flycast.swiftmodule
-          zip -r flycast.app.zip Flycast.app
-          rm -rf Flycast.app
+          cd artifact/bin
+          zip -rm flycast.app.zip Flycast.app
         if: matrix.config.name == 'apple-darwin'
 
       - name: Package app (windows)
         run: |
-          powershell Compress-Archive build/artifact/flycast.exe build/artifact/flycast.zip 
-          rm build/artifact/flycast.exe
+          powershell Compress-Archive artifact/bin/flycast.exe artifact/bin/flycast.zip 
+          rm artifact/bin/flycast.exe
         if: matrix.config.name == 'x86_64-w64-mingw32'
 
       - name: Configure AWS Credentials
         id: aws-credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: AKIAJOZQS4H2PHQWYFCA
           aws-secret-access-key: ${{ secrets.S3_SECRET_KEY }}
@@ -155,11 +153,30 @@ jobs:
         if: github.repository == 'flyinghead/flycast' && github.event_name == 'push' && matrix.config.destDir != ''
 
       - name: Upload to S3
-        run: aws s3 sync build/artifact s3://flycast-builds/${{ matrix.config.destDir }}/${GITHUB_REF#refs/}-$GITHUB_SHA --acl public-read --follow-symlinks
+        run: aws s3 sync artifact/bin s3://flycast-builds/${{ matrix.config.destDir }}/${GITHUB_REF#refs/}-$GITHUB_SHA --acl public-read --follow-symlinks
         shell: bash
         if: ${{ steps.aws-credentials.outputs.aws-account-id != '' }}
 
-      - name: Upload symbols to S3
-        run: aws s3 sync symbols s3://flycast-symbols/${{ matrix.config.destDir }} --follow-symlinks
-        if: ${{ steps.aws-credentials.outputs.aws-account-id != '' && matrix.config.os == 'windows-latest' }}
+      - name: Setup Sentry CLI
+        uses: mathieu-bour/setup-sentry-cli@v2
+        env:
+          SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
+        with:
+          url: https://sentry.io
+          token: ${{ env.SENTRY_TOKEN }}
+          organization: flycast
+          project: minidump
+          version: 2.21.2
+        if: ${{ env.SENTRY_TOKEN != '' }}
+      
+      - name: Upload symbols to Sentry (Windows, macOS, Linux)
+        run: |
+          VERSION=$(git describe --tags --always)
+          sentry-cli releases new "$VERSION"
+          sentry-cli releases set-commits "$VERSION" --auto
+          sentry-cli debug-files upload symbols
+        shell: bash
+        env:
+          SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
+        if: ${{ env.SENTRY_TOKEN != '' && (matrix.config.name == 'x86_64-w64-mingw32' || matrix.config.name == 'apple-darwin' || matrix.config.name == 'x86_64-pc-linux-gnu') }}
         
