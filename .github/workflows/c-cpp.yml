@@ -31,7 +31,7 @@ jobs:
       matrix:
         config:
           # - {name: i686-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x86, cmakeArgs: -G Ninja, buildType: Release}
-          - {name: apple-darwin, os: macos-latest, shell: sh, cmakeArgs: -G Xcode -DAPPLE_BREAKPAD=ON, destDir: osx, buildType: RelWithDebInfo, packageName: flycast-gdxsv-macos-x86_64.zip}
+          - {name: apple-darwin, os: macos-latest, shell: sh, cmakeArgs: -G Xcode, destDir: osx, buildType: RelWithDebInfo, packageName: flycast-gdxsv-macos-x86_64.zip}
           # - {name: apple-ios, os: macos-latest, shell: sh, cmakeArgs: -DCMAKE_SYSTEM_NAME=iOS -G Xcode, destDir: ios, buildType: Release}
           - {name: x86_64-pc-linux-gnu, os: ubuntu-20.04, shell: sh, cmakeArgs: -G Ninja, destDir: linux, buildType: RelWithDebInfo, packageName: flycast-gdxsv-linux-x86_64.zip}
           - {name: x86_64-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x64, cmakeArgs: -G Ninja -DMSVC_BREAKPAD=ON, destDir: win, buildType: Release, packageName: flycast-gdxsv-windows-msvc.zip}
@@ -194,7 +194,7 @@ jobs:
           version: 2.21.2
         if: ${{ env.SENTRY_TOKEN != '' }}
       
-      - name: Upload symbols to Sentry (Windows-MSVC, macOS, Linux)
+      - name: Upload symbols to Sentry (Windows, macOS, Linux)
         run: |
           VERSION=$(git describe --tags --always --match "gdxsv-*" | sed -E "s/-([0-9]+)-g(.+)$/-dev.\\1+\\2/g")
           sentry-cli releases new "$VERSION"
