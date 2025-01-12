@@ -91,7 +91,7 @@ jobs:
           VERSION=$(git describe --tags --always --match "gdxsv-*" | sed -E "s/-([0-9]+)-g(.+)$/-dev.\\1+\\2/g")
           echo $VERSION
           # Auto increment semver if it is prelease, since 1.2.3-beta.1 < 1.2.3
-          if [[ "$VERSION" =~ -dev\.([0-9]+)\+ ]]; then
+          if [[ "$VERSION" =~ \.([0-9]+)-dev.[0-9]+\+ ]]; then
             DEV_VERSION="${BASH_REMATCH[1]}"
             DEV_VERSION=$((DEV_VERSION + 1))
             VERSION=$(echo "$VERSION" | sed -E "s/-dev\.[0-9]+/-dev.${DEV_VERSION}/")
@@ -212,7 +212,7 @@ jobs:
         run: |
           VERSION=$(git describe --tags --always --match "gdxsv-*" | sed -E "s/-([0-9]+)-g(.+)$/-dev.\\1+\\2/g")
           # Auto increment semver if it is prelease, since 1.2.3-beta.1 < 1.2.3
-          if [[ "$VERSION" =~ -dev\.([0-9]+)\+ ]]; then
+          if [[ "$VERSION" =~ \.([0-9]+)-dev.[0-9]+\+ ]]; then
             DEV_VERSION="${BASH_REMATCH[1]}"
             DEV_VERSION=$((DEV_VERSION + 1))
             VERSION=$(echo "$VERSION" | sed -E "s/-dev\.[0-9]+/-dev.${DEV_VERSION}/")
