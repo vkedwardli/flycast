@@ -3532,6 +3532,11 @@ static void drawBoxartBackground()
 	tex.draw(dl, ImVec2(0, 0), ImVec2(settings.display.width, settings.display.height), 1.f);
 }
 
+void gui_draw_boxart_background()
+{
+	drawBoxartBackground();
+}
+
 static std::future<bool> networkStatus;
 
 static void gui_network_start()
@@ -3706,6 +3711,8 @@ void gui_display_ui()
 		gui_cheats();
 		break;
 	case GuiState::GdxsvReplay:
+		break;
+	case GuiState::GdxsvLatencyCheck:
 		break;
 	case GuiState::Achievements:
 #ifdef USE_RACHIEVEMENTS

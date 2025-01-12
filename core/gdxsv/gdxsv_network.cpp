@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "oslib/http_client.h"
+#include "gdxsv.h"
 
 #ifndef _WIN32
 #include <sys/ioctl.h>
@@ -164,10 +165,11 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 				char latency_str[256];
 				snprintf(latency_str, 256, "%s : %d[ms]", region_host.first.c_str(), rtt);
 				NOTICE_LOG(COMMON, "%s", latency_str);
+				gdxsv.SetPingResult(std::string(latency_str));
 			}
 			client.Close();
 		}
-
+		gdxsv.SetPingResult("Done");
 		return test_result;
 	};
 
