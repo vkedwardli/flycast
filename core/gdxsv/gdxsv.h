@@ -71,7 +71,7 @@ class Gdxsv {
 	std::atomic<int> maxlag_;
 	std::atomic<int> maxrebattle_;
 	std::string user_id_;
-	std::string pingResult;
+	std::string pingResult = "Latency check...";
 	std::map<std::string, u32> symbols_;
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;
