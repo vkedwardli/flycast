@@ -67,7 +67,6 @@ option(USE_DX11 "Build with Direct3D 11 support" ON)
 option(LIBRETRO "Build libretro core" OFF)
 option(USE_OPENGL "Use OpenGL API" ON)
 option(USE_VIDEOCORE "RPI: use the legacy Broadcom GLES libraries" OFF)
-option(APPLE_BREAKPAD "macOS: Build breakpad client and dump symbols" OFF)
 option(MSVC_BREAKPAD "Windows MSVC: Build breakpad client" OFF)
 option(USE_ALSA "Build with ALSA support" ON)
 option(USE_LIBAO "Build with AO support" ON)
@@ -325,7 +324,7 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 		)
 		target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/deps/breakpad/src)
 		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
-	elseif(APPLE AND NOT IOS AND APPLE_BREAKPAD)
+	elseif(APPLE AND NOT IOS)
 		target_sources(${PROJECT_NAME} PRIVATE
 			core/deps/breakpad/src/client/minidump_file_writer-inl.h
 			core/deps/breakpad/src/client/minidump_file_writer.cc
