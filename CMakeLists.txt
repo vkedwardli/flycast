@@ -98,8 +98,14 @@ endif()
 
 find_package(Git)
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+	if(MINGW)
+		set(GDXSV_PATTERN "gdxsv-\\*")
+	else()
+		set(GDXSV_PATTERN """gdxsv-*""")
+	endif()
+	message(GDXSV_PATTERN="${GDXSV_PATTERN}")
 	execute_process(
-		COMMAND ${GIT_EXECUTABLE} describe --tags --always
+		COMMAND ${GIT_EXECUTABLE} describe --tags --always --match ${GDXSV_PATTERN}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 		OUTPUT_VARIABLE GIT_VERSION
 		OUTPUT_STRIP_TRAILING_WHITESPACE
