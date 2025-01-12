@@ -48,10 +48,10 @@ u16 convertInput(MapleInputState input) {
 	if (~input.kcode & DC_BTN_START) r |= McsKeyCode::START;
 	if (~input.kcode & (DC_BTN_BITMAPPED_LAST << 1)) r |= McsKeyCode::LT;
 	if (~input.kcode & (DC_BTN_BITMAPPED_LAST << 2)) r |= McsKeyCode::RT;
-	if (input.fullAxes[0] + 128 <= 128 - 0x20) r |= McsKeyCode::LEFT;
-	if (input.fullAxes[0] + 128 >= 128 + 0x20) r |= McsKeyCode::RIGHT;
-	if (input.fullAxes[1] + 128 <= 128 - 0x20) r |= McsKeyCode::UP;
-	if (input.fullAxes[1] + 128 >= 128 + 0x20) r |= McsKeyCode::DOWN;
+	if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) r |= McsKeyCode::LEFT;
+	if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) r |= McsKeyCode::RIGHT;
+	if ((input.fullAxes[1] >> 8) + 128 <= 128 - 0x20) r |= McsKeyCode::UP;
+	if ((input.fullAxes[1] >> 8) + 128 >= 128 + 0x20) r |= McsKeyCode::DOWN;
 	return r;
 }
 
