@@ -988,12 +988,13 @@ void Emulator::start()
 				try {
 					while (state == Running || singleStep || stepRangeTo != 0)
 					{
+						if (!singleStep && stepRangeTo == 0)
+							emu.getSh4Executor()->Start(); // gdxsv: fix blackout on threaded rendering
 						startTime = sh4_sched_now64();
 						renderTimeout = false;
 						runInternal();
 						gdxsv_emu_next_frame();
 						if (ggpo::active()) ggpo::nextFrame();
-						if (!singleStep && stepRangeTo == 0) emu.getSh4Executor()->Start(); // gdxsv: fix blackout on threaded rendering
 					}
 					TermAudio();
 				} catch (...) {
