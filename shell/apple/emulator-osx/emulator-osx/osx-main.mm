@@ -249,9 +249,13 @@ std::string os_GetConnectionMedium() {
 		return "Unknown";
 	}
 	
+	if ([bestInterface hasPrefix:@"utun"] || [bestInterface hasPrefix:@"ppp"] || [bestInterface hasPrefix:@"tun"] || [bestInterface hasPrefix:@"vpn"]) {
+		return "VPN";
+	}
+	
     CFArrayRef ref = SCNetworkInterfaceCopyAll();
     NSArray* networkInterfaces = (__bridge NSArray *)(ref);
-    NSString* interfaceType;
+    NSString* interfaceType = @"";
     for(int i = 0; i < networkInterfaces.count; i++) {
         SCNetworkInterfaceRef interface = (__bridge SCNetworkInterfaceRef)(networkInterfaces[i]);
         NSString* bsdName = (NSString*) SCNetworkInterfaceGetBSDName(interface);
