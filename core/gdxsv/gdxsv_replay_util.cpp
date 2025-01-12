@@ -182,6 +182,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
 		ImGui::SetClipboardText(battle_code.c_str());
 	}
+	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
 	ImGui::Text("Game: %s", game_disk.c_str());
 	ImGui::Text("Players: %d", users_size);
 

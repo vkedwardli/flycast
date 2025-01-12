@@ -34,7 +34,7 @@ static constexpr size_t MaxDownloadSize = 30 * 1024 * 1024;
 static const std::string ReleaseFileName =
 #if HOST_CPU == CPU_X64
 #if defined(_WIN32)
-	"flycast-gdxsv-windows-msvc.zip";
+	"flycast-gdxsv-windows.zip";
 #elif defined(__APPLE__) && !defined(TARGET_IPHONE)
 	"flycast-gdxsv-macos-x86_64.zip";
 #elif defined(__unix__) && !defined(__APPLE__) && !defined(__ANDROID__)

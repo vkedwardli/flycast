@@ -312,6 +312,26 @@ static void wireless_warning_popup() {
 		ImGui::PopStyleVar();
 		ImGui::EndPopup();
 	}
+	
+	if (show_wireless_warning && no_popup_opened && connection_medium == "VPN") {
+		ImGui::OpenPopup("VPN connection detected");
+		show_wireless_warning = false;
+	}
+	
+	if (ImGui::BeginPopupModal("VPN connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
+		ImGui::TextWrapped("  Please DO NOT use VPN!  ");
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		float currentwidth = ImGui::GetContentRegionAvail().x;
+		
+		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
+		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::PopStyleVar();
+		ImGui::EndPopup();
+	}
 }
 
 bool gdxsv_is_using_memwatch() { return gdxsv.Enabled() && gdxsv_save_state.Enabled(); }

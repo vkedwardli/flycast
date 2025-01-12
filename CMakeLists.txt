@@ -367,8 +367,6 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 		)
 		target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/deps/breakpad/src)
 		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
-#[===[  NOTE: gdxsv-flycast uploads dSYM to sentry so no need these steps.
-
 		add_custom_target(dump_syms COMMAND xcodebuild -project ${CMAKE_CURRENT_SOURCE_DIR}/core/deps/breakpad/src/tools/mac/dump_syms/dump_syms.xcodeproj -target dump_syms -configuration Release CONFIGURATION_BUILD_DIR=${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad)
 		ADD_DEPENDENCIES(${PROJECT_NAME} dump_syms)
 
@@ -380,10 +378,10 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 					-a x86_64
 					-g ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Flycast.app.dSYM
 					$<TARGET_FILE:flycast> > ../symbols/Flycast-x64.sym
-				COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad/dump_syms
-					-a arm64
-					-g ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Flycast.app.dSYM
-					$<TARGET_FILE:flycast> > ../symbols/Flycast-arm64.sym
+				# COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad/dump_syms
+				# 	-a arm64
+				# 	-g ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Flycast.app.dSYM
+				# 	$<TARGET_FILE:flycast> > ../symbols/Flycast-arm64.sym
 			)
 		else()
 			add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -395,13 +393,12 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 					-a x86_64
 					-g ${CMAKE_CURRENT_BINARY_DIR}/Flycast.app.dSYM
 					$<TARGET_FILE:flycast> > ../symbols/Flycast-x64.sym
-				COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad/dump_syms
-					-a arm64
-					-g ${CMAKE_CURRENT_BINARY_DIR}/Flycast.app.dSYM
-					$<TARGET_FILE:flycast> > ../symbols/Flycast-arm64.sym
+				# COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad/dump_syms
+				# 	-a arm64
+				# 	-g ${CMAKE_CURRENT_BINARY_DIR}/Flycast.app.dSYM
+				# 	$<TARGET_FILE:flycast> > ../symbols/Flycast-arm64.sym
 			)
 		endif()
-#]===]
 	endif()
 endif()
 
@@ -2264,7 +2261,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/libs.h
 		core/gdxsv/mcs_message.h)
 
-if(MSVC)
+if(WIN32)
 	set(CMAKE_VS_SDK_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES})
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/textures.rc)
 endif()
