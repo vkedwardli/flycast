@@ -198,6 +198,12 @@ jobs:
       - name: Upload symbols to Sentry (Windows, macOS, Linux)
         run: |
           VERSION=$(git describe --tags --always --match "gdxsv-*" | sed -E "s/-([0-9]+)-g(.+)$/-dev.\\1+\\2/g")
+          # Check if the version is a dev version and increment the patch number
+          if [[ "$VERSION" =~ -dev\.([0-9]+) ]]; then
+            PATCH_VERSION="${BASH_REMATCH[1]}"
+            PATCH_VERSION=$((PATCH_VERSION + 1))
+            VERSION=$(echo "$VERSION" | sed -E "s/-dev\.[0-9]+/-dev.${PATCH_VERSION}/")
+          fi
           sentry-cli releases new "$VERSION"
           sentry-cli releases set-commits "$VERSION" --auto
           sentry-cli debug-files upload symbols
