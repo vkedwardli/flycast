@@ -48,6 +48,7 @@ void gdxsv_emu_start() {
 			dc_loadstate(99);
 		} else {
 			gdxsv.StartPingTest();
+			gui_setState(GuiState::GdxsvLatencyCheck);
 			gdxsv.StartUdpPortTest();
 			gdxsv.FetchPublicIP();
 		}
@@ -130,6 +131,29 @@ void gdxsv_emu_gui_display() {
 
 	if (gui_state == GuiState::GdxsvReplay) {
 		gdxsv_replay_select_dialog();
+	}
+	
+	if (gui_state == GuiState::GdxsvLatencyCheck) {
+		gui_draw_boxart_background();
+		centerNextWindow();
+		ImGui::SetNextWindowSize(ScaledVec2(330, 0));
+		ImGui::SetNextWindowBgAlpha(0.8f);
+		ImguiStyleVar _(ImGuiStyleVar_WindowPadding, ScaledVec2(20, 20));
+		
+		if (ImGui::Begin("##latencyCheck", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			ImguiStyleVar _(ImGuiStyleVar_FramePadding, ScaledVec2(20, 10));
+			ImGui::AlignTextToFramePadding();
+			ImGui::SetCursorPosX(uiScaled(20.f));
+			
+			ImGui::Text("%s", gdxsv.PingResult().c_str());
+		}
+		ImGui::End();
+		
+		if (gdxsv.PingResult() == "Done") {
+			gui_state = GuiState::Closed;
+			emu.start();
+		}
 	}
 }
 
