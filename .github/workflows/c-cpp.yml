@@ -119,7 +119,7 @@ jobs:
         run: |
           mkdir -p symbols
           core/deps/breakpad/bin/dump_syms artifact/bin/flycast.exe > symbols/flycast.sym 2>/dev/null
-          sed -i symbols/flycast.sym -e 's#D:\\a\\flycast\\flycast\\build/##' -e 's#D:\\a\\flycast\\flycast\\core\\deps\\breakpad/##' -e 's#D:/a/flycast/##'
+          sed -i symbols/flycast.sym -e 's#D:\\a\\flycast\\flycast\\build/##' -e 's#D:\\a\\flycast\\flycast\\core\\deps\\breakpad/##' -e 's#D:/a/flycast/flycast/##'
           strip artifact/bin/flycast.exe
         if: matrix.config.name == 'x86_64-w64-mingw32'
 
