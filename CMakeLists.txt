@@ -99,7 +99,7 @@ endif()
 find_package(Git)
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
 	execute_process(
-		COMMAND ${GIT_EXECUTABLE} describe --tags --always --match "gdxsv-*"
+		COMMAND ${GIT_EXECUTABLE} describe --tags --always
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 		OUTPUT_VARIABLE GIT_VERSION
 		OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -125,6 +125,9 @@ else()
 	set(GIT_VERSION "v0.0.0-0-g000000000")
 	set(GIT_HASH "000000000")
 endif()
+
+message(GIT_VERSION="${GIT_VERSION}")
+message(GIT_HASH="${GIT_HASH}")
 
 if(WINDOWS_STORE)
 	string(REGEX REPLACE "[Vv]" "" MS_VERSION ${GIT_VERSION})
