@@ -24,6 +24,7 @@ ITERATION = int(os.getenv("ITERATION", 1))
 WIDE = int(os.getenv("WIDE", 0))
 ROM = os.getenv("ROM", r"C:\rom\gdx-disc2\gdx-disc2.gdi")
 FLYCAST = os.getenv("FLYCAST", r"R:\Temp\flycast.exe")
+FLYCAST2 = os.getenv("FLYCAST2")
 GDXSV = os.getenv("GDXSV", r"127.0.0.1")
 REPLAY = os.getenv("REPLAY", "")
 FLYCAST_NAME = Path(FLYCAST).name
@@ -69,7 +70,11 @@ def download_flycast(url: str):
 
 def prepare_workdir(idx: int):
     os.makedirs(f"work/flycast{idx}/data", exist_ok=True)
-    shutil.copy(Path(FLYCAST), f"work/flycast{idx}/")
+    if 2 < idx and FLYCAST2:
+        shutil.copy(Path(FLYCAST2), f"work/flycast{idx}/{FLYCAST_NAME}")
+    else:
+        shutil.copy(Path(FLYCAST), f"work/flycast{idx}/")
+
     for file in glob.glob(os.path.join("work/state", "*.state")):
         if os.path.isfile(file):
             shutil.copy(file, f"work/flycast{idx}/data")
