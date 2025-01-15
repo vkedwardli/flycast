@@ -26,6 +26,7 @@
 #include "oslib/oslib.h"
 #include <algorithm>
 
+#include "sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include "gdxsv/gdxsv_prof.h"
 
@@ -513,7 +514,7 @@ static void ggpoIdleLoop() {
 			if (ggpoSession == nullptr) return;
 			ggpo_idle(ggpoSession, -1); // only pump
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		sleep_us(1000);
 	}
 }
 
@@ -845,7 +846,7 @@ bool nextFrame()
 		}
 		DEBUG_LOG(NETWORK, "ggpo_add_local_input prediction barrier reached");
 		loop_count++;
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		sleep_us(5 * 1000);
 		error = ggpo_idle(ggpoSession, 0);
 		if (error != GGPO_OK)
 		{
@@ -917,7 +918,7 @@ std::future<bool> startNetwork()
 					throw FlycastException("GGPO error");
 				}
 			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			sleep_us(20 * 1000);
 		}
 #ifdef SYNC_TEST
 		// save initial state (frame 0)
@@ -1241,7 +1242,7 @@ std::future<bool> gdxsvStartNetwork(const char* sessionCode, int me,
 					throw FlycastException("GGPO error");
 				}
 			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			sleep_us(20 * 1000);
 		}
 #ifdef SYNC_TEST
 		// save initial state (frame 0)

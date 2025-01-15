@@ -1390,6 +1390,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/nullDC.cpp
 		core/serialize.cpp
 		core/serialize.h
+		core/sleep.cpp
+		core/sleep.h
 		core/stdclass.cpp
 		core/stdclass.h
 		core/types.h
@@ -1424,8 +1426,6 @@ if(NOT LIBRETRO)
 			core/ui/gui_util.h
 			core/ui/mainui.cpp
 			core/ui/mainui.h
-			core/ui/sleep.cpp
-			core/ui/sleep.h
 			core/ui/boxart/boxart.cpp
 			core/ui/boxart/boxart.h
 			core/ui/boxart/gamesdb.cpp

@@ -30,7 +30,7 @@
 
 #include <chrono>
 #include <thread>
-#include "sleep.h"
+#include "../sleep.h"
 #include "../gdxsv/gdxsv_emu_hooks.h"
 
 static bool mainui_enabled;

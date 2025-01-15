@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "oslib/http_client.h"
+#include "sleep.h"
 #include "gdxsv.h"
 
 #ifndef _WIN32
@@ -83,7 +84,8 @@ std::future<std::string> test_udp_port_connectivity(int port, bool ipv6) {
 					return "Success";
 				}
 			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+			sleep_us(100 * 1000);
 		}
 
 		return "Failed (Timeout)";
@@ -813,7 +815,7 @@ void UdpPingPong::Start(uint32_t session_id, uint8_t peer_id, int port, int dura
 				break;
 			}
 
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			sleep_us(1000);
 		}
 
 		PrintRttMatrix();
