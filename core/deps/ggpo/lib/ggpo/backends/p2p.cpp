@@ -9,6 +9,8 @@
 #include <chrono>
 #include <thread>
 
+#include "sleep.h"
+
 static const int RECOMMENDATION_INTERVAL           = 90;
 static const int DEFAULT_DISCONNECT_TIMEOUT        = 5000;
 static const int DEFAULT_DISCONNECT_NOTIFY_START   = 750;
@@ -179,7 +181,7 @@ Peer2PeerBackend::DoPoll(int timeout)
          }
          // XXX: this is obviously a farce...
          if (timeout)
-        	 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+             sleep_us(1000);
       } else if (this->_num_players == 1) {
 		  CheckInitialSync();
       }
