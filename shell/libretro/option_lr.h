@@ -86,7 +86,7 @@ public:
 	}
 
 	void load() override {
-		if (!name.empty())
+		if (!name.empty() && !overridden)
 			set(doLoad(name));
 	}
 
@@ -193,10 +193,14 @@ public:
 	{
 	}
 
-	void load() override {
-		retro_variable var { name.c_str() };
-		if (settings.retroEnv(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value != nullptr)
-			set(atoi(var.value));
+	void load() override
+	{
+		if (!name.empty() && !overridden)
+		{
+			retro_variable var { name.c_str() };
+			if (settings.retroEnv(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value != nullptr)
+				set(atoi(var.value));
+		}
 	}
 };
 

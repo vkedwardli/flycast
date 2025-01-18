@@ -18,7 +18,7 @@
  */
 #pragma once
 
-#include "TexCache.h"
+#include "texconv.h"
 #include "stdclass.h"
 
 #include <string>
@@ -49,10 +49,11 @@ private:
 };
 
 extern CustomTextureFolderSource custom_texture_folder_source;
+class BaseTextureCacheData;
 
 class CustomTexture {
 public:
-	CustomTexture() : loader_thread(loader_thread_func, this) {
+	CustomTexture() : loader_thread(loader_thread_func, this, "CustomTexLoader") {
 		sources.push_back(&custom_texture_folder_source);
 	}
 	~CustomTexture() { Terminate(); }

@@ -7,7 +7,7 @@
 #include "glcache.h"
 #include "rend/shader_util.h"
 #ifndef LIBRETRO
-#include "rend/imgui_driver.h"
+#include "ui/imgui_driver.h"
 #endif
 
 #include <unordered_map>
@@ -22,6 +22,12 @@
 #ifndef GL_PRIMITIVE_RESTART_FIXED_INDEX
 #define GL_PRIMITIVE_RESTART_FIXED_INDEX  0x8D69
 #endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
+#endif
+#ifndef GL_R8
+#define GL_R8 0x8229
+#endif
 
 #define glCheck() do { if (unlikely(config::OpenGlChecks)) { verify(glGetError()==GL_NO_ERROR); } } while(0)
 
@@ -35,9 +41,6 @@
 #define VERTEX_UV1_ARRAY 6
 // Naomi2
 #define VERTEX_NORM_ARRAY 7
-
-//vertex types
-extern u32 gcflip;
 
 extern glm::mat4 ViewportMatrix;
 
@@ -57,6 +60,8 @@ struct PipelineShader
 	GLint fog_clamp_min, fog_clamp_max;
 	GLint ndcMat;
 	GLint palette_index;
+	GLint ditherColorMax;
+	GLint texSize;
 
 	// Naomi2
 	GLint mvMat;
@@ -110,9 +115,10 @@ struct PipelineShader
 	bool pp_BumpMap;
 	bool fog_clamping;
 	bool trilinear;
-	bool palette;
+	int palette;	// 1 if nearest, 2 if bilinear
 	bool naomi2;
 	bool divPosZ;
+	bool dithering;
 };
 
 class GlBuffer
@@ -217,11 +223,7 @@ protected:
 	void defineVtxAttribs() override;
 };
 
-class OSDVertexArray final : public GlVertexArray
-{
-protected:
-	void defineVtxAttribs() override;
-};
+class GlQuadDrawer;
 
 struct gl_ctx
 {
@@ -250,15 +252,6 @@ struct gl_ctx
 
 	struct
 	{
-		GLuint program;
-		GLint scale;
-		OSDVertexArray vao;
-		std::unique_ptr<GlBuffer> geometry;
-		GLuint osd_tex;
-	} OSD_SHADER;
-
-	struct
-	{
 		MainVertexArray mainVAO;
 		ModvolVertexArray modvolVAO;
 		std::unique_ptr<GlBuffer> geometry;
@@ -268,14 +261,6 @@ struct gl_ctx
 
 	struct
 	{
-		u32 texAddress = ~0;
-		GLuint pbo;
-		u32 pboSize;
-		bool directXfer;
-		u32 width;
-		u32 height;
-		FB_W_CTRL_type fb_w_ctrl;
-		u32 linestride;
 		std::unique_ptr<GlFramebuffer> framebuffer;
 	} rtt;
 
@@ -310,6 +295,7 @@ struct gl_ctx
 		std::unique_ptr<GlFramebuffer> framebuffer;
 	} videorouting;
 
+	std::unique_ptr<GlQuadDrawer> quad;
 	const char *gl_version;
 	const char *glsl_version_header;
 	int gl_major;
@@ -325,6 +311,7 @@ struct gl_ctx
 	bool border_clamp_supported;
 	bool prim_restart_supported;
 	bool prim_restart_fixed_supported;
+	bool bogusBlitFramebuffer;
 
 	size_t get_index_size() { return index_type == GL_UNSIGNED_INT ? sizeof(u32) : sizeof(u16); }
 };
@@ -399,7 +386,7 @@ void writeFramebufferToVRAM();
 PipelineShader *GetProgram(bool cp_AlphaTest, bool pp_InsideClipping,
 		bool pp_Texture, bool pp_UseAlpha, bool pp_IgnoreTexA, u32 pp_ShadInstr, bool pp_Offset,
 		u32 pp_FogCtrl, bool pp_Gouraud, bool pp_BumpMap, bool fog_clamping, bool trilinear,
-		bool palette, bool naomi2);
+		int palette, bool naomi2, bool dithering);
 
 GLuint gl_CompileShader(const char* shader, GLuint type);
 GLuint gl_CompileAndLink(const char *vertexShader, const char *fragmentShader);
@@ -413,7 +400,6 @@ extern struct ShaderUniforms_t
 	float fog_den_float;
 	float ps_FOG_COL_RAM[3];
 	float ps_FOG_COL_VERT[3];
-	float trilinear_alpha;
 	float fog_clamp_min[4];
 	float fog_clamp_max[4];
 	glm::mat4 ndcMat;
@@ -424,7 +410,8 @@ extern struct ShaderUniforms_t
 		int width;
 		int height;
 	} base_clipping;
-	int palette_index;
+	bool dithering;
+	float ditherColorMax[4];
 
 	void Set(const PipelineShader* s)
 	{
@@ -451,8 +438,8 @@ extern struct ShaderUniforms_t
 		if (s->ndcMat != -1)
 			glUniformMatrix4fv(s->ndcMat, 1, GL_FALSE, &ndcMat[0][0]);
 
-		if (s->palette_index != -1)
-			glUniform1i(s->palette_index, palette_index);
+		if (s->ditherColorMax != -1)
+			glUniform4fv(s->ditherColorMax, 1, ditherColorMax);
 	}
 
 } ShaderUniforms;
@@ -460,16 +447,24 @@ extern struct ShaderUniforms_t
 class TextureCacheData final : public BaseTextureCacheData
 {
 public:
-	TextureCacheData(TSP tsp, TCW tcw) : BaseTextureCacheData(tsp, tcw), texID(glcache.GenTexture()) {
+	TextureCacheData(TSP tsp, TCW tcw) : BaseTextureCacheData(tsp, tcw) {
 	}
 	TextureCacheData(TextureCacheData&& other) : BaseTextureCacheData(std::move(other)) {
 		std::swap(texID, other.texID);
 	}
 
-	GLuint texID;   //gl texture
+	GLuint texID = 0;   //gl texture
 	std::string GetId() override { return std::to_string(texID); }
 	void UploadToGPU(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded = false) override;
 	bool Delete() override;
+
+	static void setUploadToGPUFlavor();
+
+private:
+	void UploadToGPUGl2(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded);
+	void UploadToGPUGl4(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded);
+
+	static void (TextureCacheData::*uploadToGpu)(int, int, const u8 *, bool, bool);
 };
 
 class GlTextureCache final : public BaseTextureCache<TextureCacheData>
@@ -507,20 +502,21 @@ struct OpenGLRenderer : Renderer
 
 	bool RenderLastFrame() override
 	{
+		if (clearLastFrame)
+			return false;
 		saveCurrentFramebuffer();
 		bool ret = renderLastFrame();
 		restoreCurrentFramebuffer();
 
 		return ret;
 	}
-
-	void DrawOSD(bool clear_screen) override;
+	bool GetLastFrame(std::vector<u8>& data, int& width, int& height) override;
 
 	BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw) override;
 
 	bool Present() override
 	{
-		if (!frameRendered)
+		if (!frameRendered || clearLastFrame)
 			return false;
 #ifndef LIBRETRO
 		imguiDriver->setFrameRendered();
@@ -551,6 +547,7 @@ protected:
 
 	bool renderLastFrame();
 	void renderVideoRouting();
+	void drawOSD();
 
 private:
 	bool renderFrame(int width, int height);
@@ -561,10 +558,6 @@ protected:
 	int height = 480;
 	void initVideoRoutingFrameBuffer();
 };
-
-void initQuad();
-void termQuad();
-void drawQuad(GLuint texId, bool rotate = false, bool swapY = false, float *coords = nullptr);
 
 extern const char* ShaderCompatSource;
 extern const char *VertexCompatShader;
@@ -579,7 +572,9 @@ public:
 	}
 };
 
+void drawVmusAndCrosshairs(int width, int height);
+void termVmuLightgun();
+
 #ifdef LIBRETRO
 extern "C" struct retro_hw_render_callback hw_render;
-void termVmuLightgun();
 #endif

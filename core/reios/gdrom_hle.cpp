@@ -9,7 +9,6 @@
 #include "hw/sh4/sh4_mem.h"
 #include "hw/sh4/sh4_sched.h"
 #include "hw/sh4/sh4_core.h"
-#undef r
 
 #include "gdrom_hle.h"
 #include "hw/gdrom/gdromv3.h"
@@ -23,8 +22,126 @@
 #define SWAP32(a) ((((a) & 0xff) << 24)  | (((a) & 0xff00) << 8) | (((a) >> 8) & 0xff00) | (((a) >> 24) & 0xff))
 
 #define debugf(...) DEBUG_LOG(REIOS, __VA_ARGS__)
+static void readSectors(u32 addr, u32 sector, u32 count, bool virtualAddr);
 
-gdrom_hle_state_t gd_hle_state;
+struct gdrom_hle_state_t
+{
+	gdrom_hle_state_t() : params{}, result{} {}
+
+	u32 last_request_id = 0xFFFFFFFF;
+	u32 next_request_id = 2;
+	gd_return_value status = GDC_OK;
+	gd_command command = GDCC_NONE;
+	u32 params[4];
+	u32 result[4];
+	u32 cur_sector = 0;
+	u32 multi_read_sector = 0;
+	u32 multi_read_offset = 0;
+	u32 multi_read_count = 0;
+	u32 multi_read_total = 0;
+	u32 multi_callback = 0;
+	u32 multi_callback_arg = 0;
+	bool dma_trans_ended = false;
+	u64 xfer_end_time = 0;
+
+	void Serialize(Serializer& ser)
+	{
+		ser << last_request_id;
+		ser << next_request_id;
+		ser << status;
+		ser << command;
+		ser << params;
+		ser << result;
+		ser << cur_sector;
+		ser << multi_read_sector;
+		ser << multi_read_offset;
+		ser << multi_read_count;
+		ser << multi_read_total;
+		ser << multi_callback;
+		ser << multi_callback_arg;
+		ser << dma_trans_ended;
+		ser << xfer_end_time;
+
+	}
+	void Deserialize(Deserializer& deser)
+	{
+		deser >> last_request_id;
+		deser >> next_request_id;
+		deser >> status;
+		deser >> command;
+		deser >> params;
+		deser >> result;
+		deser >> cur_sector;
+		deser >> multi_read_sector;
+		deser >> multi_read_offset;
+		deser >> multi_read_count;
+		deser >> multi_read_total;
+		deser >> multi_callback;
+		deser >> multi_callback_arg;
+		deser >> dma_trans_ended;
+		deser >> xfer_end_time;
+	}
+};
+static gdrom_hle_state_t gd_hle_state;
+
+static int schedId = -1;
+
+static int getGdromTicks()
+{
+	u32 len = gd_hle_state.multi_read_count * 2048;
+	if (len > 10240)
+		return 1000000;			// Large transfers: GD-ROM transfer rate 1.8 MB/s
+	else
+		return len * 2;			// Small transfers: Max G1 bus rate: 50 MHz x 16 bits
+}
+
+static int schedCallback(int tag, int cycles, int jitter, void *arg)
+{
+	const u32 sect = std::min(gd_hle_state.multi_read_count, 5u);
+	readSectors(gd_hle_state.multi_read_offset, gd_hle_state.multi_read_sector, sect, false);
+	gd_hle_state.multi_read_count -= sect;
+	gd_hle_state.multi_read_sector += sect;
+	gd_hle_state.cur_sector = gd_hle_state.multi_read_sector;
+	gd_hle_state.multi_read_offset += sect * 2048;
+
+	if (gd_hle_state.multi_read_count == 0)
+	{
+		gd_hle_state.result[3] = GDC_WAIT_INTERNAL;
+		SecNumber.Status = GD_STANDBY;
+		gd_hle_state.status = GDC_COMPLETE;
+	}
+	gd_hle_state.result[2] = (gd_hle_state.multi_read_total - gd_hle_state.multi_read_count) * 2048;
+
+	return getGdromTicks();
+}
+
+void reios_init() {
+	if (schedId == -1)
+		schedId = sh4_sched_register(0, schedCallback);
+}
+
+void reios_serialize(Serializer& ser) {
+	gd_hle_state.Serialize(ser);
+	sh4_sched_serialize(ser, schedId);
+}
+
+void reios_deserialize(Deserializer& deser)
+{
+	gd_hle_state.Deserialize(deser);
+	if (deser.version() >= Deserializer::V54)
+		sh4_sched_deserialize(deser, schedId);
+}
+
+void gdrom_hle_reset() {
+	gd_hle_state = {};
+}
+
+void reios_term()
+{
+	if (schedId != -1)
+		sh4_sched_unregister(schedId);
+	schedId = -1;
+}
 
 static void GDROM_HLE_ReadSES()
 {
@@ -65,19 +182,10 @@ static void GDROM_HLE_ReadTOC()
 		WriteMem32(dest, toc[i]);
 }
 
-template<bool virtual_addr>
-static void read_sectors_to(u32 addr, u32 sector, u32 count)
+static void readSectors(u32 addr, u32 sector, u32 count, bool virtualAddr)
 {
 	gd_hle_state.cur_sector = sector + count - 1;
-	if (virtual_addr)
-		gd_hle_state.xfer_end_time = 0;
-	else if (count > 5 && !config::FastGDRomLoad)
-		// Large Transfers: GD-ROM rate (approx. 1.8 MB/s)
-		gd_hle_state.xfer_end_time = sh4_sched_now64() + (u64)count * 2048 * 1000000L / 10240;
-	else
-		// Small transfers: Max G1 bus rate: 50 MHz x 16 bits
-		gd_hle_state.xfer_end_time = sh4_sched_now64() + 5 * 2048 * 2;
-	if (!virtual_addr || !mmu_enabled())
+	if (!virtualAddr || !mmu_enabled())
 	{
 		u8 * pDst = GetMemPtr(addr, 0);
 
@@ -95,7 +203,7 @@ static void read_sectors_to(u32 addr, u32 sector, u32 count)
 
 		for (std::size_t i = 0; i < std::size(temp); i++)
 		{
-			if (virtual_addr)
+			if (virtualAddr)
 				WriteMem32(addr, temp[i]);
 			else
 				WriteMem32_nommu(addr, temp[i]);
@@ -107,6 +215,12 @@ static void read_sectors_to(u32 addr, u32 sector, u32 count)
 	}
 }
 
+static void read_pio_sectors(u32 addr, u32 sector, u32 count)
+{
+	gd_hle_state.xfer_end_time = 0;
+	readSectors(addr, sector, count, true);
+}
+
 static void GDROM_HLE_ReadDMA()
 {
 	u32 fad = gd_hle_state.params[0] & 0xffffff;
@@ -116,7 +230,13 @@ static void GDROM_HLE_ReadDMA()
 
 	debugf("GDROM: DMA READ Sector=%d, Num=%d, Buffer=%08x, zero=%x", fad, nsect, buffer, gd_hle_state.params[3]);
 
-	read_sectors_to<false>(buffer, fad, nsect);
+	gd_hle_state.cur_sector = fad;
+	gd_hle_state.multi_read_sector = fad;
+	gd_hle_state.multi_read_offset = buffer;
+	gd_hle_state.multi_read_count = nsect;
+	gd_hle_state.multi_read_total = nsect;
+	sh4_sched_request(schedId, getGdromTicks());
+
 	gd_hle_state.result[2] = 0;
 	gd_hle_state.result[3] = 0;
 }
@@ -130,39 +250,39 @@ static void GDROM_HLE_ReadPIO()
 
 	debugf("GDROM: PIO READ Sector=%d, Num=%d, Buffer=%08x, SeekAhead=%x", fad, nsect, buffer, gd_hle_state.params[3]);
 
-	read_sectors_to<true>(buffer, fad, nsect);
+	read_pio_sectors(buffer, fad, nsect);
 	gd_hle_state.result[2] = nsect * 2048;
 	gd_hle_state.result[3] = 0;
 }
 
-static void GDCC_HLE_GETSCD() {
+static void GDCC_HLE_GETSCD()
+{
 	u32 format = gd_hle_state.params[0];
 	u32 size = gd_hle_state.params[1];
 	u32 dest = gd_hle_state.params[2];
 	// params[3] 0
 
 	DEBUG_LOG(REIOS, "GDROM: GETSCD format %x size %x dest %08x", format, size, dest);
-
-	if (libGDR_GetDiscType() == Open || libGDR_GetDiscType() == NoDisk)
-	{
-		gd_hle_state.status = GDC_ERR;
-		gd_hle_state.result[0] = 6;	// GDC_ERR_UNITATTENTION
-		gd_hle_state.result[1] = 0;
-		gd_hle_state.result[2] = 0;
-		gd_hle_state.result[3] = 0;
-		return;
-	}
 	if (sns_asc != 0)
 	{
 		// Helps D2 detect the disk change
 		gd_hle_state.status = GDC_ERR;
 		gd_hle_state.result[0] = sns_key;
-		gd_hle_state.result[1] = sns_asc;
-		gd_hle_state.result[2] = 0x18;		// ?
-		gd_hle_state.result[3] = sns_ascq;	// ?
+		gd_hle_state.result[1] = sns_asc | (sns_ascq << 8);
+		gd_hle_state.result[2] = 0x18; // ?
+		gd_hle_state.result[3] = 0;
 		sns_key = 0;
 		sns_asc = 0;
 		sns_ascq = 0;
+		return;
+	}
+	if (SecNumber.Status != GD_BUSY && (libGDR_GetDiscType() == Open || libGDR_GetDiscType() == NoDisk))
+	{
+		gd_hle_state.status = GDC_ERR;
+		gd_hle_state.result[0] = 2;
+		gd_hle_state.result[1] = 0x3a;	// Media operation command was received but no media is inserted.
+		gd_hle_state.result[2] = 0;
+		gd_hle_state.result[3] = 0;
 		return;
 	}
 	if (cdda.status == cdda_t::Playing)
@@ -293,19 +413,9 @@ static void GD_HLE_Command(gd_command cc)
 
 	case GDCC_DMAREAD:
 		cdda.status = cdda_t::NoInfo;
-		if (gd_hle_state.xfer_end_time == 0)
+		if (gd_hle_state.multi_read_count == 0)
 			GDROM_HLE_ReadDMA();
-		if (gd_hle_state.xfer_end_time > 0)
-		{
-			if (gd_hle_state.xfer_end_time > sh4_sched_now64())
-				return;
-			gd_hle_state.xfer_end_time = 0;
-		}
-		gd_hle_state.result[2] = gd_hle_state.params[1] * 2048;
-		gd_hle_state.result[3] = 0;
-		SecNumber.Status = GD_PAUSE;
-		break;
-
+		return;
 
 	case GDCC_PLAY2:
 		{
@@ -688,25 +798,34 @@ void gdrom_hle_op()
 				//
 				// Returns: 0 OK, -1 ERR, 1 BUSY, 2 COMPLETE, 3 CONTINUE
 				gd_drv_stat status;
-				u32 discType = libGDR_GetDiscType();
-				switch (discType)
+				u32 discType;
+				if (SecNumber.Status == GD_BUSY)
 				{
-				case Open:
-					status = GD_STAT_OPEN;
+					status = GD_STAT_BUSY;
 					discType = 0;
-					break;
-				case NoDisk:
-					status = GD_STAT_NODISC;
-					discType = 0;
-					break;
-				default:
-					if (gd_hle_state.status == GDC_CONTINUE || SecNumber.Status == GD_PLAY)
-						status = GD_STAT_PLAY;
-					else
-						status = GD_STAT_PAUSE;
-					if (memcmp(ip_meta.disk_type, "GD-ROM", sizeof(ip_meta.disk_type)) == 0)
-						discType = GdRom;
-					break;
+				}
+				else
+				{
+					discType = libGDR_GetDiscType();
+					switch (discType)
+					{
+					case Open:
+						status = GD_STAT_OPEN;
+						discType = 0;
+						break;
+					case NoDisk:
+						status = GD_STAT_NODISC;
+						discType = 0;
+						break;
+					default:
+						if (gd_hle_state.status == GDC_CONTINUE || SecNumber.Status == GD_PLAY)
+							status = GD_STAT_PLAY;
+						else
+							status = GD_STAT_PAUSE;
+						if (memcmp(ip_meta.disk_type, "GD-ROM", sizeof(ip_meta.disk_type)) == 0)
+							discType = GdRom;
+						break;
+					}
 				}
 				WriteMem32(r[4], (u32)status);
 				WriteMem32(r[4] + 4, discType);

@@ -15,8 +15,8 @@
 #include "nowide/fstream.hpp"
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
-#include "rend/boxart/http_client.h"
-#include "rend/gui_util.h"
+#include "oslib/http_client.h"
+#include "ui/gui_util.h"
 #include "stdclass.h"
 #include "xxhash.h"
 
@@ -51,6 +51,7 @@ void gdxsv_emu_start() {
 			dc_loadstate(99);
 		} else {
 			gdxsv.StartPingTest();
+			gui_setState(GuiState::GdxsvLatencyCheck);
 			gdxsv.StartUdpPortTest();
 			gdxsv.FetchPublicIP();
 		}
@@ -133,6 +134,29 @@ void gdxsv_emu_gui_display() {
 
 	if (gui_state == GuiState::GdxsvReplay) {
 		gdxsv_replay_select_dialog();
+	}
+	
+	if (gui_state == GuiState::GdxsvLatencyCheck) {
+		gui_draw_boxart_background();
+		centerNextWindow();
+		ImGui::SetNextWindowSize(ScaledVec2(330, 0));
+		ImGui::SetNextWindowBgAlpha(0.8f);
+		ImguiStyleVar _(ImGuiStyleVar_WindowPadding, ScaledVec2(20, 20));
+		
+		if (ImGui::Begin("##latencyCheck", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			ImguiStyleVar _(ImGuiStyleVar_FramePadding, ScaledVec2(20, 10));
+			ImGui::AlignTextToFramePadding();
+			ImGui::SetCursorPosX(uiScaled(20.f));
+			
+			ImGui::Text("%s", gdxsv.PingResult().c_str());
+		}
+		ImGui::End();
+		
+		if (gdxsv.PingResult() == "Done") {
+			gui_state = GuiState::Closed;
+			emu.start();
+		}
 	}
 }
 
@@ -307,6 +331,26 @@ static void wireless_warning_popup() {
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
 
+		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
+		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::PopStyleVar();
+		ImGui::EndPopup();
+	}
+	
+	if (show_wireless_warning && no_popup_opened && connection_medium == "VPN") {
+		ImGui::OpenPopup("VPN connection detected");
+		show_wireless_warning = false;
+	}
+	
+	if (ImGui::BeginPopupModal("VPN connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
+		ImGui::TextWrapped("  Please DO NOT use VPN!  ");
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		float currentwidth = ImGui::GetContentRegionAvail().x;
+		
 		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
 		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
 			ImGui::CloseCurrentPopup();

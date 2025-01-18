@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <vector>
+#include <chrono>
 
 #ifdef _WIN32
 	#include <algorithm>
@@ -19,6 +20,8 @@ static std::string user_config_dir;
 static std::string user_data_dir;
 static std::vector<std::string> system_config_dirs;
 static std::vector<std::string> system_data_dirs;
+
+const std::string defaultWs(" \0", 2);
 
 bool file_exists(const std::string& filename)
 {
@@ -91,11 +94,11 @@ std::string get_readonly_data_path(const std::string& filename)
 			return filepath;
 	}
 	// Try the game directory
-	std::string parent = hostfs::storage().getParentPath(settings.content.path);
 	try {
+		std::string parent = hostfs::storage().getParentPath(settings.content.path);
 		std::string filepath = hostfs::storage().getSubPath(parent, filename);
-		hostfs::FileInfo info = hostfs::storage().getFileInfo(filepath);
-		return info.path;
+		if (hostfs::storage().exists(filepath))
+			return filepath;
 	} catch (const FlycastException&) { }
 
 	// Not found, so we return the user variant
@@ -128,7 +131,10 @@ bool make_directory(const std::string& path)
 void cThread::Start()
 {
 	verify(!thread.joinable());
-	thread = std::thread(entry, param);
+	thread = std::thread([this]() {
+		ThreadName _(name);
+		entry(param);
+	});
 }
 
 void cThread::WaitToEnd()
@@ -205,4 +211,30 @@ void RamRegion::free()
 	if (ownsMemory)
 		freeAligned(data);
 	data = nullptr;
+}
+
+u64 getTimeMs()
+{
+	using the_clock = std::chrono::steady_clock;
+	std::chrono::time_point<the_clock> now = the_clock::now();
+	static std::chrono::time_point<the_clock> start = now;
+
+	return std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+}
+
+#ifdef _WIN32
+static struct tm *localtime_r(const time_t *_clock, struct tm *_result)
+{
+	return localtime_s(_result, _clock) ? nullptr : _result;
+}
+#endif
+
+std::string timeToISO8601(time_t time)
+{
+	tm t;
+	if (localtime_r(&time, &t) == nullptr)
+		return {};
+	std::string s(32, '\0');
+	s.resize(snprintf(s.data(), 32, "%04d/%02d/%02d %02d:%02d:%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec));
+	return s;
 }

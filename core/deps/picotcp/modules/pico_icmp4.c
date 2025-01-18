@@ -60,11 +60,13 @@ static int pico_icmp4_process_in(struct pico_protocol *self, struct pico_frame *
         if (f->dev && f->dev->eth)
             f->len -= PICO_SIZE_ETHHDR;
 
+        /* Dreamcast doesn't increment sequence and id numbers
         if (!firstpkt && (hdr->hun.ih_idseq.idseq_id ==  last_id) && (last_seq == hdr->hun.ih_idseq.idseq_seq)) {
-            /* The network duplicated the echo. Do not reply. */
+            /* The network duplicated the echo. Do not reply. * /
             pico_frame_discard(f);
             return 0;
         }
+        */
 
         firstpkt = 0;
         last_id = hdr->hun.ih_idseq.idseq_id;
@@ -238,6 +240,10 @@ static int8_t pico_icmp4_send_echo(struct pico_icmp4_ping_cookie *cookie)
     struct pico_icmp4_hdr *hdr;
     struct pico_device *dev = pico_ipv4_source_dev_find(&cookie->dst);
     if (!dev)
+        return -1;
+
+    // prevent overflow
+    if (cookie->size > PICO_ICMP_MAXCOOKIE)
         return -1;
 
     echo = pico_proto_ipv4.alloc(&pico_proto_ipv4, dev, (uint16_t)(PICO_ICMPHDR_UN_SIZE + cookie->size));

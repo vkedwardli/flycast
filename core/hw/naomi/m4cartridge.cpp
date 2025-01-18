@@ -165,9 +165,9 @@ void *M4Cartridge::GetDmaPtr(u32 &size)
 	if (cfi_mode) {
 		u32 fpr_num = m4id & 0x7f;
 
-		if (((rom_cur_address >> 26) & 0x07) < fpr_num) {
+		if (((DmaOffset >> 26) & 0x07) < fpr_num) {
 			size = std::min(size, 2u);
-			return &cfidata[rom_cur_address & 0xffff];
+			return &cfidata[DmaOffset & 0xffff];
 		}
 	}
 
@@ -184,9 +184,8 @@ void *M4Cartridge::GetDmaPtr(u32 &size)
 	}
 	if (encryption)
 	{
-		size = std::min(size, (u32)sizeof(buffer));
+		size = std::min(size, buffer_actual_size);
 		return buffer;
-
 	}
 	else
 	{
@@ -207,17 +206,18 @@ void M4Cartridge::AdvancePtr(u32 size)
 {
 	if (encryption)
 	{
-		if (size < buffer_actual_size)
-		{
+		if (size < buffer_actual_size) {
 			memmove(buffer, buffer + size, buffer_actual_size - size);
 			buffer_actual_size -= size;
 		}
-		else
+		else {
 			buffer_actual_size = 0;
+		}
 		enc_fill();
 	}
-	else
-		rom_cur_address += size;
+	else {
+		NaomiCartridge::AdvancePtr(size);
+	}
 }
 
 void M4Cartridge::enc_reset()
@@ -232,27 +232,32 @@ u16 M4Cartridge::decrypt_one_round(u16 word, u16 subkey)
 	return one_round[word ^ subkey] ^ subkey ;
 }
 
+u16 M4Cartridge::decrypt(u16 enc)
+{
+	u16 dec = iv;
+	iv = decrypt_one_round(enc ^ iv, subkey1);
+	dec ^= decrypt_one_round(iv, subkey2);
+	counter++;
+	if (counter == 16) {
+		counter = 0;
+		iv = 0;
+	}
+
+	return dec;
+}
+
 void M4Cartridge::enc_fill()
 {
 	const u8 *base = RomPtr + rom_cur_address;
 	while (buffer_actual_size < sizeof(buffer))
 	{
-		u16 enc = base[0] | (base[1] << 8);
-		u16 dec = iv;
-		iv = decrypt_one_round(enc ^ iv, subkey1);
-		dec ^= decrypt_one_round(iv, subkey2);
+		u16 dec = decrypt(base[0] | (base[1] << 8));
 
 		buffer[buffer_actual_size++] = dec;
 		buffer[buffer_actual_size++] = dec >> 8;
 
 		base += 2;
 		rom_cur_address += 2;
-
-		counter++;
-		if(counter == 16) {
-			counter = 0;
-			iv = 0;
-		}
 	}
 //	printf("Decrypted M4 data:\n");
 //	for (int i = 0; i < buffer_actual_size; i++)
@@ -285,7 +290,9 @@ bool M4Cartridge::GetBootId(RomBootID *bootId)
 	if (RomSize < sizeof(RomBootID))
 		return false;
 	RomBootID *pBootId = (RomBootID *)RomPtr;
-	if (memcmp(pBootId->boardName, "NAOMI", 5))
+	if (memcmp(pBootId->boardName, "NAOMI", 5)
+			&& memcmp(pBootId->boardName, "Naomi2", 6)
+			&& memcmp(pBootId->boardName, "SystemSP", 8))
 	{
 		rom_cur_address = 0;
 		enc_reset();
@@ -314,8 +321,10 @@ void M4Cartridge::Serialize(Serializer& ser) const
 void M4Cartridge::Deserialize(Deserializer& deser)
 {
 	deser >> buffer;
+	deser.skip(32768 - sizeof(buffer), Deserializer::V52);
 	deser >> rom_cur_address;
 	deser >> buffer_actual_size;
+	buffer_actual_size = std::min<u32>(buffer_actual_size, sizeof(buffer));
 	deser >> iv;
 	deser >> counter;
 	deser >> encryption;

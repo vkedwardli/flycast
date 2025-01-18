@@ -20,6 +20,7 @@
 
 #include "input/gamepad_device.h"
 #include "input/mouse.h"
+#include "input/virtual_gamepad.h"
 #include "jni_util.h"
 #include <algorithm>
 
@@ -72,7 +73,7 @@ template<bool Arcade = false, bool Gamepad = false>
 class DefaultInputMapping : public InputMapping
 {
 public:
-	DefaultInputMapping(const AndroidGamepadDevice& gamepad);
+	DefaultInputMapping(AndroidGamepadDevice& gamepad);
 };
 
 class ShieldRemoteInputMapping : public InputMapping
@@ -97,25 +98,18 @@ class AndroidGamepadDevice : public GamepadDevice
 public:
 	AndroidGamepadDevice(int maple_port, int id, const char *name, const char *unique_id,
 			const std::vector<int>& fullAxes, const std::vector<int>& halfAxes)
-		: GamepadDevice(maple_port, "Android", id != VIRTUAL_GAMEPAD_ID), android_id(id),
+		: GamepadDevice(maple_port, "Android"), android_id(id),
 		  fullAxes(fullAxes), halfAxes(halfAxes)
 	{
 		_name = name;
 		_unique_id = unique_id;
 		INFO_LOG(INPUT, "Android: Opened joystick %d on port %d: '%s' descriptor '%s'", id, maple_port, _name.c_str(), _unique_id.c_str());
-		if (id == VIRTUAL_GAMEPAD_ID)
-		{
-			input_mapper = std::make_shared<IdentityInputMapping>();
-			rumbleEnabled = true;
-		}
-		else
-		{
-			loadMapping();
-			save_mapping();
-		}
+
+		loadMapping();
+		save_mapping();
+		hasAnalogStick = !fullAxes.empty();
 	}
-	~AndroidGamepadDevice() override
-	{
+	~AndroidGamepadDevice() override {
 		INFO_LOG(INPUT, "Android: Joystick '%s' on port %d disconnected", _name.c_str(), maple_port());
 	}
 
@@ -216,6 +210,12 @@ public:
 		}
 	}
 
+	void set_trigger_axes(u32 left_axis_code, u32 right_axis_code)
+	{
+		leftTrigger = left_axis_code;
+		rightTrigger = right_axis_code;
+	}
+
 	static std::shared_ptr<AndroidGamepadDevice> GetAndroidGamepad(int id)
 	{
 		auto it = android_gamepads.find(id);
@@ -240,72 +240,15 @@ public:
 		GamepadDevice::Unregister(gamepad);
 	};
 
-	void virtual_gamepad_event(int kcode, int joyx, int joyy, int lt, int rt, bool fastForward)
-	{
-		// No virtual gamepad when the GUI is open: touch events only
-		if (gui_is_open())
-		{
-			kcode = 0xffffffff;
-			joyx = joyy = rt = lt = 0;
-		}
-		if (settings.platform.isArcade())
-		{
-			if (rt > 0)
-			{
-				if ((kcode & DC_BTN_A) == 0)
-					// RT + A -> D (coin)
-					kcode &= ~DC_BTN_D;
-				if ((kcode & DC_BTN_B) == 0)
-					// RT + B -> Service
-					kcode &= ~DC_DPAD2_UP;
-				if ((kcode & DC_BTN_X) == 0)
-					// RT + X -> Test
-					kcode &= ~DC_DPAD2_DOWN;
-			}
-			// arcade mapping: X -> btn2, Y -> btn3
-			if ((kcode & DC_BTN_X) == 0)
-			{
-				kcode &= ~DC_BTN_C;
-				kcode |= DC_BTN_X;
-			}
-			if ((kcode & DC_BTN_Y) == 0)
-			{
-				kcode &= ~DC_BTN_X;
-				kcode |= DC_BTN_Y;
-			}
-			if (rt > 0)
-				// naomi btn4
-				kcode &= ~DC_BTN_Y;
-			if (lt > 0)
-				// naomi btn5
-				kcode &= ~DC_BTN_Z;
-		}
-		u32 changes = kcode ^ previous_kcode;
-		for (int i = 0; i < 32; i++)
-			if (changes & (1 << i))
-				gamepad_btn_input(1 << i, (kcode & (1 << i)) == 0);
-		if (joyx >= 0)
-			gamepad_axis_input(DC_AXIS_RIGHT, joyx | (joyx << 8));
-		else
-			gamepad_axis_input(DC_AXIS_LEFT, -joyx | (-joyx << 8));
-		if (joyy >= 0)
-			gamepad_axis_input(DC_AXIS_DOWN, joyy | (joyy << 8));
-		else
-			gamepad_axis_input(DC_AXIS_UP, -joyy | (-joyy << 8));
-		gamepad_axis_input(DC_AXIS_LT, lt == 0 ? 0 : 0x7fff);
-		gamepad_axis_input(DC_AXIS_RT, rt == 0 ? 0 : 0x7fff);
-		previous_kcode = kcode;
-		if (fastForward != previousFastForward)
-			gamepad_btn_input(EMU_BTN_FFORWARD, fastForward);
-		previousFastForward = fastForward;
-	}
-
 	void rumble(float power, float inclination, u32 duration_ms) override
     {
+		power *= rumblePower / 100.f;
         jboolean has_vibrator = jni::env()->CallBooleanMethod(input_device_manager, input_device_manager_rumble, android_id, power, inclination, duration_ms);
         rumbleEnabled = has_vibrator;
     }
-	bool is_virtual_gamepad() override { return android_id == VIRTUAL_GAMEPAD_ID; }
+	void setRumbleEnabled(bool rumbleEnabled) {
+		this->rumbleEnabled = rumbleEnabled;
+	}
 
 	bool hasHalfAxis(int axis) const { return std::find(halfAxes.begin(), halfAxes.end(), axis) != halfAxes.end(); }
 	bool hasFullAxis(int axis) const { return std::find(fullAxes.begin(), fullAxes.end(), axis) != fullAxes.end(); }
@@ -324,13 +267,9 @@ public:
 			input_mapper = std::make_shared<DefaultInputMapping<false, false>>(*this);
 	}
 
-	static const int VIRTUAL_GAMEPAD_ID = 0x12345678;	// must match the Java definition
-
 private:
 	int android_id;
 	static std::map<int, std::shared_ptr<AndroidGamepadDevice>> android_gamepads;
-	u32 previous_kcode = 0xffffffff;
-	bool previousFastForward = false;
 	std::vector<int> fullAxes;
 	std::vector<int> halfAxes;
 };
@@ -338,7 +277,7 @@ private:
 std::map<int, std::shared_ptr<AndroidGamepadDevice>> AndroidGamepadDevice::android_gamepads;
 
 template<bool Arcade, bool Gamepad>
-inline DefaultInputMapping<Arcade, Gamepad>::DefaultInputMapping(const AndroidGamepadDevice& gamepad)
+inline DefaultInputMapping<Arcade, Gamepad>::DefaultInputMapping(AndroidGamepadDevice& gamepad)
 {
 	name = Arcade ? Gamepad ? "Arcade Gamepad" : "Arcade Hitbox" : "Default";
 	int ltAxis = AXIS_LTRIGGER;
@@ -454,6 +393,8 @@ inline DefaultInputMapping<Arcade, Gamepad>::DefaultInputMapping(const AndroidGa
 	set_axis(DC_AXIS_UP, AXIS_Y, false);
 	set_axis(DC_AXIS_DOWN, AXIS_Y, true);
 
+	gamepad.set_trigger_axes(ltAxis, rtAxis);
+
 	dirty = false;
 }
 
@@ -467,3 +408,19 @@ public:
 	}
 };
 
+class AndroidVirtualGamepad : public VirtualGamepad
+{
+public:
+	AndroidVirtualGamepad(bool rumbleEnabled) : VirtualGamepad("Flycast") {
+		this->rumbleEnabled = rumbleEnabled;
+	}
+
+	void rumble(float power, float inclination, u32 duration_ms) override
+    {
+		power *= rumblePower / 100.f;
+        jboolean has_vibrator = jni::env()->CallBooleanMethod(input_device_manager, input_device_manager_rumble, GAMEPAD_ID, power, inclination, duration_ms);
+        rumbleEnabled = has_vibrator;
+    }
+
+	static constexpr int GAMEPAD_ID = 0x12345678;	// must match the Java definition
+};

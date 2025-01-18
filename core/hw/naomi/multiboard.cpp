@@ -33,12 +33,11 @@ static Multiboard *multiboard;
 #include "naomi_roms.h"
 #include "cfg/option.h"
 #include "hw/sh4/sh4_sched.h"
-#include <thread>
 #include <chrono>
 
 constexpr int SyncCycles = 500000;
 
-static int schedCallback(int tag, int cycles, int jitter)
+static int schedCallback(int tag, int cycles, int jitter, void *arg)
 {
 	multiboard->syncWait();
 	return SyncCycles;
@@ -128,6 +127,11 @@ void Multiboard::startSlave()
 	int x = cfgLoadInt("window", "left", (1920 - 640) / 2);
 	int y = cfgLoadInt("window", "top", (1080 - 480) / 2);
 	int width = cfgLoadInt("window", "width", 640);
+	std::string biosFile = CurrentCartridge->game->bios == nullptr ? "naomi" : CurrentCartridge->game->bios;
+	std::string biosPath = hostfs::findNaomiBios(biosFile + ".zip");
+	if (biosPath.empty())
+		biosPath = hostfs::findNaomiBios(biosFile + ".7z");
+
 	for (int i = 0; i < slaves; i++)
 	{
 		std::string region = "config:Dreamcast.Region=" + std::to_string(config::Region);
@@ -144,7 +148,7 @@ void Multiboard::startSlave()
 			"-config", region.c_str(),
 			"-config", left.c_str(),
 			"-config", top.c_str(),
-			CurrentCartridge->game->bios == nullptr ? "naomi" : CurrentCartridge->game->bios
+			biosPath.c_str()
 		};
 		os_RunInstance(std::size(args), args);
 	}

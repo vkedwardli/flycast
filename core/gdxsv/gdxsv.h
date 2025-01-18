@@ -43,6 +43,8 @@ class Gdxsv {
 	void HandleRPC();
 	void RestoreOnlinePatch();
 	void StartPingTest();
+	std::string PingResult() const { return pingResult; }
+	void SetPingResult(const std::string& result) { pingResult = result; }
 	void StartUdpPortTest();
 	void FetchPublicIP();
 	void NotifyWanPort() const;
@@ -69,6 +71,7 @@ class Gdxsv {
 	std::atomic<int> maxlag_;
 	std::atomic<int> maxrebattle_;
 	std::string user_id_;
+	std::string pingResult = "Latency check...";
 	std::map<std::string, u32> symbols_;
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;

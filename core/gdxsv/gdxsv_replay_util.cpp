@@ -2,11 +2,11 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #define stat _stat
 #define WIN32_LEAN_AND_MEAN
 // clang-format off
@@ -21,9 +21,11 @@
 #include "libs.h"
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
-#include "rend/boxart/http_client.h"
-#include "rend/gui_util.h"
+#include "oslib/http_client.h"
+#include "ui/gui_util.h"
+#include "ui/IconsFontAwesome6.h"
 #include "stdclass.h"
+
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
@@ -176,6 +178,11 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
 	ImGui::Text("BattleCode: %s", battle_code.c_str());
+	ImGui::SameLine();
+	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
+		ImGui::SetClipboardText(battle_code.c_str());
+	}
+	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
 	ImGui::Text("Game: %s", game_disk.c_str());
 	ImGui::Text("Players: %d", users_size);
 
@@ -203,7 +210,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	bool pov_selected = (pov_index == -1);
 	DisabledScope scope(pov_selected);
 
-	if (ImGui::ButtonEx(pov_selected ? "Select a player" : "Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
+	if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
 		!scope.isDisabled()) {
 		gdxsv_start_replay(replay_dst, pov_index);
 	}
@@ -245,31 +252,28 @@ void gdxsv_replay_local_tab() {
 		}
 	}
 
-	if (ImGui::Button("Reload")) {
+	if (ImGui::Button(ICON_FA_ARROW_ROTATE_RIGHT "  Reload")) {
 		read_dir = false;
 	}
 
-	struct stat st {};
-	if (flycast::stat(replay_dir.c_str(), &st) == 0) {
-		ImGui::SameLine();
+	ImGui::SameLine();
 #if defined(TARGET_MAC)
-		if (ImGui::Button("Reveal in Finder")) {
-			char temp[512];
-			snprintf(temp, sizeof(temp), "open \"%s\"", replay_dir.c_str());
-			system(temp);
-		}
-#elif defined(_WIN32) && !defined(TARGET_UWP)
-		if (ImGui::Button("Open folder")) {
-			SHELLEXECUTEINFOA sei{};
-			sei.cbSize = sizeof(sei);
-			sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-			sei.lpFile = "Explorer.exe";
-			sei.lpParameters = ("/root, " + replay_dir).c_str();
-			sei.nShow = SW_SHOWDEFAULT;
-			ShellExecuteExA(&sei);
-		}
-#endif
+	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Reveal in Finder")) {
+		char temp[512];
+		snprintf(temp, sizeof(temp), "open \"%s\"", replay_dir.c_str());
+		system(temp);
 	}
+#elif defined(_WIN32) && !defined(TARGET_UWP)
+	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Open folder")) {
+		SHELLEXECUTEINFOA sei{};
+		sei.cbSize = sizeof(sei);
+		sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+		sei.lpFile = "Explorer.exe";
+		sei.lpParameters = ("/root, " + replay_dir).c_str();
+		sei.nShow = SW_SHOWDEFAULT;
+		ShellExecuteExA(&sei);
+	}
+#endif
 
 	ImGui::SameLine();
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, normal_padding);
@@ -813,10 +817,11 @@ void gdxsv_replay_server_tab() {
 						const auto& entry = entries[i];
 
 						time_t t = entry.start_unix;
-						char buf[128] = {0};
-						std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
+						char timebuf[128] = {};
+						std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
 
-						snprintf(buf, sizeof(buf), u8"%s ― Result: %d：%d\n\n", buf, entry.renpo_win, entry.zeon_win);
+						char buf[256] = {};
+						snprintf(buf, sizeof(buf), u8"  %s  %s ― Result: %d：%d\n\n", ICON_FA_FILM, timebuf, entry.renpo_win, entry.zeon_win);
 
 						for (int i = 0; i < entry.users.size(); i++) {
 							const auto& user = entry.users[i];
@@ -865,7 +870,7 @@ void gdxsv_replay_server_tab() {
 			{
 				{
 					DisabledScope scope(entry_paging == 0);
-					if (ImGui::Button("Prev Page") && !scope.isDisabled()) {
+					if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Prev Page") && !scope.isDisabled()) {
 						entry_paging--;
 						snprintf(page_buf, sizeof(page_buf), "%d", entry_paging + 1);
 						fetch_target_page();
@@ -873,20 +878,19 @@ void gdxsv_replay_server_tab() {
 				}
 				{
 					ImGui::SameLine();
-					DisabledScope scope(future_is_ready(fetch_replay_entry_future_) && fetch_replay_entry_future_.get().size() < 100);
-					if (ImGui::Button("Next Page")) {
-						entry_paging++;
-						snprintf(page_buf, sizeof(page_buf), "%d", entry_paging + 1);
-						fetch_target_page();
-					}
-
-					ImGui::SameLine();
 					ImGui::SetNextItemWidth(60.f * scaling);
 					if (ImGui::InputText("##page_input", page_buf, IM_ARRAYSIZE(page_buf),
-										 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
-										 TextFilters::FilterNumber)) {
+						ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
+						TextFilters::FilterNumber)) {
 						entry_paging = atoi(page_buf) - 1;
 						if (entry_paging < 0) entry_paging = 0;
+						fetch_target_page();
+					}
+					ImGui::SameLine();
+					DisabledScope scope(future_is_ready(fetch_replay_entry_future_) && fetch_replay_entry_future_.get().size() < 100);
+					if (ImGui::Button(ICON_FA_CHEVRON_RIGHT "  Next Page")) {
+						entry_paging++;
+						snprintf(page_buf, sizeof(page_buf), "%d", entry_paging + 1);
 						fetch_target_page();
 					}
 				}
@@ -964,18 +968,18 @@ void gdxsv_replay_select_dialog() {
 	ImGui::Begin("Replays##gdxsv_emu_replay_menu", nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
 
-	if (ImGui::Button("Close", ScaledVec2(100, 40))) {
+	if (ImGui::Button(ICON_FA_XMARK  "  Close", ScaledVec2(100, 40))) {
 		gui_state = GuiState::Commands;
 	}
 
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16, 6));
 	if (ImGui::BeginTabBar("replays", ImGuiTabBarFlags_NoTooltip)) {
-		if (ImGui::BeginTabItem("Local")) {
+		if (ImGui::BeginTabItem(ICON_FA_FOLDER "  Local")) {
 			gdxsv_replay_local_tab();
 			ImGui::EndTabItem();
 		}
 
-		if (ImGui::BeginTabItem("Server")) {
+		if (ImGui::BeginTabItem(ICON_FA_GLOBE "  Server")) {
 			gdxsv_replay_server_tab();
 			ImGui::EndTabItem();
 		}

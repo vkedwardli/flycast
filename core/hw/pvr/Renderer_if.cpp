@@ -1,12 +1,13 @@
 #include "Renderer_if.h"
 #include "spg.h"
-#include "rend/TexCache.h"
+#include "rend/texconv.h"
 #include "rend/transform_matrix.h"
 #include "cfg/option.h"
 #include "emulator.h"
 #include "serialize.h"
 #include "hw/holly/holly_intc.h"
 #include "hw/sh4/sh4_if.h"
+#include "hw/sh4/sh4_core.h"
 #include "profiler/fc_profiler.h"
 #include "network/ggpo.h"
 
@@ -40,6 +41,7 @@ static bool rendererEnabled = true;
 TA_context* _pvrrc;
 
 static bool presented;
+static u32 fbAddrHistory[2] { 1, 1 };
 
 class PvrMessageQueue
 {
@@ -91,10 +93,12 @@ public:
 		}
 		else
 		{
+			setDefaultRoundingMode();
 			// drain the queue after switching to !threaded rendering
 			while (!queue.empty())
 				waitAndExecute();
 			execute(msg);
+			Sh4cntx.restoreHostRoundingMode();
 		}
 	}
 
@@ -233,7 +237,7 @@ private:
 		{
 			presented = true;
 			if (!config::ThreadedRendering && !ggpo::active())
-				sh4_cpu.Stop();
+				emu.getSh4Executor()->Stop();
 #ifdef LIBRETRO
 			retro_rend_present();
 #endif
@@ -252,9 +256,10 @@ bool rend_single_frame(const bool& enabled)
 {
 	FC_PROFILE_SCOPE;
 
+	const int timeout = SPG_CONTROL.isPAL() ? 23 : 20;
 	presented = false;
 	while (enabled && !presented)
-		if (!pvrQueue.waitAndExecute(50))
+		if (!pvrQueue.waitAndExecute(timeout))
 			return false;
 	return true;
 }
@@ -316,7 +321,7 @@ bool rend_init_renderer()
 	rendererEnabled = true;
 	if (renderer == nullptr)
 		rend_create_renderer();
-	bool success = renderer->Init();
+	bool success = renderer != nullptr && renderer->Init();
 	if (!success) {
 		delete renderer;
 		renderer = rend_norend();
@@ -344,6 +349,8 @@ void rend_reset()
 	fb_w_cur = 1;
 	pvrQueue.reset();
 	rendererEnabled = true;
+	fbAddrHistory[0] = 1;
+	fbAddrHistory[1] = 1;
 }
 
 void rend_start_render()
@@ -395,7 +402,18 @@ void rend_start_render()
 	ctx->rend.fog_clamp_min = FOG_CLAMP_MIN;
 	ctx->rend.fog_clamp_max = FOG_CLAMP_MAX;
 
-	if (!ctx->rend.isRTT) {
+	if (!ctx->rend.isRTT)
+	{
+		if (FB_W_SOF1 != fbAddrHistory[0] && FB_W_SOF1 != fbAddrHistory[1])
+		{
+			ctx->rend.clearFramebuffer = true;
+			fbAddrHistory[0] = fbAddrHistory[1];
+			fbAddrHistory[1] = FB_W_SOF1;
+		}
+		else {
+			ctx->rend.clearFramebuffer = false;
+		}
+
 		gdxsv_emu_end_frame();
 		ggpo::endOfFrame();
 	}
@@ -410,7 +428,7 @@ void rend_start_render()
 	}
 }
 
-int rend_end_render(int tag, int cycles, int jitter)
+int rend_end_render(int tag, int cycles, int jitter, void *arg)
 {
 	if (settings.platform.isNaomi2())
 	{
@@ -521,11 +539,7 @@ void rend_serialize(Serializer& ser)
 }
 void rend_deserialize(Deserializer& deser)
 {
-	if ((deser.version() >= Deserializer::V12_LIBRETRO && deser.version() <= Deserializer::VLAST_LIBRETRO)
-			|| deser.version() >= Deserializer::V12)
-		deser >> fb_w_cur;
-	else
-		fb_w_cur = 1;
+	deser >> fb_w_cur;
 	if (deser.version() >= Deserializer::V20)
 	{
 		deser >> render_called;
@@ -534,4 +548,6 @@ void rend_deserialize(Deserializer& deser)
 		deser >> fb_watch_addr_end;
 	}
 	pend_rend = false;
+	fbAddrHistory[0] = 1;
+	fbAddrHistory[1] = 1;
 }

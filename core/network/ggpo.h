@@ -17,10 +17,12 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #pragma once
-#include "types.h"
 #include <future>
 #include <vector>
 #include <atomic>
+#include <string>
+
+#include "types.h"
 
 struct MapleInputState;
 
@@ -34,6 +36,7 @@ struct NetworkStats {
       int   kbps_sent;
       int   recv_packet_loss;
       int   send_packet_loss;
+      int   is_relay;
    } network;
    struct {
       int   local_frames_behind;

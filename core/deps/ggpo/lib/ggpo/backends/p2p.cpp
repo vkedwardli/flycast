@@ -9,6 +9,8 @@
 #include <chrono>
 #include <thread>
 
+#include "sleep.h"
+
 static const int RECOMMENDATION_INTERVAL           = 90;
 static const int DEFAULT_DISCONNECT_TIMEOUT        = 5000;
 static const int DEFAULT_DISCONNECT_NOTIFY_START   = 750;
@@ -179,7 +181,7 @@ Peer2PeerBackend::DoPoll(int timeout)
          }
          // XXX: this is obviously a farce...
          if (timeout)
-        	 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+             sleep_us(1000);
       } else if (this->_num_players == 1) {
 		  CheckInitialSync();
       }
@@ -641,10 +643,11 @@ Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
       if (msg->hdr.relay_magic == RELAY_MAGIC) {
          int i = msg->hdr.relay_to_endpoint;
          if (i < _num_players) {
+            Log("Relay msg %d->%d->%d type:%d seq:%d", msg->hdr.remote_endpoint, _local_player_queue, msg->hdr.relay_to_endpoint, msg->hdr.org_type, msg->hdr.sequence_number);
             msg->hdr.type = msg->hdr.org_type;
+            msg->hdr.org_type = UdpMsg::Invalid;
             msg->hdr.relay_magic = 0;
             msg->hdr.relay_to_endpoint = 0;
-            Log("Relay msg %d->%d type:%d", msg->hdr.remote_endpoint, msg->hdr.relay_to_endpoint, msg->hdr.type);
             _endpoints[i].SendUnmanagedMsg(msg, len);
          }
       }

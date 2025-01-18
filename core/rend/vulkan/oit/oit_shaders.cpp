@@ -23,6 +23,8 @@
 #include "rend/gl4/glsl.h"
 #include "cfg/option.h"
 
+extern const char *FragmentShaderCommon;
+
 static const char OITVertexShaderSource[] = R"(
 layout (std140, set = 0, binding = 0) uniform VertexShaderUniforms
 {
@@ -35,11 +37,11 @@ layout (push_constant) uniform constants
 } pushConstants;
 
 layout (location = 0) in vec4         in_pos;
-layout (location = 1) in uvec4        in_base;
-layout (location = 2) in uvec4        in_offs;
+layout (location = 1) in vec4        in_base;
+layout (location = 2) in vec4        in_offs;
 layout (location = 3) in mediump vec2 in_uv;
-layout (location = 4) in uvec4        in_base1;						// New for OIT, only for OP/PT with 2-volume
-layout (location = 5) in uvec4        in_offs1;
+layout (location = 4) in vec4        in_base1;						// New for OIT, only for OP/PT with 2-volume
+layout (location = 5) in vec4        in_offs1;
 layout (location = 6) in mediump vec2 in_uv1;
 
 layout (location = 0) INTERPOLATION out highp vec4 vtx_base;
@@ -57,11 +59,11 @@ void main()
 	vpos /= vpos.z;
 	vpos.z = vpos.w;
 #endif
-	vtx_base = vec4(in_base) / 255.0;
-	vtx_offs = vec4(in_offs) / 255.0;
+	vtx_base = in_base;
+	vtx_offs = in_offs;
 	vtx_uv = vec3(in_uv, vpos.z);
-	vtx_base1 = vec4(in_base1) / 255.0;
-	vtx_offs1 = vec4(in_offs1) / 255.0;
+	vtx_base1 = in_base1;
+	vtx_offs1 = in_offs1;
 	vtx_uv1 = in_uv1;
 #if pp_Gouraud == 1 && DIV_POS_Z != 1
 	vtx_base *= vpos.z;
@@ -89,6 +91,7 @@ layout (std140, set = 0, binding = 1) uniform FragmentShaderUniforms
 	vec4 colorClampMax;
 	vec4 sp_FOG_COL_RAM;
 	vec4 sp_FOG_COL_VERT;
+	vec4 ditherColorMax;
 	float cp_AlphaTestValue;
 	float sp_FOG_DENSITY;
 	float shade_scale_factor;
@@ -130,9 +133,7 @@ layout (set = 0, binding = 3, std430) readonly buffer TrPolyParamBuffer {
 
 )";
 
-static const char OITFragmentShaderSource[] = R"(
-#define PI 3.1415926
-
+static const char OITFragmentShaderTop[] = R"(
 #define PASS_DEPTH 0
 #define PASS_COLOR 1
 #define PASS_OIT 2
@@ -173,7 +174,7 @@ layout (set = 1, binding = 0) uniform sampler2D tex0;
 layout (set = 1, binding = 1) uniform sampler2D tex1;
 #endif
 #endif
-#if pp_Palette == 1
+#if pp_Palette != 0
 layout (set = 0, binding = 6) uniform sampler2D palette;
 #endif
 
@@ -195,49 +196,10 @@ layout (location = 6) flat in uint vtx_index;
 
 #if pp_FogCtrl != 2 || pp_TwoVolumes == 1
 layout (set = 0, binding = 2) uniform sampler2D fog_table;
-
-float fog_mode2(float w)
-{
-	float z = clamp(
-#if DIV_POS_Z == 1
-					uniformBuffer.sp_FOG_DENSITY / w
-#else
-					uniformBuffer.sp_FOG_DENSITY * w
 #endif
-													, 1.0, 255.9999);
-	float exp = floor(log2(z));
-	float m = z * 16.0 / pow(2.0, exp) - 16.0;
-	float idx = floor(m) + exp * 16.0 + 0.5;
-	vec4 fog_coef = texture(fog_table, vec2(idx / 128.0, 0.75 - (m - floor(m)) / 2.0));
-	return fog_coef.r;
-}
-#endif
+)";
 
-vec4 colorClamp(vec4 col)
-{
-// TODO This can change in two-volume mode
-#if ColorClamping == 1
-	return clamp(col, uniformBuffer.colorClampMin, uniformBuffer.colorClampMax);
-#else
-	return col;
-#endif
-}
-
-#if pp_Palette == 1
-
-vec4 palettePixel(sampler2D tex, vec3 coords)
-{
-#if DIV_POS_Z == 1
-	float texIdx = texture(tex, coords.xy).r;
-#else
-	float texIdx = textureProj(tex, coords).r;
-#endif
-	vec4 c = vec4(texIdx * 255.0 / 1023.0 + pushConstants.palette_index, 0.5, 0.0, 0.0);
-	return texture(palette, c.xy);
-}
-
-#endif
-
+static const char OITFragmentShaderMain[] = R"(
 void main()
 {
 	setFragDepth(vtx_uv.z);
@@ -304,8 +266,10 @@ void main()
 					#else
 						texcol = textureProj(tex1, vec3(vtx_uv1, vtx_uv.z));
 					#endif
-				#else
+				#elif pp_Palette == 1
 					texcol = palettePixel(tex1, vec3(vtx_uv1, vtx_uv.z));
+				#else
+					texcol = palettePixelBilinear(tex1, vec3(vtx_uv1, vtx_uv.z));
 				#endif
 			else
 		#endif
@@ -315,8 +279,10 @@ void main()
 			#else
 				texcol = textureProj(tex0, vtx_uv);
 			#endif
-		#else
+		#elif pp_Palette == 1
 				texcol = palettePixel(tex0, vtx_uv);
+		#else
+				texcol = palettePixelBilinear(tex0, vtx_uv);
 		#endif
 		#if pp_BumpMap == 1
 			float s = PI / 2.0 * (texcol.a * 15.0 * 16.0 + texcol.r * 15.0) / 255.0;
@@ -328,12 +294,6 @@ void main()
 				IF(cur_ignore_tex_alpha)
 					texcol.a = 1.0;	
 			#endif
-			
-			#if cp_AlphaTest == 1
-				if (uniformBuffer.cp_AlphaTestValue > texcol.a)
-					discard;
-				texcol.a = 1.0;
-			#endif 
 		#endif
 		#if pp_ShadInstr == 0 || pp_TwoVolumes == 1 // DECAL
 		IF(cur_shading_instr == 0)
@@ -391,6 +351,13 @@ void main()
 	
 	color *= pushConstants.trilinearAlpha;
 	
+	#if cp_AlphaTest == 1
+		color.a = round(color.a * 255.0) / 255.0;
+		if (uniformBuffer.cp_AlphaTestValue > color.a)
+			discard;
+		color.a = 1.0;
+	#endif
+
 	//color.rgb = vec3(vtx_uv.z * uniformBuffer.sp_FOG_DENSITY / 128.0);
 	
 	#if PASS == PASS_COLOR 
@@ -559,6 +526,19 @@ vec4 resolveAlphaBlend(ivec2 coords) {
 			finalColor = result;
 	}
 
+#if DITHERING == 1
+	float ditherTable[16] = float[](
+		 0.9375,  0.1875,  0.75,  0.,   
+		 0.4375,  0.6875,  0.25,  0.5,
+		 0.8125,  0.0625,  0.875, 0.125,
+		 0.3125,  0.5625,  0.375, 0.625	
+	);
+	float r = ditherTable[int(mod(gl_FragCoord.y, 4.)) * 4 + int(mod(gl_FragCoord.x, 4.))];
+	// 31 for 5-bit color, 63 for 6 bits, 15 for 4 bits
+	finalColor += r / uniformBuffer.ditherColorMax;
+	// avoid rounding
+	finalColor = floor(finalColor * 255.) / 255.;
+#endif
 	return finalColor;
 	
 }
@@ -658,11 +638,11 @@ layout (push_constant) uniform constants
 } pushConstants;
 
 layout (location = 0) in vec4         in_pos;
-layout (location = 1) in uvec4        in_base;
-layout (location = 2) in uvec4        in_offs;
+layout (location = 1) in vec4        in_base;
+layout (location = 2) in vec4        in_offs;
 layout (location = 3) in mediump vec2 in_uv;
-layout (location = 4) in uvec4        in_base1;
-layout (location = 5) in uvec4        in_offs1;
+layout (location = 4) in vec4        in_base1;
+layout (location = 5) in vec4        in_offs1;
 layout (location = 6) in mediump vec2 in_uv1;
 layout (location = 7) in vec3         in_normal;
 
@@ -697,16 +677,16 @@ void wDivide(inout vec4 vpos)
 void main()
 {
 	vec4 vpos = n2Uniform.mvMat * in_pos;
-	vtx_base = vec4(in_base) / 255.0;
-	vtx_offs = vec4(in_offs) / 255.0;
+	vtx_base = in_base;
+	vtx_offs = in_offs;
 
 	#if LIGHT_ON == 1
 	vec3 vnorm = normalize(mat3(n2Uniform.normalMat) * in_normal);
 	#endif
 
 	#if pp_TwoVolumes == 1
-		vtx_base1 = vec4(in_base1) / 255.0;
-		vtx_offs1 = vec4(in_offs1) / 255.0;
+		vtx_base1 = in_base1;
+		vtx_offs1 = in_offs1;
 		vtx_uv1 = in_uv1;
 		#if LIGHT_ON == 1
 			// FIXME need offset0 and offset1 for bump maps
@@ -783,19 +763,22 @@ vk::UniqueShaderModule OITShaderManager::compileShader(const FragmentShaderParam
 		.addConstant("pp_Gouraud", (int)params.gouraud)
 		.addConstant("pp_BumpMap", (int)params.bumpmap)
 		.addConstant("ColorClamping", (int)params.clamping)
-		.addConstant("pp_Palette", (int)params.palette)
+		.addConstant("pp_Palette", params.palette)
 		.addConstant("DIV_POS_Z", (int)params.divPosZ)
 		.addConstant("PASS", (int)params.pass)
 		.addSource(GouraudSource)
 		.addSource(OITShaderHeader)
-		.addSource(OITFragmentShaderSource);
+		.addSource(OITFragmentShaderTop)
+		.addSource(FragmentShaderCommon)
+		.addSource(OITFragmentShaderMain);
 	return ShaderCompiler::Compile(vk::ShaderStageFlagBits::eFragment, src.generate());
 }
 
-vk::UniqueShaderModule OITShaderManager::compileFinalShader()
+vk::UniqueShaderModule OITShaderManager::compileFinalShader(bool dithering)
 {
 	VulkanSource src;
 	src.addConstant("MAX_PIXELS_PER_FRAGMENT", config::PerPixelLayers)
+		.addConstant("DITHERING", dithering)
 		.addSource(OITShaderHeader)
 		.addSource(OITFinalShaderSource);
 

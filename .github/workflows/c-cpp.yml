@@ -28,15 +28,14 @@ jobs:
       id-token: write
 
     strategy:
-      fail-fast: false
       matrix:
         config:
           # - {name: i686-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x86, cmakeArgs: -G Ninja, buildType: Release}
-          - {name: apple-darwin, os: self-hosted-mac, shell: sh, cmakeArgs: -G Xcode -DAPPLE_BREAKPAD=ON, destDir: osx, debugFile: build/RelWithDebInfo/Flycast.app.dSYM/Contents/Resources/DWARF/Flycast build/RelWithDebInfo/Flycast.app/Contents/MacOS/Flycast, buildType: RelWithDebInfo, packageName: flycast-gdxsv-macos-x86_64.zip}
+          - {name: apple-darwin, os: self-hosted-mac, shell: sh, cmakeArgs: -G Xcode, destDir: osx, buildType: RelWithDebInfo, packageName: flycast-gdxsv-macos-x86_64.zip}
           # - {name: apple-ios, os: macos-latest, shell: sh, cmakeArgs: -DCMAKE_SYSTEM_NAME=iOS -G Xcode, destDir: ios, buildType: Release}
           - {name: x86_64-pc-linux-gnu, os: ubuntu-20.04, shell: sh, cmakeArgs: -G Ninja, destDir: linux, buildType: RelWithDebInfo, packageName: flycast-gdxsv-linux-x86_64.zip}
-          - {name: x86_64-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x64, cmakeArgs: -G Ninja -DMSVC_BREAKPAD=ON, debugFile: build/flycast.pdb build/flycast.exe, destDir: win, buildType: Release, packageName: flycast-gdxsv-windows-msvc.zip}
-          # - {name: x86_64-w64-mingw32, os: windows-latest, shell: 'msys2 {0}', cmakeArgs: -G Ninja, destDir: win, buildType: RelWithDebInfo}
+          # - {name: x86_64-pc-windows-msvc, os: windows-latest, shell: cmd, arch: x64, cmakeArgs: -G Ninja -DMSVC_BREAKPAD=ON, destDir: win, buildType: Release, packageName: flycast-gdxsv-windows-msvc.zip}
+          - {name: x86_64-w64-mingw32, os: windows-latest, shell: 'msys2 {0}', cmakeArgs: -G Ninja, destDir: win, buildType: RelWithDebInfo, packageName: flycast-gdxsv-windows.zip}
           # - {name: libretro-x86_64-pc-linux-gnu, os: ubuntu-latest, shell: sh, cmakeArgs: -DLIBRETRO=ON -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE -G Ninja, buildType: Release}
           # - {name: libretro-x86_64-w64-mingw32, os: windows-latest, shell: 'msys2 {0}', cmakeArgs: -DLIBRETRO=ON -G Ninja, buildType: Release}
 
@@ -47,9 +46,10 @@ jobs:
           brew list -1 | grep python | while read formula; do brew unlink $formula; brew link --overwrite $formula; done
           brew update || :
           brew install libao ldid ninja pulseaudio
+          # brew uninstall --ignore-dependencies zstd
           [ -f $VULKAN_SDK/../MaintenanceTool.app/Contents/MacOS/MaintenanceTool ] && sudo $VULKAN_SDK/../MaintenanceTool.app/Contents/MacOS/MaintenanceTool --confirm-command purge
-          VULKAN_VER=1.3.250.1 && aria2c --parameterized-uri=true --conditional-get=true --allow-overwrite="true" --auto-file-renaming="false" https://{sdk.lunarg.com/sdk/download/$VULKAN_VER/mac,distfiles.macports.org/MoltenVK}/vulkansdk-macos-$VULKAN_VER.dmg
-          hdiutil attach ./vulkansdk-macos-$VULKAN_VER.dmg
+          VULKAN_VER=1.3.261.1 && aria2c https://sdk.lunarg.com/sdk/download/$VULKAN_VER/mac/vulkansdk-macos-$VULKAN_VER.dmg
+          hdiutil attach ./vulkansdk-macos-$VULKAN_VER.dmg -mountpoint /Volumes/VulkanSDK
           sudo /Volumes/VulkanSDK/InstallVulkan.app/Contents/MacOS/InstallVulkan --root $HOME/VulkanSDK --accept-licenses --default-answer --confirm-command install
           hdiutil detach /Volumes/VulkanSDK
           echo "VULKAN_SDK=$HOME/VulkanSDK/macOS" >> $GITHUB_ENV
@@ -59,7 +59,7 @@ jobs:
         run: |
           sudo add-apt-repository ppa:christianrauch/libdecoration
           sudo apt-get update
-          sudo apt-get -y install ccache libao-dev libasound2-dev libevdev-dev libgl1-mesa-dev liblua5.3-dev libminiupnpc-dev libpulse-dev libsdl2-dev libudev-dev libzip-dev ninja-build libcurl4-openssl-dev
+          sudo apt-get -y install ccache libao-dev libasound2-dev libevdev-dev libgl1-mesa-dev liblua5.3-dev libminiupnpc-dev libpulse-dev libsdl2-dev libudev-dev libzip-dev ninja-build libcurl4-openssl-dev libcdio-dev
           sudo apt-get -y install libwayland-dev libdecor-0-dev libaudio-dev libjack-dev libsndio-dev libsamplerate0-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev libdrm-dev libgbm-dev libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev fcitx-libs-dev
         if: runner.os == 'Linux'
 
@@ -67,7 +67,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: git make mingw-w64-x86_64-ccache mingw-w64-x86_64-cmake mingw-w64-x86_64-lua mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-toolchain
+          install: git make mingw-w64-x86_64-ccache mingw-w64-x86_64-cmake mingw-w64-x86_64-lua mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-toolchain mingw-w64-x86_64-libcdio
         if: matrix.config.shell == 'msys2 {0}'
 
       - name: Set up build environment (Windows, Visual Studio)
@@ -81,10 +81,10 @@ jobs:
           arch: ${{ matrix.config.arch }}
         if: matrix.config.shell == 'cmd'
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: true
+          submodules: recursive
 
       - name: Compile a universal OpenMP (macOS)
         run: HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew reinstall --build-from-source --formula ./shell/apple/libomp.rb
@@ -94,7 +94,7 @@ jobs:
         run: ./shell/apple/emulator-ios/OpenMP/build_ios_openmp.sh --disableSimulator
         if: matrix.config.name == 'apple-ios'
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ matrix.config.name }}-${{ github.sha }}
@@ -119,6 +119,7 @@ jobs:
         run: |
           mkdir -p symbols
           core/deps/breakpad/bin/dump_syms artifact/bin/flycast.exe > symbols/flycast.sym 2>/dev/null
+          sed -i symbols/flycast.sym -e 's#D:\\a\\flycast\\flycast\\build/##' -e 's#D:\\a\\flycast\\flycast\\core\\deps\\breakpad/##'
           strip artifact/bin/flycast.exe
         if: matrix.config.name == 'x86_64-w64-mingw32'
 
@@ -140,7 +141,7 @@ jobs:
           rm artifact/bin/flycast
         if: matrix.config.name == 'x86_64-pc-linux-gnu'
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: flycast-${{ matrix.config.name }}
           path: artifact/bin
@@ -170,7 +171,7 @@ jobs:
 
       - name: Configure AWS Credentials
         id: aws-credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: AKIAJOZQS4H2PHQWYFCA
           aws-secret-access-key: ${{ secrets.S3_SECRET_KEY }}
@@ -183,7 +184,7 @@ jobs:
         if: ${{ steps.aws-credentials.outputs.aws-account-id != '' }}
 
       - name: Setup Sentry CLI
-        uses: mathieu-bour/setup-sentry-cli@v1
+        uses: mathieu-bour/setup-sentry-cli@v2
         env:
           SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
           SENTRY_PROJECT: "${{ startsWith(github.ref, 'refs/tags/gdxsv-') && 'public' || 'dev' }}"
@@ -192,18 +193,25 @@ jobs:
           token: ${{ env.SENTRY_TOKEN }}
           organization: gdxsv-project
           project: ${{ env.SENTRY_PROJECT }}
+          version: 2.21.2
         if: ${{ env.SENTRY_TOKEN != '' }}
       
-      - name: Upload symbols to Sentry (Windows-MSVC, macOS, Linux)
+      - name: Upload symbols to Sentry (Windows, macOS, Linux)
         run: |
           VERSION=$(git describe --tags --always --match "gdxsv-*" | sed -E "s/-([0-9]+)-g(.+)$/-dev.\\1+\\2/g")
+          # Auto increment semver if it is prelease, since 1.2.3-beta.1 < 1.2.3
+          if [[ "$VERSION" =~ \.([0-9]+)-dev.[0-9]+\+ ]]; then
+            PATCH_VERSION="${BASH_REMATCH[1]}"
+            PATCH_VERSION=$((PATCH_VERSION + 1))
+            VERSION=$(echo "$VERSION" | sed -E "s/.[0-9]-dev/.${PATCH_VERSION}-dev/")
+          fi
           sentry-cli releases new "$VERSION"
           sentry-cli releases set-commits "$VERSION" --auto
-          sentry-cli upload-dif ${{ matrix.config.debugFile }}
+          sentry-cli debug-files upload symbols
         shell: bash
         env:
           SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
-        if: ${{ env.SENTRY_TOKEN != '' && (matrix.config.name == 'x86_64-pc-windows-msvc' || matrix.config.name == 'apple-darwin' || matrix.config.name == 'x86_64-pc-linux-gnu') }}
+        if: ${{ env.SENTRY_TOKEN != '' && (matrix.config.name == 'x86_64-pc-windows-msvc' || matrix.config.name == 'x86_64-w64-mingw32' || matrix.config.name == 'apple-darwin' || matrix.config.name == 'x86_64-pc-linux-gnu') }}
 
       - name: Release flycast-gdxsv
         uses: softprops/action-gh-release@v1

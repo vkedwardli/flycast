@@ -19,8 +19,8 @@
 #include "network/ggpo.h"
 #include "oslib/oslib.h"
 #include "reios/reios.h"
-#include "rend/boxart/http_client.h"
-#include "rend/gui.h"
+#include "oslib/http_client.h"
+#include "ui/gui.h"
 #include "version.h"
 
 bool encode_zlib_deflate(const char *data, int len, std::vector<u8> &out) {
@@ -634,7 +634,7 @@ void Gdxsv::RestoreOnlinePatch() {
 	patch_list_.clear_patches();
 
 	// Discard dynarec cache because it may become corrupted
-	sh4_cpu.ResetCache();
+	emu.getSh4Executor()->ResetCache();
 }
 
 void Gdxsv::WritePatch() {
@@ -642,7 +642,7 @@ void Gdxsv::WritePatch() {
 	if (disk_ == 2) WritePatchDisk2();
 	if (symbols_["patch_id"] == 0 || gdxsv_ReadMem32(symbols_["patch_id"]) != symbols_[":patch_id"]) {
 		NOTICE_LOG(COMMON, "patch %d %d", gdxsv_ReadMem32(symbols_["patch_id"]), symbols_[":patch_id"]);
-		sh4_cpu.ResetCache();
+		emu.getSh4Executor()->ResetCache();
 
 #include "gdxsv_patch.inc"
 

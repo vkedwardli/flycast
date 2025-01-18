@@ -19,7 +19,7 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #pragma once
-#include "TexCache.h"
+#include "hw/pvr/Renderer_if.h"
 #include "hw/pvr/ta_ctx.h"
 #include "cfg/option.h"
 
@@ -97,15 +97,9 @@ public:
 		return sidebarWidth;
 	}
 
-	glm::vec2 GetDreamcastViewport() const {
-		return dcViewport;
-	}
-
 	void CalcMatrices(const rend_context *renderingContext, int width = 0, int height = 0)
 	{
-		const int screenFlipY = (System == COORD_OPENGL  && !config::EmulateFramebuffer) || System == COORD_DIRECTX ? -1 : 1;
-		constexpr int rttFlipY = System == COORD_DIRECTX ? -1 : 1;
-		constexpr int framebufferFlipY = System == COORD_DIRECTX ? -1 : 1;
+		constexpr int flipY = System == COORD_DIRECTX ? -1 : 1;
 
 		renderViewport = { width == 0 ? settings.display.width : width, height == 0 ? settings.display.height : height };
 		this->renderingContext = renderingContext;
@@ -116,8 +110,8 @@ public:
 			if (renderingContext->scaler_ctl.hscale)
 				dcViewport.x *= 2;
 			dcViewport.y = (float)(renderingContext->fb_Y_CLIP.max - renderingContext->fb_Y_CLIP.min + 1);
-			normalMatrix = glm::translate(glm::vec3(-1, -rttFlipY, 0))
-				* glm::scale(glm::vec3(2.0f / dcViewport.x, 2.0f / dcViewport.y * rttFlipY, 1.f));
+			normalMatrix = glm::translate(glm::vec3(-1, -flipY, 0))
+				* glm::scale(glm::vec3(2.0f / dcViewport.x, 2.0f / dcViewport.y * flipY, 1.f));
 			scissorMatrix = normalMatrix;
 			sidebarWidth = 0;
 		}
@@ -149,13 +143,13 @@ public:
 			else
 				sidebarWidth = 0;
 			float x_coef = 2.0f / dcViewport.x;
-			float y_coef = 2.0f / dcViewport.y * screenFlipY;
+			float y_coef = 2.0f / dcViewport.y * flipY;
 
 			// GDXSV: Stretch the screen to make it wider than Framebuffer's size
 			if (gdxsv_widescreen_hack_enabled())
 				x_coef *= (config::ScreenStretching / 100.f);
 
-			glm::mat4 trans = glm::translate(glm::vec3(-1 + 2 * sidebarWidth, -screenFlipY, 0));
+			glm::mat4 trans = glm::translate(glm::vec3(-1 + 2 * sidebarWidth, -flipY, 0));
 
 			normalMatrix = trans
 				* glm::scale(glm::vec3(x_coef, y_coef, 1.f))
@@ -167,15 +161,15 @@ public:
 		normalMatrix = glm::scale(glm::vec3(1, 1, 1 / config::ExtraDepthScale))
 				* normalMatrix;
 
-		glm::mat4 vp_trans = glm::translate(glm::vec3(1, framebufferFlipY, 0));
+		glm::mat4 vp_trans = glm::translate(glm::vec3(1, flipY, 0));
 		if (renderingContext->isRTT)
 		{
-			vp_trans = glm::scale(glm::vec3(dcViewport.x / 2, dcViewport.y / 2 * framebufferFlipY, 1.f))
+			vp_trans = glm::scale(glm::vec3(dcViewport.x / 2, dcViewport.y / 2 * flipY, 1.f))
 				* vp_trans;
 		}
 		else
 		{
-			vp_trans = glm::scale(glm::vec3(renderViewport.x / 2, renderViewport.y / 2 * framebufferFlipY, 1.f))
+			vp_trans = glm::scale(glm::vec3(renderViewport.x / 2, renderViewport.y / 2 * flipY, 1.f))
 				* vp_trans;
 		}
 		viewportMatrix = vp_trans * normalMatrix;
@@ -315,13 +309,14 @@ inline static void getVideoShift(float& x, float& y)
 	switch (SPG_LOAD.hcount)
 	{
 		case 857: // NTSC, VGA
-			x = VO_STARTX.HStart - (vga ? 0xa8 : 0xa4);
+			x = (int)VO_STARTX.HStart - (vga ? 0xa8 : 0xa4);
 			break;
 		case 863: // PAL
-			x = VO_STARTX.HStart - 0xae;
+			x = (int)VO_STARTX.HStart - 0xae;
 			break;
 		case 851: // Naomi
-			x = VO_STARTX.HStart - 0xa5; // a0 for 15 kHz
+		case 850: // meltyb
+			x = (int)VO_STARTX.HStart - 0xa5; // a0 for 15 kHz
 			break;
 		default:
 			x = 0;
@@ -331,23 +326,24 @@ inline static void getVideoShift(float& x, float& y)
 	switch (SPG_LOAD.vcount)
 	{
 		case 524: // NTSC, VGA
-			y = VO_STARTY.VStart_field1 - (vga ? 0x28 : 0x12);
+			y = (int)VO_STARTY.VStart_field1 - (vga ? 0x28 : 0x12);
 			break;
 		case 262: // NTSC 240p
-			y = VO_STARTY.VStart_field1 - 0x11;
+			y = (int)VO_STARTY.VStart_field1 - 0x11;
 			break;
 		case 624: // PAL
-			y = VO_STARTY.VStart_field1 - 0x2d;
+			y = (int)VO_STARTY.VStart_field1 - 0x2d;
 			break;
 		case 312: // PAL 240p
-			y = VO_STARTY.VStart_field1 - 0x2e;
+			y = (int)VO_STARTY.VStart_field1 - 0x2e;
 			break;
 		case 529: // Naomi 31 kHz
-			y = VO_STARTY.VStart_field1 - 0x24;
+		case 528: // meltyb
+			y = (int)VO_STARTY.VStart_field1 - 0x24;
 			break;
 		case 536: // Naomi 15 kHz 480i
 		case 268: // Naomi 15 kHz 240p
-			y = VO_STARTY.VStart_field1 - 0x17; // 16 for 240p
+			y = (int)VO_STARTY.VStart_field1 - 0x17; // 16 for 240p
 			break;
 		default:
 			y = 0;

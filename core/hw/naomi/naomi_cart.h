@@ -71,7 +71,7 @@ public:
 	virtual void SetKeyData(u8 *key_data) { }
 	virtual bool GetBootId(RomBootID *bootId) = 0;
 
-	const Game *game;
+	const Game *game = nullptr;
 
 protected:
 	u8* RomPtr;
@@ -86,7 +86,9 @@ public:
 	u32 ReadMem(u32 address, u32 size) override;
 	void WriteMem(u32 address, u32 data, u32 size) override;
 	void* GetDmaPtr(u32 &size) override;
-	void AdvancePtr(u32 size) override {}
+	void AdvancePtr(u32 size) override {
+		DmaOffset += size;
+	}
 	void Serialize(Serializer& ser) const override;
 	void Deserialize(Deserializer& deser) override;
 	bool GetBootId(RomBootID *bootId) override;
@@ -123,7 +125,7 @@ public:
 	bool GetBootId(RomBootID *bootId) override;
 
 private:
-	u8 naomi_cart_ram[64 * 1024];
+	u8 naomi_cart_ram[64_KB];
 };
 
 class NaomiCartException : public FlycastException
@@ -169,7 +171,7 @@ struct AxisDescriptor
 struct InputDescriptors
 {
    ButtonDescriptor buttons[18];
-   AxisDescriptor axes[8];
+   AxisDescriptor axes[16];
 };
 
 extern InputDescriptors *NaomiGameInputs;

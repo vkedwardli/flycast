@@ -21,6 +21,8 @@
 #pragma once
 
 #ifdef USE_VULKAN
+#include "vulkan.h"
+
 #include <stdexcept>
 
 class InvalidVulkanContext : public std::runtime_error {
@@ -28,25 +30,75 @@ public:
 	InvalidVulkanContext() : std::runtime_error("Invalid Vulkan context") {}
 };
 
+// RAII utility-object for adding debug-scopes to command buffers
+#ifdef VK_DEBUG
+class CommandBufferDebugScope {
+private:
+	const vk::CommandBuffer commandBuffer;
+
+public:
+	CommandBufferDebugScope(
+		vk::CommandBuffer targetCommandBuffer,
+		std::string_view scopeName, const float scopeColor[4]
+	) : commandBuffer(targetCommandBuffer)
+	{
+		vk::DebugUtilsLabelEXT label{};
+		label.pLabelName = scopeName.data();
+		std::copy_n(scopeColor, 4, label.color.data());
+		commandBuffer.beginDebugUtilsLabelEXT(label);
+	}
+
+	void operator()(std::string_view scopeName, const float scopeColor[4]) const
+	{
+		vk::DebugUtilsLabelEXT label{};
+		label.pLabelName = scopeName.data();
+		std::copy_n(scopeColor, 4, label.color.data());
+		commandBuffer.insertDebugUtilsLabelEXT(label);
+	}
+
+	~CommandBufferDebugScope()
+	{
+		commandBuffer.endDebugUtilsLabelEXT();
+	}
+};
+#else
+class CommandBufferDebugScope {
+public:
+	CommandBufferDebugScope(
+		vk::CommandBuffer targetCommandBuffer,
+		std::string_view scopeName, const float scopeColor[4]
+	)
+	{
+	}
+
+	void operator()(std::string_view scopeName, const float scopeColor[4]) const
+	{
+	}
+
+	~CommandBufferDebugScope()
+	{
+	}
+};
+#endif
+
 #ifdef LIBRETRO
 #include "vk_context_lr.h"
 #else
 
-#include "vulkan.h"
 #include "vmallocator.h"
 #include "quad.h"
-#include "rend/TexCache.h"
+#include "rend/texconv.h"
 #include "overlay.h"
 #include "wsi/context.h"
+#include <vector>
 
 struct ImDrawData;
-class TextureCache;
 
-class VulkanContext : public GraphicsContext
+class VulkanContext : public GraphicsContext, public FlightManager
 {
 public:
 	VulkanContext();
-	~VulkanContext();
+	~VulkanContext() override;
 
 	bool init();
 	void term() override;
@@ -61,7 +113,7 @@ public:
 	void Present() noexcept;
 	void PresentFrame(vk::Image image, vk::ImageView imageView, const vk::Extent2D& extent, float aspectRatio) noexcept;
 	void PresentLastFrame();
-	void initVideoRouting() override;
+	bool GetLastFrame(std::vector<u8>& data, int& width, int& height);
 
 	vk::PhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
 	vk::Device GetDevice() const { return *device; }
@@ -97,14 +149,15 @@ public:
 	std::string getDriverVersion() override {
 		return driverVersion;
 	}
+	bool isAMD() override {
+		return vendorID == VENDOR_ATI || vendorID == VENDOR_AMD;
+	}
 	vk::Format GetDepthFormat() const { return depthFormat; }
 	static VulkanContext *Instance() { return contextInstance; }
 	bool SupportsSamplerAnisotropy() const { return samplerAnisotropy; }
 	float GetMaxSamplerAnisotropy() const { return samplerAnisotropy ? maxSamplerAnisotropy : 1.f; }
 	bool SupportsDedicatedAllocation() const { return dedicatedAllocationSupported; }
 	const VMAllocator& GetAllocator() const { return allocator; }
-	bool IsUnifiedMemory() const { return unifiedMemory; }
-	u32 GetMaxStorageBufferRange() const { return maxStorageBufferRange; }
 	vk::DeviceSize GetMaxMemoryAllocationSize() const { return maxMemoryAllocationSize; }
 	u32 GetVendorID() const { return vendorID; }
 	vk::CommandBuffer PrepareOverlay(bool vmu, bool crosshair);
@@ -114,17 +167,24 @@ public:
 				vk::SubmitInfo(nullptr, nullptr, buffers), fence);
 	}
 	bool hasPerPixel() override { return fragmentStoresAndAtomics; }
+	bool hasProvokingVertex() { return provokingVertexSupported; }
 	bool recreateSwapChainIfNeeded();
+	void addToFlight(Deletable *object) override {
+		inFlightObjects[GetCurrentImageIndex()].emplace_back(object);
+	}
 
 #ifdef VK_DEBUG
-	void setObjectName(u64 object, VkDebugReportObjectTypeEXT objectType, const std::string& name)
+	template<typename HandleType, typename = std::enable_if_t<vk::isVulkanHandleType<HandleType>::value>>
+	void setObjectName(const HandleType& object, const std::string& name)
 	{
-		VkDebugMarkerObjectNameInfoEXT nameInfo = {};
-		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
-		nameInfo.objectType = objectType;
-		nameInfo.object = object;
+		vk::DebugUtilsObjectNameInfoEXT nameInfo {};
+		nameInfo.objectType = HandleType::objectType;
+		nameInfo.objectHandle = reinterpret_cast<uint64_t>(static_cast<typename HandleType::NativeType>(object));
 		nameInfo.pObjectName = name.c_str();
-		VULKAN_HPP_DEFAULT_DISPATCHER.vkDebugMarkerSetObjectNameEXT((VkDevice)*device, &nameInfo);
+		if (device) {
+			vk::Result e = device->setDebugUtilsObjectNameEXT(&nameInfo);
+			(void)e;
+		}
 	}
 #endif
 	constexpr static int VENDOR_AMD = 0x1022;
@@ -162,7 +222,6 @@ private:
 	u32 presentQueueIndex = 0;
 	vk::DeviceSize uniformBufferAlignment = 0;
 	vk::DeviceSize storageBufferAlignment = 0;
-	u32 maxStorageBufferRange = 0;
 	vk::DeviceSize maxMemoryAllocationSize = 0xFFFFFFFFu;
 	bool optimalTilingSupported565 = false;
 	bool optimalTilingSupported1555 = false;
@@ -171,7 +230,7 @@ private:
 	bool samplerAnisotropy = false;
 	float maxSamplerAnisotropy = 0.f;
 	bool dedicatedAllocationSupported = false;
-	bool unifiedMemory = false;
+	bool provokingVertexSupported = false;
 	u32 vendorID = 0;
 	int swapInterval = 1;
 	vk::UniqueDevice device;
@@ -215,8 +274,7 @@ private:
 	float lastFrameAR = 0.f;
 
 	std::unique_ptr<VulkanOverlay> overlay;
-	// only used to delay the destruction of overlay textures
-	std::unique_ptr<TextureCache> textureCache;
+	std::vector<std::vector<std::unique_ptr<Deletable>>> inFlightObjects;
 
 	std::string driverName;
 	std::string driverVersion;
