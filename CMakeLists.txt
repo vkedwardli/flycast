@@ -297,7 +297,7 @@ if(NOT "${GDXSV_TEXTURE_PACK_PASS}" STREQUAL "")
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE core core/deps core/deps/stb core/deps/json core/deps/asio/asio/include)
->>>>>>> gdxsv-master
+
 if(LIBRETRO)
 	target_include_directories(${PROJECT_NAME} PRIVATE shell/libretro)
 endif()
