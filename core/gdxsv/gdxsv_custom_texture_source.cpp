@@ -296,7 +296,7 @@ bool GdxsvTexturePackSource::LoadMap() {
 				if (extension != "jpg" && extension != "jpeg" && extension != "png") continue;
 				std::string::size_type dotpos = name.find_last_of('.');
 				std::string::size_type slashpos = name.find_last_of('/');
-				if (slashpos == std::string::npos) slashpos = 0;
+				if (slashpos == std::string::npos) slashpos = -1;
 				std::string basename = name.substr(slashpos + 1, dotpos - (slashpos + 1));
 				char* endptr;
 				u32 hash = (u32)strtoll(basename.c_str(), &endptr, 16);
@@ -318,45 +318,27 @@ u8* GdxsvTexturePackSource::LoadCustomTexture(u32 hash, int& width, int& height)
 	if (it == texture_map.end()) return nullptr;
 
 	// Load texture from texture pack file
+	zip_stat_t z_stat;
+	if (zip_stat_index(texp_zip, it->second, 0, &z_stat) < 0) {
+		ERROR_LOG(COMMON, "LoadCustomTexture: zip_stat_index failure");
+		return nullptr;
+	}
+
 	auto zfp = zip_fopen_index(texp_zip, it->second, 0);
 	if (zfp == nullptr) {
 		ERROR_LOG(COMMON, "LoadCustomTexture: zip_fopen_index failure");
 	} else {
-		struct UserData {
-			zip_file_t* zfp;
-			bool eof;
-		};
-
-		stbi_io_callbacks cbk{};
-		cbk.read = [](void* user, char* data, int size) -> int {
-			const auto u = static_cast<UserData*>(user);
-			const int n = static_cast<int>(zip_fread(u->zfp, data, size));
-			u->eof |= size != 0 && n == 0;
-			return n;
-		};
-		cbk.skip = [](void* user, int skip) {
-			const auto u = static_cast<UserData*>(user);
-			while (0 < skip) {
-				char buf[1024];
-				const int size = std::min<int>(sizeof(buf), skip);
-				const int n = static_cast<int>(zip_fread(u->zfp, buf, size));
-				u->eof |= size != 0 && n == 0;
-				skip -= n;
-			}
-		};
-		cbk.eof = [](void* user) -> int {
-			const auto u = static_cast<UserData*>(user);
-			return u->eof;
-		};
-
-		UserData u{};
-		u.zfp = zfp;
-		u.eof = false;
-		int n;
+		auto mem = std::malloc(z_stat.size);
+		if (zip_fread(zfp, mem, z_stat.size) < 0) {
+			ERROR_LOG(COMMON, "LoadCustomTexture: zip_fread failure");
+			std::free(mem);
+			return nullptr;
+		}
 		stbi_set_flip_vertically_on_load(1);
-		u8* imgData = stbi_load_from_callbacks(&cbk, &u, &width, &height, &n, STBI_rgb_alpha);
-
+		int n;
+		u8* imgData = stbi_load_from_memory((stbi_uc*)mem, z_stat.size, &width, &height, &n, STBI_rgb_alpha);
 		zip_fclose(zfp);
+		std::free(mem);
 		return imgData;
 	}
 
