@@ -2243,6 +2243,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv.pb.h
 		core/gdxsv/gdxsv_custom_texture_source.cpp
 		core/gdxsv/gdxsv_custom_texture_source.h
+		core/gdxsv/gdxsv_custom_texture_update.cpp
+		core/gdxsv/gdxsv_custom_texture_update.h
 		core/gdxsv/gdxsv_backend_replay.cpp
 		core/gdxsv/gdxsv_backend_replay.h
 		core/gdxsv/gdxsv_backend_rollback.cpp
