@@ -5,6 +5,11 @@
 #include "libs.h"
 #include "oslib/http_client.h"
 
+#if defined(_WIN32)
+#include <Windows.h>
+#include <nowide/stackstring.hpp>
+#endif
+
 static constexpr size_t MaxDownloadSize = 30 * 1024 * 1024;
 
 std::string get_texture_pack_path() {
@@ -41,7 +46,7 @@ void GdxsvCustomTexutreUpdate::FetchLatestVersionInfo() {
 		std::vector<u8> dl;
 		std::string content_type;
 		http::init();
-		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/index.json";
+		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/main.json";
 		const int rc = http::get(url, dl, content_type);
 		if (rc != 200) {
 			ERROR_LOG(COMMON, "version check failure: %s", url.c_str());
@@ -62,6 +67,7 @@ std::string GdxsvCustomTexutreUpdate::GetLatestVersion() const {
 }
 
 std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
+	download_completed_size_ = 0;
 	verify(future_is_ready(fetch_latest_version_future_));
 
 	auto update_fn = [this]() -> bool {
@@ -82,7 +88,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 		}
 
 		bool ok = true;
-		for (auto [path, size] : latest.chunks) {
+		for (auto [path, size, hash] : latest.chunks) {
 			if (MaxDownloadSize < size) {
 				ERROR_LOG(COMMON, "latest texture pack is too big");
 				ok = false;
@@ -94,7 +100,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 			download_buf_.reserve(size);
 
 			const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/" + path;
-			const int rc = http::get(path, download_buf_, content_type);
+			const int rc = http::get(url, download_buf_, content_type);
 
 			if (rc != 200) {
 				ERROR_LOG(COMMON, "download failure: %s", url.c_str());
@@ -120,6 +126,21 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 				ok = false;
 				break;
 			}
+
+			{
+				std::stringstream ss;
+				ss.width(16);
+				ss.fill('0');
+				ss << std::hex << XXH64(download_buf_.data(), download_buf_.size(), 0);
+				if (hash != ss.str()) {
+					ERROR_LOG(COMMON, "chunk hash missmatch");
+					ok = false;
+					break;
+				}
+			}
+
+			download_completed_size_ += download_buf_.size();
+			download_buf_.clear();
 		}
 
 		std::fclose(fp);
@@ -130,7 +151,14 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 			return false;
 		}
 
-		if (nowide::rename((tmp_dir + "/" + latest.name).c_str(), get_texture_pack_path().c_str()) != 0) {
+		auto new_xxhash = ComputeXXHash(download_file_path);
+		if (new_xxhash != latest.xxhash)
+		{
+			ERROR_LOG(COMMON, "invalid xxhash expected:%s actual%s", latest.xxhash.c_str(), new_xxhash.c_str());
+			return false;
+		}
+
+		if (nowide::rename(download_file_path.c_str(), get_texture_pack_path().c_str()) != 0) {
 			ERROR_LOG(COMMON, "failed to move latest version");
 			return false;
 		}
@@ -141,12 +169,25 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 	return std::async(std::launch::async, update_fn).share();
 }
 
+float GdxsvCustomTexutreUpdate::UpdateProgress() const
+{
+	verify(future_is_ready(fetch_latest_version_future_));
+
+	const auto& latest = fetch_latest_version_future_.get();
+
+	if (latest.size == 0) {
+		return 0;
+	}
+
+	return static_cast<float>(download_completed_size_ + download_buf_.size()) / latest.size;
+}
+
 void GdxsvCustomTexutreUpdate::HandleReleaseJSON(const std::string& json_string, LatestVersionInfo& out) {
 	std::string latest_name;
 	std::string latest_version;
 	std::string latest_xxhash;
 	int latest_size = 0;
-	std::vector<std::tuple<std::string, int>> latest_chunks;
+	std::vector<std::tuple<std::string, int, std::string>> latest_chunks;
 
 	try {
 		nlohmann::json v = nlohmann::json::parse(json_string);
@@ -154,10 +195,11 @@ void GdxsvCustomTexutreUpdate::HandleReleaseJSON(const std::string& json_string,
 		latest_version = v.at("version");
 		latest_xxhash = v.at("xxhash");
 		latest_size = v.at("size");
-		for (auto e : v.at("files")) {
+		for (auto e : v.at("chunks")) {
 			std::string path = e.at("path");
 			int size = e.at("size");
-			latest_chunks.emplace_back(path, size);
+			std::string hash = e.at("hash");
+			latest_chunks.emplace_back(path, size, hash);
 		}
 	} catch (const nlohmann::json::exception& e) {
 		WARN_LOG(COMMON, "json parse failure: %s", e.what());
@@ -166,6 +208,7 @@ void GdxsvCustomTexutreUpdate::HandleReleaseJSON(const std::string& json_string,
 	if (latest_name.empty()) return;
 	if (latest_version.empty()) return;
 	if (latest_xxhash.empty()) return;
+	if (latest_chunks.empty()) return;
 
 	int sum_size = 0;
 	for (auto&e : latest_chunks) {
@@ -173,7 +216,7 @@ void GdxsvCustomTexutreUpdate::HandleReleaseJSON(const std::string& json_string,
 	}
 	if (sum_size != latest_size) return;
 
-	auto current_xxhash = GetCurrentXXHash();
+	auto current_xxhash = ComputeXXHash(get_texture_pack_path());
 	if (!current_xxhash.empty() && current_xxhash == latest_xxhash) return;
 
 	out.name = latest_name;
@@ -181,12 +224,11 @@ void GdxsvCustomTexutreUpdate::HandleReleaseJSON(const std::string& json_string,
 	out.xxhash = latest_xxhash;
 	out.size = latest_size;
 	out.chunks = latest_chunks;
+	out.is_new_version = true;
 }
 
-
-std::string GdxsvCustomTexutreUpdate::GetCurrentXXHash() {
-	const auto texture_pack_path = get_texture_pack_path();
-	if (!file_exists(texture_pack_path))
+std::string GdxsvCustomTexutreUpdate::ComputeXXHash(std::string path) {
+	if (!file_exists(path))
 		return "";
 
 	XXH64_state_t* state = XXH64_createState();
@@ -198,7 +240,7 @@ std::string GdxsvCustomTexutreUpdate::GetCurrentXXHash() {
 		return "";
 	}
 
-	const auto fp = nowide::fopen(texture_pack_path.c_str(), "rb");
+	const auto fp = nowide::fopen(path.c_str(), "rb");
 	if (fp == nullptr) {
 		XXH64_freeState(state);
 		return "";
@@ -210,13 +252,15 @@ std::string GdxsvCustomTexutreUpdate::GetCurrentXXHash() {
 	do {
 		char buf[4096];
 		n = std::fread(buf, 1, 4096, fp);
-		ok &= XXH64_update(state, buf, n) != XXH_ERROR;
-	} while (n);
-
-	ok &= ferror(fp) || !feof(fp);
+		if (0 < n) {
+			ok &= XXH64_update(state, buf, n) != XXH_ERROR;
+		}
+	} while (n && ok);
 
 	if (ok) {
 		std::stringstream ss;
+		ss.width(16);
+		ss.fill('0');
 		ss << std::hex << XXH64_digest(state);
 		result = ss.str();
 	}
@@ -225,3 +269,19 @@ std::string GdxsvCustomTexutreUpdate::GetCurrentXXHash() {
 	std::fclose(fp);
 	return result;
 }
+
+std::string GdxsvCustomTexutreUpdate::GetTempDir() {
+#if defined(_WIN32)
+	wchar_t temp_path[_MAX_PATH + 1];
+	GetTempPathW(_MAX_PATH, temp_path);
+	nowide::stackstring nws;
+	if (!nws.convert(temp_path)) return "";
+	auto result = std::string(nws.get());
+	if (result.back() == '/' || result.back() == '\\') result.pop_back();
+	return result;
+#else
+	return "/tmp";
+#endif
+}
+
+GdxsvCustomTexutreUpdate gdxsv_custom_texture_update;

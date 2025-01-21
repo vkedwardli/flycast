@@ -9,6 +9,7 @@
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_update.h"
+#include "gdxsv_custom_texture_update.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
 #include "json.hpp"
@@ -23,6 +24,7 @@
 using namespace nlohmann;
 
 static void gdxsv_update_popup();
+static void gdxsv_texture_update_popup();
 static void wireless_warning_popup();
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
@@ -129,6 +131,7 @@ static void gui_header(const char* title) {
 void gdxsv_emu_gui_display() {
 	if (gui_state == GuiState::Main) {
 		gdxsv_update_popup();
+		gdxsv_texture_update_popup();
 		wireless_warning_popup();
 	}
 
@@ -305,6 +308,52 @@ static void gdxsv_update_popup() {
 			ImGui::Text("Updating...");
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
 			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ImVec2(-1, 20.f * settings.display.uiScale));
+			ImGui::PopStyleColor();
+		}
+
+		ImGui::SetItemDefaultFocus();
+		ImGui::PopStyleVar();
+		ImGui::EndPopup();
+	}
+	ImGui::PopStyleVar(2);
+}
+
+static void gdxsv_texture_update_popup() {
+	static bool update_triggered = false;
+	static std::shared_future<bool> self_update_result;
+	bool no_popup_opened = !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+
+	if (!update_triggered && no_popup_opened && gdxsv_custom_texture_update.IsUpdateAvailable()) {
+		self_update_result = gdxsv_custom_texture_update.StartUpdate();
+		update_triggered = true;
+	}
+
+	if (self_update_result.valid() && no_popup_opened) {
+		ImGui::OpenPopup("Updating texture");
+	}
+
+	ImGui::SetNextWindowSize(ScaledVec2(340, 0));
+	centerNextWindow();
+	ImVec2 padding = ScaledVec2(20, 20);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
+	if (ImGui::BeginPopupModal("Updating texture", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+
+		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+			if (self_update_result.get()) {
+				textCentered(ImVec4(0, 0.8, 0, 1), "Download Completed");
+				if (ImGui::Button("Continue", ScaledVec2(300, 30))) {
+					self_update_result = {};
+					ImGui::CloseCurrentPopup();
+				}
+			} else {
+				textCentered(ImVec4(0.8, 0, 0, 1), "Download Failed");
+			}
+		} else {
+			ImGui::Text("Updating...");
+			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
+			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ImVec2(-1, 20.f * settings.display.uiScale));
 			ImGui::PopStyleColor();
 		}
 
