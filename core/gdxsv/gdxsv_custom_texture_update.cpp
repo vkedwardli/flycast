@@ -3,6 +3,7 @@
 #include <xxhash.h>
 #include "json.hpp"
 #include "libs.h"
+#include "cfg/option.h"
 #include "oslib/http_client.h"
 
 #if defined(_WIN32)
@@ -23,6 +24,10 @@ void GdxsvCustomTexutreUpdate::Reset() {
 }
 
 bool GdxsvCustomTexutreUpdate::IsUpdateAvailable() {
+	if (!config::GdxUseTexturePack) {
+		return false;
+	}
+
 	if (!fetch_latest_version_future_.valid()) {
 		FetchLatestVersionInfo();
 		return false;
@@ -43,10 +48,19 @@ void GdxsvCustomTexutreUpdate::FetchLatestVersionInfo() {
 
 	const auto future_fn = [this]() -> LatestVersionInfo {
 		LatestVersionInfo latest{};
+		if (!config::GdxUseTexturePack) {
+			return latest;
+		}
+
 		std::vector<u8> dl;
 		std::string content_type;
 		http::init();
-		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/main.json";
+		std::string name = "release.json";
+		if (!config::GdxTexturePackChannel.get().empty()) {
+			name = config::GdxTexturePackChannel.get() + ".json";
+		}
+
+		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/" + name;
 		const int rc = http::get(url, dl, content_type);
 		if (rc != 200) {
 			ERROR_LOG(COMMON, "version check failure: %s", url.c_str());
