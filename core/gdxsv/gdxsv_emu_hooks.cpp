@@ -37,8 +37,8 @@ bool gdxsv_is_savestate_allowed() { return gdxsv.IsSaveStateAllowed(); }
 
 void gdxsv_emu_flycast_init() {
 	config::GGPOEnable = false;
-	custom_texture.AddTextureSource(&gdxsv_embed_texture_source);
 	custom_texture.AddTextureSource(&gdxsv_texture_pack_source);
+	custom_texture.AddTextureSource(&gdxsv_embed_texture_source);
 }
 
 void gdxsv_emu_start() {
@@ -342,13 +342,13 @@ static void gdxsv_texture_update_popup() {
 
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
-				textCentered(ImVec4(0, 0.8, 0, 1), "Download Completed");
+				textCentered(ImVec4(0, 0.8, 0, 1), "Update Completed");
 				if (ImGui::Button("Continue", ScaledVec2(300, 30))) {
 					self_update_result = {};
 					ImGui::CloseCurrentPopup();
 				}
 			} else {
-				textCentered(ImVec4(0.8, 0, 0, 1), "Download Failed");
+				textCentered(ImVec4(0.8, 0, 0, 1), "Update Failed");
 			}
 		} else {
 			ImGui::Text("Updating...");

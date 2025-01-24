@@ -294,17 +294,32 @@ bool GdxsvTexturePackSource::LoadMap() {
 
 				std::string extension = get_file_extension(name);
 				if (extension != "jpg" && extension != "jpeg" && extension != "png") continue;
-				std::string::size_type dotpos = name.find_last_of('.');
-				std::string::size_type slashpos = name.find_last_of('/');
-				if (slashpos == std::string::npos) slashpos = -1;
-				std::string basename = name.substr(slashpos + 1, dotpos - (slashpos + 1));
+				std::string::size_type begin_pos = 0;
+				std::string::size_type slash_pos = name.find_last_of('/');
+				if (slash_pos != std::string::npos) begin_pos = slash_pos + 1;
+				std::string::size_type dot_pos = name.find_first_of('.', begin_pos);
+				std::string basename = name.substr(begin_pos, dot_pos - begin_pos);
 				char* endptr;
 				u32 hash = (u32)strtoll(basename.c_str(), &endptr, 16);
 				if (endptr - basename.c_str() < (ptrdiff_t)basename.length()) {
 					INFO_LOG(COMMON, "Invalid hash %s", basename.c_str());
 					continue;
 				}
-				mapping.emplace(hash, i);
+
+				GdxsvLanguage::Lang lang = GdxsvLanguage::Lang::Disabled;
+				if (name.find("English/") != std::string::npos) lang = GdxsvLanguage::Lang::English;
+				if (name.find("Japanese/") != std::string::npos) lang = GdxsvLanguage::Lang::Japanese;
+				if (name.find("Cantonese/") != std::string::npos) lang = GdxsvLanguage::Lang::Cantonese;
+
+				if (mapping.find(hash) == mapping.end()) {
+					if (lang == GdxsvLanguage::Lang::Disabled || lang == GdxsvLanguage::Language()) {
+						mapping[hash] = i;
+					}
+				} else {
+					if (lang == GdxsvLanguage::Language()) {
+						mapping[hash] = i;
+					}
+				}
 			}
 		} while (false);
 

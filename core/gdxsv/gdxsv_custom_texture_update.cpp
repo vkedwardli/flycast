@@ -60,7 +60,8 @@ void GdxsvCustomTexutreUpdate::FetchLatestVersionInfo() {
 			name = config::GdxTexturePackChannel.get() + ".json";
 		}
 
-		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/" + name;
+		const auto t = std::chrono::steady_clock::now().time_since_epoch().count();
+		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/" + name + "?t=" + std::to_string(t);
 		const int rc = http::get(url, dl, content_type);
 		if (rc != 200) {
 			ERROR_LOG(COMMON, "version check failure: %s", url.c_str());
@@ -172,6 +173,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 			return false;
 		}
 
+		nowide::remove(get_texture_pack_path().c_str());
 		if (nowide::rename(download_file_path.c_str(), get_texture_pack_path().c_str()) != 0) {
 			ERROR_LOG(COMMON, "failed to move latest version");
 			return false;
