@@ -2,6 +2,7 @@
 
 #include "gdxsv.h"
 #include "gdxsv_network.h"
+#include "gdxsv_custom_texture_update.h"
 #include "hw/maple/maple_if.h"
 #include "imgui.h"
 #include "libs.h"
@@ -242,10 +243,13 @@ u8"使用開發者建議嘅偏好設定 (其他版嘅設定都會改埋)\n\n\
 最爽亦係最高負荷嘅設定"
 		}));
 
-	OptionCheckbox(t({ "UseTexturePack", u8"高解像度テクスチャを使用" }), config::GdxUseTexturePack, t({
+	bool pressed = OptionCheckbox(t({ "UseTexturePack", u8"高解像度テクスチャを使用" }), config::GdxUseTexturePack, t({
 "Use up-scaled textures.",
 u8"ゲーム内で高品質なテクスチャを使用します. ",
 }));
+	if (pressed) {
+		gdxsv_custom_texture_update.Reset();
+	}
 
 	OptionCheckbox(t({ "Multi-threaded emulation", u8"マルチスレッドエミュレーション" }), config::ThreadedRendering, t({
 R"(Run the emulated CPU and GPU on different threads.
@@ -261,7 +265,7 @@ u8"分拆GPU運算去另一線程，可以降低負荷但係有可能有 1 frame
 		}));
 
 	bool widescreen = config::Widescreen.get() && config::WidescreenGameHacks.get();
-	bool pressed = ImGui::Checkbox(t({ "Enable 16:9 Widescreen Hack", u8"16:9 ワイドモニター対応", u8"使用 16:9 闊螢幕補丁" }), &widescreen);
+	pressed = ImGui::Checkbox(t({ "Enable 16:9 Widescreen Hack", u8"16:9 ワイドモニター対応", u8"使用 16:9 闊螢幕補丁" }), &widescreen);
 	if (pressed) {
 		config::Widescreen.set(widescreen);
 		config::SuperWidescreen.set(widescreen);
