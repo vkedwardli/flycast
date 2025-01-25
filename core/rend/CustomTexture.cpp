@@ -90,8 +90,7 @@ bool CustomTextureFolderSource::LoadMap()
 				continue;
 			}
 
-			if (gdxsv_enabled())
-			{
+			if (gdxsv_enabled()) {
 				GdxsvLanguage::Lang lang = GdxsvLanguage::Lang::Disabled;
 				if (item.path.find("English") != std::string::npos) lang = GdxsvLanguage::Lang::English;
 				if (item.path.find("Japanese") != std::string::npos) lang = GdxsvLanguage::Lang::Japanese;
@@ -105,8 +104,7 @@ bool CustomTextureFolderSource::LoadMap()
 						texture_map[hash] = item.path;
 					}
 				}
-			} else
-			{
+			} else {
 				texture_map[hash] = item.path;
 			}
 		}
