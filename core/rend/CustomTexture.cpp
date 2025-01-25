@@ -31,6 +31,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_translation.h"
+
 CustomTexture custom_texture;
 CustomTextureFolderSource custom_texture_folder_source;
 
@@ -86,7 +89,26 @@ bool CustomTextureFolderSource::LoadMap()
 				INFO_LOG(RENDERER, "Invalid hash %s", basename.c_str());
 				continue;
 			}
-			texture_map[hash] = item.path;
+
+			if (gdxsv_enabled())
+			{
+				GdxsvLanguage::Lang lang = GdxsvLanguage::Lang::Disabled;
+				if (item.path.find("English") != std::string::npos) lang = GdxsvLanguage::Lang::English;
+				if (item.path.find("Japanese") != std::string::npos) lang = GdxsvLanguage::Lang::Japanese;
+				if (item.path.find("Cantonese") != std::string::npos) lang = GdxsvLanguage::Lang::Cantonese;
+				if (texture_map.find(hash) == texture_map.end()) {
+					if (lang == GdxsvLanguage::Lang::Disabled || lang == GdxsvLanguage::Language()) {
+						texture_map[hash] = item.path;
+					}
+				} else {
+					if (lang == GdxsvLanguage::Language()) {
+						texture_map[hash] = item.path;
+					}
+				}
+			} else
+			{
+				texture_map[hash] = item.path;
+			}
 		}
 	}
 
