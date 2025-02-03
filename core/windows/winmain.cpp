@@ -388,6 +388,7 @@ int main(int argc, char* argv[])
 
 void os_DoEvents()
 {
+	if (sdl_window_exposed()) return;
 	FC_PROFILE_SCOPE;
 
 #ifndef TARGET_UWP

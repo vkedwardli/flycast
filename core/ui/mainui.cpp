@@ -98,6 +98,13 @@ void mainui_term()
 	rend_term_renderer();
 }
 
+
+std::function<void()> exposed_callback;
+static void windowExposedCallback(Event event, void *param)
+{
+	if (exposed_callback) exposed_callback();
+}
+
 void mainui_loop(bool forceStart)
 {
 	ThreadName _("Flycast-rend");
@@ -129,17 +136,9 @@ void mainui_loop(bool forceStart)
 		return 60;
 	};
 
-	while (mainui_enabled)
-	{
-		fc_profiler::startThread("main");
-
+	auto rend_frame = [fixedFrequencyWait, timeSyncInterval]() {
 		if (mainui_rend_frame())
 			fixedFrequencyWait();
-
-		if (imguiDriver == nullptr)
-			forceReinit = true;
-		else
-			imguiDriver->present();
 
 		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
 			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
@@ -147,6 +146,23 @@ void mainui_loop(bool forceStart)
 				fixedFrequencyWait();
 			}
 		}
+
+		gdxsv_emu_mainui_loop();
+	};
+
+	exposed_callback = rend_frame;
+	EventManager::listen(Event::WindowExpose, windowExposedCallback, NULL);
+
+	while (mainui_enabled)
+	{
+		fc_profiler::startThread("main");
+
+		rend_frame();
+
+		if (imguiDriver == nullptr)
+			forceReinit = true;
+		else
+			imguiDriver->present();
 
 		if (currentDupeFrames != config::DupeFrames) {
 			forceReinit = true;
@@ -165,10 +181,11 @@ void mainui_loop(bool forceStart)
 			currentRenderer = config::RendererType;
 		}
 
-		gdxsv_emu_mainui_loop();
-
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
+
+	EventManager::unlisten(Event::WindowExpose, windowExposedCallback, NULL);
+	exposed_callback = nullptr;
 
 	reset_timer_resolution();
 	mainui_term();

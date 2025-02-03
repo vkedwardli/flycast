@@ -296,6 +296,22 @@ static std::shared_ptr<SDLMouse> getMouse(u64 mouseId)
 	return mouse;
 }
 
+static bool window_exposed = false;
+static int SDLCALL ExposeEventWatcher(void* userdata, SDL_Event* event)
+{
+	if (event->type == SDL_WINDOWEVENT && event->window.event == SDL_WINDOWEVENT_EXPOSED) {
+		window_exposed = true;
+		EventManager::event(Event::WindowExpose);
+		window_exposed = false;
+	}
+	return 0;
+}
+
+bool sdl_window_exposed()
+{
+	return window_exposed;
+}
+
 void input_sdl_handle()
 {
 	SDLGamepad::UpdateRumble();
@@ -746,6 +762,8 @@ bool sdl_recreate_window(u32 flags)
 			}
 		}
 	}
+
+	SDL_AddEventWatch(ExposeEventWatcher, NULL);
 
 	return true;
 }
