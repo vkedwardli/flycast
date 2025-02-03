@@ -301,3 +301,4 @@ std::string GdxsvCustomTexutreUpdate::GetTempDir() {
 }
 
 GdxsvCustomTexutreUpdate gdxsv_custom_texture_update;
+
