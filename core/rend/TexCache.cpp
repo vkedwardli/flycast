@@ -15,8 +15,7 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include "TexCache.h"
-// #include "CustomTexture.h"
-#include "gdxsv/gdxsv_CustomTexture.h"
+#include "CustomTexture.h"
 #include "deps/xbrz/xbrz.h"
 #include "hw/pvr/pvr_mem.h"
 #include "hw/mem/addrspace.h"
@@ -498,11 +497,7 @@ bool BaseTextureCacheData::Update()
 			return false;
 		}
 	}
-#if defined(__APPLE__) || defined(_WIN32)
-	if (config::GdxLanguage != 3) // 3 = Disabled
-		gdx_custom_texture.LoadCustomTextureAsync(this);
-#endif
-	if (config::CustomTextures)
+	if (config::CustomTextures || settings.gdxsv.disk)
 		custom_texture.LoadCustomTextureAsync(this);
 
 	void *temp_tex_buffer = NULL;

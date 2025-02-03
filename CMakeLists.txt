@@ -7,6 +7,7 @@ if(CCACHE_PROGRAM)
 endif()
 
 set(SENTRY_UPLOAD_URL "" CACHE STRING "Sentry upload URL")
+set(GDXSV_TEXTURE_PACK_PASS "" CACHE STRING "Gdxsv texture pack password")
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shell/cmake")
 
@@ -291,7 +292,12 @@ if(NOT "${SENTRY_UPLOAD_URL}" STREQUAL "")
 	target_compile_definitions(${PROJECT_NAME} PRIVATE SENTRY_UPLOAD="${SENTRY_UPLOAD_URL}")
 endif()
 
+if(NOT "${GDXSV_TEXTURE_PACK_PASS}" STREQUAL "")
+	target_compile_definitions(${PROJECT_NAME} PRIVATE GDXSV_TEXTURE_PACK_PASS="${GDXSV_TEXTURE_PACK_PASS}")
+endif()
+
 target_include_directories(${PROJECT_NAME} PRIVATE core core/deps core/deps/stb core/deps/json core/deps/asio/asio/include)
+
 if(LIBRETRO)
 	target_include_directories(${PROJECT_NAME} PRIVATE shell/libretro)
 endif()
@@ -2235,8 +2241,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv.h
 		core/gdxsv/gdxsv.pb.cc
 		core/gdxsv/gdxsv.pb.h
-		core/gdxsv/gdxsv_CustomTexture.cpp
-		core/gdxsv/gdxsv_CustomTexture.h
+		core/gdxsv/gdxsv_custom_texture_source.cpp
+		core/gdxsv/gdxsv_custom_texture_source.h
+		core/gdxsv/gdxsv_custom_texture_update.cpp
+		core/gdxsv/gdxsv_custom_texture_update.h
 		core/gdxsv/gdxsv_backend_replay.cpp
 		core/gdxsv/gdxsv_backend_replay.h
 		core/gdxsv/gdxsv_backend_rollback.cpp

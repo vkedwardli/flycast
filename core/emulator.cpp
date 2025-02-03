@@ -51,7 +51,6 @@
 #include "hw/sh4/dyna/ngen.h"
 
 #include "gdxsv/gdxsv_emu_hooks.h"
-#include "gdxsv/gdxsv_CustomTexture.h"
 
 settings_t settings;
 constexpr char const *BIOS_TITLE = "Dreamcast BIOS";
@@ -749,9 +748,6 @@ void Emulator::unloadGame()
 		state = Init;
 		EventManager::event(Event::Terminate);
 	}
-#if defined(__APPLE__) || defined(_WIN32)
-	gdx_custom_texture.Terminate();
-#endif
 }
 
 void Emulator::term()
@@ -773,9 +769,6 @@ void Emulator::term()
 			recompiler = nullptr;
 		}
 		custom_texture.Terminate();	// lr: avoid deadlock on exit (win32)
-#if defined(__APPLE__) || defined(_WIN32)
-		gdx_custom_texture.Terminate();
-#endif
 		reios_term();
 		aica::term();
 		pvr::term();
@@ -882,9 +875,6 @@ void Emulator::stepRange(u32 from, u32 to)
 void Emulator::loadstate(Deserializer& deser)
 {
 	custom_texture.Terminate();
-#if defined(__APPLE__) || defined(_WIN32)
-	gdx_custom_texture.Terminate();
-#endif
 #if FEAT_AREC == DYNAREC_JIT
 	aica::arm::recompiler::flush();
 #endif

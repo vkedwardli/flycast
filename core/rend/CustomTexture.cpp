@@ -31,7 +31,112 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_translation.h"
+
 CustomTexture custom_texture;
+CustomTextureFolderSource custom_texture_folder_source;
+
+bool CustomTextureFolderSource::Init()
+{
+	if (!config::CustomTextures)
+		return false;
+
+	if (!initialized)
+	{
+		initialized = true;
+
+		std::string game_id = custom_texture.GetGameId();
+		if (game_id.length() > 0)
+		{
+			textures_path = hostfs::getTextureLoadPath(game_id);
+
+			if (!textures_path.empty())
+			{
+				try {
+					hostfs::FileInfo fileInfo = hostfs::storage().getFileInfo(textures_path);
+					if (fileInfo.isDirectory)
+					{
+						NOTICE_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
+					}
+				} catch (const FlycastException& e) {
+					textures_path.clear();
+				}
+			}
+		}
+	}
+
+	return !textures_path.empty();
+}
+
+bool CustomTextureFolderSource::LoadMap()
+{
+	texture_map.clear();
+	if (!textures_path.empty())
+	{
+		hostfs::DirectoryTree tree(textures_path);
+		for (const hostfs::FileInfo& item : tree)
+		{
+			std::string extension = get_file_extension(item.name);
+			if (extension != "jpg" && extension != "jpeg" && extension != "png")
+				continue;
+			std::string::size_type dotpos = item.name.find_last_of('.');
+			std::string basename = item.name.substr(0, dotpos);
+			char *endptr;
+			u32 hash = (u32)strtoll(basename.c_str(), &endptr, 16);
+			if (endptr - basename.c_str() < (ptrdiff_t)basename.length())
+			{
+				INFO_LOG(RENDERER, "Invalid hash %s", basename.c_str());
+				continue;
+			}
+
+			if (gdxsv_enabled()) {
+				GdxsvLanguage::Lang lang = GdxsvLanguage::Lang::Disabled;
+				if (item.path.find("English") != std::string::npos) lang = GdxsvLanguage::Lang::English;
+				if (item.path.find("Japanese") != std::string::npos) lang = GdxsvLanguage::Lang::Japanese;
+				if (item.path.find("Cantonese") != std::string::npos) lang = GdxsvLanguage::Lang::Cantonese;
+				if (texture_map.find(hash) == texture_map.end()) {
+					if (lang == GdxsvLanguage::Lang::Disabled || lang == GdxsvLanguage::Language()) {
+						texture_map[hash] = item.path;
+					}
+				} else {
+					if (lang == GdxsvLanguage::Language()) {
+						texture_map[hash] = item.path;
+					}
+				}
+			} else {
+				texture_map[hash] = item.path;
+			}
+		}
+	}
+
+	return !texture_map.empty();
+}
+
+u8* CustomTextureFolderSource::LoadCustomTexture(u32 hash, int& width, int& height)
+{
+	const auto it = texture_map.find(hash);
+	if (it == texture_map.end())
+		return nullptr;
+
+	FILE *file = hostfs::storage().openFile(it->second, "rb");
+	if (file == nullptr)
+		return nullptr;
+
+	int n;
+	stbi_set_flip_vertically_on_load(1);
+	u8 *imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
+	std::fclose(file);
+
+	return imgData;
+}
+
+void CustomTextureFolderSource::Terminate()
+{
+	initialized = false;
+	textures_path.clear();
+	texture_map.clear();
+}
 
 void CustomTexture::LoaderThread()
 {
@@ -100,26 +205,17 @@ bool CustomTexture::Init()
 	if (!initialized)
 	{
 		initialized = true;
-		std::string game_id = GetGameId();
-		if (game_id.length() > 0)
-		{
-			textures_path = hostfs::getTextureLoadPath(game_id);
+		custom_textures_available = false;
 
-			if (!textures_path.empty())
-			{
-				try {
-					hostfs::FileInfo fileInfo = hostfs::storage().getFileInfo(textures_path);
-					if (fileInfo.isDirectory)
-					{
-						NOTICE_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
-						custom_textures_available = true;
-						loader_thread.Start();
-					}
-				} catch (const FlycastException& e) {
-				}
-			}
+		for (const auto source : sources) {
+			custom_textures_available |= source->Init();
+		}
+
+		if (custom_textures_available) {
+			loader_thread.Start();
 		}
 	}
+
 	return custom_textures_available;
 }
 
@@ -134,24 +230,21 @@ void CustomTexture::Terminate()
 		}
 		wakeup_thread.Set();
 		loader_thread.WaitToEnd();
-		texture_map.clear();
+
+		for (const auto source : sources) {
+			source->Terminate();
+		}
 	}
 }
 
 u8* CustomTexture::LoadCustomTexture(u32 hash, int& width, int& height)
 {
-	auto it = texture_map.find(hash);
-	if (it == texture_map.end())
-		return nullptr;
-
-	FILE *file = hostfs::storage().openFile(it->second, "rb");
-	if (file == nullptr)
-		return nullptr;
-	int n;
-	stbi_set_flip_vertically_on_load(1);
-	u8 *imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
-	std::fclose(file);
-	return imgData;
+	for (const auto source : sources) {
+		u8* imgData = source->LoadCustomTexture(hash, width, height);
+		if (imgData != nullptr)
+			return imgData;
+	}
+	return nullptr;
 }
 
 void CustomTexture::LoadCustomTextureAsync(BaseTextureCacheData *texture_data)
@@ -301,23 +394,11 @@ void CustomTexture::DumpTexture(u32 hash, int w, int h, TextureType textype, voi
 
 void CustomTexture::LoadMap()
 {
-	texture_map.clear();
-	hostfs::DirectoryTree tree(textures_path);
-	for (const hostfs::FileInfo& item : tree)
-	{
-		std::string extension = get_file_extension(item.name);
-		if (extension != "jpg" && extension != "jpeg" && extension != "png")
-			continue;
-		std::string::size_type dotpos = item.name.find_last_of('.');
-		std::string basename = item.name.substr(0, dotpos);
-		char *endptr;
-		u32 hash = (u32)strtoll(basename.c_str(), &endptr, 16);
-		if (endptr - basename.c_str() < (ptrdiff_t)basename.length())
-		{
-			INFO_LOG(RENDERER, "Invalid hash %s", basename.c_str());
-			continue;
-		}
-		texture_map[hash] = item.path;
+	bool loaded = false;
+
+	for (const auto source : sources) {
+		loaded |= source->LoadMap();
 	}
-	custom_textures_available = !texture_map.empty();
+
+	custom_textures_available = loaded;
 }
