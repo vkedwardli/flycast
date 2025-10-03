@@ -87,7 +87,7 @@ jobs:
           submodules: recursive
 
       - name: Compile a universal OpenMP (macOS)
-        run: HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew reinstall --build-from-source --formula ./shell/apple/libomp.rb
+        run: HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_DEVELOPER=1 brew reinstall --build-from-source --formula ./shell/apple/libomp.rb
         if: matrix.config.name == 'apple-darwin'
 
       - name: Compile OpenMP.xcframework (iOS)
@@ -103,7 +103,7 @@ jobs:
 
       - name: CMake
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_INSTALL_PREFIX=artifact ${{ matrix.config.cmakeArgs }} -DSENTRY_UPLOAD_URL=${{ env.SENTRY_UPLOAD_URL }} -DGDXSV_TEXTURE_PACK_PASS=${{ env.GDXSV_TEXTURE_PACK_PASS }}
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_INSTALL_PREFIX=artifact ${{ matrix.config.cmakeArgs }} -DSENTRY_UPLOAD_URL=${{ env.SENTRY_UPLOAD_URL }} -DGDXSV_TEXTURE_PACK_PASS=${{ env.GDXSV_TEXTURE_PACK_PASS }} -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           cmake --build build --config ${{ matrix.config.buildType }} --target install
         env:
           SENTRY_UPLOAD_URL: "${{ startsWith(github.ref, 'refs/tags/gdxsv-') && secrets.SENTRY_UPLOAD_URL_PUBLIC || secrets.SENTRY_UPLOAD_URL_DEV }}"
