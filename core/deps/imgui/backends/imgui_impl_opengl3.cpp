@@ -196,11 +196,13 @@ void    ImGui_ImplOpenGL3_Shutdown()
     ImGui_ImplOpenGL3_Data* bd = ImGui_ImplOpenGL3_GetBackendData();
     IM_ASSERT(bd != nullptr && "No renderer backend to shutdown, or already shutdown?");
     ImGuiIO& io = ImGui::GetIO();
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
 
     ImGui_ImplOpenGL3_DestroyDeviceObjects();
     io.BackendRendererName = nullptr;
     io.BackendRendererUserData = nullptr;
     io.BackendFlags &= ~ImGuiBackendFlags_RendererHasTextures;
+    platform_io.ClearRendererHandlers();
     IM_DELETE(bd);
 }
 
@@ -219,14 +221,22 @@ void    ImGui_ImplOpenGL3_NewFrame()
 
 static void ImGui_ImplOpenGL3_DestroyTexture(ImTextureData* tex)
 {
+    ImGui_ImplOpenGL3_Data* bd = ImGui_ImplOpenGL3_GetBackendData();
+    if (tex->BackendUserData != (void*)bd)
+        return;
     GLuint gl_tex_id = (GLuint)(intptr_t)tex->TexID;
-    glcache.DeleteTextures(1, &gl_tex_id);
+    if (gl_tex_id != 0)
+        glcache.DeleteTextures(1, &gl_tex_id);
     tex->SetTexID(ImTextureID_Invalid);
     tex->SetStatus(ImTextureStatus_Destroyed);
+    tex->BackendUserData = nullptr;
 }
 
 void ImGui_ImplOpenGL3_UpdateTexture(ImTextureData* tex)
 {
+    if (tex->Status == ImTextureStatus_Destroyed)
+        tex->SetStatus(ImTextureStatus_WantCreate);
+
     ImGui_ImplOpenGL3_Data* bd = ImGui_ImplOpenGL3_GetBackendData();
 
     if (tex->Status == ImTextureStatus_WantCreate || tex->Status == ImTextureStatus_WantUpdates)
@@ -245,6 +255,7 @@ void ImGui_ImplOpenGL3_UpdateTexture(ImTextureData* tex)
 
         tex->SetTexID((ImTextureID)(intptr_t)gl_texture_id);
         tex->SetStatus(ImTextureStatus_OK);
+        tex->BackendUserData = (void*)bd;
     }
     else if (tex->Status == ImTextureStatus_WantUpdates)
     {
@@ -622,6 +633,5 @@ void ImGui_ImplOpenGL3_DestroyDeviceObjects()
 
     // Destroy all textures
     for (ImTextureData* tex : ImGui::GetPlatformIO().Textures)
-        if (tex->RefCount == 1)
-            ImGui_ImplOpenGL3_DestroyTexture(tex);
+        ImGui_ImplOpenGL3_DestroyTexture(tex);
 }
