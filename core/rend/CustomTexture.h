@@ -25,29 +25,6 @@
 #include <atomic>
 #include <functional>
 
-class ICustomTextureSource {
-public:
-	virtual ~ICustomTextureSource() = default;
-	virtual bool Init() = 0;
-	virtual bool LoadMap() = 0;
-	virtual u8* LoadCustomTexture(u32 hash, int& width, int& height) = 0;
-	virtual void Terminate() = 0;
-};
-
-class CustomTextureFolderSource : public ICustomTextureSource {
-public:
-	bool Init() override;
-	bool LoadMap() override;
-	u8* LoadCustomTexture(u32 hash, int& width, int& height) override;
-	void Terminate() override;
-
-private:
-	bool initialized = false;
-	std::string textures_path;
-	std::map<u32, std::string> texture_map;
-};
-
-extern CustomTextureFolderSource custom_texture_folder_source;
 class BaseTextureCacheData;
 class WorkerThread;
 

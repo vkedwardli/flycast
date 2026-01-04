@@ -33,112 +33,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-#include "gdxsv/gdxsv_emu_hooks.h"
-#include "gdxsv/gdxsv_translation.h"
-
 CustomTexture custom_texture;
-CustomTextureFolderSource custom_texture_folder_source;
-
-bool CustomTextureFolderSource::Init()
-{
-	if (!config::CustomTextures)
-		return false;
-
-	if (!initialized)
-	{
-		initialized = true;
-
-		std::string game_id = custom_texture.GetGameId();
-		if (game_id.length() > 0)
-		{
-			textures_path = hostfs::getTextureLoadPath(game_id);
-
-			if (!textures_path.empty())
-			{
-				try {
-					hostfs::FileInfo fileInfo = hostfs::storage().getFileInfo(textures_path);
-					if (fileInfo.isDirectory)
-					{
-						NOTICE_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
-					}
-				} catch (const FlycastException& e) {
-					textures_path.clear();
-				}
-			}
-		}
-	}
-
-	return !textures_path.empty();
-}
-
-bool CustomTextureFolderSource::LoadMap()
-{
-	texture_map.clear();
-	if (!textures_path.empty())
-	{
-		hostfs::DirectoryTree tree(textures_path);
-		for (const hostfs::FileInfo& item : tree)
-		{
-			std::string extension = get_file_extension(item.name);
-			if (extension != "jpg" && extension != "jpeg" && extension != "png")
-				continue;
-			std::string::size_type dotpos = item.name.find_last_of('.');
-			std::string basename = item.name.substr(0, dotpos);
-			char *endptr;
-			u32 hash = (u32)strtoll(basename.c_str(), &endptr, 16);
-			if (endptr - basename.c_str() < (ptrdiff_t)basename.length())
-			{
-				INFO_LOG(RENDERER, "Invalid hash %s", basename.c_str());
-				continue;
-			}
-
-			if (gdxsv_enabled()) {
-				GdxsvLanguage::Lang lang = GdxsvLanguage::Lang::Disabled;
-				if (item.path.find("English") != std::string::npos) lang = GdxsvLanguage::Lang::English;
-				if (item.path.find("Japanese") != std::string::npos) lang = GdxsvLanguage::Lang::Japanese;
-				if (item.path.find("Cantonese") != std::string::npos) lang = GdxsvLanguage::Lang::Cantonese;
-				if (texture_map.find(hash) == texture_map.end()) {
-					if (lang == GdxsvLanguage::Lang::Disabled || lang == GdxsvLanguage::Language()) {
-						texture_map[hash] = item.path;
-					}
-				} else {
-					if (lang == GdxsvLanguage::Language()) {
-						texture_map[hash] = item.path;
-					}
-				}
-			} else {
-				texture_map[hash] = item.path;
-			}
-		}
-	}
-
-	return !texture_map.empty();
-}
-
-u8* CustomTextureFolderSource::LoadCustomTexture(u32 hash, int& width, int& height)
-{
-	const auto it = texture_map.find(hash);
-	if (it == texture_map.end())
-		return nullptr;
-
-	FILE *file = hostfs::storage().openFile(it->second, "rb");
-	if (file == nullptr)
-		return nullptr;
-
-	int n;
-	stbi_set_flip_vertically_on_load(1);
-	u8 *imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
-	std::fclose(file);
-
-	return imgData;
-}
-
-void CustomTextureFolderSource::Terminate()
-{
-	initialized = false;
-	textures_path.clear();
-	texture_map.clear();
-}
 
 class CustomTextureSource : public BaseCustomTextureSource
 {
@@ -166,8 +61,8 @@ public:
 	void preloadTextures(TextureCallback callback, std::atomic<bool>* stop_flag) override;
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override final;
-	
-	
+
+
 
 private:
 	bool custom_textures_available = false;
@@ -222,12 +117,18 @@ void CustomTextureSource::preloadTextures(TextureCallback callback, std::atomic<
 
 u8* CustomTextureSource::loadCustomTexture(u32 hash, int& width, int& height)
 {
-	for (const auto source : sources) {
-		u8* imgData = source->LoadCustomTexture(hash, width, height);
-		if (imgData != nullptr)
-			return imgData;
-	}
-	return nullptr;
+	auto it = texture_map.find(hash);
+	if (it == texture_map.end())
+		return nullptr;
+
+	FILE *file = hostfs::storage().openFile(it->second, "rb");
+	if (file == nullptr)
+		return nullptr;
+	int n;
+	stbi_set_flip_vertically_on_load(1);
+	u8 *imgData = stbi_load_from_file(file, &width, &height, &n, STBI_rgb_alpha);
+	std::fclose(file);
+	return imgData;
 }
 
 bool CustomTextureSource::isTextureReplaced(u32 hash)
@@ -306,7 +207,7 @@ bool CustomTexture::isPreloading() {
 	int texTotal = 0;
 	size_t loaded_size_b = 0;
 	getPreloadProgress(texLoaded, texTotal, loaded_size_b);
-	
+
 	return (texTotal > 0 && texLoaded < texTotal);
 }
 
@@ -314,7 +215,7 @@ void CustomTexture::addSource(std::unique_ptr<BaseCustomTextureSource> source)
 {
 	BaseCustomTextureSource* ptr = source.get();
 	sources.emplace_back(std::move(source));
-	
+
 	if (initialized)
 	{
 		if (!loaderThread && ptr->shouldReplace())

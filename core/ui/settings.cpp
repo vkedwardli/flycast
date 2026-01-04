@@ -24,6 +24,8 @@
 #include "hw/maple/maple_if.h"
 #include "imgui_stdlib.h"
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+
 #ifdef GDB_SERVER
 #include "hw/mem/addrspace.h"
 #endif
@@ -265,7 +267,7 @@ void gui_display_settings()
     {
 		if (ImGui::BeginTabItem(ICON_FA_GLOBE"  Gdxsv"))
 		{
-			PushStyleVar _(ImGuiStyleVar_FramePadding, normal_padding);
+			ImguiStyleVar _(ImGuiStyleVar_FramePadding, normal_padding);
 			gdxsv_emu_settings_gdxsv_tab();
 			ImGui::EndTabItem();
 		}

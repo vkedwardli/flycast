@@ -8,6 +8,7 @@
 #include <zip.h>
 
 #include "gdxsv_translation.h"
+#include "stdclass.h"
 #include "oslib/storage.h"
 
 #ifdef __APPLE__
@@ -36,7 +37,7 @@ static std::string get_game_id() {
 
 GdxsvEmbedTextureSource ::~GdxsvEmbedTextureSource() { texture_map.clear(); }
 
-bool GdxsvEmbedTextureSource ::Init() {
+bool GdxsvEmbedTextureSource ::init() {
 	if (GdxsvLanguage::Language() == GdxsvLanguage::Lang::Disabled) return false;
 
 	if (!initialized) {
@@ -67,7 +68,7 @@ bool GdxsvEmbedTextureSource ::Init() {
 	return custom_textures_available;
 }
 
-void GdxsvEmbedTextureSource ::Terminate() {
+void GdxsvEmbedTextureSource ::terminate() {
 	initialized = false;
 	custom_textures_available = false;
 	textures_path.clear();
@@ -92,7 +93,11 @@ static BOOL CALLBACK StaticEnumRCNamesFunc(HMODULE hModule, LPCTSTR lpType, LPTS
 }
 #endif
 
-bool GdxsvEmbedTextureSource ::LoadMap() {
+bool GdxsvEmbedTextureSource ::loadMap() {
+	if (!init()) {
+		return false;
+	}
+
 	std::map<u32, std::string> mapping;
 
 	if (GdxsvLanguage::Language() != GdxsvLanguage::Lang::Disabled) {
@@ -128,7 +133,7 @@ bool GdxsvEmbedTextureSource ::LoadMap() {
 	return custom_textures_available = !texture_map.empty();
 }
 
-u8* GdxsvEmbedTextureSource ::LoadCustomTexture(u32 hash, int& width, int& height) {
+u8* GdxsvEmbedTextureSource ::loadCustomTexture(u32 hash, int& width, int& height) {
 	const auto it = texture_map.find(hash);
 	if (it == texture_map.end()) return nullptr;
 
@@ -162,6 +167,10 @@ u8* GdxsvEmbedTextureSource ::LoadCustomTexture(u32 hash, int& width, int& heigh
 	std::fclose(file);
 	return imgData;
 #endif
+}
+
+bool GdxsvEmbedTextureSource ::isTextureReplaced(u32 hash) {
+	return texture_map.find(hash) != texture_map.end();
 }
 
 u8* GdxsvEmbedTextureSource ::LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) const {
@@ -210,7 +219,7 @@ GdxsvTexturePackSource::~GdxsvTexturePackSource() {
 	texp_zip_source = nullptr;
 }
 
-bool GdxsvTexturePackSource::Init() {
+bool GdxsvTexturePackSource::init() {
 	if (!config::GdxUseTexturePack) return false;
 
 	if (!initialized) {
@@ -224,7 +233,7 @@ bool GdxsvTexturePackSource::Init() {
 	return custom_textures_available;
 }
 
-void GdxsvTexturePackSource::Terminate() {
+void GdxsvTexturePackSource::terminate() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	if (texp_file != nullptr) std::fclose(texp_file);
 	initialized = false;
@@ -235,7 +244,11 @@ void GdxsvTexturePackSource::Terminate() {
 	texp_zip_source = nullptr;
 }
 
-bool GdxsvTexturePackSource::LoadMap() {
+bool GdxsvTexturePackSource::loadMap() {
+	if (!init()) {
+		return false;
+	}
+
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	if (texp_file != nullptr) std::fclose(texp_file);
 	texp_file = nullptr;
@@ -328,7 +341,7 @@ bool GdxsvTexturePackSource::LoadMap() {
 	return custom_textures_available;
 }
 
-u8* GdxsvTexturePackSource::LoadCustomTexture(u32 hash, int& width, int& height) {
+u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height) {
 	const auto it = texture_map.find(hash);
 	if (it == texture_map.end()) return nullptr;
 
@@ -358,4 +371,8 @@ u8* GdxsvTexturePackSource::LoadCustomTexture(u32 hash, int& width, int& height)
 	}
 
 	return nullptr;
+}
+
+bool GdxsvTexturePackSource::isTextureReplaced(u32 hash) {
+	return texture_map.find(hash) != texture_map.end();
 }

@@ -7,32 +7,34 @@
 #include "../rend/CustomTexture.h"
 // clang-format on
 
-class GdxsvEmbedTextureSource : public ICustomTextureSource {
+class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
    public:
 	~GdxsvEmbedTextureSource() override;
-	bool Init() override;
-	bool LoadMap() override;
-	void Terminate() override;
-	u8* LoadCustomTexture(u32 hash, int& width, int& height) override;
+	bool loadMap() override;
+	void terminate() override;
+	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
+	bool isTextureReplaced(u32 hash) override;
 	u8* LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) const;
 
    private:
+	bool init();
 	bool initialized = false;
 	bool custom_textures_available = false;
 	std::string textures_path;
 	std::map<u32, std::string> texture_map;
 };
 
-class GdxsvTexturePackSource : public ICustomTextureSource {
+class GdxsvTexturePackSource : public BaseCustomTextureSource {
    public:
 	~GdxsvTexturePackSource() override;
-	bool Init() override;
-	bool LoadMap() override;
-	void Terminate() override;
-	u8* LoadCustomTexture(u32 hash, int& width, int& height) override;
+	bool loadMap() override;
+	void terminate() override;
+	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
+	bool isTextureReplaced(u32 hash) override;
 	u8* LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) const;
 
    private:
+	bool init();
 	bool initialized = false;
 	bool custom_textures_available = false;
 	std::map<u32, int> texture_map;

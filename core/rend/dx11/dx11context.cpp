@@ -215,11 +215,6 @@ void DX11Context::term()
 	pDeviceContext.reset();
 	pDevice.reset();
 	d3dcompiler = nullptr;
-	if (d3dcompilerHandle != NULL)
-	{
-		FreeLibrary(d3dcompilerHandle);
-		d3dcompilerHandle = NULL;
-	}
 #ifdef VIDEO_ROUTING
 	extern void os_VideoRoutingTermDX();
 	os_VideoRoutingTermDX();

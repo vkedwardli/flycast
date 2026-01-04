@@ -124,7 +124,7 @@ if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
 	if(MINGW)
 		set(GDXSV_PATTERN "gdxsv-\\*")
 	else()
-		set(GDXSV_PATTERN """gdxsv-*""")
+		set(GDXSV_PATTERN "gdxsv-*")
 	endif()
 	message(GDXSV_PATTERN="${GDXSV_PATTERN}")
 	execute_process(
