@@ -37,8 +37,6 @@ bool gdxsv_is_savestate_allowed() { return gdxsv.IsSaveStateAllowed(); }
 
 void gdxsv_emu_flycast_init() {
 	config::GGPOEnable = false;
-	//custom_texture.AddTextureSource(&gdxsv_texture_pack_source);
-	//custom_texture.AddTextureSource(&gdxsv_embed_texture_source);
 }
 
 void gdxsv_emu_start() {
@@ -60,7 +58,14 @@ void gdxsv_emu_start() {
 	}
 }
 
-void gdxsv_emu_reset() { gdxsv.Reset(); }
+void gdxsv_emu_reset() {
+	gdxsv.Reset();
+
+	if (gdxsv.Enabled()) {
+		custom_texture.addSource(std::make_unique<GdxsvTexturePackSource>());
+		custom_texture.addSource(std::make_unique<GdxsvEmbedTextureSource>());
+	}
+}
 
 void gdxsv_emu_vblank() {
 	if (gdxsv.Enabled()) {

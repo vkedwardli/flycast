@@ -23,9 +23,6 @@
 #include <winuser.h>
 #endif
 
-GdxsvTexturePackSource gdxsv_texture_pack_source;
-GdxsvEmbedTextureSource gdxsv_embed_texture_source;
-
 static std::string get_game_id() {
 	std::string game_id(settings.content.gameId);
 	const size_t str_end = game_id.find_last_not_of(' ');
@@ -35,44 +32,40 @@ static std::string get_game_id() {
 	return game_id;
 }
 
-GdxsvEmbedTextureSource ::~GdxsvEmbedTextureSource() { texture_map.clear(); }
-
-bool GdxsvEmbedTextureSource ::init() {
-	if (GdxsvLanguage::Language() == GdxsvLanguage::Lang::Disabled) return false;
-
-	if (!initialized) {
-		initialized = true;
-		std::string game_id = get_game_id();
-		if (game_id == "T13306M") {
+static std::string get_textures_path() {
 #ifdef __APPLE__
-			uint32_t bufSize = PATH_MAX + 1;
-			char result[bufSize];
-			if (_NSGetExecutablePath(result, &bufSize) == 0) {
-				textures_path = std::string(result);
-				textures_path.replace(textures_path.find("MacOS/Flycast"), sizeof("MacOS/Flycast") - 1, "Resources/Textures/");
-			}
-
-			DIR* dir = flycast::opendir(textures_path.c_str());
-			if (dir != nullptr) {
-				INFO_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
-				custom_textures_available = true;
-				closedir(dir);
-			}
-#elif _WIN32
-			custom_textures_available = true;
-#endif
-			// TODO: Linux
+	uint32_t bufSize = PATH_MAX + 1;
+	char result[bufSize];
+	if (_NSGetExecutablePath(result, &bufSize) == 0) {
+		auto path = std::string(result);
+		size_t pos = path.find("MacOS/Flycast");
+		if (pos != std::string::npos) {
+			path.replace(pos, sizeof("MacOS/Flycast") - 1, "Resources/Textures/");
+			return path;
 		}
 	}
-
-	return custom_textures_available;
+#endif
+	return "";
 }
 
-void GdxsvEmbedTextureSource ::terminate() {
-	initialized = false;
+GdxsvEmbedTextureSource::GdxsvEmbedTextureSource() {
 	custom_textures_available = false;
-	textures_path.clear();
-	texture_map.clear();
+
+#ifdef __APPLE__
+	textures_path = get_textures_path():
+	DIR* dir = flycast::opendir(textures_path.c_str());
+	if (dir != nullptr) {
+		INFO_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
+		custom_textures_available = true;
+		closedir(dir);
+	}
+#elif _WIN32
+	custom_textures_available = true;
+#endif
+}
+
+bool GdxsvEmbedTextureSource::langmodDisabled() {
+	return GdxsvLanguage::Language() == GdxsvLanguage::Lang::Disabled;
 }
 
 #ifdef _WIN32
@@ -93,11 +86,7 @@ static BOOL CALLBACK StaticEnumRCNamesFunc(HMODULE hModule, LPCTSTR lpType, LPTS
 }
 #endif
 
-bool GdxsvEmbedTextureSource ::loadMap() {
-	if (!init()) {
-		return false;
-	}
-
+bool GdxsvEmbedTextureSource::loadMap() {
 	std::map<u32, std::string> mapping;
 
 	if (GdxsvLanguage::Language() != GdxsvLanguage::Lang::Disabled) {
@@ -133,7 +122,7 @@ bool GdxsvEmbedTextureSource ::loadMap() {
 	return custom_textures_available = !texture_map.empty();
 }
 
-u8* GdxsvEmbedTextureSource ::loadCustomTexture(u32 hash, int& width, int& height) {
+u8* GdxsvEmbedTextureSource::loadCustomTexture(u32 hash, int& width, int& height) {
 	const auto it = texture_map.find(hash);
 	if (it == texture_map.end()) return nullptr;
 
@@ -169,11 +158,16 @@ u8* GdxsvEmbedTextureSource ::loadCustomTexture(u32 hash, int& width, int& heigh
 #endif
 }
 
-bool GdxsvEmbedTextureSource ::isTextureReplaced(u32 hash) {
+bool GdxsvEmbedTextureSource::isTextureReplaced(u32 hash) {
 	return texture_map.find(hash) != texture_map.end();
 }
 
-u8* GdxsvEmbedTextureSource ::LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) const {
+void GdxsvEmbedTextureSource::preloadTextures(TextureCallback callback, std::atomic<bool> *stop_flag) {
+	// TODO: impl
+	NOTICE_LOG(COMMON, "preloadTextures not implemented");
+}
+
+u8* GdxsvEmbedTextureSource::LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) {
 #ifdef _WIN32
 	u8* imgData = nullptr;
 	std::string upper_name = name;
@@ -200,7 +194,8 @@ u8* GdxsvEmbedTextureSource ::LoadExtraTexture(const char* name, bool v_flip, in
 
 #else
 
-	FILE* file = nowide::fopen((textures_path + "/Extra/" + name).c_str(), "rb");
+	std::string path = get_textures_path() + "/Extra/" + name;
+	FILE* file = nowide::fopen(path.c_str(), "rb");
 	if (file == nullptr) return nullptr;
 	int n;
 	stbi_set_flip_vertically_on_load((int)v_flip);
@@ -211,6 +206,9 @@ u8* GdxsvEmbedTextureSource ::LoadExtraTexture(const char* name, bool v_flip, in
 #endif
 }
 
+GdxsvTexturePackSource::GdxsvTexturePackSource() {
+}
+
 GdxsvTexturePackSource::~GdxsvTexturePackSource() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	if (texp_file != nullptr) std::fclose(texp_file);
@@ -219,24 +217,9 @@ GdxsvTexturePackSource::~GdxsvTexturePackSource() {
 	texp_zip_source = nullptr;
 }
 
-bool GdxsvTexturePackSource::init() {
-	if (!config::GdxUseTexturePack) return false;
-
-	if (!initialized) {
-		initialized = true;
-		std::string game_id = get_game_id();
-		if (game_id == "T13306M") {
-			custom_textures_available = true;
-		}
-	}
-
-	return custom_textures_available;
-}
-
 void GdxsvTexturePackSource::terminate() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	if (texp_file != nullptr) std::fclose(texp_file);
-	initialized = false;
 	custom_textures_available = false;
 	texture_map.clear();
 	texp_file = nullptr;
@@ -245,10 +228,6 @@ void GdxsvTexturePackSource::terminate() {
 }
 
 bool GdxsvTexturePackSource::loadMap() {
-	if (!init()) {
-		return false;
-	}
-
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	if (texp_file != nullptr) std::fclose(texp_file);
 	texp_file = nullptr;
@@ -337,8 +316,7 @@ bool GdxsvTexturePackSource::loadMap() {
 		} while (false);
 
 	texture_map = mapping;
-	custom_textures_available = !texture_map.empty();
-	return custom_textures_available;
+	return custom_textures_available = !texture_map.empty();
 }
 
 u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height) {

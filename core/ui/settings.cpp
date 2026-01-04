@@ -130,6 +130,11 @@ static void gui_settings_advanced()
 #endif
     }
 
+	header("Gdxsv");
+	{
+		ImGui::InputText("GdxTexturePackChannel", &config::GdxTexturePackChannel.get(), ImGuiInputTextFlags_None, nullptr, nullptr);
+	}
+
 #ifdef USE_LUA
 	header("Lua Scripting");
 	{

@@ -41,7 +41,7 @@ void GdxsvKeyDisplay::DisplayOSD() {
 
 	if (buttonsTexture == ImTextureID{} || buttonsTexture != imguiDriver->getTexture(ButtonsTextureName)) {
 		int w, h;
-		u8* imgData = gdxsv_embed_texture_source.LoadExtraTexture(ButtonsTextureName, false, w, h);
+		u8* imgData = GdxsvEmbedTextureSource::LoadExtraTexture(ButtonsTextureName, false, w, h);
 
 		if (imgData) {
 			buttonsTexture = imguiDriver->updateTexture(ButtonsTextureName, imgData, w, h, false);
@@ -50,7 +50,7 @@ void GdxsvKeyDisplay::DisplayOSD() {
 
 	if (arrowsTexture == ImTextureID{} || arrowsTexture != imguiDriver->getTexture(ArrowsTextureName)) {
 		int w, h;
-		u8* imgData = gdxsv_embed_texture_source.LoadExtraTexture(ArrowsTextureName, false, w, h);
+		u8* imgData = GdxsvEmbedTextureSource::LoadExtraTexture(ArrowsTextureName, false, w, h);
 
 		if (imgData) {
 			arrowsTexture = imguiDriver->updateTexture(ArrowsTextureName, imgData, w, h, false);
