@@ -627,6 +627,9 @@ protected:
 		in = (in & 0xAA) >> 1 | (in & 0x55) << 1;
 
 		out = process(in);
+		// The rest of the bits are for lamps
+		u8 lamps[2] = { data[0], (u8)(data[1] & 0xfc) };
+		jvs_837_13844::write_digital_out(2, lamps);
 	}
 
 	virtual u8 process(u8 in) = 0;
@@ -822,7 +825,7 @@ protected:
 				{
 					// Rumble
 					const float v = (in & 0x3f) / 63.f * motorPower / 2.f;	// additional 0.5 factor to soften it
-					MapleConfigMap::UpdateVibration(0, v, 0.f, 50);			// duration?
+					haptic::setSine(0, v, 25.f, 650);	// 25 Hz, 650 ms
 				}
 				else if (in >= 0xe0 && in <= 0xef)
 				{
@@ -1849,7 +1852,7 @@ u32 maple_naomi_jamma::RawDma(u32* buffer_in, u32 buffer_in_len, u32* buffer_out
 				char filename[128];
 				for (int i = 0; ; i++)
 				{
-					sprintf(filename, "z80_fw_%d.bin", i);
+					snprintf(filename, sizeof(filename), "z80_fw_%d.bin", i);
 					fw_dump = fopen(filename, "r");
 					if (fw_dump == NULL)
 					{

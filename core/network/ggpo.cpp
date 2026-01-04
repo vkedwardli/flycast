@@ -379,12 +379,18 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 		return false;
 	}
 	Serializer ser(*buffer, allocSize, true);
-	ser << frame;
-	dc_serialize(ser);
-	verify(ser.size() < allocSize);
-	*len = ser.size();
+	try {
+		ser << frame;
+		dc_serialize(ser);
+		*len = ser.size();
+	} catch (const Serializer::Exception& e) {
+		WARN_LOG(NETWORK, "Save state failed: %s", e.what());
+		*len = 0;
+		return false;
+	}
 #ifdef SYNC_TEST
 	*checksum = XXH32(*buffer, *len, 7);
+	//*checksum = XXH3_64bits(*buffer, usedSize);
 #endif
 	memwatch::protect();
 	if (frame > 0)
@@ -867,7 +873,11 @@ bool nextFrame()
 			WARN_LOG(NETWORK, "ggpo_add_local_input(%d) failed %d", i, result);
 	}
 #endif
-	return active();
+	if (active()) {
+		emu.getSh4Executor()->Start();
+		return true;
+	}
+	return false;
 }
 
 bool active()
@@ -1285,7 +1295,7 @@ bool active() {
 }
 
 std::future<bool> startNetwork() {
-	return std::async(std::launch::deferred, []{ return false; });;
+	return std::async(std::launch::deferred, []{ return false; });
 }
 
 void displayStats() {

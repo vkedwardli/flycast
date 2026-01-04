@@ -18,12 +18,9 @@
 */
 #include "build.h"
 #ifndef FEAT_NO_MINIUPNPC
-#include <miniupnpc.h>
+#include "miniupnp.h"
 #include <upnpcommands.h>
 #include "log/Log.h"
-#include "miniupnp.h"
-
-#include <string>
 
 #ifndef UPNP_LOCAL_PORT_ANY
 #define UPNP_LOCAL_PORT_ANY 0
@@ -56,16 +53,13 @@ bool MiniUPnP::Init()
 		WARN_LOG(NETWORK, lastError);
 		return false;
 	}
-	wanAddress[0] = 0;
 	initialized = true;
-	if (UPNP_GetExternalIPAddress(urls.controlURL, data.first.servicetype, wanAddress) != 0)
-		WARN_LOG(NETWORK, "Cannot determine external IP address");
-	DEBUG_LOG(NETWORK, "MiniUPnP: public IP is %s", wanAddress);
 	return true;
 }
 
 void MiniUPnP::Term()
 {
+	std::lock_guard<std::mutex> _(mutex);
 	if (!initialized)
 		return;
 	DEBUG_LOG(NETWORK, "MiniUPnP::Term");
@@ -95,7 +89,10 @@ bool MiniUPnP::AddPortMapping(int port, bool tcp)
 		WARN_LOG(NETWORK, lastError);
 		return false;
 	}
-	mappedPorts.emplace_back(portStr, tcp);
+	{
+		std::lock_guard<std::mutex> _(mutex);
+		mappedPorts.emplace_back(portStr, tcp);
+	}
 	DEBUG_LOG(NETWORK, "MiniUPnP: forwarding %s port %d", tcp ? "TCP" : "UDP", port);
 	return true;
 }

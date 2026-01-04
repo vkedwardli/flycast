@@ -38,6 +38,7 @@
 #include "emulator.h"
 #include "ui/mainui.h"
 #include "oslib/directory.h"
+#include "dynlink.h"
 #ifdef USE_BREAKPAD
 #ifdef _MSC_VER
 #include "client/windows/handler/exception_handler.h"
@@ -188,10 +189,11 @@ static void reserveBottomMemory()
     // Print diagnostics showing how many allocations we had to make in
     // order to reserve all of low memory, typically less than 200.
     char buffer[1000];
-    sprintf_s(buffer, "Reserved %1.3f MB (%d vallocs,"
-                      "%d heap allocs) of low-memory.\n",
-            totalReservation / (1024 * 1024.0),
-            (int)numVAllocs, (int)numHeapAllocs);
+    snprintf(buffer, sizeof(buffer),
+             "Reserved %1.3f MB (%d vallocs,"
+             "%d heap allocs) of low-memory.\n",
+             totalReservation / (1024 * 1024.0),
+             (int)numVAllocs, (int)numHeapAllocs);
     OutputDebugStringA(buffer);
 #endif
 }
@@ -520,24 +522,39 @@ void os_RunInstance(int argc, const char *argv[])
 	}
 }
 
+static WinLibLoader kernelBaseLib("KernelBase.dll");
+
 void os_SetThreadName(const char *name)
 {
-#ifndef TARGET_UWP
 	nowide::wstackstring wname;
 	if (wname.convert(name))
 	{
-		static HRESULT (*SetThreadDescription)(HANDLE, PCWSTR);
-		if (SetThreadDescription == nullptr)
-		{
-			// supported in Windows 10, version 1607 or Windows Server 2016
-			HINSTANCE libh = LoadLibraryW(L"KernelBase.dll");
-			if (libh != NULL)
-				SetThreadDescription = (HRESULT (*)(HANDLE, PCWSTR))GetProcAddress(libh, "SetThreadDescription");
-		}
+		static HRESULT (WINAPI *SetThreadDescription)(HANDLE, PCWSTR) = kernelBaseLib.getFunc("SetThreadDescription", SetThreadDescription);
 		if (SetThreadDescription != nullptr)
 			SetThreadDescription(GetCurrentThread(), wname.get());
 	}
-#endif
+}
+
+const char *getThreadName()
+{
+	static HRESULT (WINAPI *GetThreadDescription)(HANDLE, PWSTR *) = kernelBaseLib.getFunc("GetThreadDescription", GetThreadDescription);
+	if (GetThreadDescription == nullptr)
+		return "?";
+	PWSTR wname = nullptr;
+	if (SUCCEEDED(GetThreadDescription(GetCurrentThread(), &wname)))
+	{
+		nowide::stackstring stname;
+		thread_local std::string name;
+		if (stname.convert(wname))
+			name = stname.get();
+		else
+			name = "?";
+		LocalFree(wname);
+		return name.c_str();
+	}
+	else {
+		return "?";
+	}
 }
 
 #ifdef VIDEO_ROUTING

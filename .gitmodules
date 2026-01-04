@@ -3,7 +3,7 @@
 	url = https://github.com/libsdl-org/SDL.git
 [submodule "core/deps/libchdr"]
 	path = core/deps/libchdr
-	url = https://github.com/rtissera/libchdr.git
+	url = https://github.com/flyinghead/libchdr.git
 	ignore = dirty
 [submodule "core/deps/luabridge"]
 	path = core/deps/luabridge
@@ -43,4 +43,19 @@
 	url = https://github.com/google/googletest.git
 [submodule "core/deps/asio"]
 	path = core/deps/asio
-	url = https://github.com/chriskohlhoff/asio.git
+	url = https://github.com/flyinghead/asio.git
+[submodule "core/deps/xbyak"]
+	path = core/deps/xbyak
+	url = https://github.com/herumi/xbyak.git
+[submodule "core/deps/libjuice"]
+	path = core/deps/libjuice
+	url = https://github.com/paullouisageneau/libjuice.git
+[submodule "core/deps/websocketpp"]
+	path = core/deps/websocketpp
+	url = https://github.com/zaphoyd/websocketpp.git
+[submodule "core/deps/DreamPicoPort-API"]
+	path = core/deps/DreamPicoPort-API
+	url = https://github.com/OrangeFox86/DreamPicoPort-API.git
+[submodule "core/deps/libusb-cmake"]
+	path = core/deps/libusb-cmake
+	url = https://github.com/libusb/libusb-cmake.git

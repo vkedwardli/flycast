@@ -327,6 +327,8 @@ void SetNaomiNetworkConfig(int node)
 	{
 		write_naomi_eeprom(0x44, node == -1 ? 0
 				: node == 0 ? 1 : 2);
+		// the game wants the region there or it resets the eeprom
+		write_naomi_eeprom(0x30, config::Region);
 	}
 	else if (gameId == "SPIKERS BATTLE JAPAN VERSION")
 	{
@@ -337,7 +339,6 @@ void SetNaomiNetworkConfig(int node)
 	{
 		write_naomi_eeprom(0x45, node == -1 ? 3
 				: node == 0 ? 0 : 1);
-		write_naomi_eeprom(0x47, node == 0 ? 0 : 1);
 	}
 	else if (gameId == "WAVE RUNNER GP")
 	{
@@ -379,6 +380,9 @@ void SetNaomiNetworkConfig(int node)
 		// 0x233: cabinet type (0 deluxe, 1 twin)
 		write_naomi_flash(0x233, config::MultiboardSlaves >= 2 ? 0 : 1);
 	}
+	else if (gameId == "SEGA TETRIS") {
+		write_naomi_eeprom(0x50, node + 1);
+	}
 }
 
 bool NaomiNetworkSupported()
@@ -387,7 +391,7 @@ bool NaomiNetworkSupported()
 		"ALIEN FRONT", "MOBILE SUIT GUNDAM JAPAN", "MOBILE SUIT GUNDAM DELUXE JAPAN", " BIOHAZARD  GUN SURVIVOR2",
 		"HEAVY METAL JAPAN", "OUTTRIGGER     JAPAN", "SLASHOUT JAPAN VERSION", "SPAWN JAPAN",
 		"SPIKERS BATTLE JAPAN VERSION", "VIRTUAL-ON ORATORIO TANGRAM", "WAVE RUNNER GP", "WORLD KICKS",
-		"F355 CHALLENGE JAPAN",
+		"F355 CHALLENGE JAPAN", "SEGA TETRIS",
 		// Naomi 2
 		"CLUB KART IN JAPAN", "INITIAL D", "INITIAL D Ver.2", "INITIAL D Ver.3", "THE KING OF ROUTE66",
 		"SEGA DRIVING SIMULATOR"
