@@ -511,6 +511,8 @@ bool BaseTextureCacheData::Update()
 	{
 		u32 oldHash = texture_hash;
 		ComputeHash();
+		// gdxsv: Avoid texture glitch issue https://github.com/flyinghead/flycast/issues/2189
+		/*
 		if (Updates > 1 && oldHash == texture_hash)
 		{
 			// Texture hasn't changed so skip the update.
@@ -518,6 +520,7 @@ bool BaseTextureCacheData::Update()
 			size = originalSize;
 			return true;
 		}
+		*/
 		custom_texture.loadCustomTextureAsync(this);
 	}
 
