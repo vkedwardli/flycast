@@ -10,8 +10,8 @@
 class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
    public:
 	GdxsvEmbedTextureSource();
-	bool shouldReplace() const override { return !langmodDisabled() && custom_textures_available; }
-	bool shouldPreload() const override { return shouldReplace(); }
+	bool shouldReplace() const override { return !langmodDisabled(); }
+	bool shouldPreload() const override { return !langmodDisabled() && config::PreloadCustomTextures; }
 	bool loadMap() override;
 	size_t getTextureCount() const override { return texture_map.size(); }
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
@@ -21,7 +21,6 @@ class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
 
    private:
 	static bool langmodDisabled();
-	bool custom_textures_available = false;
 	std::string textures_path;
 	std::map<u32, std::string> texture_map;
 };
@@ -30,16 +29,16 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource {
    public:
 	GdxsvTexturePackSource();
 	~GdxsvTexturePackSource() override;
-	bool shouldReplace() const override { return config::GdxUseTexturePack && custom_textures_available; }
-	bool shouldPreload() const override { return shouldReplace(); }
+	bool shouldReplace() const override { return config::GdxUseTexturePack; }
+	bool shouldPreload() const override { return config::GdxUseTexturePack && config::PreloadCustomTextures; }
 	bool loadMap() override;
 	size_t getTextureCount() const override { return texture_map.size(); }
+	void preloadTextures(TextureCallback callback, std::atomic<bool>* stop_flag) override;
 	void terminate() override;
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override;
 
    private:
-	bool custom_textures_available = false;
 	std::map<u32, int> texture_map;
 	FILE* texp_file = nullptr;
 	zip_t* texp_zip = nullptr;

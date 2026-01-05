@@ -49,18 +49,13 @@ static std::string get_textures_path() {
 }
 
 GdxsvEmbedTextureSource::GdxsvEmbedTextureSource() {
-	custom_textures_available = false;
-
 #ifdef __APPLE__
 	textures_path = get_textures_path();
 	DIR* dir = flycast::opendir(textures_path.c_str());
 	if (dir != nullptr) {
 		INFO_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
-		custom_textures_available = true;
 		closedir(dir);
 	}
-#elif _WIN32
-	custom_textures_available = true;
 #endif
 }
 
@@ -119,7 +114,7 @@ bool GdxsvEmbedTextureSource::loadMap() {
 	}
 
 	texture_map = mapping;
-	return custom_textures_available = !texture_map.empty();
+	return !texture_map.empty();
 }
 
 u8* GdxsvEmbedTextureSource::loadCustomTexture(u32 hash, int& width, int& height) {
@@ -163,8 +158,24 @@ bool GdxsvEmbedTextureSource::isTextureReplaced(u32 hash) {
 }
 
 void GdxsvEmbedTextureSource::preloadTextures(TextureCallback callback, std::atomic<bool> *stop_flag) {
-	// TODO: impl
-	NOTICE_LOG(COMMON, "preloadTextures not implemented");
+	for (const auto& [hash, path] : texture_map)
+	{
+		if (stop_flag != nullptr && *stop_flag)
+			return;
+		int w, h;
+		u8* data = loadCustomTexture(hash, w, h);
+		if (data != nullptr)
+		{
+			size_t size = (size_t)w * h * 4;
+			TextureData tex;
+			tex.w = w;
+			tex.h = h;
+			tex.data.resize(size);
+			memcpy(tex.data.data(), data, size);
+			stbi_image_free(data);
+			callback(hash, std::move(tex));
+		}
+	}
 }
 
 u8* GdxsvEmbedTextureSource::LoadExtraTexture(const char* name, bool v_flip, int& width, int& height) {
@@ -217,10 +228,30 @@ GdxsvTexturePackSource::~GdxsvTexturePackSource() {
 	texp_zip_source = nullptr;
 }
 
+void GdxsvTexturePackSource::preloadTextures(TextureCallback callback, std::atomic<bool> *stop_flag) {
+	for (const auto& [hash, path] : texture_map)
+	{
+		if (stop_flag != nullptr && *stop_flag)
+			return;
+		int w, h;
+		u8* data = loadCustomTexture(hash, w, h);
+		if (data != nullptr)
+		{
+			size_t size = (size_t)w * h * 4;
+			TextureData tex;
+			tex.w = w;
+			tex.h = h;
+			tex.data.resize(size);
+			memcpy(tex.data.data(), data, size);
+			stbi_image_free(data);
+			callback(hash, std::move(tex));
+		}
+	}
+}
+
 void GdxsvTexturePackSource::terminate() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	if (texp_file != nullptr) std::fclose(texp_file);
-	custom_textures_available = false;
 	texture_map.clear();
 	texp_file = nullptr;
 	texp_zip = nullptr;
@@ -264,7 +295,7 @@ bool GdxsvTexturePackSource::loadMap() {
 #ifdef GDXSV_TEXTURE_PACK_PASS
 			zip_set_default_password(zip, GDXSV_TEXTURE_PACK_PASS);
 #endif
-#
+
 			const auto num_entries = zip_get_num_entries(zip, 0);
 			if (num_entries < 0) {
 				ERROR_LOG(COMMON, "LoadMap: zip_get_num_entries failure");
@@ -316,7 +347,7 @@ bool GdxsvTexturePackSource::loadMap() {
 		} while (false);
 
 	texture_map = mapping;
-	return custom_textures_available = !texture_map.empty();
+	return !texture_map.empty();
 }
 
 u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height) {

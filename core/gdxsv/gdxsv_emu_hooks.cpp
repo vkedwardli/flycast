@@ -60,11 +60,6 @@ void gdxsv_emu_start() {
 
 void gdxsv_emu_reset() {
 	gdxsv.Reset();
-
-	if (gdxsv.Enabled()) {
-		custom_texture.addSource(std::make_unique<GdxsvTexturePackSource>());
-		custom_texture.addSource(std::make_unique<GdxsvEmbedTextureSource>());
-	}
 }
 
 void gdxsv_emu_vblank() {

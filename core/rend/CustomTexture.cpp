@@ -33,6 +33,8 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#include "gdxsv/gdxsv_custom_texture_source.h"
+
 CustomTexture custom_texture;
 
 class CustomTextureSource : public BaseCustomTextureSource
@@ -185,6 +187,10 @@ bool CustomTexture::init()
 		if (game_id.length() > 0)
 		{
 			addSource(std::make_unique<CustomTextureSource>(game_id));
+			if (game_id == "T13306M") {
+				addSource(std::make_unique<GdxsvTexturePackSource>());
+				addSource(std::make_unique<GdxsvEmbedTextureSource>());
+			}
 		}
 	}
 
@@ -214,6 +220,11 @@ bool CustomTexture::isPreloading() {
 void CustomTexture::addSource(std::unique_ptr<BaseCustomTextureSource> source)
 {
 	BaseCustomTextureSource* ptr = source.get();
+	if (ptr == nullptr) {
+		ERROR_LOG(COMMON, "CustomTexture::addSource got nullptr");
+		return;
+	}
+
 	sources.emplace_back(std::move(source));
 
 	if (initialized)
