@@ -35,7 +35,7 @@ static std::string get_game_id() {
 static std::string get_textures_path() {
 #ifdef __APPLE__
 	uint32_t bufSize = PATH_MAX + 1;
-	char result[bufSize];
+	char result[PATH_MAX + 1];
 	if (_NSGetExecutablePath(result, &bufSize) == 0) {
 		auto path = std::string(result);
 		size_t pos = path.find("MacOS/Flycast");
@@ -52,7 +52,7 @@ GdxsvEmbedTextureSource::GdxsvEmbedTextureSource() {
 	custom_textures_available = false;
 
 #ifdef __APPLE__
-	textures_path = get_textures_path():
+	textures_path = get_textures_path();
 	DIR* dir = flycast::opendir(textures_path.c_str());
 	if (dir != nullptr) {
 		INFO_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
