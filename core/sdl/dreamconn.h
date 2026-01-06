@@ -17,85 +17,27 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "types.h"
-#include "emulator.h"
-#include "sdl_gamepad.h"
-#if defined(_WIN32) && !defined(TARGET_UWP)
-#define USE_DREAMCONN 1
-#include <asio.hpp>
-#endif
 
-struct MapleMsg
+#ifdef USE_DREAMLINK_DEVICES
+
+#include "dreamlink.h"
+
+#include <memory>
+
+class DreamConn : public DreamLink
 {
-	u8 command;
-	u8 destAP;
-	u8 originAP;
-	u8 size;
-	u8 data[1024];
-
-	u32 getDataSize() const {
-		return size * 4;
-	}
-
-	template<typename T>
-	void setData(const T& p) {
-		memcpy(data, &p, sizeof(T));
-		this->size = (sizeof(T) + 3) / 4;
-	}
-};
-static_assert(sizeof(MapleMsg) == 1028);
-
-class DreamConn
-{
-	const int bus;
-#ifdef USE_DREAMCONN
-	asio::ip::tcp::iostream iostream;
-#endif
-	u8 expansionDevs = 0;
+public:
+	//! Base port of communication to DreamConn
 	static constexpr u16 BASE_PORT = 37393;
+	//! DreamConn VID:4457 PID:4443
+	static constexpr const char* VID_PID_GUID = "5744000043440000";
+
+protected:
+	DreamConn() = default;
+	virtual ~DreamConn() = default;
 
 public:
-	DreamConn(int bus) : bus(bus) {
-		connect();
-	}
-	~DreamConn() {
-		disconnect();
-	}
-
-	bool send(const MapleMsg& msg);
-
-	int getBus() const {
-		return bus;
-	}
-	bool hasVmu() {
-		return expansionDevs & 1;
-	}
-	bool hasRumble() {
-		return expansionDevs & 2;
-	}
-
-private:
-	void connect();
-	void disconnect();
+	static std::shared_ptr<DreamConn> create_shared(int bus, bool isForPhysicalController);
 };
 
-class DreamConnGamepad : public SDLGamepad
-{
-public:
-	DreamConnGamepad(int maple_port, int joystick_idx, SDL_Joystick* sdl_joystick);
-	~DreamConnGamepad();
-
-	void set_maple_port(int port) override;
-	bool gamepad_btn_input(u32 code, bool pressed) override;
-	bool gamepad_axis_input(u32 code, int value) override;
-	static bool isDreamConn(int deviceIndex);
-
-private:
-	static void handleEvent(Event event, void *arg);
-	void checkKeyCombo();
-
-	std::shared_ptr<DreamConn> dreamconn;
-	bool ltrigPressed = false;
-	bool rtrigPressed = false;
-	bool startPressed = false;
-};
+#endif // USE_DREAMCASTCONTROLLER

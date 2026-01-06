@@ -367,6 +367,7 @@ extern Option<bool> ForceFreePlay;
 extern Option<bool, false> FetchBoxart;
 extern Option<bool, false> BoxartDisplayMode;
 extern Option<int, false> UIScaling;
+extern Option<int, false> UITheme;          // 0 -> Dark, 1 -> Light, 2 -> Dreamcast, 3 -> High Contrast, 4 -> Nintendo, 5 -> Aqua Chill
 
 // Sound
 
@@ -445,7 +446,9 @@ extern Option<int> PerPixelLayers;
 #endif
 extern Option<float> ExtraDepthScale;
 extern Option<bool> CustomTextures;
+extern Option<bool> PreloadCustomTextures;
 extern Option<bool> DumpTextures;
+extern Option<bool> DumpReplacedTextures;
 extern Option<int> ScreenStretching;	// in percent. 150 means stretch from 4/3 to 6/3
 extern Option<bool> Fog;
 extern Option<bool> FloatVMUs;
@@ -459,6 +462,8 @@ extern Option<int> SkipFrame;
 extern Option<int> MaxThreads;
 extern Option<int> AutoSkipFrame;		// 0: none, 1: some, 2: more
 extern Option<int> RenderResolution;
+extern Option<bool> IntegerScale;
+extern Option<bool> LinearInterpolation;
 extern Option<bool> VSync;
 extern Option<int64_t> PixelBufferSize;
 extern Option<int> AnisotropicFiltering;
@@ -490,12 +495,22 @@ extern Option<bool> RamMod32MB;
 extern Option<bool> OpenGlChecks;
 
 extern Option<std::vector<std::string>, false> ContentPath;
+extern Option<std::vector<std::string>, false> BiosPath;
+extern Option<std::string, false> VMUPath;
+extern Option<std::vector<std::string>, false> SavestatePath;
+extern Option<std::string, false> SavePath;
+extern Option<std::vector<std::string>, false> TexturePath;
+extern Option<std::string, false> TextureDumpPath;
+extern Option<std::string, false> BoxartPath;
+extern Option<std::vector<std::string>, false> MappingsPath;
+extern Option<std::vector<std::string>, false> CheatPath;
 extern Option<bool, false> HideLegacyNaomiRoms;
 extern Option<bool, false> UploadCrashLogs;
 extern Option<bool, false> DiscordPresence;
 #if defined(__ANDROID__) && !defined(LIBRETRO)
 extern Option<bool, false> UseSafFilePicker;
 #endif
+extern OptionString LogServer;
 
 // Profiling
 extern Option<bool> ProfilerEnabled;
@@ -539,6 +554,8 @@ extern Option<int> GGPOChatTimeout;
 extern Option<bool> NetworkOutput;
 extern Option<int> MultiboardSlaves;
 extern Option<bool> BattleCableEnable;
+extern Option<bool> UseDCNet;
+extern OptionString ISPUsername;
 
 #ifdef USE_OMX
 extern Option<int> OmxAudioLatency;
@@ -552,12 +569,14 @@ extern Option<int> VirtualGamepadVibration;
 extern Option<int> VirtualGamepadTransparency;
 extern std::array<Option<MapleDeviceType>, 4> MapleMainDevices;
 extern std::array<std::array<Option<MapleDeviceType>, 2>, 4> MapleExpansionDevices;
+extern std::array<Option<bool>, 4> UseNetworkExpansionDevices;
 extern Option<bool> PerGameVmu;
 #ifdef _WIN32
 extern Option<bool, false> UseRawInput;
 #else
 constexpr bool UseRawInput = false;
 #endif
+extern Option<bool> UsePhysicalVmuMemory;
 
 #ifdef USE_LUA
 extern Option<std::string, false> LuaFileName;

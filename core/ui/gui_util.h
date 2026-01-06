@@ -51,7 +51,8 @@ template<bool PerGameOption>
 bool OptionSlider(const char *name, config::Option<int, PerGameOption>& option, int min, int max, const char *help = nullptr, const char *format = nullptr);
 template<typename T>
 bool OptionRadioButton(const char *name, config::Option<T>& option, T value, const char *help = nullptr);
-void OptionComboBox(const char *name, config::Option<int>& option, const char *values[], int count,
+template<bool PerGameOption>
+void OptionComboBox(const char *name, config::Option<int, PerGameOption>& option, const char *values[], int count,
 			const char *help = nullptr);
 bool OptionArrowButtons(const char *name, config::Option<int>& option, int min, int max, const char *help = nullptr, const char *format = "%d");
 
@@ -153,8 +154,6 @@ public:
 private:
 	bool disabled;
 };
-
-bool BeginListBox(const char* label, const ImVec2& size_arg = ImVec2(0, 0), ImGuiWindowFlags windowFlags = 0);
 
 class ImguiID
 {
@@ -281,7 +280,7 @@ static inline bool iconButton(const char *icon, const std::string& label, const 
 {
 	ImguiStyleVar _{ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f)};	// left aligned
 	std::string s(5 + label.size(), '\0');
-	s.resize(sprintf(s.data(), "%s  %s", icon, label.c_str()));
+	s.resize(snprintf(s.data(), s.size() + 1, "%s  %s", icon, label.c_str()));
 	return ImGui::Button(s.c_str(), size);
 }
 
@@ -289,7 +288,7 @@ static inline float iconButtonWidth(const char *icon, const std::string& label)
 {
 	// TODO avoid doing stuff twice
 	std::string s(5 + label.size(), '\0');
-	s.resize(sprintf(s.data(), "%s  %s", icon, label.c_str()));
+	s.resize(snprintf(s.data(), s.size() + 1, "%s  %s", icon, label.c_str()));
 	return ImGui::CalcTextSize(s.c_str()).x + ImGui::GetStyle().FramePadding.x * 2;
 }
 
@@ -315,3 +314,10 @@ private:
 };
 
 std::string middleEllipsis(const std::string& s, float width);
+
+bool beginFrame(const char *label, const ImVec2& size_arg = ImVec2(0, 0), ImVec2 *out_size = nullptr);
+void endFrame();
+
+bool InputText(const char *label, std::string *str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* user_data = nullptr);
+bool InputText(const char *label, char *str, size_t size, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* user_data = nullptr);
+bool InputTextMultiline(const char* label, char* buf, size_t buf_size, const ImVec2& size, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* user_data = nullptr);

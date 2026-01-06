@@ -23,9 +23,10 @@
 #elif defined(_WIN32)
 #include "types.h"
 #include <windows.h>
-#include <d3d11.h>
-#include <dxgi1_2.h>
+#include <d3d11_4.h>
+#include <dxgi1_6.h>
 #include "windows/comptr.h"
+#include "windows/dynlink.h"
 #include "dx11_overlay.h"
 #include "wsi/context.h"
 
@@ -97,7 +98,7 @@ private:
 	Samplers samplers;
 	D3D_FEATURE_LEVEL featureLevel{};
 	bool supportedTexFormats[5] {}; // indexed by TextureType enum
-	HMODULE d3dcompilerHandle = NULL;
+	WinLibLoader d3dcompilerLib;
 	pD3DCompile d3dcompiler = nullptr;
 
 	static constexpr UINT VENDOR_INTEL = 0x8086;

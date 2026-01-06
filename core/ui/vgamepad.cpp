@@ -759,7 +759,6 @@ void startGame()
 		}
 		else if (settings.platform.isSystemSP())
 		{
-			disableControl(Y);
 			disableControl(Btn4);
 			disableControl(Btn5);
 		}
@@ -835,6 +834,8 @@ void startGame()
 					disableControl(B);
 				if ((usedButtons & DC_BTN_C) == 0)
 					disableControl(X);
+				if ((usedButtons & DC_BTN_X) == 0)
+					disableControl(Y);
 				if ((usedButtons & DC_DPAD_UP) == 0)
 					disableControl(Up);
 				if ((usedButtons & DC_DPAD_DOWN) == 0)
@@ -880,14 +881,11 @@ void startGame()
 				if ((usedButtons & NAOMI_START_KEY) == 0)
 					disableControl(Start);
 			}
-			if (settings.input.lightgunGame)
-				enableTouchMouse = true;
 		}
 		else
 		{
 			if (settings.input.lightgunGame)
 			{
-				enableTouchMouse = true;
 				disableControl(A);
 				disableControl(X);
 				disableControl(Y);
@@ -909,6 +907,8 @@ void startGame()
 				disableControl(RightTrigger);
 			}
 		}
+		if (settings.input.lightgunGame || settings.input.mouseGame)
+			enableTouchMouse = true;
 	}
 	std::shared_ptr<TouchMouse> touchMouse = GamepadDevice::GetGamepad<TouchMouse>();
 	if (touchMouse != nullptr)

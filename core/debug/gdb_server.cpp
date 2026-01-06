@@ -69,6 +69,22 @@ public:
 								asio::placeholders::bytes_transferred));
 	}
 
+	void send(const std::string& msg)
+	{
+		if (!msg.empty())
+		{
+			if (!outMessage.empty()) {
+				WARN_LOG(COMMON, "Message dropped: %s. Already sending: %s", msg.c_str(), outMessage.c_str());
+				return;
+			}
+			outMessage = msg;
+			asio::async_write(socket, asio::buffer(outMessage),
+				std::bind(&Connection::writeDone, shared_from_this(),
+						asio::placeholders::error,
+						asio::placeholders::bytes_transferred));
+		}
+	}
+
 private:
 	Connection(GdbServer& server, asio::io_context& io_context)
 		: server(server), io_context(io_context), socket(io_context) {
@@ -101,30 +117,18 @@ private:
 
 	void handlePacket(const std::error_code& ec, size_t len);
 
-	void send(const std::string& msg)
-	{
-		if (msg.empty())
-			start();
-		else
-			asio::async_write(socket, asio::buffer(msg),
-				std::bind(&Connection::writeDone, shared_from_this(),
-						asio::placeholders::error,
-						asio::placeholders::bytes_transferred));
-
-	}
-
 	void writeDone(const std::error_code& ec, size_t len)
 	{
 		if (ec)
 			WARN_LOG(COMMON, "Write error: %s", ec.message().c_str());
-		else
-			start();
+		outMessage.clear();
 	}
 
 	GdbServer& server;
 	asio::io_context& io_context;
 	asio::ip::tcp::socket socket;
 	std::string message;
+	std::string outMessage;
 	friend super;
 };
 
@@ -213,7 +217,9 @@ public:
 		if (!attached)
 			return;
 		agent.debugTrap(event);
-		reportException();
+		std::string pkt = handleCommand("?");	// report exception
+		if (connection)
+			io_context->post([this, pkt]() { connection->send(pkt); });
 		postDebugTrapNeeded = true;
 		throw Stop();
 	}
@@ -234,6 +240,7 @@ private:
 			ERROR_LOG(COMMON, "Gdb server exception: %s", e.what());
 		}
 		attached = false;
+		connection.reset();
 	}
 
 	std::string handleCommand(const std::string& packet)
@@ -263,7 +270,7 @@ private:
 				break;
 			case 'A':	// Initialized argv[] array passed into program. not supported
 				replies.push_back("E01");
-				break;;
+				break;
 			case 'b':	// Change the serial line speed to baud. deprecated
 				break;
 			case 'B':	// Set or clear a breakpoint at addr. deprecated
@@ -282,7 +289,7 @@ private:
 				agent.detach();
 				break;
 			case 'F':	// File-I/O protocol extension not currently supported
-				break;;
+				break;
 			case 'g':	// Read general registers
 				replies.push_back(readAllRegs());
 				break;
@@ -361,7 +368,7 @@ private:
 			default:
 				// Unknown commands are ignored
 				WARN_LOG(COMMON, "Unknown gdb command: %s", packet.c_str());
-				break;;
+				break;
 			}
 			std::string data;
 			for (const std::string& pkt : replies)
@@ -381,7 +388,7 @@ private:
 				}
 				data.push_back('#');
 				char s[9];
-				sprintf(s, "%02x", checksum);
+				snprintf(s, sizeof(s), "%02x", checksum);
 				data += s;
 			}
 			DEBUG_LOG(NETWORK, "gdb: sent %s", data.c_str());
@@ -390,6 +397,7 @@ private:
 		} catch (const Error& e) {
 			ERROR_LOG(COMMON, "%s", e.what());
 			attached = false;
+			connection.reset();
 			throw e;
 		}
 	}
@@ -397,7 +405,7 @@ private:
 	std::string reportException()
 	{
 		char s[4];
-		sprintf(s, "S%02X", agent.currentException());
+		snprintf(s, sizeof(s), "S%02X", agent.currentException());
 		return s;
 	}
 
@@ -457,7 +465,7 @@ private:
 		for (u32 i = 0; i < len; i++)
 		{
 			char s[3];
-			sprintf(s,"%02x", mem[i]);
+			snprintf(s, sizeof(s), "%02x", mem[i]);
 			outpkt += s;
 		}
 		return outpkt;
@@ -586,7 +594,7 @@ private:
 				for (u32 i = 0; i < len; i++)
 				{
 					char n[10];
-					sprintf(n, "%08x ", *data++);
+					snprintf(n, sizeof(n), "%08x ", *data++);
 					for (char *p = n; *p != 0; p++)
 					{
 						*r++ = packnb((*p >> 4) & 0xf);
@@ -614,7 +622,7 @@ private:
 		{
 			// Obtain from the target OS a printable string description of thread attributes
 			char s[19];
-			sprintf(s, "%02x%02x%02x%02x%02x%02x%02x%02x%02x", 'R', 'u', 'n', 'n', 'a', 'b', 'l', 'e', 0);
+			snprintf(s, sizeof(s), "%02x%02x%02x%02x%02x%02x%02x%02x%02x", 'R', 'u', 'n', 'n', 'a', 'b', 'l', 'e', 0);
 			return { std::string(s, 18) };
 		}
 		else if (pkt.rfind("qXfer:", 0) == 0)
@@ -659,25 +667,21 @@ private:
 		if (pkt.rfind("vAttach;", 0) == 0)
 			return { "S05" };
 		else if (pkt.rfind("vCont?", 0) == 0)
-			// supported vCont actions - (c)ontinue, (C)ontinue with signal, (s)tep, (S)tep with signal, (r)ange-step
-			return { "vCont;c;C;s;S;t;r" };
+			// supported vCont actions - (c)ontinue, (s)tep, (r)ange-step
+			return { "vCont;c;s;r" };
 		else if (pkt.rfind("vCont", 0) == 0)
 		{
 			std::string vContCmd = pkt.substr(strlen("vCont;"));
-			std::vector<std::string> replies;
 			switch (vContCmd[0])
 			{
 			case 'c':
-			case 'C':
-				doContinue(vContCmd);
+				doContinue(vContCmd.substr(0, 1));
 				return {};
 			case 's':
 				return { step(EXCEPT_NONE) };
-			case 'S':
-				replies.push_back(step());
-				[[fallthrough]];
 			case 'r':
 			{
+				std::vector<std::string> replies;
 				u32 from, to;
 				if (sscanf(vContCmd.c_str(), "r%x,%x", &from, &to) == 2)
 				{
@@ -722,7 +726,8 @@ private:
 		}
 		else
 		{
-			WARN_LOG(COMMON, "unknown v packet: %s", pkt.c_str());
+			if (pkt != "vMustReplyEmpty")
+				WARN_LOG(COMMON, "unknown v packet: %s", pkt.c_str());
 			return { "" };
 		}
 	}
@@ -744,7 +749,10 @@ private:
 	std::vector<std::string> stepRange(u32 from, u32 to)
 	{
 		try {
-			agent.stepRange(from, to);
+			if (from + 2 >= to)
+				agent.step();
+			else
+				agent.stepRange(from, to);
 			return { "OK", "S05" };
 		} catch (const FlycastException& e) {
 			throw Error(e.what());
@@ -825,7 +833,7 @@ private:
 	{
 		u32 signal = agentInterrupt();
 		char s[10];
-		sprintf(s, "S%02x", signal);
+		snprintf(s, sizeof(s), "S%02x", signal);
 		return s;
 	}
 
@@ -858,8 +866,9 @@ private:
 		}
 	}
 
-	void clientConnected() {
+	void clientConnected(Connection::Ptr connection) {
 		attached = true;
+		this->connection = connection;
 		agentInterrupt();
 	}
 
@@ -889,6 +898,7 @@ private:
 	std::thread thread;
 	std::unique_ptr<asio::io_context> io_context;
 	int port = DEFAULT_PORT;
+	Connection::Ptr connection;
 	friend class TcpAcceptor;
 	friend class Connection;
 
@@ -901,7 +911,7 @@ static GdbServer gdbServer;
 void TcpAcceptor::handleAccept(Connection::Ptr newConnection, const std::error_code& error)
 {
 	if (!error) {
-		server.clientConnected();
+		server.clientConnected(newConnection);
 		newConnection->start();
 	}
 	start();
@@ -921,27 +931,30 @@ void Connection::handlePacket(const std::error_code& ec, size_t len)
 	try {
 		if (msg[0] == '\03') {	// break
 			send(server.handleCommand(msg));
-			return;
 		}
-		if (msg[0] != '$') {
+		else if (msg[0] != '$') {
 			// Ignore unexpected chars
-			send("");
-			return;
 		}
-		u8 cksum = 0;
-		for (unsigned i = 1; i < len - 3; i++)
-			cksum += (u8)msg[i];
-		if (cksum != (unpack(msg[len - 2]) << 4 | unpack(msg[len - 1]))) {
-			// Invalid checksum
-			WARN_LOG(COMMON, "Connection::handlePacket: invalid checksum: [%s]", msg.c_str());
-			send("-");
+		else
+		{
+			u8 cksum = 0;
+			for (unsigned i = 1; i < len - 3; i++)
+				cksum += (u8)msg[i];
+			if (cksum != (unpack(msg[len - 2]) << 4 | unpack(msg[len - 1])))
+			{
+				// Invalid checksum
+				WARN_LOG(COMMON, "Connection::handlePacket: invalid checksum: [%s]", msg.c_str());
+				send("-");
+			}
+			else
+			{
+				// Positive ack
+				std::string reply = "+";
+				reply += server.handleCommand(msg.substr(1, msg.length() - 4));
+				send(reply);
+			}
 		}
-		else {
-			// Positive ack
-			std::string reply = "+";
-			reply += server.handleCommand(msg.substr(1, msg.length() - 4));
-			send(reply);
-		}
+		start();
 	} catch (...) {
 		// terminate the connection
 	}

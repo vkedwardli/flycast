@@ -64,6 +64,7 @@
 #include "cfg/option.h"
 #include "version.h"
 #include "oslib/oslib.h"
+#include "rend/CustomTexture.h"
 
 constexpr char slash = path_default_slash_c();
 
@@ -109,7 +110,6 @@ extern void retro_audio_flush_buffer(void);
 extern void retro_audio_upload(void);
 
 std::string arcadeFlashPath;
-static bool boot_to_bios;
 
 static bool devices_need_refresh = false;
 static int device_type[4] = {-1,-1,-1,-1};
@@ -171,11 +171,13 @@ unsigned per_content_vmus = 0;
 static bool first_run = true;
 static bool rotate_screen;
 static bool rotate_game;
+static bool is_pal;
 static int framebufferWidth;
 static int framebufferHeight;
 static int maxFramebufferWidth;
 static int maxFramebufferHeight;
 static float framebufferAspectRatio = 4.f / 3.f;
+static double fps_current;
 
 float libretro_expected_audio_samples_per_run;
 unsigned libretro_vsync_swap_interval = 1;
@@ -304,6 +306,8 @@ void retro_set_environment(retro_environment_t cb)
 			{ 0 },
 	};
 	environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
+	const bool b = true;
+	environ_cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, (void *)&b);
 }
 
 static void retro_keyboard_event(bool down, unsigned keycode, uint32_t character, uint16_t key_modifiers);
@@ -311,6 +315,9 @@ static void retro_keyboard_event(bool down, unsigned keycode, uint32_t character
 // Now comes the interesting stuff
 void retro_init()
 {
+	first_run = true;
+	memset(device_type, -1, sizeof(device_type));
+	
 	static bool emuInited;
 
 	// Logging
@@ -371,6 +378,7 @@ void retro_deinit()
 {
 	INFO_LOG(COMMON, "retro_deinit");
 	first_run = true;
+	memset(device_type, -1, sizeof(device_type));
 
 	//When auto-save states are enabled this is needed to prevent the core from shutting down before
 	//any save state actions are still running - which results in partial saves
@@ -428,8 +436,6 @@ static bool set_variable_visibility(void)
 
 		// Show/hide Dreamcast options
 		option_display.visible = platformIsDreamcast;
-		option_display.key = CORE_OPTION_NAME "_boot_to_bios";
-		environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 		option_display.key = CORE_OPTION_NAME "_hle_bios";
 		environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 		option_display.key = CORE_OPTION_NAME "_gdrom_fast_loading";
@@ -674,23 +680,53 @@ static void setGameGeometry(retro_game_geometry& geometry)
 	geometry.aspect_ratio = framebufferAspectRatio;
 	if (rotate_screen)
 		geometry.aspect_ratio = 1 / geometry.aspect_ratio;
-	geometry.max_width = std::max(framebufferHeight * 16 / 9, framebufferWidth);
+
+	// Use same height for rotation potential
+	geometry.max_width = std::max(maxFramebufferWidth, framebufferWidth);
 	geometry.max_height = geometry.max_width;
+
 	// Avoid gigantic window size at startup
 	geometry.base_width = 640;
 	geometry.base_height = 480;
 }
 
-void setAVInfo(retro_system_av_info& avinfo)
+bool setAVInfo(retro_system_av_info& avinfo)
 {
 	double sample_rate = 44100.0;
-	double fps = SPG_CONTROL.isNTSC() ? 59.94 : SPG_CONTROL.isPAL() ? 50.0 : 60.0;
+	double fps = SPG_CONTROL.isPAL() ? 50.0 : 59.94;
+
+	// 240p NTSC rate
+	if (framebufferHeight == 240 && !SPG_CONTROL.isNTSC() && !SPG_CONTROL.isPAL())
+		fps = 59.82366;
 
 	setGameGeometry(avinfo.geometry);
 	avinfo.timing.sample_rate = sample_rate;
 	avinfo.timing.fps = fps / (double)libretro_vsync_swap_interval;
 
 	libretro_expected_audio_samples_per_run = sample_rate / fps;
+
+	// Avoid video reinit with same timings
+	if (avinfo.timing.fps == fps_current)
+		return false;
+
+	fps_current = avinfo.timing.fps;
+	return true;
+}
+
+static bool retro_refresh_av_info(void)
+{
+	retro_system_av_info avinfo;
+
+	if (first_run || game_data.empty())
+		return false;
+
+	if (setAVInfo(avinfo))
+	{
+		environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &avinfo);
+		return true;
+	}
+
+	return false;
 }
 
 void retro_resize_renderer(int w, int h, float aspectRatio)
@@ -712,6 +748,10 @@ void retro_resize_renderer(int w, int h, float aspectRatio)
 	}
 	else
 	{
+		// Check if timing change is needed instead
+		if (retro_refresh_av_info())
+			return;
+
 		retro_game_geometry geometry;
 		setGameGeometry(geometry);
 		environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &geometry);
@@ -785,17 +825,6 @@ static void update_variables(bool first_startup)
 
 		DEBUG_LOG(COMMON, "Got height: %u", (int)config::RenderResolution);
 	}
-
-	var.key = CORE_OPTION_NAME "_boot_to_bios";
-	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-	{
-		if (!strcmp(var.value, "enabled"))
-			boot_to_bios = true;
-		else if (!strcmp(var.value, "disabled"))
-			boot_to_bios = false;
-	}
-	else
-		boot_to_bios = false;
 
 	var.key = CORE_OPTION_NAME "_alpha_sorting";
 	var.value = nullptr;
@@ -882,7 +911,7 @@ static void update_variables(bool first_startup)
 	{
 		if (config::ThreadedRendering)
 		{
-			bool save_state_in_background = true ;
+			bool save_state_in_background = false;
 			unsigned poll_type_early      = 1; /* POLL_TYPE_EARLY */
 			environ_cb(RETRO_ENVIRONMENT_SET_SAVE_STATE_IN_BACKGROUND, &save_state_in_background);
 			environ_cb(RETRO_ENVIRONMENT_POLL_TYPE_OVERRIDE, &poll_type_early);
@@ -1167,6 +1196,26 @@ void retro_run()
 	if (devices_need_refresh)
 		refresh_devices(false);
 
+	if (custom_texture.isPreloading())
+	{
+		int texLoaded, texTotal;
+		size_t loaded_size;
+		custom_texture.getPreloadProgress(texLoaded, texTotal, loaded_size);
+
+		static char msg_buf[64];
+		float loaded_size_mb = (float)loaded_size / (1024 * 1024);
+		snprintf(msg_buf, sizeof(msg_buf), "Preloading custom textures: %d / %d (%.1f MB)", texLoaded, texTotal, loaded_size_mb);
+
+		struct retro_message msg;
+		msg.msg = msg_buf;
+		msg.frames = 1;
+		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+
+		video_cb(NULL, 0, 0, 0);
+		poll_cb();
+		return;
+	}
+
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
 	if (isOpenGL(config::RendererType))
 		glsm_ctl(GLSM_CTL_STATE_BIND, nullptr);
@@ -1205,6 +1254,17 @@ void retro_run()
 	if (isOpenGL(config::RendererType))
 		glsm_ctl(GLSM_CTL_STATE_UNBIND, nullptr);
 #endif
+
+	// Unless VGA cable is selected, We need to update
+	// the refresh rate for PAL games with a 60Hz mode
+	bool pal_check = SPG_CONTROL.isPAL();
+	if (is_pal != pal_check)
+	{
+		retro_system_av_info avinfo;
+		is_pal = pal_check;
+		setAVInfo(avinfo);
+		environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &avinfo);
+	}
 
 	video_cb(is_dupe ? 0 : RETRO_HW_FRAME_BUFFER_VALID, framebufferWidth, framebufferHeight, 0);
 
@@ -1954,6 +2014,7 @@ static bool set_opengl_hw_render(u32 preferred)
 	if (config::RendererType == RenderType::OpenGL_OIT || config::RendererType == RenderType::DirectX11_OIT || config::RendererType == RenderType::Vulkan_OIT)
 	{
 		config::RendererType = RenderType::OpenGL_OIT;
+#ifndef HAVE_OPENGLES
 		params.context_type = (retro_hw_context_type)preferred;
 		if (preferred == RETRO_HW_CONTEXT_OPENGL)
 		{
@@ -1970,6 +2031,7 @@ static bool set_opengl_hw_render(u32 preferred)
 			params.major = 4;
 			params.minor = 3;
 		}
+#endif
 	}
 	else
 #endif
@@ -2068,14 +2130,26 @@ bool retro_load_game(const struct retro_game_info *game)
 	}
 #endif
 
-	NOTICE_LOG(BOOT, "retro_load_game: %s", game->path);
+	bool boot_to_bios = false;
+	if (game != nullptr && game->path != nullptr && game->path[0] != '\0')
+	{
+		NOTICE_LOG(BOOT, "retro_load_game: %s", game->path);
 
-	extract_basename(g_base_name, game->path, sizeof(g_base_name));
-	extract_directory(game_dir, game->path, sizeof(game_dir));
+		extract_basename(g_base_name, game->path, sizeof(g_base_name));
+		extract_directory(game_dir, game->path, sizeof(game_dir));
 
-	// Storing rom dir for later use
-	snprintf(g_roms_dir, sizeof(g_roms_dir), "%s%c", game_dir, slash);
-
+		// Storing rom dir for later use
+		snprintf(g_roms_dir, sizeof(g_roms_dir), "%s%c", game_dir, slash);
+	}
+	else
+	{
+		NOTICE_LOG(BOOT, "retro_load_game: (no content)");
+		g_base_name[0] = '\0';
+		game_dir[0] = '\0';
+		g_roms_dir[0] = '\0';
+		settings.platform.system = DC_PLATFORM_DREAMCAST;
+		boot_to_bios = true;
+	}
 	if (environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble) && log_cb)
 		log_cb(RETRO_LOG_DEBUG, "Rumble interface supported!\n");
 
@@ -2143,18 +2217,9 @@ bool retro_load_game(const struct retro_game_info *game)
 		}
 	}
 
-	if (game->path[0] == '\0')
-	{
-		if (settings.platform.isConsole())
-			boot_to_bios = true;
-		else
-			return false;
-	}
-	if (settings.platform.isArcade())
-		boot_to_bios = false;
-
-	if (boot_to_bios)
+	if (boot_to_bios) {
 		game_data.clear();
+	}
 	// if an m3u file was loaded, disk_paths will already be populated so load the game from there
 	else if (disk_paths.size() > 0)
 	{
@@ -2342,13 +2407,19 @@ bool retro_serialize(void *data, size_t size)
 			ERROR_LOG(COMMON, "%s", e.what());
 			return false;
 		}
+	bool result = false;
+	try {
+		Serializer ser(data, size);
+		dc_serialize(ser);
+		result = true;
+	} catch (const Serializer::Exception& e) {
+		ERROR_LOG(SAVESTATE, "Saving state failed: %s", e.what());
+	} 
 
-	Serializer ser(data, size);
-	dc_serialize(ser);
 	if (!first_run)
 		emu.start();
 
-	return true;
+	return result;
 }
 
 bool retro_unserialize(const void * data, size_t size)
@@ -2420,11 +2491,12 @@ void retro_get_system_av_info(retro_system_av_info *info)
 		msg.frames = 120;
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
 	}
+
 	framebufferWidth = config::RenderResolution * 16 / 9;
 	framebufferHeight = config::RenderResolution;
+	maxFramebufferWidth = std::max(maxFramebufferWidth, framebufferWidth);
+	maxFramebufferHeight = std::max(maxFramebufferHeight, framebufferHeight);
 	setAVInfo(*info);
-	maxFramebufferWidth = info->geometry.max_width;
-	maxFramebufferHeight = info->geometry.max_height;
 }
 
 unsigned retro_get_region()

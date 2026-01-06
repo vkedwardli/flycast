@@ -35,6 +35,7 @@
 #include "hw/pvr/Renderer_if.h"
 #include "hw/arm7/arm7_rec.h"
 #include "network/ggpo.h"
+#include "network/ice.h"
 #include "hw/mem/mem_watch.h"
 #include "network/net_handshake.h"
 #include "network/naomi_network.h"
@@ -49,6 +50,9 @@
 #endif
 #include "hw/sh4/sh4_interpreter.h"
 #include "hw/sh4/dyna/ngen.h"
+#ifdef USE_DREAMLINK_DEVICES
+#include "sdl/dreamlink.h"
+#endif
 
 #include "gdxsv/gdxsv_emu_hooks.h"
 
@@ -153,7 +157,9 @@ static void loadSpecialSettings()
 				// Silent Scope (JP)
 				|| prod_id == "T9513M"
 				// Pro Pinball - Trilogy (EU)
-				|| prod_id == "T30701D 50")
+				|| prod_id == "T30701D 50"
+				// Jikkyo Powerful Pro Yakyu
+				|| prod_id == "T9507M")
 		{
 			INFO_LOG(BOOT, "Enabling RTT Copy to VRAM for game %s", prod_id.c_str());
 			config::RenderToTextureBuffer.override(true);
@@ -237,7 +243,9 @@ static void loadSpecialSettings()
 		}
 		else
 			WARN_LOG(BOOT, "No region specified in IP.BIN");
-		if (config::Cable <= 1 && !ip_meta.supportsVGA())
+		if (config::Cable <= 1 && (!ip_meta.supportsVGA()
+				|| prod_id == "T-12504N"	// Caesar's Palace (NTSC)
+				|| prod_id == "12502D-50"))	// Caesar's Palace (PAL)
 		{
 			NOTICE_LOG(BOOT, "Game doesn't support VGA. Using TV Composite instead");
 			config::Cable.override(3);
@@ -266,7 +274,8 @@ static void loadSpecialSettings()
 			|| prod_id == "T0019M"		// KenJu Atomiswave DC Conversion
 			|| prod_id == "T0020M"		// Force Five Atomiswave DC Conversion
 			|| prod_id == "HDR-0187"	// Fushigi no Dungeon - Fuurai no Shiren Gaiden - Onna Kenshi Asuka Kenzan!
-			|| prod_id == "T15104D 50") // Slave Zero (PAL)
+			|| prod_id == "T15104D 50"	// Slave Zero (PAL)
+			|| prod_id == "MK-51152")	// World Series Baseball 2K2
 		{
 			NOTICE_LOG(BOOT, "Forcing real BIOS");
 			config::UseReios.override(false);
@@ -293,7 +302,8 @@ static void loadSpecialSettings()
 			|| prod_id == "T-8112D-50"		// South Park Rally (EU)
 			|| prod_id == "T7014D  50"		// Super Runabout (EU)
 			|| prod_id == "T10001D 50"		// MTV Sport - Skateboarding (PAL)
-			|| prod_id == "MK-5101050")		// Snow Surfers
+			|| prod_id == "MK-5101050"		// Snow Surfers
+			|| prod_id == "12502D-50")		// Caesar's Palace (PAL)
 		{
 			NOTICE_LOG(BOOT, "Forcing PAL broadcasting");
 			config::Broadcast.override(1);
@@ -633,6 +643,11 @@ void Emulator::loadGame(const char *path, LoadProgress *progress)
 		}
 		if (!settings.naomi.slave)
 		{
+#ifdef USE_DREAMLINK_DEVICES
+			// Note: ordinarily we would like to use the 'events' system for this step.
+			// However, this call can change 'config::MapleExpansionDevices', and therefore needs to run before 'mcfg_CreateDevices'.
+			reconnectDreamLinks();
+#endif
 			mcfg_DestroyDevices();
 			mcfg_CreateDevices();
 			if (settings.platform.isNaomi())
@@ -693,9 +708,9 @@ void Emulator::runInternal()
 		getSh4Executor()->Step();
 		singleStep = false;
 	}
-	else if(stepRangeTo != 0)
+	else if (stepRangeTo != 0)
 	{
-		while (Sh4cntx.pc >= stepRangeFrom && Sh4cntx.pc <= stepRangeTo)
+		while (Sh4cntx.pc >= stepRangeFrom && Sh4cntx.pc < stepRangeTo)
 			getSh4Executor()->Step();
 
 		stepRangeFrom = 0;
@@ -737,7 +752,8 @@ void Emulator::unloadGame()
 		} catch (const FlycastException& e) {
 			ERROR_LOG(COMMON, "%s", e.what());
 		}
-
+		// Flush the VMU files to disk
+		mcfg_DestroyDevices(true);
 		config::Settings::instance().reset();
 		config::Settings::instance().load(false);
 		settings.content.path.clear();
@@ -745,6 +761,7 @@ void Emulator::unloadGame()
 		settings.content.fileName.clear();
 		settings.content.title.clear();
 		settings.platform.system = DC_PLATFORM_DREAMCAST;
+		custom_texture.terminate();
 		state = Init;
 		EventManager::event(Event::Terminate);
 	}
@@ -768,12 +785,13 @@ void Emulator::term()
 			delete recompiler;
 			recompiler = nullptr;
 		}
-		custom_texture.Terminate();	// lr: avoid deadlock on exit (win32)
+		custom_texture.terminate();	// lr: avoid deadlock on exit (win32)
 		reios_term();
 		aica::term();
 		pvr::term();
 		mem_Term();
 		libGDR_term();
+		ice::term();
 
 		state = Terminated;
 	}
@@ -834,6 +852,8 @@ void loadGameSpecificSettings()
 	{
 		reios_disk_id();
 		settings.content.gameId = trim_trailing_ws(std::string(ip_meta.product_number, sizeof(ip_meta.product_number)));
+		// in case there is a null character followed by garbage, which happens
+		settings.content.gameId = settings.content.gameId.c_str();
 
 		if (settings.content.gameId.empty())
 			return;
@@ -843,6 +863,7 @@ void loadGameSpecificSettings()
 	loadSpecialSettings();
 
 	config::Settings::instance().setGameId(settings.content.gameId);
+	custom_texture.init();
 
 	// Reload per-game settings
 	config::Settings::instance().load(true);
@@ -874,7 +895,11 @@ void Emulator::stepRange(u32 from, u32 to)
 
 void Emulator::loadstate(Deserializer& deser)
 {
-	custom_texture.Terminate();
+	if (!custom_texture.preloaded())
+	{
+		custom_texture.terminate();
+		custom_texture.init();
+	}
 #if FEAT_AREC == DYNAREC_JIT
 	aica::arm::recompiler::flush();
 #endif
@@ -944,7 +969,8 @@ void Emulator::run()
 		gdxsv_emu_next_frame();
 		if (ggpo::active())
 			ggpo::nextFrame();
-	} catch (...) {
+	} catch (const std::exception& e) {
+		ERROR_LOG(COMMON, "Exception: %s\n", e.what());
 		setNetworkState(false);
 		state = Error;
 		getSh4Executor()->Stop();
@@ -1101,6 +1127,7 @@ void Emulator::diskChange()
 {
 	config::Settings::instance().reset();
 	config::Settings::instance().load(false);
+	custom_texture.terminate();
 	if (!settings.content.path.empty())
 	{
 		hostfs::FileInfo info = hostfs::storage().getFileInfo(settings.content.path);
@@ -1116,7 +1143,6 @@ void Emulator::diskChange()
 	cheatManager.reset(settings.content.gameId);
 	if (cheatManager.isWidescreen())
 		config::ScreenStretching.override(134);	// 4:3 -> 16:9
-	custom_texture.Terminate();
 	EventManager::event(Event::DiskChange);
 }
 

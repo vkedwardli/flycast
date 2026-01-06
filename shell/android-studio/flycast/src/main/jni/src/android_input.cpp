@@ -110,10 +110,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_periph_InputDeviceMa
 		return;
 	if (id == AndroidVirtualGamepad::GAMEPAD_ID)
 	{
-		virtualGamepad = std::make_shared<AndroidVirtualGamepad>(hasRumble);
-		GamepadDevice::Register(virtualGamepad);
-		touchMouse = std::make_shared<TouchMouse>();
-		GamepadDevice::Register(touchMouse);
+		if (virtualGamepad == nullptr) {
+			virtualGamepad = std::make_shared<AndroidVirtualGamepad>(hasRumble);
+			GamepadDevice::Register(virtualGamepad);
+		}
+		if (touchMouse == nullptr) {
+			touchMouse = std::make_shared<TouchMouse>();
+			GamepadDevice::Register(touchMouse);
+		}
 	}
 	else
 	{
@@ -195,7 +199,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_flycast_emulator_periph_InputDevi
 {
 	std::shared_ptr<AndroidGamepadDevice> device = AndroidGamepadDevice::GetAndroidGamepad(id);
 	if (device != nullptr)
-		return device->gamepad_axis_input(key, value);
+		return device->gamepad_axis_input(key, std::clamp(value, -32768, 32767));
 	else
 		return false;
 }
@@ -228,6 +232,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_periph_InputDeviceMa
 extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_periph_InputDeviceManager_touchMouseEvent(JNIEnv *env, jobject obj,
 		jint xpos, jint ypos, jint buttons)
 {
+	if (touchMouse == nullptr)
+		return;
 	touchMouse->setAbsPos(xpos, ypos, settings.display.width, settings.display.height);
 	touchMouse->setButton(Mouse::LEFT_BUTTON, (buttons & 1) != 0);
 	touchMouse->setButton(Mouse::RIGHT_BUTTON, (buttons & 2) != 0);

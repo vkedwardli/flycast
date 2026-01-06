@@ -83,7 +83,7 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 		{ "T30006M",    nullptr,    { 0x4CF42C, 0x4CF45C, 0x3E1A36, 0x3E1A34, 0x3E1A3C, 0x3E1A54, 0x3E1A5C },
 				{ 0x43F00000, 0x3F400000, 0x08010000, 0, 0, 0, 0 } },
 		{ "MK-5103750", nullptr,    { 0x1FE270 }, { 0x43700000 } },		// Daytona USA (PAL)
-		{ "MK-51037",   nullptr,    { 0x1FC6D0 }, { 0x43700000 } },		// Daytona USA (USA)
+		// breaks online connection { "MK-51037",   nullptr,    { 0x1FC6D0 }, { 0x43700000 } },		// Daytona USA (USA)
 		{ "T9501N-50",  nullptr,    { 0x9821D4 }, { 0x3F400000 } },		// Deadly Skies (PAL)
 		{ "T8116D  50", nullptr,    { 0x2E5530 }, { 0x43700000 } },		// Dead or Alive 2 (PAL)
 		{ "T3601N",     nullptr,    { 0x2F0670 }, { 0x43700000 } },		// Dead or Alive 2 (USA)
@@ -169,6 +169,7 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 //		{ "T-9502D-50", nullptr,    { 0xBDE9B0, 0xBDE9C4 }, { 0x3F400000, 0x3FA00000 } },	// Nightmare Creatures II (PAL)
 		{ "MK-5110250", nullptr,    { 0x87B5A4 }, { 0x43700000 } },		// Outtrigger (PAL)
 		{ "HDR-0118",   nullptr,    { 0x83E284 }, { 0x43700000 } },		// Outtrigger (JP)
+		{ "MK-51102",   nullptr,    { 0x83E284 }, { 0x43700000 } },     // Outtrigger (US)
 		{ "T15103D 50", nullptr,    { 0x1EEE78 }, { 0x3F400000 } },		// PenPen (PAL)
 		{ "T17001M",    nullptr,    { 0x1C3828 }, { 0x3F400000 } },		// PenPen TriIcelon (JP)
 		{ "MK-5110050", nullptr,    { 0x548E04, 0x0923C0 }, { 0x43E80000, 0x3F966666 } },	// Phantasy Star Online (PAL) TODO
@@ -445,13 +446,42 @@ void CheatManager::reset(const std::string& gameId)
 		cheats.clear();
 		setActive(false);
 		this->gameId = gameId;
+
 #ifndef LIBRETRO
 		if (!settings.raHardcoreMode)
 		{
 			std::string cheatFile = cfgLoadStr("cheats", gameId, "");
 			if (!cheatFile.empty())
 				loadCheatFile(cheatFile);
+			else
+			{
+				// Try to auto-locate a cheat file in user-defined CheatPath
+				std::string romName = settings.content.fileName;
+				const char* exts[] = { ".cht", ".txt" };
+				for (const auto& base : config::CheatPath.get())
+				{
+					if (base.empty())
+						continue;
+					for (const char* ext : exts)
+					{
+						try
+						{
+							std::string candidate = hostfs::storage().getSubPath(base, romName + ext);
+							if (hostfs::storage().exists(candidate))
+							{
+								loadCheatFile(candidate);
+								cfgSaveStr("cheats", gameId, candidate);
+								goto found_cheats;
+							}
+						}
+						catch (const hostfs::StorageException&)
+						{
+						}
+					}
+				}
+			}
 		}
+found_cheats:
 #endif
 		size_t cheatCount = cheats.size();
 		if (gameId == "Fixed BOOT strapper")	// Extreme Hunting 2
@@ -488,6 +518,108 @@ void CheatManager::reset(const std::string& gameId)
 		else if (gameId == "T-8113D-50") {	// Fur Fighters (EU)
 			// force logging on to use more cycles
 			cheats.emplace_back(Cheat::Type::setValue, "enable logging", true, 32, 0x00314228, 1, true);
+		}
+		// Dricas auth bypass
+		else if (gameId == "T6807M")		// Aero Dancing i
+		{
+			// modem
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0004b7a0, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x0004b7a0, 0xe000000b, true);		// rts, _mov #0, r0
+			// BBA
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bba bypass auth ifeq", true, 32, 0x0004af5c, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bba bypass dricas auth", true, 32, 0x0004af5c, 0xe000000b, true);
+			// IP check
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "ip check ifeq", true, 32, 0x00020860, 0x4f222fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "ip check ok", true, 32, 0x00020860, 0xe000000b, true);
+		}
+		else if (gameId == "T6809M")		// Aero Dancing i - Jikai Saku Made Matemasen
+		{
+			// modem
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0004b940, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x0004b940, 0xe000000b, true);
+			// BBA
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bba bypass auth ifeq", true, 32, 0x0004f848, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bba bypass dricas auth", true, 32, 0x0004f848, 0xe000000b, true);
+			// IP check
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "ip check ifeq", true, 32, 0x00020980, 0x4f222fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "ip check ok", true, 32, 0x00020980, 0xe000000b, true);
+		}
+		else if (gameId == "T6805M") {		// Aero Dancing F - Todoroki Tsubasa no Hatsu Hikou
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0003ed10, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x0003ed10, 0xe000000b, true);
+		}
+		else if (gameId == "HDR-0106") {	// Daytona USA (JP)
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0003ad30, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x0003ad30, 0xe000000b, true);
+		}
+		else if (gameId == "HDR-0073") {	// Sega Tetris
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x000a56f8, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x000a56f8, 0xe000000b, true);
+		}
+		else if (gameId == "T44501M") {		// Golf Shiyou Yo 2
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0013f150, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x0013f150, 0xe000000b, true);
+		}
+		else if (gameId == "HDR-0124") {	// Hundred Swords
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x006558ac, 0x1f414f22, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x006558ac, 0xe000000b, true);
+		}
+		else if (gameId == "T43903M") {		// Culdcept II
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x00800524, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x00800524, 0xe000000b, true);
+		}
+		else if (gameId == "T40214N") {		// The Next Tetris (US)
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass speed ifeq", true, 32, 0x0016d5d4, 0x2f862fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass speed check", true, 32, 0x0016d5d4, 0xe001000b, true);
+		}
+		else if (gameId == "MK-51065") {	// Bomberman Online
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "modem automode ifeq", true, 32, 0x00196da8, 0x2c302c30, true);	// 0,0,
+			cheats.emplace_back(Cheat::Type::setValue, "modem automode set", true, 32, 0x00196da8, 0x2c302c31, true);		// 1,0,
+		}
+		else if (gameId == "MK-51102") {	// Outtrigger (US)
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "modem automode ifeq", true, 32, 0x001bdb48, 0x2c302c30, true);	// 0,0,
+			cheats.emplace_back(Cheat::Type::setValue, "modem automode set", true, 32, 0x001bdb48, 0x2c302c31, true);		// 1,0,
+		}
+		else if (gameId == "HDR-0118") {	// Outtrigger (JP)
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x00139f54, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x00139f54, 0xe000000b, true);
+		}
+		else if (gameId == "T13306M")		// Mobile Suit Gundam: Federation vs. Zeon
+		{
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "modem rxspeed ifeq", true, 32, 0x0016e710, 0x3434312c, true);	// ",144"
+			cheats.emplace_back(Cheat::Type::setValue, "modem rxspeed set", true, 32, 0x0016e710, 0x2020202c, true);		// ",   "
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "modem txspeed ifeq", true, 32, 0x0016e71c, 0x3434312c, true);	// ",144"
+			cheats.emplace_back(Cheat::Type::setValue, "modem txspeed set", true, 32, 0x0016e71c, 0x2020202c, true);		// ",   "
+		}
+		else if (gameId == "MK-51162")		// Propeller Arena
+		{
+			// 0c1f56f0: ,0,28800,28800,28800,28800\\r"\n
+			// 0c1f5770: ,0,28800,28800,28800,28800\\r"\n
+			for (u32 addr = 0x001f56f0; addr <= 0x001f5770; addr += 0x80)
+			{
+				cheats.emplace_back(Cheat::Type::runNextIfEq, "modem automode1 ifeq", true, 32, addr + 0x00, 0x322c302c, true);	// ",0,2"
+				cheats.emplace_back(Cheat::Type::setValue, "modem automode1 set", true, 32,     addr + 0x00, 0x202c312c, true);	// ",1, "
+				cheats.emplace_back(Cheat::Type::runNextIfEq, "modem automode2 ifeq", true, 32, addr + 0x04, 0x30303838, true);	// "8800"
+				cheats.emplace_back(Cheat::Type::setValue, "modem automode2 set", true, 32,     addr + 0x04, 0x30202020, true);	// "   0"
+				cheats.emplace_back(Cheat::Type::runNextIfEq, "modem automode3 ifeq", true, 32, addr + 0x0c, 0x322c3030, true);	// "00,2"
+				cheats.emplace_back(Cheat::Type::setValue, "modem automode3 set", true, 32,     addr + 0x0c, 0x202c3030, true);	// "00, "
+				cheats.emplace_back(Cheat::Type::runNextIfEq, "modem automode4 ifeq", true, 32, addr + 0x10, 0x30303838, true);	// "8800"
+				cheats.emplace_back(Cheat::Type::setValue, "modem automode4 set", true, 32,     addr + 0x10, 0x30202020, true);	// "   0"
+			}
+		}
+		else if (gameId == "HDR-0113")	// Power Smash
+		{
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "no dupe SYN ifeq", true, 16, 0x14d258, 0xbbce, true);	// bsr SendNormalSYN
+			cheats.emplace_back(Cheat::Type::setValue,     "no dupe SYN set", true, 16, 0x14d258, 0x0009, true);	// nop
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "no dupe ACK ifeq", true, 16, 0x14af42, 0x430b, true);	// jsr TCPInternalSendPacket
+			cheats.emplace_back(Cheat::Type::setValue,     "no dupe ACK set", true, 16, 0x14af42, 0x0009, true);	// nop
+		}
+		else if (gameId == "HDR-0091")	// Pro Yakyuu Team de Asobou Net!
+		{
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "no dupe SYN ifeq", true, 16, 0xe13e0c, 0xbbce, true);	// bsr SendNormalSYN
+			cheats.emplace_back(Cheat::Type::setValue,     "no dupe SYN set", true, 16, 0xe13e0c, 0x0009, true);	// nop
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "no dupe ACK ifeq", true, 16, 0xe11af6, 0x430b, true);	// jsr TCPInternalSendPacket
+			cheats.emplace_back(Cheat::Type::setValue,     "no dupe ACK set", true, 16, 0xe11af6, 0x0009, true);	// nop
 		}
 
 		if (cheats.size() > cheatCount)
@@ -681,6 +813,42 @@ static std::vector<u32> parseCodes(const std::string& s)
 	return codes;
 }
 
+// Decrypt (some) Action Replay/Gameshark/Codebreaker/Xploder encrypted codes
+// Master codes change the encryption method and thus are not supported (07xxxxxx)
+// Taken from DCcrypt
+constexpr u32 Seeds[16] = {
+	0xA53A8888,
+	0xA1427921, 0xAC9528B1, 0xC5892354, 0x49671B12,
+	0xACC56121, 0xACB5381E, 0x765436E1, 0x9F2C3E54,
+	0x1133E312, 0xAC5E7894, 0xE9F208B1, 0x4E87DCFE,
+	0x43174312, 0x1D7A6C99, 0x874224A2
+};
+
+static u32 decryptCode(u32 v)
+{
+	constexpr u32 something = 6;
+
+	if ((v & 0xf0000000) == 0)
+		return v;
+	u32 seed = Seeds[v >> 28];
+	if (something & 4)
+		v = (((v << 1) & 0x0FFFFFFE) | ((v >> 27) & 1));
+	if (something & 2) {
+		v = (((v << 1) & 0x0FFFFFFE) | ((v >> 27) & 1));
+		v = (((v << 8) & 0x0FFFFF00) | ((v >> 20) & 0xFF));
+	}
+	if (something & 1)
+		seed >>= 4;
+	u32 ret = (seed & 0x0FFFFFFF) ^ v;
+	//if ((ret & 0x0FF00000) != 0x07100000)
+	//	something = (ret & 0x0f) + 6;
+	return ret;
+}
+
+static u32 decryptArg(u32 v) {
+	return (((v + 0x543700D0) >> 29) | ((v + 0x543700D0) * 8)) ^ Seeds[0];
+}
+
 void CheatManager::addGameSharkCheat(const std::string& name, const std::string& s)
 {
 	std::vector<u32> codes = parseCodes(s);
@@ -696,6 +864,22 @@ void CheatManager::addGameSharkCheat(const std::string& name, const std::string&
 			Cheat cheat{};
 			cheat.description = name;
 			u32 code = (codes[i] & 0xff000000) >> 24;
+			if (code & 0xf0)
+			{
+				// encrypted code
+				codes[i] = decryptCode(codes[i]);
+				code = (codes[i] & 0xff000000) >> 24;
+				if (code == 4 && i + 2 < codes.size()) {
+					// following args are also encrypted
+					codes[i + 1] = decryptArg(codes[i + 1]);
+					codes[i + 2] = decryptArg(codes[i + 2]);
+				}
+				else if (code == 0xd && i + 2 < codes.size()) {
+					// following arg is also encrypted
+					codes[i + 1] = decryptArg(codes[i + 1]);
+				}
+				// TODO Which ops have encrypted args (3, 5, E, F)? Couldn't find any
+			}
 			switch (code)
 			{
 			case 0:
@@ -809,9 +993,17 @@ void CheatManager::addGameSharkCheat(const std::string& name, const std::string&
 					cheats.push_back(cheat);
 				}
 				break;
-			// TODO 7 change decryption type
-			// TODO 0xb delay applying codes
-			// TODO 0xc global enable test
+
+			case 7:
+				// change decryption type: 071000XX (example: 07100005)
+				throw FlycastException("Master codes aren't supported");
+
+			// TODO 0xb delay applying codes: 0b0xxxxx
+			//     Delay putting on codes for xxxxx cycles. Default 1000 (0x3e7)
+			// TODO 0xc global enable test: 0cxxxxxx vvvvvvvv
+			//     If the value at address 8Cxxxxxx is equal to vvvvvvvv, execute ALL codes;
+			//     otherwise no codes are executed. Useful for waiting until game has loaded.
+
 			case 0xd:
 				{
 					// enable next code if eq/neq/lt/gt
@@ -869,6 +1061,10 @@ void CheatManager::addGameSharkCheat(const std::string& name, const std::string&
 					conditionCheat = cheat;
 				}
 				break;
+
+			// TODO 0xF: 0F-XXXXXX 0000YYYY
+			//    16-Bit Write Once Immediately. (Activator code)
+
 			default:
 				throw FlycastException("Unsupported cheat type");
 			}

@@ -16,20 +16,24 @@
     You should have received a copy of the GNU General Public License
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include "dreamconn.h"
 
-#ifdef USE_DREAMCONN
+#include <asio.hpp> // Must be included first to avoid winsock issues on Windows
+#include "dreamconn.h"
 #include "hw/maple/maple_devs.h"
+#include "hw/maple/maple_if.h"
+#include "oslib/oslib.h"
 #include "ui/gui.h"
 #include <cfg/option.h>
 #include <SDL.h>
-#include <asio.hpp>
 #include <iomanip>
 #include <sstream>
+#include <mutex>
 
-void createDreamConnDevices(std::shared_ptr<DreamConn> dreamconn, bool gameStart);
+#if defined(__linux__) || (defined(__APPLE__) && defined(TARGET_OS_MAC))
+#include <dirent.h>
+#endif
 
-static bool sendMsg(const MapleMsg& msg, asio::ip::tcp::iostream& stream)
+static asio::error_code sendMsg(const MapleMsg& msg, asio::ip::tcp::iostream& stream)
 {
 	std::ostringstream s;
 	s.fill('0');
@@ -46,7 +50,7 @@ static bool sendMsg(const MapleMsg& msg, asio::ip::tcp::iostream& stream)
 	asio::ip::tcp::socket& sock = static_cast<asio::ip::tcp::socket&>(stream.socket());
 	asio::error_code ec;
 	asio::write(sock, asio::buffer(s.str()), ec);
-	return !ec;
+	return ec;
 }
 
 static bool receiveMsg(MapleMsg& msg, std::istream& stream)
@@ -62,164 +66,324 @@ static bool receiveMsg(MapleMsg& msg, std::istream& stream)
 	return !stream.fail();
 }
 
-void DreamConn::connect()
+//! DreamConn implementation class
+//! This is here mainly so asio.hpp can be included in this source file instead of the header.
+class DreamConnImp : public DreamConn
 {
-	iostream = asio::ip::tcp::iostream("localhost", std::to_string(BASE_PORT + bus));
-	if (!iostream) {
-		WARN_LOG(INPUT, "DreamConn[%d] connection failed: %s", bus, iostream.error().message().c_str());
-		disconnect();
-		return;
-	}
-	iostream.expires_from_now(std::chrono::seconds(1));
-	// Now get the controller configuration
-	MapleMsg msg;
-	msg.command = MDCF_GetCondition;
-	msg.destAP = (bus << 6) | 0x20;
-	msg.originAP = bus << 6;
-	msg.setData(MFID_0_Input);
-	if (!sendMsg(msg, iostream))
-	{
-		WARN_LOG(INPUT, "DreamConn[%d] communication failed", bus);
-		disconnect();
-		return;
-	}
-	if (!receiveMsg(msg, iostream)) {
-		WARN_LOG(INPUT, "DreamConn[%d] read timeout", bus);
-		disconnect();
-		return;
-	}
-	iostream.expires_from_now(std::chrono::duration<u32>::max());	// don't use a 64-bit based duration to avoid overflow
-	expansionDevs = msg.originAP & 0x1f;
-	NOTICE_LOG(INPUT, "Connected to DreamConn[%d]: VMU:%d, Rumble Pack:%d", bus, hasVmu(), hasRumble());
-	config::MapleExpansionDevices[bus][0] = hasVmu() ? MDT_SegaVMU : MDT_None;
-	config::MapleExpansionDevices[bus][1] = hasRumble() ? MDT_PurupuruPack : MDT_None;
-}
+	int bus = -1;
+	const bool _isForPhysicalController;
+	bool maple_io_connected = false;
+	std::array<MapleDeviceType, 2> expansionDevs{};
+	asio::ip::tcp::iostream iostream;
+	std::mutex send_mutex;
 
-void DreamConn::disconnect()
-{
-	if (iostream) {
-		iostream.close();
-		NOTICE_LOG(INPUT, "Disconnected from DreamConn[%d]", bus);
-	}
-}
+public:
+	DreamConnImp(int bus, bool isForPhysicalController) :
+		DreamConn(),
+		bus(bus),
+		_isForPhysicalController(isForPhysicalController)
+	{}
 
-bool DreamConn::send(const MapleMsg& msg)
-{
-	if (!iostream)
+	~DreamConnImp() {
+		disconnect();
+	}
+
+	bool isForPhysicalController() override {
+		return _isForPhysicalController;
+	}
+
+	bool isPhysicalVMUMemorySupported() override {
+		// DreamConn controllers don't support physical VMU memory access
+		return !isForPhysicalController();
+	}
+
+	bool send(const MapleMsg& msg) override {
+		std::lock_guard<std::mutex> lock(send_mutex); // Ensure thread safety for send operations
+		return send_no_lock(msg);
+	}
+
+    bool send(const MapleMsg& txMsg, MapleMsg& rxMsg) override {
+		std::lock_guard<std::mutex> lock(send_mutex); // Ensure thread safety for send operations
+		return send_no_lock(txMsg, rxMsg);
+	}
+
+private:
+	bool send_no_lock(const MapleMsg& msg) {
+		if (!maple_io_connected)
+			return false;
+
+		auto ec = sendMsg(msg, iostream);
+		if (ec) {
+			WARN_LOG(INPUT, "DreamcastController[%d] send failed: %s", bus, ec.message().c_str());
+			disconnect();
+			return false;
+		}
+		return true;
+	}
+
+	bool send_no_lock(const MapleMsg& txMsg, MapleMsg& rxMsg) {
+		if (!send_no_lock(txMsg)) {
+			return false;
+		}
+
+		return receiveMsg(rxMsg, iostream);
+	}
+
+public:
+	int getBus() const override {
+		return bus;
+	}
+
+    u32 getFunctionCode(int forPort) const override {
+		MapleDeviceType deviceType = expansionDevs.at(forPort - 1);
+		if (deviceType == MDT_SegaVMU) {
+			return 0x0E000000;
+		}
+		else if (deviceType == MDT_PurupuruPack) {
+			return 0x00010000;
+		}
+		return 0;
+	}
+
+	std::array<u32, 3> getFunctionDefinitions(int forPort) const override {
+		MapleDeviceType deviceType = expansionDevs.at(forPort - 1);
+		if (deviceType == MDT_SegaVMU)
+			// For clock, LCD, storage
+			return std::array<u32, 3>{0x403f7e7e, 0x00100500, 0x00410f00};
+		else if (deviceType == MDT_PurupuruPack)
+			return std::array<u32, 3>{0x00000101, 0, 0};
+
+		return std::array<u32, 3>{0, 0, 0};
+	}
+
+	void changeBus(int newBus) override {
+		if (newBus != bus) {
+			// A different TCP port is used depending on the bus. We'll need to disconnect from the current port.
+			// The caller will call connect() again if appropriate.
+			disconnect();
+			bus = newBus;
+		}
+	}
+
+	std::string getName() const override {
+		return "DreamConn+ / DreamConn S Controller";
+	}
+
+	bool needsRefresh() override {
+		if (!isConnected())
+			return false;
+
+		std::lock_guard<std::mutex> lock(send_mutex);
+
+		// Check if there is a refresh message waiting in the socket buffer.
+		// Avoid reading (consuming) any other kind of message in this context.
+		const int REFRESH_MESSAGE_SIZE = 13;
+		asio::ip::tcp::socket& sock = static_cast<asio::ip::tcp::socket&>(iostream.socket());
+		if (sock.available() < REFRESH_MESSAGE_SIZE)
+			return false;
+
+		char buffer[REFRESH_MESSAGE_SIZE];
+		int bytesPeeked = recv(sock.native_handle(), buffer, REFRESH_MESSAGE_SIZE, MSG_PEEK);
+		if (bytesPeeked != REFRESH_MESSAGE_SIZE)
+			return false;
+
+		MapleMsg message;
+		sscanf(buffer, "%hhx %hhx %hhx %hhx", &message.command, &message.destAP, &message.originAP, &message.size);
+		if (message.command == 0xff && message.destAP == 0xff && message.originAP == 0xff && message.size == 0xff) {
+			// It is a refresh message, so consume it.
+			receiveMsg(message, iostream);
+
+			if (!updateExpansionDevs_no_lock())
+				return false;
+
+			return true;
+		}
 		return false;
-	if (!sendMsg(msg, iostream)) {
-		WARN_LOG(INPUT, "DreamConn[%d] send failed: %s", bus, iostream.error().message().c_str());
-		return false;
 	}
-	return true;
-}
 
-bool DreamConnGamepad::isDreamConn(int deviceIndex)
-{
-	char guid_str[33] {};
-	SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(deviceIndex), guid_str, sizeof(guid_str));
-	INFO_LOG(INPUT, "GUID: %s VID:%c%c%c%c PID:%c%c%c%c", guid_str,
-			guid_str[10], guid_str[11], guid_str[8], guid_str[9],
-			guid_str[18], guid_str[19], guid_str[16], guid_str[17]);
-	// DreamConn VID:4457 PID:4443
-	return memcmp("5744000043440000", guid_str + 8, 16) == 0;
-}
+	bool isConnected() override {
+		if (!maple_io_connected)
+			return false;
 
-DreamConnGamepad::DreamConnGamepad(int maple_port, int joystick_idx, SDL_Joystick* sdl_joystick)
-	: SDLGamepad(maple_port, joystick_idx, sdl_joystick)
-{
-	_name = "DreamConn+ Controller";
-	EventManager::listen(Event::Start, handleEvent, this);
-	EventManager::listen(Event::LoadState, handleEvent, this);
-}
-
-DreamConnGamepad::~DreamConnGamepad() {
-	EventManager::unlisten(Event::Start, handleEvent, this);
-	EventManager::unlisten(Event::LoadState, handleEvent, this);
-}
-
-void DreamConnGamepad::set_maple_port(int port)
-{
-	if (port < 0 || port >= 4) {
-		dreamconn.reset();
-	}
-	else if (dreamconn == nullptr || dreamconn->getBus() != port) {
-		dreamconn.reset();
-		dreamconn = std::make_shared<DreamConn>(port);
-	}
-	SDLGamepad::set_maple_port(port);
-}
-
-void DreamConnGamepad::handleEvent(Event event, void *arg)
-{
-	DreamConnGamepad *gamepad = static_cast<DreamConnGamepad*>(arg);
-	if (gamepad->dreamconn != nullptr)
-		createDreamConnDevices(gamepad->dreamconn, event == Event::Start);
-}
-
-bool DreamConnGamepad::gamepad_btn_input(u32 code, bool pressed)
-{
-	if (!is_detecting_input() && input_mapper)
-	{
-		DreamcastKey key = input_mapper->get_button_id(0, code);
-		if (key == DC_BTN_START) {
-			startPressed = pressed;
-			checkKeyCombo();
+		if (isSocketDisconnected()) {
+			NOTICE_LOG(INPUT, "DreamLink server disconnected bus[%d]", bus);
+			disconnect();
+			return false;
 		}
-	}
-	else {
-		startPressed = false;
-	}
-	return SDLGamepad::gamepad_btn_input(code, pressed);
-}
 
-bool DreamConnGamepad::gamepad_axis_input(u32 code, int value)
-{
-	if (!is_detecting_input())
-	{
-		if (code == leftTrigger) {
-			ltrigPressed = value > 0;
-			checkKeyCombo();
+		return true;
+	}
+
+	void connect() override {
+		maple_io_connected = false;
+
+#if !defined(_WIN32)
+		if (isForPhysicalController()) {
+			WARN_LOG(INPUT, "DreamcastController[%d] connection failed: DreamConn+ / DreamConn S Controller supported on Windows only", bus);
+			return;
 		}
-		else if (code == rightTrigger) {
-			rtrigPressed = value > 0;
-			checkKeyCombo();
-		}
-	}
-	else {
-		ltrigPressed = false;
-		rtrigPressed = false;
-	}
-	return SDLGamepad::gamepad_axis_input(code, value);
-}
-
-void DreamConnGamepad::checkKeyCombo() {
-	if (ltrigPressed && rtrigPressed && startPressed)
-		gui_open_settings();
-}
-
-#else
-
-void DreamConn::connect() {
-}
-void DreamConn::disconnect() {
-}
-
-bool DreamConnGamepad::isDreamConn(int deviceIndex) {
-	return false;
-}
-DreamConnGamepad::DreamConnGamepad(int maple_port, int joystick_idx, SDL_Joystick* sdl_joystick)
-	: SDLGamepad(maple_port, joystick_idx, sdl_joystick) {
-}
-DreamConnGamepad::~DreamConnGamepad() {
-}
-void DreamConnGamepad::set_maple_port(int port) {
-	SDLGamepad::set_maple_port(port);
-}
-bool DreamConnGamepad::gamepad_btn_input(u32 code, bool pressed) {
-	return SDLGamepad::gamepad_btn_input(code, pressed);
-}
-bool DreamConnGamepad::gamepad_axis_input(u32 code, int value) {
-	return SDLGamepad::gamepad_axis_input(code, value);
-}
 #endif
+
+		iostream = asio::ip::tcp::iostream("localhost", std::to_string(DreamConn::BASE_PORT + bus));
+		if (!iostream) {
+			WARN_LOG(INPUT, "DreamcastController[%d] connection failed: %s", bus, iostream.error().message().c_str());
+			disconnect();
+			return;
+		}
+		// Optimistically assume we are connected to the maple server. If a send fails we will just set this flag back to false.
+		maple_io_connected = true;
+		iostream.expires_from_now(std::chrono::seconds(1));
+
+		if (!updateExpansionDevs_no_lock())
+			return;
+
+		iostream.expires_from_now(std::chrono::duration<u32>::max());	// don't use a 64-bit based duration to avoid overflow
+
+		// Remain connected even if no devices were found, so that connecting a device later will be detected
+		NOTICE_LOG(INPUT, "Connected to DreamcastController[%d]: Type:%s, Slot 1: %s, Slot 2: %s", bus, getName().c_str(), deviceDescription(expansionDevs[0]), deviceDescription(expansionDevs[1]));
+	}
+
+	static const char* deviceDescription(MapleDeviceType deviceType) {
+		switch (deviceType) {
+			case MDT_None: return "None";
+			case MDT_SegaVMU: return "Sega VMU";
+			case MDT_PurupuruPack: return "Vibration Pack";
+			default: return "Unknown"; // note: we don't expect to reach this path, unless something has really gone wrong (e.g. somehow garbage data was written to `expansionDevs`).
+		}
+	}
+
+	void disconnect() override {
+		// Already disconnected
+		if (!maple_io_connected)
+			return;
+
+		maple_io_connected = false;
+		if (iostream)
+			iostream.close();
+
+		// Notify the user of the disconnect
+		NOTICE_LOG(INPUT, "Disconnected from DreamcastController[%d]", bus);
+		char buf[128];
+		snprintf(buf, sizeof(buf), "WARNING: DreamLink disconnected from port %c", 'A' + bus);
+		os_notify(buf, 6000);
+
+		tearDownDreamLinkDevices(this);
+		if (!isForPhysicalController())
+			maple_ReconnectDevices();
+	}
+
+	void gameTermination() override {
+		clearScreen(0);
+		clearScreen(1);
+	}
+
+private:
+	void clearScreen(int deviceIndex) {
+		if (expansionDevs[deviceIndex] != MDT_SegaVMU)
+			return;
+
+		// Clear the remote VMU screen
+		MapleMsg msg;
+		msg.command = MDCF_BlockWrite;
+		msg.destAP = (bus << 6) | 0x20 | (1 << deviceIndex);
+		msg.originAP = bus << 6;
+
+		u32 localData[0x32];
+		memset(localData, 0, sizeof(localData));
+		localData[0] = MFID_2_LCD;
+		msg.setData(localData);
+
+		send(msg);
+	}
+
+	bool updateExpansionDevs_no_lock() {
+		// Now get the controller configuration
+		MapleMsg msg;
+		msg.command = MDCF_GetCondition;
+		msg.destAP = (bus << 6) | 0x20;
+		msg.originAP = bus << 6;
+		msg.setData(MFID_0_Input);
+
+		auto ec = sendMsg(msg, iostream);
+		if (ec)
+		{
+			WARN_LOG(INPUT, "DreamcastController[%d] connection failed: %s", bus, ec.message().c_str());
+			disconnect();
+			return false;
+		}
+		if (!receiveMsg(msg, iostream)) {
+			WARN_LOG(INPUT, "DreamcastController[%d] read timeout", bus);
+			disconnect();
+			return false;
+		}
+
+		u8 portFlags = msg.originAP & 0x1f;
+		config::MapleExpansionDevices[bus][0] = expansionDevs[0] = getDevice_no_lock(portFlags, 1 << 0);
+		config::MapleExpansionDevices[bus][1] = expansionDevs[1] = getDevice_no_lock(portFlags, 1 << 1);
+		return true;
+	}
+
+	MapleDeviceType getDevice_no_lock(u8 portFlags, u8 portFlag) {
+		if (!(portFlags & portFlag)) {
+			// No device connected to this slot
+			return MDT_None;
+		}
+
+		if (isForPhysicalController()) {
+			// DreamConn physical controllers don't support the DeviceRequest message.
+			// Assume that a device in slot 1 is a VMU and a device in slot 2 is a purupuru.
+			return portFlag == (1 << 0) ? MDT_SegaVMU : MDT_PurupuruPack;
+		}
+
+		MapleMsg txMsg;
+		txMsg.command = MDC_DeviceRequest;
+		txMsg.destAP = (bus << 6) | portFlag;
+		txMsg.originAP = bus << 6;
+		txMsg.size = 0;
+
+		MapleMsg rxMsg;
+		if (!send_no_lock(txMsg, rxMsg)) {
+			return MDT_None;
+		}
+
+		// 32-bit words are in little-endian format on the wire
+		const u32 fnCode = (rxMsg.data[0] << 0) | (rxMsg.data[1] << 8) | (rxMsg.data[2] << 16) | (rxMsg.data[3] << 24);
+		if (fnCode & MFID_1_Storage) {
+			return MDT_SegaVMU;
+		}
+		else if (fnCode & MFID_8_Vibration) {
+			return MDT_PurupuruPack;
+		}
+		else {
+			WARN_LOG(INPUT, "DreamcastController[%d] MDC_DeviceRequest unsupported function code: 0x%x", bus, fnCode);
+			return MDT_None;
+		}
+	}
+
+	bool isSocketDisconnected() {
+		std::lock_guard<std::mutex> lock(send_mutex);
+
+		// A socket was disconnected if 'select()' says the socket is ready to read, and a subsequent 'recv()' fails or says 0 bytes available to read.
+		auto& sock = static_cast<asio::ip::tcp::socket&>(iostream.socket());
+		auto nativeHandle = sock.native_handle();
+		fd_set readfds;
+		FD_ZERO(&readfds);
+		FD_SET(nativeHandle, &readfds);
+		timeval timeout = { 0, 0 };
+		// nfds should be set to the highest-numbered file descriptor plus 1.
+		// See https://www.man7.org/linux/man-pages/man2/select.2.html
+		int nfds = nativeHandle + 1;
+		int nReady = select(nfds, &readfds, nullptr, nullptr, &timeout);
+		bool socketIsReady = nReady > 0 && FD_ISSET(nativeHandle, &readfds);
+		if (!socketIsReady)
+			return false;
+
+		char dest;
+		int len = recv(nativeHandle, &dest, sizeof(dest), MSG_PEEK);
+		return len <= 0;
+	}
+};
+
+std::shared_ptr<DreamConn> DreamConn::create_shared(int bus, bool isForPhysicalController) {
+	return std::make_shared<DreamConnImp>(bus, isForPhysicalController);
+}

@@ -94,7 +94,7 @@ float4 clipTest : register(c4);
 float4 trilinearAlpha : register(c5);
 float4 colorClampMin : register(c6);
 float4 colorClampMax : register(c7);
-float4 ditherColorMax : register(c8);
+float4 ditherDivisor : register(c8);
 float4 textureSize : register(c9);
 
 float fog_mode2(float w)
@@ -265,16 +265,15 @@ PSO main(in pixel inpix)
 
 #if DITHERING == 1
 	static const float ditherTable[16] = {
-		 0.9375f,  0.1875f,  0.75f,  0.0f,   
-		 0.4375f,  0.6875f,  0.25f,  0.5f,
-		 0.8125f,  0.0625f,  0.875f, 0.125f,
-		 0.3125f,  0.5625f,  0.375f, 0.625f	
+		5.0f, 13.0f,  7.0f, 15.0f,
+		9.0f,  1.0f, 11.0f,  3.0f,
+		6.0f, 14.0f,  4.0f, 12.0f,
+		10.0f, 2.0f,  8.0f,  0.0f
 	};
-	float r = ditherTable[int(inpix.pos.y % 4.0f) * 4 + int(inpix.pos.x % 4.0f)] + 0.03125f; // why is this bias needed??
-	// 31 for 5-bit color, 63 for 6 bits, 15 for 4 bits
-	color += r / ditherColorMax;
-	// avoid rounding
-	color = floor(color * 255.0f) / 255.0f;
+	float r = ditherTable[int(inpix.pos.y % 4.0f) * 4 + int(inpix.pos.x % 4.0f)];
+	float4 dv = float4(r, r, r, 1.0f) / ditherDivisor;
+	color = clamp(floor(color * 255.0f + dv) / 255.0f, 0.0f, 1.0f);
+
 #endif
 	PSO pso;
 #if DIV_POS_Z == 1
@@ -457,19 +456,18 @@ void D3DShaders::init(const ComPtr<IDirect3DDevice9>& device)
 	for (int ver = 43; ver >= 24; ver--)
 	{
 		std::string dllname = "d3dx9_" + std::to_string(ver) + ".dll";
-		d3dx9Library = LoadLibraryA(dllname.c_str());
-		if (d3dx9Library != NULL) {
+		if (d3dx9Library.load(dllname.c_str())) {
 			DEBUG_LOG(RENDERER, "Loaded %s", dllname.c_str());
 			break;
 		}
 	}
-	if (d3dx9Library == NULL) {
+	if (!d3dx9Library.loaded()) {
 		ERROR_LOG(RENDERER, "Cannot load d3dx9_??.dll");
 		throw FlycastException("Cannot load d3dx9_??.dll");
 	}
-	pD3DXCompileShader = (decltype(D3DXCompileShader) *)GetProcAddress(d3dx9Library, "D3DXCompileShader");
-	pD3DXGetVertexShaderProfile = (decltype(D3DXGetVertexShaderProfile) *)GetProcAddress(d3dx9Library, "D3DXGetVertexShaderProfile");
-	pD3DXGetPixelShaderProfile = (decltype(D3DXGetPixelShaderProfile) *)GetProcAddress(d3dx9Library, "D3DXGetPixelShaderProfile");
+	pD3DXCompileShader = d3dx9Library.getFunc("D3DXCompileShader", pD3DXCompileShader);
+	pD3DXGetVertexShaderProfile = d3dx9Library.getFunc("D3DXGetVertexShaderProfile", pD3DXGetVertexShaderProfile);
+	pD3DXGetPixelShaderProfile = d3dx9Library.getFunc("D3DXGetPixelShaderProfile", pD3DXGetPixelShaderProfile);
 	if (pD3DXCompileShader == nullptr || pD3DXGetVertexShaderProfile == nullptr || pD3DXGetPixelShaderProfile == nullptr) {
 		ERROR_LOG(RENDERER, "Cannot find entry point in d3dx9_??.dll");
 		throw FlycastException("Cannot load d3dx9_??.dll");
@@ -484,7 +482,4 @@ void D3DShaders::term()
 	for (auto& shader : modVolShaders)
 		shader.reset();
 	device.reset();
-	if (d3dx9Library != NULL)
-		FreeLibrary(d3dx9Library);
-	d3dx9Library = NULL;
 }

@@ -251,6 +251,15 @@ u8"ゲーム内で高品質なテクスチャを使用します. ",
 		gdxsv_custom_texture_update.Reset();
 	}
 
+	ImGui::Indent();
+	{
+		DisabledScope scope(!config::GdxUseTexturePack.get());
+		OptionCheckbox(t({ "Preload Custom Texture", u8"テクスチャを事前ロード" }), config::PreloadCustomTextures,
+			t({"Preload custom textures at game start. May improve performance but increases memory usage",
+				u8"ゲーム起動時にカスタムテクスチャを事前ロードします。パフォーマンスが向上しますが、メモリ使用量が増えます。"}));
+	}
+	ImGui::Unindent();
+
 	OptionCheckbox(t({ "Multi-threaded emulation", u8"マルチスレッドエミュレーション" }), config::ThreadedRendering, t({
 R"(Run the emulated CPU and GPU on different threads.
 Can reduce the loading, but it may introduce a delay of 1 frame for input.
