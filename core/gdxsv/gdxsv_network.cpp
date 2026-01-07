@@ -123,7 +123,8 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 			{"asia-northeast3", "asia-northeast3-5tkroniexa-du.a.run.app", "Seoul"},
 		};
 
-		for (const auto &region_host : gcp_region_hosts) {
+		// Function to test a single region
+		auto test_region = [&get_path](const std::tuple<std::string, std::string, std::string> &region_host) -> std::pair<std::string, int> {
 			TcpClient client;
 			std::stringstream ss;
 			ss << "HEAD " << get_path << " HTTP/1.1"
@@ -137,7 +138,7 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 
 			if (!client.Connect(std::get<1>(region_host).c_str(), 80)) {
 				ERROR_LOG(COMMON, "connect failed : %s", std::get<0>(region_host).c_str());
-				continue;
+				return {"", -1};
 			}
 
 			auto request_header = ss.str();
@@ -146,7 +147,7 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 			if (n < request_header.size()) {
 				ERROR_LOG(COMMON, "send failed : %s", std::get<0>(region_host).c_str());
 				client.Close();
-				continue;
+				return {"", -1};
 			}
 
 			char buf[1024] = {0};
@@ -154,7 +155,7 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 			if (n <= 0) {
 				ERROR_LOG(COMMON, "recv failed : %s", std::get<0>(region_host).c_str());
 				client.Close();
-				continue;
+				return {"", -1};
 			}
 
 			auto t2 = std::chrono::high_resolution_clock::now();
@@ -162,15 +163,59 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 			const std::string response_header(buf, n);
 			if (response_header.find("200 OK") == std::string::npos && response_header.find("302 Found") == std::string::npos) {
 				ERROR_LOG(COMMON, "error response : %s", response_header.c_str());
-			} else {
-				test_result[std::get<0>(region_host)] = rtt;
-				char latency_str[256];
-				snprintf(latency_str, 256, "%s : %d[ms]", std::get<2>(region_host).c_str(), rtt);
-				NOTICE_LOG(COMMON, "%s", latency_str);
-				gdxsv.SetPingResult(std::string(latency_str));
+				client.Close();
+				return {"", -1};
 			}
+
 			client.Close();
+
+			char latency_str[256];
+			snprintf(latency_str, 256, "%s : %d[ms]", std::get<2>(region_host).c_str(), rtt);
+			NOTICE_LOG(COMMON, "%s", latency_str);
+			gdxsv.SetPingResult(std::string(latency_str));
+
+			return {std::get<0>(region_host), rtt};
+		};
+
+		// Execute ping tests with max 6 parallel workers
+		const int max_parallel = 6;
+		const int total_regions = std::size(gcp_region_hosts);
+
+		std::vector<std::future<std::pair<std::string, int>>> futures;
+		int next_region_idx = 0;
+
+		// Start initial batch of workers (up to max_parallel)
+		for (int i = 0; i < std::min(max_parallel, total_regions); i++) {
+			futures.push_back(std::async(std::launch::async, test_region, gcp_region_hosts[next_region_idx++]));
 		}
+
+		// Process results as they complete and start new tasks
+		while (!futures.empty()) {
+			// Wait for at least one future to complete (blocking on first future)
+			futures.front().wait_for(std::chrono::milliseconds(1));
+
+			// Check all futures for completion
+			for (auto it = futures.begin(); it != futures.end();) {
+				if (it->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+					// Get result and store it
+					auto result = it->get();
+					if (!result.first.empty() && result.second >= 0) {
+						test_result[result.first] = result.second;
+					}
+
+					// Remove this completed future
+					it = futures.erase(it);
+
+					// Start a new task if there are more regions to process
+					if (next_region_idx < total_regions) {
+						futures.push_back(std::async(std::launch::async, test_region, gcp_region_hosts[next_region_idx++]));
+					}
+				} else {
+					++it;
+				}
+			}
+		}
+
 		gdxsv.SetPingResult("Done");
 		return test_result;
 	};
