@@ -87,7 +87,8 @@ bool GdxsvEmbedTextureSource::loadMap() {
 	if (GdxsvLanguage::Language() != GdxsvLanguage::Lang::Disabled) {
 		// Normal image files by language
 		if (!textures_path.empty()) {
-			hostfs::DirectoryTree tree(textures_path + GdxsvLanguage::TextureDirectoryName());
+			std::string localized_textures_path = textures_path + GdxsvLanguage::TextureDirectoryName();
+			hostfs::DirectoryTree tree(localized_textures_path);
 			for (const hostfs::FileInfo& item : tree) {
 				std::string extension = get_file_extension(item.name);
 				if (extension != "jpg" && extension != "jpeg" && extension != "png") continue;
