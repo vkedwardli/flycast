@@ -97,7 +97,6 @@ option(ENABLE_DC_PROFILER "Build with support for target machine (SH4) profiler"
 option(ENABLE_FC_PROFILER "Build with support for host app (Flycast) profiler" OFF)
 option(USE_DISCORD "Use Discord Presence API" OFF)
 option(USE_LIBCDIO "Use libcdio for CDROM access" OFF)
-option(GDXSV_TEXTURE_PACK_PASS "gdxsv texture-pack password" "")
 
 if(IOS AND NOT LIBRETRO)
 	set(USE_VULKAN OFF CACHE BOOL "Force vulkan off" FORCE)
