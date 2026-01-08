@@ -30,7 +30,7 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource {
 	GdxsvTexturePackSource();
 	~GdxsvTexturePackSource() override;
 	bool shouldReplace() const override { return config::GdxUseTexturePack; }
-	bool shouldPreload() const override { return config::GdxUseTexturePack && config::PreloadCustomTextures; }
+	bool shouldPreload() const override { return false; }
 	bool loadMap() override;
 	size_t getTextureCount() const override { return texture_map.size(); }
 	void preloadTextures(TextureCallback callback, std::atomic<bool>* stop_flag) override;

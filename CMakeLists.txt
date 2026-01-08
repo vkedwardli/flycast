@@ -122,7 +122,7 @@ endif()
 
 find_package(Git)
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
-	if(MINGW)
+	if(MINGW AND DEFINED ENV{MSYSTEM})
 		set(GDXSV_PATTERN "gdxsv-\\*")
 	else()
 		set(GDXSV_PATTERN "gdxsv-*")
