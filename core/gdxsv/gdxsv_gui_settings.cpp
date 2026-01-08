@@ -200,13 +200,12 @@ void gdxsv_gui_settings_tab()
 		
 		ImGui::SetTooltip(tip.c_str());
 	}
-	
+
 	ImGui::SameLine();
 	if (ImGui::Button(t({ "Apply Recommended Settings\nfor High-Spec PC", u8"高スペックPC向け\nおすすめ設定適用", u8"使用建議偏好設定\n高階電腦適用" }), ScaledVec2(200, 50))) {
 		gdxsv_apply_base_settings();
 		config::ThreadedRendering = false;
 		config::RenderResolution = 1440;
-		config::TextureUpscale = 2;
 	}
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 	{
@@ -217,8 +216,6 @@ void gdxsv_gui_settings_tab()
 			tip += "Internal Resolution = 2560x1440 (x3)\n";
 		if (config::AutoSkipFrame != 0)
 			tip += "Automatic Frame Skipping = Disabled\n";
-		if (config::TextureUpscale != 2)
-			tip += "Texture Upscaling = 2\n";
 		if (config::GdxMinDelay != 2)
 			tip += "Gdx Minimum Delay = 2\n";
 		
@@ -250,15 +247,6 @@ u8"ゲーム内で高品質なテクスチャを使用します. ",
 	if (pressed) {
 		gdxsv_custom_texture_update.Reset();
 	}
-
-	ImGui::Indent();
-	{
-		DisabledScope scope(!config::GdxUseTexturePack.get());
-		OptionCheckbox(t({ "Preload Custom Texture", u8"テクスチャを事前ロード" }), config::PreloadCustomTextures,
-			t({"Preload custom textures at game start. May improve performance but increases memory usage",
-				u8"ゲーム起動時にカスタムテクスチャを事前ロードします。パフォーマンスが向上しますが、メモリ使用量が増えます。"}));
-	}
-	ImGui::Unindent();
 
 	OptionCheckbox(t({ "Multi-threaded emulation", u8"マルチスレッドエミュレーション" }), config::ThreadedRendering, t({
 R"(Run the emulated CPU and GPU on different threads.
