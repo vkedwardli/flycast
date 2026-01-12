@@ -45,8 +45,13 @@ static void getOpenGLTexParams(TextureType texType, u32& bytesPerPixel, GLuint& 
 
 void TextureCacheData::UploadToGPUGl2(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded)
 {
+	if (!owns_texture)
+		texID = 0;
 	if (texID == 0)
+	{
 		texID = glcache.GenTexture();
+		owns_texture = true;
+	}
 	glcache.BindTexture(GL_TEXTURE_2D, texID);
 	GLuint comps;
 	GLuint gltype;
@@ -75,6 +80,12 @@ void TextureCacheData::UploadToGPUGl2(int width, int height, const u8 *temp_tex_
 	}
 }
 
+void TextureCacheData::SetCustomTextureHandle(void *handle)
+{
+	texID = (GLuint)(uintptr_t)handle;
+	owns_texture = false;
+}
+
 void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded)
 {
 #if !defined(GLES2) && (!defined(__APPLE__) || defined(TARGET_IPHONE))
@@ -97,6 +108,7 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 	if (texID == 0)
 	{
 		texID = glcache.GenTexture();
+		owns_texture = true;
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
 		glTexStorage2D(GL_TEXTURE_2D, mipmapLevels, internalFormat, width, height);
 	}
@@ -132,7 +144,9 @@ void TextureCacheData::setUploadToGPUFlavor()
 	if (gl.gl_major > 4 || (gl.gl_major == 4 && gl.gl_minor >= 2)
 			|| (gl.is_gles && gl.gl_major >= 3))
 		uploadToGpu = &TextureCacheData::UploadToGPUGl4;
+	else
 #endif
+		uploadToGpu = &TextureCacheData::UploadToGPUGl2;
 }
 
 bool TextureCacheData::Delete()
@@ -141,9 +155,11 @@ bool TextureCacheData::Delete()
 		return false;
 
 	if (texID != 0) {
-		glcache.DeleteTextures(1, &texID);
+		if (owns_texture)
+			glcache.DeleteTextures(1, &texID);
 		texID = 0;
 	}
+	owns_texture = true;
 
 	return true;
 }

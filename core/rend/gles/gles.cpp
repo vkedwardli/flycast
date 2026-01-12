@@ -12,6 +12,7 @@
 #include "wsi/gl_context.h"
 #include "emulator.h"
 #include "naomi2.h"
+#include "rend/CustomTexture.h"
 
 #ifdef TEST_AUTOMATION
 #include "cfg/cfg.h"
@@ -1355,8 +1356,25 @@ void OpenGLRenderer::Term()
 	gles_term();
 }
 
+void OpenGLRenderer::ProcessCustomTextures()
+{
+	custom_texture.updateTextureUploadQueue([](int width, int height, const u8 *data) -> void * {
+		GLuint texID = glcache.GenTexture();
+		glcache.BindTexture(GL_TEXTURE_2D, texID);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		return (void *)(uintptr_t)texID;
+	});
+}
+
 bool OpenGLRenderer::Render()
 {
+	ProcessCustomTextures();
+
 	saveCurrentFramebuffer();
 	renderFrame(pvrrc.framebufferWidth, pvrrc.framebufferHeight);
 	if (pvrrc.isRTT) {

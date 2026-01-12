@@ -542,7 +542,11 @@ void rend_deserialize(Deserializer& deser)
 		deser >> fb_watch_addr_start;
 		deser >> fb_watch_addr_end;
 	}
-	pend_rend = false;
 	fbAddrHistory[0] = 1;
 	fbAddrHistory[1] = 1;
+}
+
+void rend_process_custom_textures() {
+	if (renderer != nullptr)
+		renderer->ProcessCustomTextures();
 }

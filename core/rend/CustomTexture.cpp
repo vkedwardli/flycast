@@ -203,6 +203,12 @@ bool CustomTexture::isPreloading() {
 	if (pending_preloads > 0)
 		return true;
 
+	{
+		std::lock_guard<std::mutex> lock(upload_mutex);
+		if (!pending_uploads.empty())
+			return true;
+	}
+
 	int texLoaded = 0;
 	int texTotal = 0;
 	size_t loaded_size_b = 0;
@@ -247,6 +253,7 @@ void CustomTexture::terminate()
 		source->terminate();
 	sources.clear();
 	preloaded_textures.clear();
+	texture_handles.clear();
 	resetPreloadProgress();
 	initialized = false;
 }
@@ -463,10 +470,12 @@ void CustomTexture::prepareSource(BaseCustomTextureSource* source)
 			{
 				preload_total += count;
 				auto callback = [this](u32 hash, TextureData&& data) {
-					size_t size = data.data.size();
-					preloaded_textures[hash] = std::move(data);
 					preload_loaded++;
-					preload_loaded_size += size;
+					preload_loaded_size += data.data.size();
+					if (config::PreloadCustomTexturesToVRAM)
+						submitTextureToQueue(hash, std::move(data));
+					else
+						preloaded_textures[hash] = std::move(data);
 				};
 				source->preloadTextures(callback, &stop_preload);
 			}
@@ -491,4 +500,39 @@ void CustomTexture::resetPreloadProgress()
 	preload_total = 0;
 	preload_loaded = 0;
 	preload_loaded_size = 0;
+}
+
+void CustomTexture::updateTextureUploadQueue(BaseCustomTextureSource::TextureUploader uploader)
+{
+	std::vector<std::pair<u32, TextureData>> uploads;
+	{
+		std::lock_guard<std::mutex> lock(upload_mutex);
+		uploads.swap(pending_uploads);
+	}
+	for (auto& upload : uploads)
+	{
+		void *id = uploader(upload.second.w, upload.second.h, upload.second.data.data());
+		if (id)
+			texture_handles[upload.first] = id;
+	}
+}
+
+void *CustomTexture::getResourceId(u32 hash)
+{
+	auto it = texture_handles.find(hash);
+	return it != texture_handles.end() ? it->second : nullptr;
+}
+
+void CustomTexture::submitTextureToQueue(u32 hash, TextureData&& data)
+{
+	{
+		std::lock_guard<std::mutex> lock(upload_mutex);
+		if (texture_handles.count(hash))
+			return;
+		for (const auto& pair : pending_uploads) {
+			if (pair.first == hash)
+				return;
+		}
+		pending_uploads.emplace_back(hash, std::move(data));
+	}
 }

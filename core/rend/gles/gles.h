@@ -452,11 +452,14 @@ public:
 	}
 	TextureCacheData(TextureCacheData&& other) : BaseTextureCacheData(std::move(other)) {
 		std::swap(texID, other.texID);
+		std::swap(owns_texture, other.owns_texture);
 	}
 
 	GLuint texID = 0;   //gl texture
+	bool owns_texture = true;
 	std::string GetId() override { return std::to_string(texID); }
 	void UploadToGPU(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded = false) override;
+	void SetCustomTextureHandle(void *handle) override;
 	bool Delete() override;
 
 	static void setUploadToGPUFlavor();
@@ -498,6 +501,7 @@ struct OpenGLRenderer : Renderer
 	void Process(TA_context* ctx) override;
 
 	bool Render() override;
+	void ProcessCustomTextures() override;
 
 	void RenderFramebuffer(const FramebufferInfo& info) override;
 

@@ -23,6 +23,7 @@ void rend_enable_renderer(bool enabled);
 bool rend_is_enabled();
 void rend_serialize(Serializer& ser);
 void rend_deserialize(Deserializer& deser);
+void rend_process_custom_textures();
 static void rend_updatePalette();
 static void rend_updateFogTable();
 
@@ -80,6 +81,7 @@ struct Renderer
 	virtual bool GetLastFrame(std::vector<u8>& data, int& width, int& height) { return false; }
 
 	virtual bool Present() { return true; }
+	virtual void ProcessCustomTextures() {}
 
 	virtual BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw, int area = 0) { return nullptr; }
 

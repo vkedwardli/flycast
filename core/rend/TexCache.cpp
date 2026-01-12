@@ -522,6 +522,16 @@ bool BaseTextureCacheData::Update()
 			size = originalSize;
 			return true;
 		}
+
+		is_custom_replaced = false;
+		CheckCustomTexture();
+		if (is_custom_replaced)
+		{
+			protectVRam();
+			size = originalSize;
+			return true;
+		}
+
 		custom_texture.loadCustomTextureAsync(this);
 	}
 	is_custom_replaced = false;
@@ -695,7 +705,20 @@ bool BaseTextureCacheData::Update()
 
 void BaseTextureCacheData::CheckCustomTexture()
 {
-	if (IsCustomTextureAvailable())
+	void *handle = custom_texture.getResourceId(texture_hash);
+	if (handle == nullptr && old_vqtexture_hash != 0)
+		handle = custom_texture.getResourceId(old_vqtexture_hash);
+	if (handle == nullptr && old_texture_hash != 0)
+		handle = custom_texture.getResourceId(old_texture_hash);
+
+	if (handle)
+	{
+		tex_type = TextureType::_8888;
+		gpuPalette = false;
+		is_custom_replaced = true;
+		SetCustomTextureHandle(handle);
+	}
+	else if (IsCustomTextureAvailable())
 	{
 		tex_type = TextureType::_8888;
 		gpuPalette = false;

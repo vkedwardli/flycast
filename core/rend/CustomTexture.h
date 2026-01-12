@@ -38,6 +38,7 @@ class BaseCustomTextureSource
 {
 public:
 	using TextureCallback = std::function<void(u32 hash, TextureData&& data)>;
+	using TextureUploader = std::function<void *(int width, int height, const u8 *data)>;
 
 	virtual ~BaseCustomTextureSource() { }
 	virtual bool shouldReplace() const { return false; }
@@ -63,6 +64,8 @@ public:
 	void dumpTexture(BaseTextureCacheData* texture, int w, int h, void *src_buffer);
 	void terminate();
 	void getPreloadProgress(int& completed, int& total, size_t& loaded_size) const;
+	void updateTextureUploadQueue(BaseCustomTextureSource::TextureUploader uploader);
+	void *getResourceId(u32 hash);
 
 private:
 	u8* loadTexture(u32 hash, int& width, int& height);
@@ -81,6 +84,12 @@ private:
 	std::atomic<size_t> preload_loaded_size { 0 };
 	std::atomic<int> pending_preloads { 0 };
 	std::atomic<bool> stop_preload { false };
+
+private:
+	void submitTextureToQueue(u32 hash, TextureData&& data);
+	std::mutex upload_mutex;
+	std::vector<std::pair<u32, TextureData>> pending_uploads;
+	std::map<u32, void *> texture_handles;
 };
 
 extern CustomTexture custom_texture;
