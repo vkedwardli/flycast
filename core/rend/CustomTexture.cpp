@@ -24,6 +24,7 @@
 #include "oslib/oslib.h"
 #include "stdclass.h"
 #include "util/worker_thread.h"
+#include "hw/pvr/Renderer_if.h"
 
 #include <sstream>
 #define STB_IMAGE_IMPLEMENTATION
@@ -246,6 +247,7 @@ CustomTexture::~CustomTexture() {
 void CustomTexture::terminate()
 {
 	stop_preload = true;
+	upload_cv.notify_all();
 	if (loaderThread)
 		loaderThread->stop();
 	loaderThread.reset();
@@ -253,9 +255,20 @@ void CustomTexture::terminate()
 		source->terminate();
 	sources.clear();
 	preloaded_textures.clear();
+
+	if (texture_deleter)
+	{
+		for (auto const& [hash, id] : texture_handles)
+			texture_deleter(id);
+	}
 	texture_handles.clear();
 	resetPreloadProgress();
 	initialized = false;
+}
+
+void CustomTexture::setTextureDeleter(BaseCustomTextureSource::TextureDeleter deleter)
+{
+	texture_deleter = deleter;
 }
 
 u8* CustomTexture::loadTexture(u32 hash, int& width, int& height)
@@ -472,7 +485,7 @@ void CustomTexture::prepareSource(BaseCustomTextureSource* source)
 				auto callback = [this](u32 hash, TextureData&& data) {
 					preload_loaded++;
 					preload_loaded_size += data.data.size();
-					if (config::PreloadCustomTexturesToVRAM)
+					if (config::PreloadCustomTexturesToVRAM && rend_supports_vram_preload())
 						submitTextureToQueue(hash, std::move(data));
 					else
 						preloaded_textures[hash] = std::move(data);
@@ -509,11 +522,18 @@ void CustomTexture::updateTextureUploadQueue(BaseCustomTextureSource::TextureUpl
 		std::lock_guard<std::mutex> lock(upload_mutex);
 		uploads.swap(pending_uploads);
 	}
-	for (auto& upload : uploads)
+	upload_cv.notify_all();
+
+	if (!uploads.empty())
 	{
-		void *id = uploader(upload.second.w, upload.second.h, upload.second.data.data());
-		if (id)
-			texture_handles[upload.first] = id;
+		for (auto& upload : uploads)
+		{
+			void *id = uploader(upload.second.w, upload.second.h, upload.second.data.data());
+			if (id)
+				texture_handles[upload.first] = id;
+		}
+		uploads.clear(); // Explicitly clear to ensure destruction
+		uploads.shrink_to_fit();
 	}
 }
 
@@ -526,7 +546,15 @@ void *CustomTexture::getResourceId(u32 hash)
 void CustomTexture::submitTextureToQueue(u32 hash, TextureData&& data)
 {
 	{
-		std::lock_guard<std::mutex> lock(upload_mutex);
+		std::unique_lock<std::mutex> lock(upload_mutex);
+		if (pending_uploads.size() >= 32)
+		{
+			ERROR_LOG(RENDERER, "Throttling texture upload. Queue size: %d", (int)pending_uploads.size());
+			upload_cv.wait(lock, [this] { return pending_uploads.size() < 32 || stop_preload; });
+		}
+		if (stop_preload)
+			return;
+
 		if (texture_handles.count(hash))
 			return;
 		for (const auto& pair : pending_uploads) {

@@ -24,6 +24,7 @@ bool rend_is_enabled();
 void rend_serialize(Serializer& ser);
 void rend_deserialize(Deserializer& deser);
 void rend_process_custom_textures();
+bool rend_supports_vram_preload();
 static void rend_updatePalette();
 static void rend_updateFogTable();
 
@@ -82,6 +83,7 @@ struct Renderer
 
 	virtual bool Present() { return true; }
 	virtual void ProcessCustomTextures() {}
+	virtual bool SupportsVramPreload() { return false; }
 
 	virtual BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw, int area = 0) { return nullptr; }
 

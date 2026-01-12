@@ -987,6 +987,12 @@ bool OpenGLRenderer::Init()
 	TextureCacheData::SetDirectXColorOrder(false);
 	TextureCacheData::setUploadToGPUFlavor();
 
+	custom_texture.setTextureDeleter([](void *id) {
+		GLuint texID = (GLuint)(uintptr_t)id;
+		if (texID != 0)
+			glcache.DeleteTextures(1, &texID);
+	});
+
 	return true;
 }
 
@@ -1352,6 +1358,7 @@ void OpenGLRenderer::initVideoRoutingFrameBuffer()
 
 void OpenGLRenderer::Term()
 {
+	custom_texture.setTextureDeleter(nullptr);
 	TexCache.Clear();
 	gles_term();
 }

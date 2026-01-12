@@ -24,6 +24,8 @@
 #include <vector>
 #include <atomic>
 #include <functional>
+#include <condition_variable>
+#include <mutex>
 
 class BaseTextureCacheData;
 class WorkerThread;
@@ -39,6 +41,7 @@ class BaseCustomTextureSource
 public:
 	using TextureCallback = std::function<void(u32 hash, TextureData&& data)>;
 	using TextureUploader = std::function<void *(int width, int height, const u8 *data)>;
+	using TextureDeleter = std::function<void(void *id)>;
 
 	virtual ~BaseCustomTextureSource() { }
 	virtual bool shouldReplace() const { return false; }
@@ -65,6 +68,7 @@ public:
 	void terminate();
 	void getPreloadProgress(int& completed, int& total, size_t& loaded_size) const;
 	void updateTextureUploadQueue(BaseCustomTextureSource::TextureUploader uploader);
+	void setTextureDeleter(BaseCustomTextureSource::TextureDeleter deleter);
 	void *getResourceId(u32 hash);
 
 private:
@@ -88,8 +92,10 @@ private:
 private:
 	void submitTextureToQueue(u32 hash, TextureData&& data);
 	std::mutex upload_mutex;
+	std::condition_variable upload_cv;
 	std::vector<std::pair<u32, TextureData>> pending_uploads;
 	std::map<u32, void *> texture_handles;
+	BaseCustomTextureSource::TextureDeleter texture_deleter;
 };
 
 extern CustomTexture custom_texture;

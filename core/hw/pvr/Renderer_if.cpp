@@ -550,3 +550,7 @@ void rend_process_custom_textures() {
 	if (renderer != nullptr)
 		renderer->ProcessCustomTextures();
 }
+
+bool rend_supports_vram_preload() {
+	return renderer != nullptr && renderer->SupportsVramPreload();
+}

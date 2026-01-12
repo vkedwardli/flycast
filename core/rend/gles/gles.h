@@ -502,6 +502,7 @@ struct OpenGLRenderer : Renderer
 
 	bool Render() override;
 	void ProcessCustomTextures() override;
+	bool SupportsVramPreload() override { return true; }
 
 	void RenderFramebuffer(const FramebufferInfo& info) override;
 
