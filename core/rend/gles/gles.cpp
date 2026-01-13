@@ -1395,17 +1395,8 @@ void OpenGLRenderer::ProcessCustomTextures()
 		if (use_mipmaps)
 			levels = (int)std::floor(std::log2(std::max(width, height))) + 1;
 
-		// Use immutable storage if available (GL 4.2+ or GLES 3.0+) to reduce driver memory overhead
-		if (gl.texture_storage_supported)
-		{
-			glTexStorage2D(GL_TEXTURE_2D, levels, GL_RGBA8, width, height);
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		}
-		else
-		{
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		}
-
+		glTexStorage2D(GL_TEXTURE_2D, levels, GL_RGBA8, width, height);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
