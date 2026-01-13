@@ -105,6 +105,7 @@ void gui_settings_video()
 			ImGui::NextColumn();
 #endif
 			ImGui::Columns(1, nullptr, false);
+
     	}
     }
     header("Transparent Sorting");
@@ -241,11 +242,7 @@ void gui_settings_video()
 				}
 				ImGui::NextColumn();
 				{
-					// renderApi 0 is OpenGL. We only support VRAM preloading on OpenGL for now.
-					bool supported = (renderApi == 0);
-					if (game_started)
-						supported = rend_supports_vram_preload();
-					DisabledScope scope(!supported);
+					DisabledScope scope(!rend_supports_vram_preload());
 					if (ImGui::RadioButton("To VRAM", &preloadState, 2)) {
 						config::PreloadCustomTextures = true;
 						config::PreloadCustomTexturesToVRAM = true;
@@ -254,6 +251,12 @@ void gui_settings_video()
 				ImGui::Columns(1, nullptr, false);
 			}
 			ImGui::Unindent();
+			
+			if (config::PreloadCustomTexturesToVRAM && !rend_supports_vram_preload())
+			{
+				config::PreloadCustomTextures = false;
+				config::PreloadCustomTexturesToVRAM = false;
+			}
 		}
     }
 	ImGui::Spacing();
