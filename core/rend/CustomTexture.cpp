@@ -484,7 +484,10 @@ void CustomTexture::prepareSource(BaseCustomTextureSource* source)
 				preload_total += count;
 				auto callback = [this](u32 hash, TextureData&& data) {
 					preload_loaded++;
-					preload_loaded_size += data.data.size();
+					size_t size = data.data.size();
+					if (config::PreloadCustomTexturesToVRAM && rend_supports_vram_preload() && config::UseMipmaps)
+						size = size * 4 / 3;
+					preload_loaded_size += size;
 					if (config::PreloadCustomTexturesToVRAM && rend_supports_vram_preload())
 						submitTextureToQueue(hash, std::move(data));
 					else
