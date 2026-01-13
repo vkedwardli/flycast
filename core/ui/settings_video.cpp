@@ -228,7 +228,7 @@ void gui_settings_video()
 
 				ImGui::Text("Preload Custom Textures:");
 				ImGui::SameLine();
-				ShowHelpMarker("Preload custom textures at game start to reduce stuttering.");
+				ShowHelpMarker("Preload custom textures at game start to reduce texture popping.");
 
 				ImGui::Columns(3, "preloadTex", false);
 				if (ImGui::RadioButton("Disabled", &preloadState, 0)) {
@@ -240,6 +240,8 @@ void gui_settings_video()
 					config::PreloadCustomTextures = true;
 					config::PreloadCustomTexturesToVRAM = false;
 				}
+				ImGui::SameLine();
+				ShowHelpMarker("Preload textures into system memory. Best for lower-end GPUs or when video memory is limited.");
 				ImGui::NextColumn();
 				{
 					DisabledScope scope(!rend_supports_vram_preload());
@@ -247,6 +249,8 @@ void gui_settings_video()
 						config::PreloadCustomTextures = true;
 						config::PreloadCustomTexturesToVRAM = true;
 					}
+					ImGui::SameLine();
+					ShowHelpMarker("Preload textures directly to the GPU for best performance. Uses ~33% more memory for mipmapping.");
 				}
 				ImGui::Columns(1, nullptr, false);
 			}
