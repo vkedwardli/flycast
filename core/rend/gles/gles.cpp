@@ -1368,12 +1368,40 @@ void OpenGLRenderer::ProcessCustomTextures()
 	custom_texture.updateTextureUploadQueue([](int width, int height, const u8 *data) -> void * {
 		GLuint texID = glcache.GenTexture();
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+		bool use_mipmaps = config::UseMipmaps;
+		int levels = 1;
+		if (use_mipmaps)
+			levels = (int)std::floor(std::log2(std::max(width, height))) + 1;
+
+		// Use immutable storage if available (GL 4.2+ or GLES 3.0+) to reduce driver memory overhead
+		bool use_storage = (!gl.is_gles && (gl.gl_major > 4 || (gl.gl_major == 4 && gl.gl_minor >= 2)))
+						   || (gl.is_gles && gl.gl_major >= 3);
+
+		if (use_storage)
+		{
+			glTexStorage2D(GL_TEXTURE_2D, levels, GL_RGBA8, width, height);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		}
+		else
+		{
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		}
+
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glGenerateMipmap(GL_TEXTURE_2D);
+
+		if (use_mipmaps)
+		{
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+			glGenerateMipmap(GL_TEXTURE_2D);
+		}
+		else
+		{
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		}
+
 		return (void *)(uintptr_t)texID;
 	});
 }
