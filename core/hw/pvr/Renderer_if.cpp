@@ -552,5 +552,7 @@ void rend_process_custom_textures() {
 }
 
 bool rend_supports_vram_preload() {
-	return renderer != nullptr && renderer->SupportsVramPreload();
+	if (game_started && renderer != nullptr)
+		return renderer->SupportsVramPreload();
+	return isOpenGL(config::RendererType);
 }

@@ -19,6 +19,7 @@
 #include "settings.h"
 #include "gui.h"
 #include "wsi/context.h"
+#include "hw/pvr/Renderer_if.h"
 
 void gui_settings_video()
 {
@@ -239,9 +240,16 @@ void gui_settings_video()
 					config::PreloadCustomTexturesToVRAM = false;
 				}
 				ImGui::NextColumn();
-				if (ImGui::RadioButton("To VRAM", &preloadState, 2)) {
-					config::PreloadCustomTextures = true;
-					config::PreloadCustomTexturesToVRAM = true;
+				{
+					// renderApi 0 is OpenGL. We only support VRAM preloading on OpenGL for now.
+					bool supported = (renderApi == 0);
+					if (game_started)
+						supported = rend_supports_vram_preload();
+					DisabledScope scope(!supported);
+					if (ImGui::RadioButton("To VRAM", &preloadState, 2)) {
+						config::PreloadCustomTextures = true;
+						config::PreloadCustomTexturesToVRAM = true;
+					}
 				}
 				ImGui::Columns(1, nullptr, false);
 			}
