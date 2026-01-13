@@ -1412,7 +1412,7 @@ static void gui_display_loadscreen()
 				else if (customTexPreloading)
 				{
 					ImGui::Spacing();
-					ImGui::Text("Preloading custom textures");
+					ImGui::Text("Preloading custom textures to %s", config::PreloadCustomTexturesToVRAM ? "GPU Memory" : "System RAM");
 					progress = (texTotal == -1 || texTotal == 0) ? 0.f : (float)texLoaded / (float)texTotal;
 					if (texTotal == -1)
 						snprintf(overlay, sizeof(overlay), "Preparing...");

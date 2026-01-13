@@ -236,14 +236,14 @@ void gui_settings_video()
 					config::PreloadCustomTexturesToVRAM = false;
 				}
 				ImGui::NextColumn();
-				if (ImGui::RadioButton("To RAM", &preloadState, 1)) {
+				if (ImGui::RadioButton("System RAM", &preloadState, 1)) {
 					config::PreloadCustomTextures = true;
 					config::PreloadCustomTexturesToVRAM = false;
 				}
 				ImGui::NextColumn();
 				{
 					DisabledScope scope(!rend_supports_vram_preload());
-					if (ImGui::RadioButton("To VRAM", &preloadState, 2)) {
+					if (ImGui::RadioButton("GPU Memory", &preloadState, 2)) {
 						config::PreloadCustomTextures = true;
 						config::PreloadCustomTexturesToVRAM = true;
 					}

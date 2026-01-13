@@ -1202,9 +1202,11 @@ void retro_run()
 		size_t loaded_size;
 		custom_texture.getPreloadProgress(texLoaded, texTotal, loaded_size);
 
-		static char msg_buf[64];
+		static char msg_buf[128];
 		float loaded_size_mb = (float)loaded_size / (1024 * 1024);
-		snprintf(msg_buf, sizeof(msg_buf), "Preloading custom textures: %d / %d (%.1f MB)", texLoaded, texTotal, loaded_size_mb);
+		snprintf(msg_buf, sizeof(msg_buf), "Preloading custom textures to %s: %d / %d (%.1f MB)",
+				config::PreloadCustomTexturesToVRAM ? "GPU Memory" : "System RAM",
+				texLoaded, texTotal, loaded_size_mb);
 
 		struct retro_message msg;
 		msg.msg = msg_buf;
