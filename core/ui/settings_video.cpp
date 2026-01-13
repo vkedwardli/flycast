@@ -220,8 +220,30 @@ void gui_settings_video()
 			ImGui::Indent();
 			{
 				DisabledScope scope(!config::CustomTextures.get());
-				OptionCheckbox("Preload Custom Textures", config::PreloadCustomTextures,
-							   "Preload custom textures at game start. May improve performance but increases memory usage");
+				int preloadState = 0;
+				if (config::PreloadCustomTextures)
+					preloadState = config::PreloadCustomTexturesToVRAM ? 2 : 1;
+
+				ImGui::Text("Preload Custom Textures:");
+				ImGui::SameLine();
+				ShowHelpMarker("Preload custom textures at game start to reduce stuttering.");
+
+				ImGui::Columns(3, "preloadTex", false);
+				if (ImGui::RadioButton("Disabled", &preloadState, 0)) {
+					config::PreloadCustomTextures = false;
+					config::PreloadCustomTexturesToVRAM = false;
+				}
+				ImGui::NextColumn();
+				if (ImGui::RadioButton("To RAM", &preloadState, 1)) {
+					config::PreloadCustomTextures = true;
+					config::PreloadCustomTexturesToVRAM = false;
+				}
+				ImGui::NextColumn();
+				if (ImGui::RadioButton("To VRAM", &preloadState, 2)) {
+					config::PreloadCustomTextures = true;
+					config::PreloadCustomTexturesToVRAM = true;
+				}
+				ImGui::Columns(1, nullptr, false);
 			}
 			ImGui::Unindent();
 		}
