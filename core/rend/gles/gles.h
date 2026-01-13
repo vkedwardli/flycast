@@ -306,6 +306,7 @@ struct gl_ctx
 	bool GL_OES_packed_depth_stencil_supported;
 	bool GL_OES_depth24_supported;
 	bool highp_float_supported;
+	bool texture_storage_supported;
 	float max_anisotropy;
 	bool mesa_nouveau;
 	bool mali;

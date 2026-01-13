@@ -533,6 +533,8 @@ void findGLVersion()
 			gl.GL_OES_packed_depth_stencil_supported = true;
 		if (strstr(extensions, "GL_OES_depth24") != NULL)
 			gl.GL_OES_depth24_supported = true;
+		if (strstr(extensions, "GL_EXT_texture_storage") != NULL)
+			gl.texture_storage_supported = true;
 		if (!gl.GL_OES_packed_depth_stencil_supported && gl.gl_major < 3)
 			INFO_LOG(RENDERER, "Packed depth/stencil not supported: no modifier volumes when rendering to a texture");
 		GLint ranges[2];
@@ -569,10 +571,23 @@ void findGLVersion()
     	gl.border_clamp_supported = true;
 	}
 	gl.max_anisotropy = 1.f;
+	gl.texture_storage_supported = false;
+	if (gl.is_gles)
+	{
+		if (gl.gl_major >= 3)
+			gl.texture_storage_supported = true;
+	}
+	else
+	{
+		if (gl.gl_major > 4 || (gl.gl_major == 4 && gl.gl_minor >= 2))
+			gl.texture_storage_supported = true;
+	}
+
 #if !defined(GLES2)
 	if (gl.gl_major >= 3)
 	{
 		bool anisotropicExtension = false;
+		bool textureStorageExtension = false;
 		const char *extensions = (const char *)glGetString(GL_EXTENSIONS);
 		// glGetString(GL_EXTENSIONS) is deprecated and might return NULL in core contexts.
 		// In that case, use glGetStringi instead
@@ -584,16 +599,22 @@ void findGLVersion()
 			{
 				const char* extension = (const char *)glGetStringi(GL_EXTENSIONS, i);
 				if (!strcmp(extension, "GL_EXT_texture_filter_anisotropic"))
-				{
 					anisotropicExtension = true;
-					break;
-				}
+				else if (!strcmp(extension, "GL_ARB_texture_storage") || !strcmp(extension, "GL_EXT_texture_storage"))
+					textureStorageExtension = true;
 			}
 		}
-		else if (strstr(extensions, "GL_EXT_texture_filter_anisotropic") != nullptr)
-			anisotropicExtension = true;
+		else
+		{
+			if (strstr(extensions, "GL_EXT_texture_filter_anisotropic") != nullptr)
+				anisotropicExtension = true;
+			if (strstr(extensions, "GL_ARB_texture_storage") != nullptr || strstr(extensions, "GL_EXT_texture_storage") != nullptr)
+				textureStorageExtension = true;
+		}
 		if (anisotropicExtension)
 			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &gl.max_anisotropy);
+		if (textureStorageExtension)
+			gl.texture_storage_supported = true;
 	}
 #endif
 	const char *vendor = (const char *)glGetString(GL_VENDOR);
@@ -1375,10 +1396,7 @@ void OpenGLRenderer::ProcessCustomTextures()
 			levels = (int)std::floor(std::log2(std::max(width, height))) + 1;
 
 		// Use immutable storage if available (GL 4.2+ or GLES 3.0+) to reduce driver memory overhead
-		bool use_storage = (!gl.is_gles && (gl.gl_major > 4 || (gl.gl_major == 4 && gl.gl_minor >= 2)))
-						   || (gl.is_gles && gl.gl_major >= 3);
-
-		if (use_storage)
+		if (gl.texture_storage_supported)
 		{
 			glTexStorage2D(GL_TEXTURE_2D, levels, GL_RGBA8, width, height);
 			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
