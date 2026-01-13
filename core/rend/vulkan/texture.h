@@ -33,6 +33,13 @@
 
 void setImageLayout(vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, u32 mipmapLevels, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
 
+struct VulkanPreloadedResource
+{
+	vk::Image image;
+	vk::ImageView view;
+	Allocation allocation;
+};
+
 class Texture final : public BaseTextureCacheData
 {
 public:
@@ -51,6 +58,8 @@ public:
 		std::swap(image, other.image);
 		std::swap(imageView, other.imageView);
 		std::swap(readOnlyImageView, other.readOnlyImageView);
+		std::swap(preloadedImage, other.preloadedImage);
+		std::swap(preloadedImageView, other.preloadedImageView);
 		std::swap(physicalDevice, other.physicalDevice);
 		std::swap(device, other.device);
 	}
@@ -58,13 +67,23 @@ public:
 	void UploadToGPU(int width, int height, const u8 *data, bool mipmapped, bool mipmapsIncluded = false) override;
 	u64 GetIntId() { return (u64)reinterpret_cast<uintptr_t>(this); }
 	std::string GetId() override { char s[20]; snprintf(s, sizeof(s), "%p", this); return s; }
-	vk::ImageView GetImageView() const { return *imageView; }
-	vk::Image GetImage() const { return *image; }
-	vk::ImageView GetReadOnlyImageView() const { return readOnlyImageView ? readOnlyImageView : *imageView; }
+	vk::ImageView GetImageView() const { return preloadedImageView ? preloadedImageView : *imageView; }
+	vk::Image GetImage() const { return preloadedImage ? preloadedImage : *image; }
+	vk::ImageView GetReadOnlyImageView() const { return readOnlyImageView ? readOnlyImageView : GetImageView(); }
 	void SetCommandBuffer(vk::CommandBuffer commandBuffer) { this->commandBuffer = commandBuffer; }
 	bool Force32BitTexture(TextureType type) const override { return !VulkanContext::Instance()->IsFormatSupported(type); }
 	vk::Extent2D getSize() const { return extent; }
 	void deferDeleteResource(FlightManager *manager);
+	bool Delete() override;
+	void SetCustomTextureHandle(void *handle) override;
+	VulkanPreloadedResource Detach()
+	{
+		VulkanPreloadedResource res;
+		res.image = image.release();
+		res.view = imageView.release();
+		res.allocation = std::move(allocation);
+		return res;
+	}
 
 private:
 	void Init(u32 width, u32 height, vk::Format format ,u32 dataSize, bool mipmapped, bool mipmapsIncluded);
@@ -85,6 +104,9 @@ private:
 	vk::UniqueImage image;
 	vk::UniqueImageView imageView;
 	vk::ImageView readOnlyImageView;
+
+	vk::Image preloadedImage;
+	vk::ImageView preloadedImageView;
 
 	vk::PhysicalDevice physicalDevice;
 	vk::Device device;

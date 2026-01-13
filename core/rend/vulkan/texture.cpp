@@ -149,6 +149,12 @@ void setImageLayout(vk::CommandBuffer const& commandBuffer, vk::Image image, vk:
 
 void Texture::UploadToGPU(int width, int height, const u8 *data, bool mipmapped, bool mipmapsIncluded)
 {
+	if (preloadedImage)
+	{
+		preloadedImage = VK_NULL_HANDLE;
+		preloadedImageView = VK_NULL_HANDLE;
+	}
+
 	vk::Format format = vk::Format::eUndefined;
 	u32 dataSize = width * height * 2;
 	switch (tex_type)
@@ -184,7 +190,7 @@ void Texture::UploadToGPU(int width, int height, const u8 *data, bool mipmapped,
 	}
 	bool isNew = true;
 	if (width != (int)extent.width || height != (int)extent.height
-			|| format != this->format || !this->image)
+			|| format != this->format || !GetImage())
 		Init(width, height, format, dataSize, mipmapped, mipmapsIncluded);
 	else
 		isNew = false;
@@ -267,7 +273,7 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 	CommandBufferDebugScope _(commandBuffer, "SetImage", scopeColor);
 
 	if (!isNew && !needsStaging)
-		setImageLayout(commandBuffer, image.get(), format, mipmapLevels, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eGeneral);
+		setImageLayout(commandBuffer, GetImage(), format, mipmapLevels, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eGeneral);
 
 	void* data;
 	if (needsStaging)
@@ -296,7 +302,7 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 	}
 	else if (!needsStaging)
 	{
-		vk::SubresourceLayout layout = device.getImageSubresourceLayout(*image, vk::ImageSubresource(vk::ImageAspectFlagBits::eColor));
+		vk::SubresourceLayout layout = device.getImageSubresourceLayout(GetImage(), vk::ImageSubresource(vk::ImageAspectFlagBits::eColor));
 		if (layout.size != srcSize)
 		{
 			u8 *src = (u8 *)srcData;
@@ -321,7 +327,7 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 	{
 		stagingBufferData->UnmapMemory();
 		// Since we're going to blit to the texture image, set its layout to eTransferDstOptimal
-		setImageLayout(commandBuffer, image.get(), format, mipmapLevels, isNew ? vk::ImageLayout::eUndefined : vk::ImageLayout::eShaderReadOnlyOptimal,
+		setImageLayout(commandBuffer, GetImage(), format, mipmapLevels, isNew ? vk::ImageLayout::eUndefined : vk::ImageLayout::eShaderReadOnlyOptimal,
 				vk::ImageLayout::eTransferDstOptimal);
 
 		if (mipmapLevels > 1 && !genMipmaps)
@@ -331,7 +337,7 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 			{
 				vk::BufferImageCopy copyRegion(bufferOffset, 1 << i, 1 << i, vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipmapLevels - i - 1, 0, 1),
 						vk::Offset3D(0, 0, 0), vk::Extent3D(1 << i, 1 << i, 1));
-				commandBuffer.copyBufferToImage(stagingBufferData->buffer.get(), image.get(), vk::ImageLayout::eTransferDstOptimal, copyRegion);
+				commandBuffer.copyBufferToImage(stagingBufferData->buffer.get(), GetImage(), vk::ImageLayout::eTransferDstOptimal, copyRegion);
 				const u32 size = (1 << (2 * i)) * (tex_type == TextureType::_8888 ? 4 : 2);
 				bufferOffset += ((size + 3) >> 2) << 2;
 			}
@@ -340,12 +346,12 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 		{
 			vk::BufferImageCopy copyRegion(0, extent.width, extent.height, vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
 					vk::Offset3D(0, 0, 0), vk::Extent3D(extent, 1));
-			commandBuffer.copyBufferToImage(stagingBufferData->buffer.get(), image.get(), vk::ImageLayout::eTransferDstOptimal, copyRegion);
+			commandBuffer.copyBufferToImage(stagingBufferData->buffer.get(), GetImage(), vk::ImageLayout::eTransferDstOptimal, copyRegion);
 			if (mipmapLevels > 1)
 				GenerateMipmaps();
 		}
 		// Set the layout for the texture image from eTransferDstOptimal to SHADER_READ_ONLY
-		setImageLayout(commandBuffer, image.get(), format, mipmapLevels, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+		setImageLayout(commandBuffer, GetImage(), format, mipmapLevels, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 	}
 	else
 	{
@@ -353,7 +359,7 @@ void Texture::SetImage(u32 srcSize, const void *srcData, bool isNew, bool genMip
 			GenerateMipmaps();
 		else
 			// If we can use the linear tiled image as a texture, just do it
-			setImageLayout(commandBuffer, image.get(), format, mipmapLevels, isNew ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eGeneral,
+			setImageLayout(commandBuffer, GetImage(), format, mipmapLevels, isNew ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eGeneral,
 					vk::ImageLayout::eShaderReadOnlyOptimal);
 	}
 }
@@ -367,7 +373,7 @@ void Texture::GenerateMipmaps()
 	u32 mipHeight = extent.height;
 	vk::ImageMemoryBarrier barrier(vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
 			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-			*image, vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1));
+			GetImage(), vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1));
 
 	for (u32 i = 1; i < mipmapLevels; i++)
 	{
@@ -392,7 +398,7 @@ void Texture::GenerateMipmaps()
 				 { { vk::Offset3D(0, 0, 0), vk::Offset3D(mipWidth, mipHeight, 1) } },
 				 vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, i, 0, 1),
 				 { { vk::Offset3D(0, 0, 0), vk::Offset3D(std::max(mipWidth / 2, 1u), std::max(mipHeight / 2, 1u), 1) } });
-		commandBuffer.blitImage(*image, vk::ImageLayout::eTransferSrcOptimal, *image, vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
+		commandBuffer.blitImage(GetImage(), vk::ImageLayout::eTransferSrcOptimal, GetImage(), vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
 
 		// Transition previous mipmap level from src optimal to shader read-only optimal
 		barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
@@ -433,6 +439,32 @@ void Texture::deferDeleteResource(FlightManager *manager)
 		Allocation allocation;
 	};
 	manager->addToFlight(new ResourceDeleter(this));
+}
+
+bool Texture::Delete()
+{
+	if (!BaseTextureCacheData::Delete())
+		return false;
+
+	image.reset();
+	imageView.reset();
+	preloadedImage = VK_NULL_HANDLE;
+	preloadedImageView = VK_NULL_HANDLE;
+	allocation = Allocation();
+
+	stagingBufferData.reset();
+
+	return true;
+}
+
+void Texture::SetCustomTextureHandle(void *handle)
+{
+	VulkanPreloadedResource *res = (VulkanPreloadedResource *)handle;
+	preloadedImage = res->image;
+	preloadedImageView = res->view;
+	image.reset();
+	imageView.reset();
+	allocation = Allocation();
 }
 
 void FramebufferAttachment::Init(u32 width, u32 height, vk::Format format, const vk::ImageUsageFlags& usage, const std::string& name)

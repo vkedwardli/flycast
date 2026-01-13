@@ -23,6 +23,8 @@
 #include "drawer.h"
 #include "hw/pvr/ta.h"
 #include "rend/transform_matrix.h"
+#include "rend/CustomTexture.h"
+#include "texture.h"
 
 bool BaseVulkanRenderer::BaseInit(vk::RenderPass renderPass, int subpass)
 {
@@ -247,6 +249,13 @@ public:
 		BaseInit(screenDrawer.GetRenderPass());
 		emulateFramebuffer = config::EmulateFramebuffer;
 
+		custom_texture.setTextureDeleter([](void *id) {
+			VulkanPreloadedResource *res = (VulkanPreloadedResource*)id;
+			VulkanContext::Instance()->GetDevice().destroyImageView(res->view);
+			VulkanContext::Instance()->GetDevice().destroyImage(res->image);
+			delete res;
+		});
+
 		return true;
 	}
 
@@ -254,6 +263,7 @@ public:
 	{
 		DEBUG_LOG(RENDERER, "VulkanRenderer::Term");
 		GetContext()->WaitIdle();
+		custom_texture.setTextureDeleter(nullptr);
 		texCommandPool.Term(); // make sure all in-flight buffers are returned
 		screenDrawer.Term();
 		textureDrawer.Term();
@@ -280,6 +290,8 @@ public:
 
 	bool Render() override
 	{
+		ProcessCustomTextures();
+
 		try {
 			Drawer *drawer;
 			if (pvrrc.isRTT)
@@ -312,6 +324,33 @@ public:
 		else
 			return screenDrawer.PresentFrame();
 	}
+
+	void ProcessCustomTextures() override
+	{
+		custom_texture.updateTextureUploadQueue([this](int width, int height, const u8 *data) -> void * {
+			Texture tex;
+			tex.tex_type = TextureType::_8888;
+			texCommandPool.BeginFrame();
+			vk::CommandBuffer cmdbuf = texCommandPool.Allocate();
+			cmdbuf.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+			tex.SetCommandBuffer(cmdbuf);
+
+			tex.UploadToGPU(width, height, data, config::UseMipmaps, false);
+
+			cmdbuf.end();
+
+			vk::SubmitInfo submitInfo;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &cmdbuf;
+			GetContext()->GetGraphicsQueue().submit(submitInfo, nullptr);
+			GetContext()->GetGraphicsQueue().waitIdle();
+
+			VulkanPreloadedResource *res = new VulkanPreloadedResource(tex.Detach());
+			return res;
+		});
+	}
+
+	bool SupportsVramPreload() override { return true; }
 
 protected:
 	void resize(int w, int h) override

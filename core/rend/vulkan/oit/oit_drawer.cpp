@@ -588,13 +588,13 @@ vk::CommandBuffer OITTextureDrawer::NewFrame()
 		texture = textureCache->getRTTexture(textureAddr, pvrrc.fb_W_CTRL.fb_packmode, origWidth, origHeight);
 		if (textureCache->IsInFlight(texture, false))
 		{
-			texture->readOnlyImageView = *texture->imageView;
+			texture->readOnlyImageView = texture->GetImageView();
 			texture->deferDeleteResource(commandPool);
 		}
 		textureCache->SetInFlight(texture);
 
 		constexpr vk::ImageUsageFlags imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
-		if (!texture->image || texture->format != vk::Format::eR8G8B8A8Unorm
+		if (!texture->GetImage() || texture->format != vk::Format::eR8G8B8A8Unorm
 				|| texture->extent.width != widthPow2 || texture->extent.height != heightPow2
 				|| (texture->usageFlags & imageUsage) != imageUsage)
 		{
@@ -609,7 +609,7 @@ vk::CommandBuffer OITTextureDrawer::NewFrame()
 		{
 			colorImageCurrentLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 		}
-		colorImage = *texture->image;
+		colorImage = texture->GetImage();
 		colorImageView = texture->GetImageView();
 	}
 	else

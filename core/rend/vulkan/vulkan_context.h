@@ -105,6 +105,7 @@ public:
 
 	VkInstance GetInstance() const { return static_cast<VkInstance>(instance.get()); }
 	u32 GetGraphicsQueueFamilyIndex() const { return graphicsQueueIndex; }
+	vk::Queue GetGraphicsQueue() const { return graphicsQueue; }
 	void resize() override { resized = true; }
 	bool IsValid() { return width != 0 && height != 0; }
 	void NewFrame();
