@@ -1417,8 +1417,6 @@ void OpenGLRenderer::ProcessCustomTextures()
 
 bool OpenGLRenderer::Render()
 {
-	ProcessCustomTextures();
-
 	saveCurrentFramebuffer();
 	renderFrame(pvrrc.framebufferWidth, pvrrc.framebufferHeight);
 	if (pvrrc.isRTT) {

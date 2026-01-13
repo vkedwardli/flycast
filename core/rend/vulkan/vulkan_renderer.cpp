@@ -290,8 +290,6 @@ public:
 
 	bool Render() override
 	{
-		ProcessCustomTextures();
-
 		try {
 			Drawer *drawer;
 			if (pvrrc.isRTT)

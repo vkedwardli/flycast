@@ -1213,6 +1213,8 @@ void retro_run()
 		msg.frames = 1;
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
 
+		rend_process_custom_textures();
+
 		video_cb(NULL, 0, 0, 0);
 		poll_cb();
 		return;
