@@ -43,6 +43,7 @@ public:
 	void term() override;
 
 	u32 GetGraphicsQueueFamilyIndex() const { return retro_render_if->queue_index; }
+	vk::Queue GetGraphicsQueue() const { return queue; }
 	void PresentFrame(vk::Image image, vk::ImageView imageView, const vk::Extent2D& extent, float aspectRatio);
 	bool GetLastFrame(std::vector<u8>& data, int& width, int& height) { return false; }
 
