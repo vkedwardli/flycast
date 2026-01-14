@@ -328,7 +328,6 @@ public:
 		custom_texture.updateTextureUploadQueue([this](int width, int height, const u8 *data) -> void * {
 			Texture tex;
 			tex.tex_type = TextureType::_8888;
-			texCommandPool.BeginFrame();
 			vk::CommandBuffer cmdbuf = texCommandPool.Allocate();
 			cmdbuf.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
 			tex.SetCommandBuffer(cmdbuf);
