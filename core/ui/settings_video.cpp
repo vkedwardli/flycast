@@ -220,6 +220,7 @@ void gui_settings_video()
 			OptionCheckbox("Load Custom Textures", config::CustomTextures,
 						   "Load custom/high-res textures from data/textures/<game id>");
 			ImGui::Indent();
+			if (config::CustomTextures)
 			{
 				DisabledScope scope(!config::CustomTextures.get());
 				int preloadState = 0;
@@ -228,7 +229,7 @@ void gui_settings_video()
 
 				ImGui::Text("Preload Custom Textures:");
 				ImGui::SameLine();
-				ShowHelpMarker("Preload custom textures at game start to reduce texture popping.");
+				ShowHelpMarker("Preload custom textures into system or video memory to prevent texture popping. This improves visual consistency at the cost of higher memory usage.");
 
 				ImGui::Columns(3, "preloadTex", false);
 				if (ImGui::RadioButton("Disabled", &preloadState, 0)) {

@@ -780,7 +780,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       CORE_OPTION_NAME "_preload_custom_textures",
       "Preload Custom Textures",
       NULL,
-      "Preload custom textures at game start. May improve performance but increases memory usage.",
+      "Preload custom textures into system or video memory to prevent texture popping. This improves visual consistency at the cost of higher memory usage.",
+      NULL,
+      "hacks",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
+      CORE_OPTION_NAME "_preload_custom_textures_to_vram",
+      "Preload Custom Textures To GPU Memory",
+      NULL,
+      "Preload textures directly to the GPU for best performance. Uses ~33% more memory for mipmapping.",
       NULL,
       "hacks",
       {

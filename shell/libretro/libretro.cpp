@@ -423,6 +423,26 @@ static bool set_variable_visibility(void)
 	platformIsDreamcast = settings.platform.isConsole();
 	platformIsArcade = settings.platform.isArcade();
 
+	// Show/hide custom texture options
+	var.key = CORE_OPTION_NAME "_custom_textures";
+	bool customTexturesEnabled = false;
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && !strcmp(var.value, "enabled"))
+		customTexturesEnabled = true;
+
+	var.key = CORE_OPTION_NAME "_preload_custom_textures";
+	bool preloadEnabled = false;
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && !strcmp(var.value, "enabled"))
+		preloadEnabled = true;
+
+	option_display.visible = customTexturesEnabled;
+	option_display.key = CORE_OPTION_NAME "_preload_custom_textures";
+	environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+
+	option_display.visible = customTexturesEnabled && preloadEnabled && rend_supports_vram_preload();
+	option_display.key = CORE_OPTION_NAME "_preload_custom_textures_to_vram";
+	environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+	updated = true;
+
 	// Show/hide platform-dependent options
 	if (first_run || (platformIsDreamcast != platformWasDreamcast) || (platformIsArcade != platformWasArcade))
 	{
@@ -785,6 +805,16 @@ static void update_variables(bool first_startup)
 	config::Settings::instance().setRetroEnvironment(environ_cb);
 	config::Settings::instance().setOptionDefinitions(option_defs_us);
 	config::Settings::instance().load(false);
+
+	if (!config::CustomTextures)
+	{
+		config::PreloadCustomTextures = false;
+		config::PreloadCustomTexturesToVRAM = false;
+	}
+	else if (!config::PreloadCustomTextures || !rend_supports_vram_preload())
+	{
+		config::PreloadCustomTexturesToVRAM = false;
+	}
 
 	retro_variable var;
 
