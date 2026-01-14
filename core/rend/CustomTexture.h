@@ -69,6 +69,7 @@ public:
 	void getPreloadProgress(int& completed, int& total, size_t& loaded_size) const;
 	void updateTextureUploadQueue(BaseCustomTextureSource::TextureUploader uploader);
 	void setTextureDeleter(BaseCustomTextureSource::TextureDeleter deleter);
+	void resetTextureHandles();
 	void *getResourceId(u32 hash);
 
 private:

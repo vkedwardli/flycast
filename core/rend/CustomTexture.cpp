@@ -271,6 +271,16 @@ void CustomTexture::setTextureDeleter(BaseCustomTextureSource::TextureDeleter de
 	texture_deleter = deleter;
 }
 
+void CustomTexture::resetTextureHandles()
+{
+	if (texture_deleter)
+	{
+		for (auto const& [hash, id] : texture_handles)
+			texture_deleter(id);
+	}
+	texture_handles.clear();
+}
+
 u8* CustomTexture::loadTexture(u32 hash, int& width, int& height)
 {
 	auto it = preloaded_textures.find(hash);

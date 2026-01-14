@@ -263,6 +263,7 @@ public:
 	{
 		DEBUG_LOG(RENDERER, "VulkanRenderer::Term");
 		GetContext()->WaitIdle();
+		custom_texture.resetTextureHandles();
 		custom_texture.setTextureDeleter(nullptr);
 		texCommandPool.Term(); // make sure all in-flight buffers are returned
 		screenDrawer.Term();

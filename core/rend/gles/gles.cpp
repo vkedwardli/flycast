@@ -1379,6 +1379,7 @@ void OpenGLRenderer::initVideoRoutingFrameBuffer()
 
 void OpenGLRenderer::Term()
 {
+	custom_texture.resetTextureHandles();
 	custom_texture.setTextureDeleter(nullptr);
 	TexCache.Clear();
 	gles_term();
