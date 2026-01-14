@@ -453,11 +453,11 @@ public:
 	}
 	TextureCacheData(TextureCacheData&& other) : BaseTextureCacheData(std::move(other)) {
 		std::swap(texID, other.texID);
-		std::swap(owns_texture, other.owns_texture);
+		std::swap(is_preloaded_vram, other.is_preloaded_vram);
 	}
 
 	GLuint texID = 0;   //gl texture
-	bool owns_texture = true;
+	bool is_preloaded_vram = false;
 	std::string GetId() override { return std::to_string(texID); }
 	void UploadToGPU(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded = false) override;
 	void SetCustomTextureHandle(void *handle) override;

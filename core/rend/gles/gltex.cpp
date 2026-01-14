@@ -45,12 +45,12 @@ static void getOpenGLTexParams(TextureType texType, u32& bytesPerPixel, GLuint& 
 
 void TextureCacheData::UploadToGPUGl2(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded)
 {
-	if (!owns_texture)
+	if (is_preloaded_vram)
 		texID = 0;
 	if (texID == 0)
 	{
 		texID = glcache.GenTexture();
-		owns_texture = true;
+		is_preloaded_vram = false;
 	}
 	glcache.BindTexture(GL_TEXTURE_2D, texID);
 	GLuint comps;
@@ -82,13 +82,18 @@ void TextureCacheData::UploadToGPUGl2(int width, int height, const u8 *temp_tex_
 
 void TextureCacheData::SetCustomTextureHandle(void *handle)
 {
+	if (!is_preloaded_vram && texID != 0)
+		glcache.DeleteTextures(1, &texID);
 	texID = (GLuint)(uintptr_t)handle;
-	owns_texture = false;
+	is_preloaded_vram = true;
 }
 
 void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded)
 {
 #if !defined(GLES2) && (!defined(__APPLE__) || defined(TARGET_IPHONE))
+	if (is_preloaded_vram)
+		texID = 0;
+
 	GLuint comps;
 	GLuint gltype;
 	GLuint internalFormat;
@@ -108,7 +113,7 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 	if (texID == 0)
 	{
 		texID = glcache.GenTexture();
-		owns_texture = true;
+		is_preloaded_vram = false;
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
 		glTexStorage2D(GL_TEXTURE_2D, mipmapLevels, internalFormat, width, height);
 	}
@@ -155,11 +160,11 @@ bool TextureCacheData::Delete()
 		return false;
 
 	if (texID != 0) {
-		if (owns_texture)
+		if (!is_preloaded_vram)
 			glcache.DeleteTextures(1, &texID);
 		texID = 0;
 	}
-	owns_texture = true;
+	is_preloaded_vram = false;
 
 	return true;
 }
