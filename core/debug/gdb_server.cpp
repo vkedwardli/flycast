@@ -21,6 +21,7 @@
 #ifdef GDB_SERVER
 #include "gdb_server.h"
 #include "debug_agent.h"
+#include "watchpoint.h"
 #include "cfg/option.h"
 #include "oslib/oslib.h"
 #include "util/shared_this.h"
@@ -170,6 +171,7 @@ public:
 	void init(int port)
 	{
 		this->port = port;
+		watchpoint::init();
 		EventManager::listen(Event::Resume, emuEventCallback, this);
 		EventManager::listen(Event::Terminate, emuEventCallback, this);
 	}
@@ -764,7 +766,7 @@ private:
 		u32 type;
 		u32 addr;
 		u32 len;
-		if (sscanf(pkt.c_str(), "Z%1d,%x,%1d", &type, &addr, &len) != 3) {
+		if (sscanf(pkt.c_str(), "Z%1d,%x,%x", &type, &addr, &len) != 3) {
 			WARN_LOG(COMMON, "insertMatchpoint: unknown packet: %s", pkt.c_str());
 			return "E01";
 		}
@@ -780,13 +782,25 @@ private:
 		    	return "";
 		    	break;
 		    case DebugAgent::Breakpoint::BP_TYPE_WRITE_WATCHPOINT:	// write watchpoint
-		    	return "";
+		    	if (agent.insertMatchpoint(DebugAgent::Breakpoint::BP_TYPE_WRITE_WATCHPOINT,
+		    			addr, len))
+		    		return "OK";
+		    	else
+		    		return "E01";
 		    	break;
 		    case DebugAgent::Breakpoint::BP_TYPE_READ_WATCHPOINT:		// read watchpoint
-		    	return "";
+		    	if (agent.insertMatchpoint(DebugAgent::Breakpoint::BP_TYPE_READ_WATCHPOINT,
+		    			addr, len))
+		    		return "OK";
+		    	else
+		    		return "E01";
 		    	break;
 		    case DebugAgent::Breakpoint::BP_TYPE_ACCESS_WATCHPOINT:	// access watchpoint
-		    	return "";
+		    	if (agent.insertMatchpoint(DebugAgent::Breakpoint::BP_TYPE_ACCESS_WATCHPOINT,
+		    			addr, len))
+		    		return "OK";
+		    	else
+		    		return "E01";
 		    	break;
 		    default:
 		    	return "";
@@ -799,7 +813,7 @@ private:
 		u32 type;
 		u32 addr;
 		u32 len;
-		if (sscanf(pkt.c_str(), "z%1d,%x,%1d", &type, &addr, &len) != 3) {
+		if (sscanf(pkt.c_str(), "z%1d,%x,%x", &type, &addr, &len) != 3) {
 			WARN_LOG(COMMON, "removeMatchpoint: unknown packet: %s", pkt.c_str());
 			return "E01";
 		}
@@ -815,13 +829,25 @@ private:
 		    	return "";
 		    	break;
 		    case 2:		// write watchpoint
-		    	return "";
+		    	if (agent.removeMatchpoint(DebugAgent::Breakpoint::BP_TYPE_WRITE_WATCHPOINT,
+		    			addr, len))
+		    		return "OK";
+		    	else
+		    		return "E01";
 		    	break;
 		    case 3:		// read watchpoint
-		    	return "";
+		    	if (agent.removeMatchpoint(DebugAgent::Breakpoint::BP_TYPE_READ_WATCHPOINT,
+		    			addr, len))
+		    		return "OK";
+		    	else
+		    		return "E01";
 		    	break;
 		    case 4:		// access watchpoint
-		    	return "";
+		    	if (agent.removeMatchpoint(DebugAgent::Breakpoint::BP_TYPE_ACCESS_WATCHPOINT,
+		    			addr, len))
+		    		return "OK";
+		    	else
+		    		return "E01";
 		    	break;
 		    default:
 		    	return "";
