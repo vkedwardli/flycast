@@ -856,7 +856,9 @@ void loadGameSpecificSettings()
 	loadSpecialSettings();
 
 	config::Settings::instance().setGameId(settings.content.gameId);
+#ifndef LIBRETRO
 	custom_texture.init();
+#endif
 
 	// Reload per-game settings
 	config::Settings::instance().load(true);

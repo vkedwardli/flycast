@@ -1226,6 +1226,7 @@ void retro_run()
 	if (devices_need_refresh)
 		refresh_devices(false);
 
+	custom_texture.init();
 	if (custom_texture.isPreloading())
 	{
 		int texLoaded, texTotal;
@@ -3636,6 +3637,7 @@ static bool retro_set_eject_state(bool ejected)
 	{
 		try {
 			emu.insertGdrom(disk_paths[disk_index]);
+			custom_texture.init();
 			return true;
 		} catch (const FlycastException& e) {
 			ERROR_LOG(GDROM, "%s", e.what());
