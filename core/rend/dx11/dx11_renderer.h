@@ -56,6 +56,8 @@ struct DX11Renderer : public Renderer
 	bool RenderLastFrame() override;
 	BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw, int area) override;
 	bool GetLastFrame(std::vector<u8>& data, int& width, int& height) override;
+	bool SupportsVramPreload() override { return true; }
+	void ProcessCustomTextures() override;
 
 protected:
 	struct VertexConstants

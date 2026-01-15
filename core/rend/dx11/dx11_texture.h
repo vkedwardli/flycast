@@ -29,20 +29,30 @@ public:
 	DX11Texture(DX11Texture&& other) : BaseTextureCacheData(std::move(other)) {
 		std::swap(texture, other.texture);
 		std::swap(textureView, other.textureView);
+		std::swap(is_preloaded, other.is_preloaded);
 	}
 
 	ComPtr<ID3D11Texture2D> texture;
 	ComPtr<ID3D11ShaderResourceView> textureView;
+	bool is_preloaded = false;
 
 	std::string GetId() override { return std::to_string((uintptr_t)texture.get()); }
 	void UploadToGPU(int width, int height, const u8* temp_tex_buffer, bool mipmapped,
 			bool mipmapsIncluded = false) override;
 	bool Delete() override;
 	void loadCustomTexture();
+	void SetCustomTextureHandle(void *handle) override;
 #ifndef TARGET_UWP
 	bool Force32BitTexture(TextureType type) const override;
 #endif
 };
+
+struct DX11PreloadedResource
+{
+	ComPtr<ID3D11Texture2D> texture;
+	ComPtr<ID3D11ShaderResourceView> textureView;
+};
+
 
 class DX11TextureCache final : public BaseTextureCache<DX11Texture>
 {

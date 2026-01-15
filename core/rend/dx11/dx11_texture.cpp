@@ -133,7 +133,16 @@ bool DX11Texture::Delete()
 
 	textureView.reset();
 	texture.reset();
+	is_preloaded = false;
 	return true;
+}
+
+void DX11Texture::SetCustomTextureHandle(void *handle)
+{
+	DX11PreloadedResource *res = (DX11PreloadedResource *)handle;
+	texture = res->texture;
+	textureView = res->textureView;
+	is_preloaded = true;
 }
 
 void DX11Texture::loadCustomTexture()

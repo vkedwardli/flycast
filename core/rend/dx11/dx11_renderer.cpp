@@ -22,6 +22,7 @@
 #include "hw/pvr/pvr_mem.h"
 #include "ui/gui.h"
 #include "rend/sorter.h"
+#include "rend/CustomTexture.h"
 
 #include <memory>
 
@@ -50,6 +51,11 @@ bool DX11Renderer::Init()
 		WARN_LOG(RENDERER, "Null device or device context. Aborting");
 		return false;
 	}
+
+	custom_texture.setTextureDeleter([](void *id) {
+		DX11PreloadedResource *res = (DX11PreloadedResource*)id;
+		delete res;
+	});
 
 	shaders = &theDX11Context.getShaders();
 	samplers = &theDX11Context.getSamplers();
@@ -173,6 +179,8 @@ bool DX11Renderer::Init()
 void DX11Renderer::Term()
 {
 	NOTICE_LOG(RENDERER, "DX11 renderer terminating");
+	custom_texture.resetTextureHandles();
+	custom_texture.setTextureDeleter(nullptr);
 #ifdef VIDEO_ROUTING
 	os_VideoRoutingTermDX();
 #endif
@@ -325,6 +333,64 @@ void DX11Renderer::Process(TA_context* ctx)
 	texCache.Cleanup();
 
 	ta_parse(ctx, true);
+}
+
+void DX11Renderer::ProcessCustomTextures()
+{
+	custom_texture.updateTextureUploadQueue([this](int width, int height, const u8 *data) -> void * {
+		D3D11_TEXTURE2D_DESC desc{};
+		desc.Width = width;
+		desc.Height = height;
+		desc.MipLevels = 1;
+		desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.CPUAccessFlags = 0;
+		desc.MiscFlags = 0;
+
+		bool use_mipmaps = config::UseMipmaps;
+		if (use_mipmaps)
+		{
+			desc.MipLevels = 0;
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+		}
+
+		ComPtr<ID3D11Texture2D> texture;
+		if (use_mipmaps)
+		{
+			if (FAILED(device->CreateTexture2D(&desc, nullptr, &texture.get())))
+				return nullptr;
+			deviceContext->UpdateSubresource(texture, 0, nullptr, data, width * 4, 0);
+		}
+		else
+		{
+			D3D11_SUBRESOURCE_DATA subData{};
+			subData.pSysMem = data;
+			subData.SysMemPitch = width * 4;
+			if (FAILED(device->CreateTexture2D(&desc, &subData, &texture.get())))
+				return nullptr;
+		}
+
+		ComPtr<ID3D11ShaderResourceView> textureView;
+		D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc{};
+		viewDesc.Format = desc.Format;
+		viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		viewDesc.Texture2D.MipLevels = use_mipmaps ? -1 : 1;
+
+		if (FAILED(device->CreateShaderResourceView(texture, &viewDesc, &textureView.get())))
+			return nullptr;
+
+		if (use_mipmaps)
+			deviceContext->GenerateMips(textureView);
+
+		DX11PreloadedResource *res = new DX11PreloadedResource();
+		res->texture = texture;
+		res->textureView = textureView;
+		return res;
+	});
 }
 
 void DX11Renderer::resetContextState()
