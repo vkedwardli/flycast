@@ -132,21 +132,12 @@ void mainui_loop(bool forceStart)
 	while (mainui_enabled)
 	{
 		fc_profiler::startThread("main");
-
-		if (mainui_rend_frame())
-			fixedFrequencyWait();
+		const auto rendered = mainui_rend_frame();
 
 		if (imguiDriver == nullptr)
 			forceReinit = true;
 		else
 			imguiDriver->present();
-
-		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
-			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
-				ggpo::timeSyncFrames.fetch_sub(1);
-				fixedFrequencyWait();
-			}
-		}
 
 		if (currentDupeFrames != config::DupeFrames) {
 			forceReinit = true;
@@ -166,6 +157,16 @@ void mainui_loop(bool forceStart)
 		}
 
 		gdxsv_emu_mainui_loop();
+
+		if (rendered)
+			fixedFrequencyWait();
+
+		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
+			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
+				ggpo::timeSyncFrames.fetch_sub(1);
+				fixedFrequencyWait();
+			}
+		}
 
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
