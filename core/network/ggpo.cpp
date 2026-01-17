@@ -774,7 +774,7 @@ bool nextFrame()
 	if (useRandInput) {
 		int frame;
 		ggpo::getCurrentFrame(&frame);
-		if (frame % 5 == 0) {
+		if ((frame + localPlayerNum) % 5 == 0) {
 			kcode[0] = ~(randSource() & randInputMask);
 		}
 	}
@@ -782,8 +782,12 @@ bool nextFrame()
 	// may call save_game_state
 	int loop_count = 0;
 	do {
-		if (!config::ThreadedRendering && !useRandInput)
-			os_UpdateInputState();
+		if (!useRandInput) {
+			if (!config::ThreadedRendering)
+				os_UpdateInputState();
+			else if (config::JoystickPolling)
+				os_UpdateJoystickState();  // Polling mode: EMU thread can safely poll joystick state
+		}
 		Inputs inputs;
 		inputs.kcode = ~kcode[0];
 		if (rt[0] >= 0x4000)
@@ -883,6 +887,22 @@ bool nextFrame()
 bool active()
 {
 	return ggpoSession != nullptr;
+}
+
+bool poll()
+{
+	if (!active())
+		return false;
+
+	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
+	if (ggpoSession == nullptr)
+		return false;
+	GGPOErrorCode error = ggpo_idle(ggpoSession, 0);
+	if (error != GGPO_OK) {
+		WARN_LOG(NETWORK, "ggpo_idle in poll failed %d", error);
+		return false;
+	}
+	return true;
 }
 
 std::future<bool> startNetwork()

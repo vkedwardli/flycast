@@ -260,6 +260,17 @@ u8"分拆GPU運算去另一線程，可以降低負荷但係有可能有 1 frame
 低階 CPU 建議啓用\n\
 高階 CPU 建議停用"
 		}));
+#ifdef _WIN32
+	ImGui::Indent();
+	{
+		DisabledScope scope(!config::ThreadedRendering);
+		OptionCheckbox(t({ "Joystick Polling", u8"ジョイスティックポーリング" }), config::JoystickPolling, t({
+"Use polling instead of events for joystick input. May improve input latency in multi-threaded mode.",
+u8"ジョイスティック入力をイベントではなくポーリングで取得します。マルチスレッドモードでの入力遅延を改善する可能性があります。"
+			}));
+	}
+	ImGui::Unindent();
+#endif
 
 	bool widescreen = config::Widescreen.get() && config::WidescreenGameHacks.get();
 	pressed = ImGui::Checkbox(t({ "Enable 16:9 Widescreen Hack", u8"16:9 ワイドモニター対応", u8"使用 16:9 闊螢幕補丁" }), &widescreen);
