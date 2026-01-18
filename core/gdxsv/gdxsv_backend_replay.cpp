@@ -55,7 +55,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		else
 			kcode[0] = ~0u;
 		if (ctrl_commands_.empty() && !lbs_first_skip_) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, 180);
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, target_frame_ > 0 ? 1000 : 180);
 			lbs_first_skip_ = true;
 		}
 	}
@@ -244,6 +244,43 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 			ctrl_commands_.pop_front();
 		}
+		
+		if (ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg) {
+			os_notify(">>", duration);
+			const int prev_key_msg_count = key_msg_count_;
+			const int target_key_msg_count = ctrl.arg1 ? ctrl.arg1 : 1;
+			int skipped_frame = 0;
+			auto t0 = high_resolution_clock::now();
+			
+			while (key_msg_count_ < target_key_msg_count) {
+				settings.aica.muteAudio = true;
+				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
+				rend_enable_renderer(false);
+				seeking_ = true;
+				emu.run();
+				seeking_ = false;
+				end_of_frame_ = false;
+				settings.aica.muteAudio = false;
+				settings.gdxsv.skipRenderingHack = false;
+				rend_enable_renderer(true);
+				regular_save_state();
+				skipped_frame++;
+				if (need_cancel()) break;
+			}
+			
+			if (0 < skipped_frame) {
+				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
+				NOTICE_LOG(COMMON, "JumpToKeyMsg skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
+						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
+				char buf[256];
+				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
+				os_notify(buf, duration);
+			}
+			
+			target_frame_ = 0;
+			
+			ctrl_commands_.pop_front();
+		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekForward) {
 			os_notify(">>", duration);
@@ -311,6 +348,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_play_speed_ = org_speed;
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
+			
+			if (target_round_ > 1) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, target_round_);
+			} else if (target_frame_ != 0) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, target_frame_);
+			}
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekBackward) {
@@ -367,6 +410,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 				recv_buf_.clear();
 				gdxsv.key_display_.Clear();
+				target_round_ = 0;
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
@@ -414,6 +458,9 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	}
 
 	pov_ = pov;
+	
+	target_round_ = cfgLoadInt("gdxsv", "replay_target_round", 0);
+	target_frame_ = cfgLoadInt("gdxsv", "replay_target_frame", 0);
 
 	return Start();
 }

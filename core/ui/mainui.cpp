@@ -111,20 +111,46 @@ void mainui_loop(bool forceStart)
 	if (forceStart)
 		mainui_enabled = true;
 	mainui_init();
+
 	RenderType currentRenderer = config::RendererType;
-	int currentDupeFrames = config::DupeFrames;
+	bool currentDupeFrames = config::DupeFrames;
 
 	set_timer_resolution();
 	std::chrono::time_point<std::chrono::steady_clock> start;
+
 	auto fixedFrequencyWait = [&start]() {
 		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
 			return;
 
 		const auto period = get_period();
-		const auto deltaUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+		const int64_t minSleepMargin = 2000; // 2ms margin for sleep_and_busy_wait
+		const int64_t pollInterval = 1000;   // 1ms between polls
 		int64_t overSlept = 0;
-		if (deltaUs < period)
-			overSlept = sleep_and_busy_wait(period - deltaUs);
+
+		auto getElapsed = [&start]() {
+			return std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::steady_clock::now() - start).count();
+		};
+
+		if (ggpo::active() && !config::ThreadedRendering) {
+			// Poll GGPO while waiting, leaving margin for precise sleep
+			// Only in single-threaded mode to avoid conflicts with emu thread
+			while (true) {
+				auto remaining = period - getElapsed();
+				if (remaining <= minSleepMargin)
+					break;
+				if (!ggpo::poll())
+					break;
+				remaining = period - getElapsed();
+				if (remaining > minSleepMargin + pollInterval)
+					sleep_us(pollInterval);
+			}
+		}
+
+		auto remaining = period - getElapsed();
+		if (remaining > 0)
+			overSlept = sleep_and_busy_wait(remaining);
+
 		start = std::chrono::steady_clock::now();
 		if (1000 <= overSlept)
 			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
@@ -136,28 +162,8 @@ void mainui_loop(bool forceStart)
 		return 60;
 	};
 
-	auto rend_frame = [fixedFrequencyWait, timeSyncInterval]() {
-		if (mainui_rend_frame())
-			fixedFrequencyWait();
-
-		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
-			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
-				ggpo::timeSyncFrames.fetch_sub(1);
-				fixedFrequencyWait();
-			}
-		}
-
-		gdxsv_emu_mainui_loop();
-	};
-
-	exposed_callback = rend_frame;
-	EventManager::listen(Event::WindowExpose, windowExposedCallback, NULL);
-
-	while (mainui_enabled)
-	{
-		fc_profiler::startThread("main");
-
-		rend_frame();
+	auto mainui_update = [fixedFrequencyWait, timeSyncInterval, &currentRenderer, &currentDupeFrames]() {
+		bool rendered = mainui_rend_frame();
 
 		if (imguiDriver == nullptr)
 			forceReinit = true;
@@ -181,6 +187,26 @@ void mainui_loop(bool forceStart)
 			currentRenderer = config::RendererType;
 		}
 
+		gdxsv_emu_mainui_loop();
+
+		if (rendered)
+			fixedFrequencyWait();
+
+		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
+			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
+				ggpo::timeSyncFrames.fetch_sub(1);
+				fixedFrequencyWait();
+			}
+		}
+	};
+
+	exposed_callback = mainui_update;
+	EventManager::listen(Event::WindowExpose, windowExposedCallback, NULL);
+
+	while (mainui_enabled)
+	{
+		fc_profiler::startThread("main");
+		mainui_update();
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
 

@@ -5,6 +5,7 @@
 #include "types.h"
 #include <vector>
 #include <string>
+#include <cstring>
 #include <chrono>
 #include <thread>
 #include <mutex>

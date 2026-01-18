@@ -470,6 +470,11 @@ extern Option<int> AnisotropicFiltering;
 extern Option<int> TextureFiltering; // 0: default, 1: force nearest, 2: force linear
 extern Option<bool> ThreadedRendering;
 extern Option<bool> DupeFrames;
+#ifdef _WIN32
+extern Option<bool> JoystickPolling;
+#else
+constexpr bool JoystickPolling = false;
+#endif
 extern Option<bool> NativeDepthInterpolation;
 extern Option<bool> EmulateFramebuffer;
 extern Option<int> FixedFrequency;

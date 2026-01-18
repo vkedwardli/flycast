@@ -11,6 +11,7 @@ void os_DestroyWindow();
 void os_SetupInput();
 void os_TermInput();
 void os_UpdateInputState();
+void os_UpdateJoystickState(); // Sub-thread safe joystick state update (uses SDL_HINT_JOYSTICK_THREAD)
 void os_InstallFaultHandler();
 void os_UninstallFaultHandler();
 void os_RunInstance(int argc, const char *argv[]);
