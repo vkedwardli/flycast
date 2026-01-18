@@ -479,6 +479,7 @@ void os_TermInput()
 
 void os_UpdateInputState()
 {
+	if (sdl_window_exposed()) return;
 	FC_PROFILE_SCOPE;
 
 	GamepadDevice::RampAnalog();

@@ -49,6 +49,7 @@ enum class Event {
 	VBlank,
 	Network,
 	DiskChange,
+	WindowExpose,
 	GGPOGameEnd,
 	max = GGPOGameEnd
 };
