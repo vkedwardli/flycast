@@ -1027,6 +1027,9 @@ void gui_settings_controls(bool& maple_devices_changed)
 	OptionSlider("Mouse sensitivity", config::MouseSensitivity, 1, 500);
 #if defined(_WIN32) && !defined(TARGET_UWP)
 	OptionCheckbox("Use Raw Input", config::UseRawInput, "Supports multiple pointing devices (mice, light guns) and keyboards");
+	OptionCheckbox("Joystick Polling", config::JoystickPolling,
+		"Use polling instead of events for joystick input. "
+		"May improve input latency for GGPO in multi-threaded mode.");
 #endif
 #ifdef USE_DREAMLINK_DEVICES
 	{
