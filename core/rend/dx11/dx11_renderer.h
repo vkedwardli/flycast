@@ -54,7 +54,7 @@ struct DX11Renderer : public Renderer
 	}
 
 	bool RenderLastFrame() override;
-	BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw) override;
+	BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw, int area) override;
 	bool GetLastFrame(std::vector<u8>& data, int& width, int& height) override;
 
 protected:
@@ -73,7 +73,7 @@ protected:
 		float colorClampMax[4];
 		float fog_col_vert[4];
 		float fog_col_ram[4];
-		float ditherColorMax[4];
+		float ditherDivisor[4];
 		float fogDensity;
 		float shadowScale;
 		float alphaTestValue;

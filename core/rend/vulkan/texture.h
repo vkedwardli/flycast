@@ -36,7 +36,7 @@ void setImageLayout(vk::CommandBuffer const& commandBuffer, vk::Image image, vk:
 class Texture final : public BaseTextureCacheData
 {
 public:
-	Texture(TSP tsp = {}, TCW tcw = {}) : BaseTextureCacheData(tsp, tcw) {
+	Texture(TSP tsp = {}, TCW tcw = {}, int area = 0) : BaseTextureCacheData(tsp, tcw, area) {
 		this->physicalDevice = VulkanContext::Instance()->GetPhysicalDevice();
 		this->device = VulkanContext::Instance()->GetDevice();
 	}
@@ -57,7 +57,7 @@ public:
 
 	void UploadToGPU(int width, int height, const u8 *data, bool mipmapped, bool mipmapsIncluded = false) override;
 	u64 GetIntId() { return (u64)reinterpret_cast<uintptr_t>(this); }
-	std::string GetId() override { char s[20]; sprintf(s, "%p", this); return s; }
+	std::string GetId() override { char s[20]; snprintf(s, sizeof(s), "%p", this); return s; }
 	vk::ImageView GetImageView() const { return *imageView; }
 	vk::Image GetImage() const { return *image; }
 	vk::ImageView GetReadOnlyImageView() const { return readOnlyImageView ? readOnlyImageView : *imageView; }

@@ -24,10 +24,14 @@
 
 #include "types.h"
 #include "stdclass.h"
+#include "oslib/oslib.h"
+#include "oslib/directory.h"
 #include "oslib/storage.h"
+#include "oslib/http_client.h"
 #include "imgui_driver.h"
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "imgui_stdlib.h"
 #include "stdclass.h"
 #include "rend/osd.h"
 #include <stb_image.h>
@@ -201,7 +205,7 @@ void scrollWhenDraggingOnVoid(ImGuiMouseButton mouse_button)
     ImGuiButtonFlags button_flags = (mouse_button == ImGuiMouseButton_Left) ? ImGuiButtonFlags_MouseButtonLeft
     		: (mouse_button == ImGuiMouseButton_Right) ? ImGuiButtonFlags_MouseButtonRight : ImGuiButtonFlags_MouseButtonMiddle;
     // If nothing hovered so far in the frame (not same as IsAnyItemHovered()!) or item is disabled
-    if (g.HoveredId == 0 || g.HoveredIdDisabled)
+	if (g.HoveredId == 0 || g.HoveredIdIsDisabled)
     {
     	bool hoveredAllowOverlap = g.HoveredIdAllowOverlap;
     	g.HoveredIdAllowOverlap = true;
@@ -709,7 +713,8 @@ bool OptionRadioButton(const char *name, config::Option<T>& option, T value, con
 template bool OptionRadioButton<bool>(const char *name, config::Option<bool>& option, bool value, const char *help);
 template bool OptionRadioButton<int>(const char *name, config::Option<int>& option, int value, const char *help);
 
-void OptionComboBox(const char *name, config::Option<int>& option, const char *values[], int count,
+template<bool PerGameOption>
+void OptionComboBox(const char *name, config::Option<int, PerGameOption>& option, const char *values[], int count,
 			const char *help)
 {
 	{
@@ -735,6 +740,10 @@ void OptionComboBox(const char *name, config::Option<int>& option, const char *v
 		ShowHelpMarker(help);
 	}
 }
+
+// Explicit template instantiations
+template void OptionComboBox<true>(const char *name, config::Option<int, true>& option, const char *values[], int count, const char *help);
+template void OptionComboBox<false>(const char *name, config::Option<int, false>& option, const char *values[], int count, const char *help);
 
 void fullScreenWindow(bool modal)
 {
@@ -1033,48 +1042,6 @@ void ImguiVmuTexture::displayVmus(const ImVec2& pos)
 	}
 }
 
-// Custom version of ImGui::BeginListBox that allows passing window flags
-bool BeginListBox(const char* label, const ImVec2& size_arg, ImGuiWindowFlags windowFlags)
-{
-	using namespace ImGui;
-    ImGuiContext& g = *GImGui;
-    ImGuiWindow* window = GetCurrentWindow();
-    if (window->SkipItems)
-        return false;
-
-    const ImGuiStyle& style = g.Style;
-    const ImGuiID id = GetID(label);
-    const ImVec2 label_size = CalcTextSize(label, NULL, true);
-
-    // Size default to hold ~7.25 items.
-    // Fractional number of items helps seeing that we can scroll down/up without looking at scrollbar.
-    ImVec2 size = ImTrunc(CalcItemSize(size_arg, CalcItemWidth(), GetTextLineHeightWithSpacing() * 7.25f + style.FramePadding.y * 2.0f));
-    ImVec2 frame_size = ImVec2(size.x, ImMax(size.y, label_size.y));
-    ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + frame_size);
-    ImRect bb(frame_bb.Min, frame_bb.Max + ImVec2(label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f, 0.0f));
-    g.NextItemData.ClearFlags();
-
-    if (!IsRectVisible(bb.Min, bb.Max))
-    {
-        ItemSize(bb.GetSize(), style.FramePadding.y);
-        ItemAdd(bb, 0, &frame_bb);
-        g.NextWindowData.ClearFlags(); // We behave like Begin() and need to consume those values
-        return false;
-    }
-
-    // FIXME-OPT: We could omit the BeginGroup() if label_size.x == 0.0f but would need to omit the EndGroup() as well.
-    BeginGroup();
-    if (label_size.x > 0.0f)
-    {
-        ImVec2 label_pos = ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y);
-        RenderText(label_pos, label);
-        window->DC.CursorMaxPos = ImMax(window->DC.CursorMaxPos, label_pos + label_size);
-    }
-
-    BeginChild(id, frame_bb.GetSize(), ImGuiChildFlags_FrameStyle, windowFlags);
-    return true;
-}
-
 void Toast::show(const std::string& title, const std::string& message, u32 durationMs)
 {
 	const u64 now = getTimeMs();
@@ -1106,9 +1073,9 @@ bool Toast::draw()
 	const float maxW = std::min(uiScaled(640.f), displaySize.x);
 	ImFont *regularFont = ImGui::GetFont();
 	const ImVec2 titleSize = title.empty() ? ImVec2()
-			: largeFont->CalcTextSizeA(largeFont->FontSize, FLT_MAX, maxW, &title.front(), &title.back() + 1);
+			: largeFont->CalcTextSizeA(largeFont->LegacySize, FLT_MAX, maxW, &title.front(), &title.back() + 1);
 	const ImVec2 msgSize = message.empty() ? ImVec2()
-			: regularFont->CalcTextSizeA(regularFont->FontSize, FLT_MAX, maxW, &message.front(), &message.back() + 1);
+			: regularFont->CalcTextSizeA(regularFont->LegacySize, FLT_MAX, maxW, &message.front(), &message.back() + 1);
 	const ScaledVec2 padding(5.f, 4.f);
 	const ScaledVec2 spacing(0.f, 2.f);
 	ImVec2 totalSize(std::max(titleSize.x, msgSize.x), titleSize.y + msgSize.y);
@@ -1128,13 +1095,13 @@ bool Toast::draw()
 	if (!title.empty())
 	{
 		const ImU32 col = alphaOverride(ImGui::GetColorU32(ImGuiCol_Text), alpha);
-		dl->AddText(largeFont, largeFont->FontSize, pos, col, &title.front(), &title.back() + 1, maxW);
+		dl->AddText(largeFont, largeFont->LegacySize, pos, col, &title.front(), &title.back() + 1, maxW);
 		pos.y += spacing.y + titleSize.y;
 	}
 	if (!message.empty())
 	{
 		const ImU32 col = alphaOverride(0xFF00FFFF, alpha);	// yellow
-		dl->AddText(regularFont, regularFont->FontSize, pos, col, &message.front(), &message.back() + 1, maxW);
+		dl->AddText(regularFont, regularFont->LegacySize, pos, col, &message.front(), &message.back() + 1, maxW);
 	}
 
 	return true;
@@ -1145,11 +1112,9 @@ std::string middleEllipsis(const std::string& s, float width)
 	float tw = ImGui::CalcTextSize(s.c_str()).x;
 	if (tw <= width)
 		return s;
-	std::string ellipsis;
 	char buf[5];
 	ImTextCharToUtf8(buf, ImGui::GetFont()->EllipsisChar);
-	for (int i = 0; i < ImGui::GetFont()->EllipsisCharCount; i++)
-		ellipsis += buf;
+	std::string ellipsis = buf;
 
 	int l = s.length() / 2;
 	int d = l;
@@ -1168,4 +1133,101 @@ std::string middleEllipsis(const std::string& s, float width)
 		else
 			l += d;
 	}
+}
+
+bool beginFrame(const char *label, const ImVec2& size_arg, ImVec2 *out_size)
+{
+	using namespace ImGui;
+    ImGuiContext& g = *GImGui;
+    ImGuiWindow* window = GetCurrentWindow();
+    if (window->SkipItems)
+        return false;
+    const ImGuiStyle& style = g.Style;
+	const ImVec2 label_size = CalcTextSize(label, NULL, true);
+    ImVec2 size = ImTrunc(CalcItemSize(size_arg, CalcItemWidth(), GetTextLineHeightWithSpacing() * 7.25f + style.FramePadding.y * 2.0f));
+    ImVec2 frame_size = ImVec2(size.x, ImMax(size.y, label_size.y));
+    ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + frame_size);
+    ImRect bb(frame_bb.Min, frame_bb.Max + ImVec2(label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f, 0.0f));
+    window->DC.CursorMaxPos = ImMax(window->DC.CursorMaxPos, bb.Max);
+
+    BeginGroup();
+    if (label_size.x > 0.0f)
+    {
+        ImVec2 label_pos = ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y);
+        RenderText(label_pos, label);
+        window->DC.CursorMaxPos = ImMax(window->DC.CursorMaxPos, label_pos + label_size);
+    }
+
+    const ImU32 bg_col = GetColorU32(ImGuiCol_FrameBg);
+    window->DrawList->AddRectFilled(frame_bb.Min, frame_bb.Max, bg_col, g.Style.FrameRounding, 0);
+    window->DC.CursorPos += style.FramePadding;
+    PushClipRect(frame_bb.Min + style.FramePadding, frame_bb.Max - style.FramePadding, false);
+    if (out_size != nullptr)
+    	*out_size = frame_size - style.FramePadding * 2.f;
+    BeginGroup();
+
+    return true;
+}
+
+void endFrame()
+{
+	using namespace ImGui;
+	EndGroup();
+	PopClipRect();
+	EndGroup();
+}
+
+#ifdef __SWITCH__
+
+static constexpr unsigned Flags_Multiline = 1 << 31;
+
+bool switchEditText(char *value, size_t capacity, ImGuiInputTextFlags flags, bool multiline);
+
+static int switchInputTextCallback(ImGuiInputTextCallbackData *data)
+{
+	if (data->EventFlag == ImGuiInputTextFlags_CallbackAlways && (data->Flags & ImGuiInputTextFlags_ReadOnly) == 0)
+	{
+		data->Buf[data->BufTextLen] = '\0';
+		if (switchEditText(data->Buf, data->BufSize, data->Flags, (data->Flags & Flags_Multiline) != 0))
+		{
+			data->BufDirty = true;
+			data->BufTextLen = strlen(data->Buf);
+			ImGui::ClearActiveID();
+			return 1;
+		}
+		ImGui::ClearActiveID();
+	}
+	return 0;
+}
+#endif
+
+bool InputText(const char *label, std::string *str, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback, void* user_data)
+{
+#ifdef __SWITCH__
+	if ((flags & ImGuiInputTextFlags_ReadOnly) == 0)
+	{
+		// TODO This doesn't handle growing the string capacity dynamically
+		str->reserve(512);
+		return ImGui::InputText(label, str, flags | ImGuiInputTextFlags_CallbackAlways, switchInputTextCallback);
+	}
+#endif
+	return ImGui::InputText(label, str, flags, callback, user_data);
+}
+
+bool InputText(const char *label, char *str, size_t size, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback, void* user_data)
+{
+#ifdef __SWITCH__
+	if ((flags & ImGuiInputTextFlags_ReadOnly) == 0)
+		return ImGui::InputText(label, str, size, flags | ImGuiInputTextFlags_CallbackAlways, switchInputTextCallback);
+#endif
+	return ImGui::InputText(label, str, size, flags, callback, user_data);
+}
+
+bool InputTextMultiline(const char* label, char* buf, size_t buf_size, const ImVec2& size, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback, void* user_data)
+{
+#ifdef __SWITCH__
+	if ((flags & ImGuiInputTextFlags_ReadOnly) == 0)
+		return ImGui::InputTextMultiline(label, buf, buf_size, size, flags | ImGuiInputTextFlags_CallbackAlways | Flags_Multiline, switchInputTextCallback);
+#endif
+	return ImGui::InputTextMultiline(label, buf, buf_size, size, flags, callback, user_data);
 }

@@ -18,6 +18,7 @@
 */
 #pragma once
 #ifndef FEAT_NO_MINIUPNPC
+#include <cstddef>
 #include <miniupnpc.h>
 
 #include <cstring>
@@ -25,13 +26,13 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 class MiniUPnP
 {
 public:
 	MiniUPnP() {
 		lanAddress[0] = 0;
-		wanAddress[0] = 0;
 		memset(&urls, 0, sizeof(urls));
 		memset(&data, 0, sizeof(data));
 		memset(&lastError, 0, sizeof(lastError));
@@ -44,6 +45,7 @@ public:
 	const char *localAddress() const { return lanAddress; }
 	const char *externalAddress() const { return wanAddress; }
 	const char *getLastError() const { return lastError; }
+	bool isInitialized() const { return initialized; }
 
 private:
 	UPNPUrls urls;
@@ -53,6 +55,7 @@ private:
 	char lastError[256];
 	std::vector<std::pair<std::string, bool>> mappedPorts;
 	bool initialized = false;
+	std::mutex mutex;
 };
 
 #else
@@ -66,6 +69,7 @@ public:
 	const char *localAddress() const { return ""; }
 	const char *externalAddress() const { return ""; }
 	const char *getLastError() const { return ""; }
+	bool isInitialized() const { return false; }
 };
 
 #endif

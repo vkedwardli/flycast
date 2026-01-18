@@ -64,7 +64,9 @@ IntOption TextureUpscale(CORE_OPTION_NAME "_texupscale", 1);
 IntOption MaxFilteredTextureSize(CORE_OPTION_NAME "_texupscale_max_filtered_texture_size", 256);
 Option<float> ExtraDepthScale("", 1.f);
 Option<bool> CustomTextures(CORE_OPTION_NAME "_custom_textures");
+Option<bool> PreloadCustomTextures(CORE_OPTION_NAME "_preload_custom_textures");
 Option<bool> DumpTextures(CORE_OPTION_NAME "_dump_textures");
+Option<bool> DumpReplacedTextures(CORE_OPTION_NAME "_dump_replaced_textures");
 Option<int> ScreenStretching("", 100);
 Option<bool> Fog(CORE_OPTION_NAME "_fog", true);
 Option<bool> FloatVMUs("");
@@ -82,6 +84,8 @@ Option<int> SkipFrame(CORE_OPTION_NAME "_frame_skipping");
 Option<int> MaxThreads("", 3);
 Option<int> AutoSkipFrame(CORE_OPTION_NAME "_auto_skip_frame", 0);
 Option<int> RenderResolution("", 480);
+Option<bool> IntegerScale("");
+Option<bool> LinearInterpolation("", true);
 Option<bool> VSync("", true);
 Option<bool> ThreadedRendering(CORE_OPTION_NAME "_threaded_rendering", true);
 Option<int> AnisotropicFiltering(CORE_OPTION_NAME "_anisotropic_filtering");
@@ -122,6 +126,8 @@ Option<int> GGPOAnalogAxes("", 0);
 Option<bool> NetworkOutput(CORE_OPTION_NAME "_network_output", false);
 Option<int> MultiboardSlaves("", 0);
 Option<bool> BattleCableEnable("", false);
+Option<bool> UseDCNet(CORE_OPTION_NAME "_dcnet", false);
+OptionString ISPUsername("", "flycast1");
 
 // Maple
 

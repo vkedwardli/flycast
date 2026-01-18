@@ -17,6 +17,10 @@
 #include "stdclass.h"
 #include "serialize.h"
 #include <time.h>
+#ifdef TARGET_UWP
+#include <winrt/Windows.System.h>
+#include <winrt/Windows.Foundation.h>
+#endif
 
 static std::string lastStateFile;
 static time_t lastStateTime;
@@ -105,6 +109,25 @@ void dc_exit()
 		emu.unloadGame();
 	} catch (...) { }
 	mainui_stop();
+
+#ifdef TARGET_UWP
+	extern std::string launchOnExitUri;
+	if (!launchOnExitUri.empty())
+	{
+		INFO_LOG(BOOT, "Launching exit URI: %s", launchOnExitUri.c_str());
+		try {
+			using namespace winrt::Windows::System;
+			using namespace winrt::Windows::Foundation;
+
+			auto wUri = winrt::to_hstring(launchOnExitUri);
+			Uri uri(wUri);
+			auto asyncOp = Launcher::LaunchUriAsync(uri);
+			asyncOp.get();
+		} catch (...) {
+			ERROR_LOG(BOOT, "Failed to launch exit URI");
+		}
+	}
+#endif
 }
 #endif
 
@@ -117,6 +140,7 @@ void SaveSettings()
 	void SaveAndroidSettings();
 	SaveAndroidSettings();
 #endif
+	LogManager::GetInstance()->UpdateConfig();
 }
 
 void flycast_term()
@@ -133,7 +157,7 @@ void dc_savestate(int index, const u8 *pngData, u32 pngSize)
 {
 	gdxsv_emu_savestate(index);
 
-	if (settings.network.online)
+	if (settings.network.online || settings.content.fileName.empty())
 		return;
 
 	lastStateFile.clear();

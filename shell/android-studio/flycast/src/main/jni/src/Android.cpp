@@ -184,11 +184,6 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_flycast_emulator_emu_JNIdc_initEnv
         return NULL;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_emu_JNIdc_disableOmpAffinity(JNIEnv *env, jobject obj)
-{
-	setenv("KMP_AFFINITY", "disabled", 1);
-}
-
 extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_emu_JNIdc_setExternalStorageDirectories(JNIEnv *env, jobject obj, jobjectArray jpathList)
 {
 	jni::ObjectArray<jni::String> pathList(jpathList, false);
@@ -289,7 +284,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_emu_JNIdc_pause(JNIE
 
 extern "C" JNIEXPORT void JNICALL Java_com_flycast_emulator_emu_JNIdc_resume(JNIEnv *env,jobject obj)
 {
-    if (game_started) {
+    if (game_started)
+    {
+    	game_started = false;
 		savestateThread.WaitToEnd();
         emu.start();
     }

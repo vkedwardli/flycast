@@ -71,7 +71,9 @@ public:
 			if (!rendering || newFrameStarted)
 				context->EndFrame();
 			newFrameStarted = false;
-		} catch (const InvalidVulkanContext& err) {
+		} catch (const InvalidVulkanContext&) {
+			// Re-create swap chain
+			context->resize();
 		}
 	}
 
@@ -130,7 +132,7 @@ public:
 			}
 			sampler = (VkSampler)*linearSampler;
 		}
-		ImTextureID texId = vkTex.textureId = ImGui_ImplVulkan_AddTexture(sampler, (VkImageView)vkTex.texture->GetImageView(),
+		ImTextureID texId = vkTex.textureId = (ImTextureID)ImGui_ImplVulkan_AddTexture(sampler, (VkImageView)vkTex.texture->GetImageView(),
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		// TODO update existing texture
 		//auto it = textures.find(name);

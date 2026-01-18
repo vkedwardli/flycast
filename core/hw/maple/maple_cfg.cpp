@@ -213,8 +213,8 @@ bool maple_atomiswave_coin_chute(int slot)
 
 static void mcfg_Create(MapleDeviceType type, u32 bus, u32 port, s32 player_num = -1)
 {
-	delete MapleDevices[bus][port];
-	maple_device* dev = maple_Create(type);
+	MapleDevices[bus][port].reset();
+	std::shared_ptr<maple_device> dev = maple_Create(type);
 	dev->Setup(bus, port, player_num);
 }
 
@@ -243,7 +243,12 @@ static void createNaomiDevices()
 			insertRfidCard(1);
 		}
 	}
-	else
+	else if (gameId == "THE KING OF ROUTE66")
+	{
+		mcfg_Create(MDT_SegaController, 1, 5);
+		mcfg_Create(MDT_Microphone, 1, 0);
+	}
+	else if (settings.platform.isNaomi1())
 	{
 		// Connect VMU B1
 		mcfg_Create(MDT_SegaController, 1, 5);
@@ -364,7 +369,7 @@ static void vmuDigest()
 	for (int i = 0; i < MAPLE_PORTS; i++)
 		for (int j = 0; j < 6; j++)
 		{
-			const maple_device* device = MapleDevices[i][j];
+			std::shared_ptr<const maple_device> device = MapleDevices[i][j];
 			if (device != nullptr)
 			{
 				size_t size;
@@ -414,8 +419,7 @@ void mcfg_DestroyDevices(bool full)
 			if (MapleDevices[i][j] != nullptr
 					&& (full || MapleDevices[i][j]->get_device_type() != MDT_NaomiJamma))
 			{
-				delete MapleDevices[i][j];
-				MapleDevices[i][j] = nullptr;
+				MapleDevices[i][j].reset();
 			}
 		}
 }
@@ -435,7 +439,7 @@ void mcfg_SerializeDevices(Serializer& ser)
 		for (int j = 0; j < 6; j++)
 		{
 			u8 deviceType = MDT_None;
-			maple_device* device = MapleDevices[i][j];
+			std::shared_ptr<maple_device> device = MapleDevices[i][j];
 			if (device != nullptr)
 				deviceType =  device->get_device_type();
 			ser << deviceType;
@@ -490,9 +494,9 @@ void mcfg_DeserializeDevices(Deserializer& deser)
 		memcpy(EEPROM, eeprom, sizeof(eeprom));
 }
 
-maple_naomi_jamma *getMieDevice()
+std::shared_ptr<maple_naomi_jamma> getMieDevice()
 {
 	if (MapleDevices[0][5] == nullptr || MapleDevices[0][5]->get_device_type() != MDT_NaomiJamma)
 		return nullptr;
-	return (maple_naomi_jamma *)MapleDevices[0][5];
+	return std::static_pointer_cast<maple_naomi_jamma>(MapleDevices[0][5]);
 }

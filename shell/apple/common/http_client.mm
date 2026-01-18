@@ -85,7 +85,22 @@ int get(const std::string& url, std::vector<u8>& content, std::string& contentTy
 	
 	if ([handler httpError] != nil)
 		return 500;
-	
+
+/*
+	FIXME: User-Agent port
+    NSString *userAgent = [NSString stringWithCString:getUserAgent().c_str()
+                                             encoding:[NSString defaultCStringEncoding]];
+	NSMutableURLRequest *urlRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:nsurl]];
+	[urlRequest setValue:userAgent forHTTPHeaderField:@"User-Agent"];
+	NSURLResponse *response = nil;
+	NSError *error = nil;
+	NSData *data = [NSURLConnection sendSynchronousRequest:urlRequest
+                                         returningResponse:&response
+                                                     error:&error];
+	if (error != nil)
+		return 500;
+*/
+
 	if ([handler httpResponse].MIMEType != nil)
 		contentType = std::string([[handler httpResponse].MIMEType UTF8String]);
 	else
@@ -98,6 +113,8 @@ int post(const std::string& url, const char *payload, const char *contentType, s
 {
 	NSString *nsurl = [NSString stringWithCString:url.c_str() 
                                          encoding:[NSString defaultCStringEncoding]];
+    NSString *userAgent = [NSString stringWithCString:getUserAgent().c_str()
+                                             encoding:[NSString defaultCStringEncoding]];
 	NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:nsurl]];
 	[request setHTTPMethod:@"POST"];
 	[request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
@@ -111,6 +128,7 @@ int post(const std::string& url, const char *payload, const char *contentType, s
                                          encoding:[NSString defaultCStringEncoding]]
     	: @"application/x-www-form-urlencoded";
     [request setValue:nscontentType forHTTPHeaderField:@"Content-Type"];
+	[request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
     
 	NSURLResponse *response = nil;
 	NSError *error = nil;
@@ -132,6 +150,8 @@ int post(const std::string& url, const std::vector<PostField>& fields)
 {
 	NSString *nsurl = [NSString stringWithCString:url.c_str() 
                                          encoding:[NSString defaultCStringEncoding]];
+    NSString *userAgent = [NSString stringWithCString:getUserAgent().c_str()
+                                             encoding:[NSString defaultCStringEncoding]];
 	NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:nsurl]];
 	[request setHTTPMethod:@"POST"];
 	[request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
@@ -140,6 +160,7 @@ int post(const std::string& url, const std::vector<PostField>& fields)
 	NSString *boundary = @"----flycast-boundary-7192397596";
 	NSString *contentType = [NSString stringWithFormat:@"multipart/form-data; boundary=%@", boundary];
 	[request setValue:contentType forHTTPHeaderField: @"Content-Type"];
+	[request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
 	
 	NSMutableData *body = [NSMutableData data];
 	for (const PostField& field : fields)

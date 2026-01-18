@@ -35,7 +35,12 @@ const std::array<f32, 16> D_Adjust_LoD_Bias = {
 		0.f, -4.f, -2.f, -1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f
 };
 
-static std::vector<vram_block*> VramLocks[VRAM_SIZE_MAX / PAGE_SIZE];
+static std::vector<vram_block*> *VramLocks;
+
+static inline void initVramLocks() {
+	if (VramLocks == nullptr)
+		VramLocks = new std::vector<vram_block*>[VRAM_SIZE_MAX / PAGE_SIZE];
+}
 
 //List functions
 //
@@ -78,7 +83,7 @@ static std::mutex vramlist_lock;
 
 bool VramLockedWriteOffset(size_t offset)
 {
-	if (offset >= VRAM_SIZE)
+	if (offset >= VRAM_SIZE || VramLocks == nullptr)
 		return false;
 
 	size_t addr_hash = offset / PAGE_SIZE;
@@ -200,7 +205,7 @@ void BaseTextureCacheData::PrintTextureName()
 {
 #if !defined(NDEBUG) || defined(DEBUGFAST)
 	char str[512];
-	sprintf(str, "Texture: %s", GetPixelFormatName());
+	snprintf(str, sizeof(str), "Texture: %s", GetPixelFormatName());
 
 	if (tcw.VQ_Comp)
 		strcat(str, " VQ");
@@ -214,9 +219,11 @@ void BaseTextureCacheData::PrintTextureName()
 	if (tsp.FilterMode != 0)
 		strcat(str, " Bilinear");
 
-	sprintf(str + strlen(str), " %dx%d @ 0x%X", 8 << tsp.TexU, 8 << tsp.TexV, tcw.TexAddr << 3);
+	size_t len = strlen(str);
+	snprintf(str + len, sizeof(str) - len, " %dx%d @ 0x%X", 8 << tsp.TexU, 8 << tsp.TexV, tcw.TexAddr << 3);
 	std::string id = GetId();
-	sprintf(str + strlen(str), " id=%s", id.c_str());
+	len = strlen(str);
+	snprintf(str + len, sizeof(str) - len, " id=%s", id.c_str());
 	DEBUG_LOG(RENDERER, "%s", str);
 #endif
 }
@@ -290,13 +297,16 @@ bool BaseTextureCacheData::Delete()
 	return true;
 }
 
-BaseTextureCacheData::BaseTextureCacheData(TSP tsp, TCW tcw)
+BaseTextureCacheData::BaseTextureCacheData(TSP tsp, TCW tcw, int area)
 {
+	initVramLocks();
+
 	if (tcw.VQ_Comp == 1 && tcw.MipMapped == 1)
 		// Star Wars Demolition
 		tcw.ScanOrder = 0;
 	this->tsp = tsp;
 	this->tcw = tcw;
+	this->area = area;
 
 	//Reset state info ..
 	Updates = 0;
@@ -305,6 +315,7 @@ BaseTextureCacheData::BaseTextureCacheData(TSP tsp, TCW tcw)
 	custom_image_data = nullptr;
 	custom_load_in_progress = 0;
 	gpuPalette = false;
+	is_custom_replaced = false;
 
 	//decode info from tsp/tcw into the texture struct
 	tex = &pvrTexInfo[tcw.PixelFmt == PixelReserved ? Pixel1555 : tcw.PixelFmt];	//texture format table entry
@@ -437,7 +448,7 @@ bool BaseTextureCacheData::Update()
 	bool has_alpha = false;
 	if (IsPaletted())
 	{
-		if (IsGpuHandledPaletted(tsp, tcw))
+		if (IsGpuHandledPaletted(tsp, tcw, area))
 		{
 			tex_type = TextureType::_8;
 			gpuPalette = true;
@@ -497,8 +508,28 @@ bool BaseTextureCacheData::Update()
 			return false;
 		}
 	}
-	if (config::CustomTextures || settings.gdxsv.disk)
-		custom_texture.LoadCustomTextureAsync(this);
+	if (custom_texture.enabled())
+	{
+		u32 oldHash = texture_hash;
+		ComputeHash();
+		// gdxsv: Avoid texture glitch issue https://github.com/flyinghead/flycast/issues/2189
+		/*
+		if (Updates > 1 && oldHash == texture_hash)
+		{
+			// Texture hasn't changed so skip the update.
+			if (is_custom_replaced)
+			{
+				tex_type = TextureType::_8888;
+				gpuPalette = false;
+			}
+			protectVRam();
+			size = originalSize;
+			return true;
+		}
+		*/
+		custom_texture.loadCustomTextureAsync(this);
+	}
+	is_custom_replaced = false;
 
 	void *temp_tex_buffer = NULL;
 	u32 upscaled_w = width;
@@ -546,7 +577,10 @@ bool BaseTextureCacheData::Update()
 					{
 						PixelBuffer<u32> pb0;
 						pb0.init(2, 2 ,false);
-						texconv32(&pb0, (u8*)&vram[vram_addr], 2, 2);
+						if (tcw.PixelFmt == PixelYUV)
+							// Use higher LoD mipmap
+							vram_addr = startAddress + VQMipPoint[1];
+						texconv32(&pb0, &vram[vram_addr], 2, 2);
 						*pb32.data() = *pb0.data(1, 1);
 						continue;
 					}
@@ -654,7 +688,7 @@ bool BaseTextureCacheData::Update()
 	if (config::DumpTextures)
 	{
 		ComputeHash();
-		custom_texture.DumpTexture(texture_hash, upscaled_w, upscaled_h, tex_type, temp_tex_buffer);
+		custom_texture.dumpTexture(this, upscaled_w, upscaled_h, temp_tex_buffer);
 		NOTICE_LOG(RENDERER, "Dumped texture %x.png. Old hash %x", texture_hash, old_texture_hash);
 	}
 	PrintTextureName();
@@ -670,6 +704,7 @@ void BaseTextureCacheData::CheckCustomTexture()
 	{
 		tex_type = TextureType::_8888;
 		gpuPalette = false;
+		is_custom_replaced = true;
 		UploadToGPU(custom_width, custom_height, custom_image_data, IsMipmapped(), false);
 		free(custom_image_data);
 		custom_image_data = nullptr;

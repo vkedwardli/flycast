@@ -36,5 +36,9 @@ std::string os_GetConnectionMedium()
 void os_SetThreadName(const char *name)
 {
 }
+const char *getThreadName()
+{
+	return "threadname";
+}
 #endif
 #endif

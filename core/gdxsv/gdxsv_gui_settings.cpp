@@ -200,13 +200,12 @@ void gdxsv_gui_settings_tab()
 		
 		ImGui::SetTooltip(tip.c_str());
 	}
-	
+
 	ImGui::SameLine();
 	if (ImGui::Button(t({ "Apply Recommended Settings\nfor High-Spec PC", u8"高スペックPC向け\nおすすめ設定適用", u8"使用建議偏好設定\n高階電腦適用" }), ScaledVec2(200, 50))) {
 		gdxsv_apply_base_settings();
 		config::ThreadedRendering = false;
 		config::RenderResolution = 1440;
-		config::TextureUpscale = 2;
 	}
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 	{
@@ -217,8 +216,6 @@ void gdxsv_gui_settings_tab()
 			tip += "Internal Resolution = 2560x1440 (x3)\n";
 		if (config::AutoSkipFrame != 0)
 			tip += "Automatic Frame Skipping = Disabled\n";
-		if (config::TextureUpscale != 2)
-			tip += "Texture Upscaling = 2\n";
 		if (config::GdxMinDelay != 2)
 			tip += "Gdx Minimum Delay = 2\n";
 		

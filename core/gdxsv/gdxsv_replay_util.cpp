@@ -19,6 +19,9 @@
 #include "gdxsv.h"
 #include "json.hpp"
 #include "libs.h"
+#ifdef _WIN32
+#undef stat  // Undefine the macro before including directory.h to use flycast::stat()
+#endif
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
 #include "oslib/http_client.h"
