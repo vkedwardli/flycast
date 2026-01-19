@@ -470,11 +470,6 @@ extern Option<int> AnisotropicFiltering;
 extern Option<int> TextureFiltering; // 0: default, 1: force nearest, 2: force linear
 extern Option<bool> ThreadedRendering;
 extern Option<bool> DupeFrames;
-#ifdef _WIN32
-extern Option<bool> JoystickPolling;
-#else
-constexpr bool JoystickPolling = false;
-#endif
 extern Option<bool> NativeDepthInterpolation;
 extern Option<bool> EmulateFramebuffer;
 extern Option<int> FixedFrequency;
@@ -578,7 +573,11 @@ extern std::array<Option<bool>, 4> UseNetworkExpansionDevices;
 extern Option<bool> PerGameVmu;
 #ifdef _WIN32
 extern Option<bool, false> UseRawInput;
+extern Option<bool, false> UseXInput;
+extern Option<bool, false> UseDirectInput;
+extern Option<bool, false> JoystickPolling;
 #else
+constexpr bool JoystickPolling = false;
 constexpr bool UseRawInput = false;
 #endif
 extern Option<bool> UsePhysicalVmuMemory;

@@ -205,11 +205,17 @@ void input_sdl_init()
 		// We want joystick events even if we loose focus
 		SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 #ifdef _WIN32
-		if (cfgLoadBool("input", "DisableXInput", false))
+		if (!config::UseXInput)
 		{
 			// Disable XInput for some old joysticks
 			NOTICE_LOG(INPUT, "Disabling XInput, using DirectInput");
 			SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
+		}
+		if (!config::UseDirectInput)
+		{
+			// Disable DirectInput
+			NOTICE_LOG(INPUT, "Disabling DirectInput");
+			SDL_SetHint(SDL_HINT_DIRECTINPUT_ENABLED, "0");
 		}
 		// Don't close the app when pressing the B button
 		SDL_SetHint(SDL_HINT_WINRT_HANDLE_BACK_BUTTON, "1");
