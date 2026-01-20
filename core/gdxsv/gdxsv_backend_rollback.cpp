@@ -484,6 +484,22 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 7
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
+	const int skipFrameCount = ggpo::getSkippedFrames(frame);
+	const auto appendKeyMsg1Inputs = [&]() {
+		u64 inputs = 0;
+		for (int i = 0; i < matching_.player_count(); ++i) {
+			auto [body] = McsMessage::Create(McsMessage::KeyMsg1, i);
+			const auto input = convertInput(inputState[i]);
+			body[2] = input >> 8 & 0xff;
+			body[3] = input & 0xff;
+			std::copy(body.begin(), body.end(), std::back_inserter(recv_buf_));
+			inputs |= static_cast<u64>(input) << (i * 16);
+			if (matching_.is_training_game() && !ggpo::rollbacking()) {
+				gdxsv.key_display_.AppendInput(i, input);
+			}
+		}
+		return inputs;
+	};
 
 	gdxsv.key_display_.enabled(matching_.is_training_game() && !osd_network_stat_ && in_game());
 
@@ -584,24 +600,23 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 
 		if (msg.Type() == McsMessage::KeyMsg1) {
-			u64 inputs = 0;
-			for (int i = 0; i < matching_.player_count(); ++i) {
-				auto a = McsMessage::Create(McsMessage::KeyMsg1, i);
-				auto input = convertInput(inputState[i]);
-				a.body[2] = input >> 8 & 0xff;
-				a.body[3] = input & 0xff;
-				std::copy(a.body.begin(), a.body.end(), std::back_inserter(recv_buf_));
-				inputs |= static_cast<u64>(input) << (i * 16);
-				if (matching_.is_training_game() && !ggpo::rollbacking()) {
-					gdxsv.key_display_.AppendInput(i, input);
-				}
-			}
+			const int tsFrames = ggpo::timeSyncFrames;
+			if (!ggpo::rollbacking() && 0 < gdxsv_ReadMem16(DataStopCounter) && tsFrames > 0 && frame % 10 == 0) {
+				ggpo::timeSyncFrames.fetch_sub(1);
+				ggpo::notifySkipInput();
+				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame remaining=%d", frame, tsFrames - 1);
+			} else if (0 < skipFrameCount && gdxsv_ReadMem16(DataStopCounter) < skipFrameCount + 1) {
+				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame replaying", frame);
+			} else {
+				u64 inputs = appendKeyMsg1Inputs();
+				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: inputs=0x%llx", frame, inputs);
 
-			while (!input_logs_.empty() && frame <= input_logs_.back().first) {
-				input_logs_.pop_back();
-			}
-			if (!matching_.is_training_game()) {
-				input_logs_.emplace_back(frame, inputs);
+				while (!input_logs_.empty() && frame <= input_logs_.back().first) {
+					input_logs_.pop_back();
+				}
+				if (!matching_.is_training_game()) {
+					input_logs_.emplace_back(frame, inputs);
+				}
 			}
 		}
 
@@ -680,6 +695,11 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				report_.set_input_block_count_2(stats.extra.input_block_count[2]);
 			}
 		}
+	}
+
+	if (0 < skipFrameCount && skipFrameCount + 1 == gdxsv_ReadMem16(DataStopCounter)) {
+		u64 inputs = appendKeyMsg1Inputs();
+		DEBUG_LOG(COMMON, "skipFrame completed at frame=%d, inputs=0x%llx", frame, inputs);
 	}
 
 	verify(recv_buf_.size() <= size);

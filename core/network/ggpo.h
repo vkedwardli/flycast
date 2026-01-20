@@ -82,6 +82,15 @@ static inline bool rollbacking() {
 	return inRollback;
 }
 
+static inline bool isInSkipFrame() {
+	extern bool inSkipFrame;
+
+	return inSkipFrame;
+}
+
+void notifySkipInput();
+int getSkippedFrames(int frame = -1);
+
 static inline void setExInput(u16 exInput) {
 	extern u16 localExInput;
 	localExInput = exInput;
