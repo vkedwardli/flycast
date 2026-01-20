@@ -110,9 +110,6 @@ Option<int> AnisotropicFiltering("rend.AnisotropicFiltering", 1);
 Option<int> TextureFiltering("rend.TextureFiltering", 0); // Default
 Option<bool> ThreadedRendering("rend.ThreadedRendering", true);
 Option<bool> DupeFrames("rend.DupeFrames", false);
-#ifdef _WIN32
-Option<bool> JoystickPolling("input.JoystickPolling", false);
-#endif
 Option<int> PerPixelLayers("rend.PerPixelLayers", 32);
 #ifdef TARGET_UWP
 Option<bool> NativeDepthInterpolation("rend.NativeDepthInterpolation", true);
@@ -247,6 +244,9 @@ std::array<Option<bool>, 4> UseNetworkExpansionDevices{
 Option<bool> PerGameVmu("PerGameVmu", false, "config");
 #ifdef _WIN32
 Option<bool, false> UseRawInput("RawInput", false, "input");
+Option<bool, false> UseXInput("UseXInput", true, "input");
+Option<bool, false> UseDirectInput("UseDirectInput", true, "input");
+Option<bool, false> JoystickPolling("JoystickPolling", false, "input");
 #endif
 Option<bool> UsePhysicalVmuMemory("UsePhysicalVmuMemory", true);
 
