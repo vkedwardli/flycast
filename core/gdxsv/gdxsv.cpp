@@ -118,6 +118,7 @@ void Gdxsv::Reset() {
 
 	if (config::GdxLoginKey.get().empty()) {
 		config::GdxLoginKey = GenerateLoginKey();
+		config::GdxLoginKey.save();
 	}
 
 	NOTICE_LOG(COMMON, "gdxsv disk:%d server:%s loginkey:%s udp_port:%d", (int)disk_, config::GdxLobbyServer.get().c_str(),
