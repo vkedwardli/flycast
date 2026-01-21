@@ -76,7 +76,7 @@ std::future<bool> gdxsvStartNetwork(
     const std::vector<u16>& ports,
     const std::vector<u8>& relays);
 
-static inline bool rollbacking() {
+static inline bool isInRollback() {
 	extern bool inRollback;
 
 	return inRollback;

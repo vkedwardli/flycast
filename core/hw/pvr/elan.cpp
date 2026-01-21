@@ -1747,7 +1747,7 @@ static void DYNACALL write_elancmd(u32 addr, u32 data)
 	if (addr == 7)
 	{
 		try {
-			if (!ggpo::rollbacking())
+			if (!ggpo::isInRollback())
 				executeCommand<true>((u8 *)elanCmd, sizeof(elanCmd));
 			else
 				executeCommand<false>((u8 *)elanCmd, sizeof(elanCmd));
