@@ -285,7 +285,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	static int disconnect_frame = 0;
 
 	// Re battle end
-	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 3 && ggpo::active() && !ggpo::rollbacking()) {
+	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 3 && ggpo::active() && !ggpo::isInRollback()) {
 		if (state_ != State::CloseWait) {
 			SetCloseReason("game_end");
 			ggpo::getCurrentFrame(&disconnect_frame);
@@ -297,7 +297,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	}
 
 	// Friend save scene
-	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 4 && ggpo::active() && !ggpo::rollbacking()) {
+	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 4 && ggpo::active() && !ggpo::isInRollback()) {
 		int frame = 0;
 		ggpo::getCurrentFrame(&frame);
 
@@ -318,7 +318,8 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 		}
 	}
 
-	if (is_local_test_ && State::End <= state_) {
+	if (is_local_test_ && State::Closed <= state_) {
+	//if (is_local_test_ && State::End <= state_) {
 		static int local_test_closing = 120;
 		if (--local_test_closing == 0) dc_exit();
 	}
@@ -494,9 +495,15 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			body[3] = input & 0xff;
 			std::copy(body.begin(), body.end(), std::back_inserter(recv_buf_));
 			inputs |= static_cast<u64>(input) << (i * 16);
-			if (matching_.is_training_game() && !ggpo::rollbacking()) {
+			if (matching_.is_training_game() && !ggpo::isInRollback()) {
 				gdxsv.key_display_.AppendInput(i, input);
 			}
+		}
+		while (!input_logs_.empty() && frame <= input_logs_.back().first) {
+			input_logs_.pop_back();
+		}
+		if (!matching_.is_training_game()) {
+			input_logs_.emplace_back(frame, inputs);
 		}
 		return inputs;
 	};
@@ -504,7 +511,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	gdxsv.key_display_.enabled(matching_.is_training_game() && !osd_network_stat_ && in_game());
 
 	// Disconnect from training game
-	if (ggpo::active() && !ggpo::rollbacking() && matching_.is_training_game()) {
+	if (ggpo::active() && !ggpo::isInRollback() && matching_.is_training_game()) {
 		auto start_btn_pressed = false;
 		for (int i = 0; i < 4; i++) {
 			start_btn_pressed |= ~inputState[i].kcode & DC_BTN_START;
@@ -593,7 +600,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 		if (msg.Type() == McsMessage::StartMsg) {
 			gdxsv_WriteMem16(memExInputAddr, ExInputWaitStart);
-			if (!ggpo::rollbacking()) {
+			if (!ggpo::isInRollback()) {
 				ggpo::setExInput(ExInputWaitStart);
 				NOTICE_LOG(COMMON, "StartMsg KeyFrame:%d", frame);
 			}
@@ -601,22 +608,14 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 		if (msg.Type() == McsMessage::KeyMsg1) {
 			const int tsFrames = ggpo::timeSyncFrames;
-			if (!ggpo::rollbacking() && 0 < gdxsv_ReadMem16(DataStopCounter) && tsFrames > 0 && frame % 10 == 0) {
+			if (!ggpo::isInRollback() && 0 < gdxsv_ReadMem16(DataStopCounter) && tsFrames > 0 && frame % 10 == 0) {
 				ggpo::timeSyncFrames.fetch_sub(1);
 				ggpo::notifySkipInput();
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame remaining=%d", frame, tsFrames - 1);
 			} else if (0 < skipFrameCount && gdxsv_ReadMem16(DataStopCounter) < skipFrameCount + 1) {
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame replaying", frame);
 			} else {
-				u64 inputs = appendKeyMsg1Inputs();
-				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: inputs=0x%llx", frame, inputs);
-
-				while (!input_logs_.empty() && frame <= input_logs_.back().first) {
-					input_logs_.pop_back();
-				}
-				if (!matching_.is_training_game()) {
-					input_logs_.emplace_back(frame, inputs);
-				}
+				appendKeyMsg1Inputs();
 			}
 		}
 
@@ -628,7 +627,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			}
 
 			gdxsv_WriteMem16(memExInputAddr, ExInputWaitLoadEnd);
-			if (!ggpo::rollbacking()) {
+			if (!ggpo::isInRollback()) {
 				ggpo::setExInput(ExInputWaitLoadEnd);
 				NOTICE_LOG(COMMON, "LoadEndMsg KeyFrame:%d", frame);
 			}
@@ -647,7 +646,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		if (ok && exInput == ExInputWaitStart) {
 			NOTICE_LOG(COMMON, "StartMsg Join:%d", frame);
 			gdxsv_WriteMem16(memExInputAddr, ExInputNone);
-			if (!ggpo::rollbacking()) {
+			if (!ggpo::isInRollback()) {
 				ggpo::setExInput(ExInputNone);
 			}
 			for (int i = 0; i < matching_.player_count(); i++) {
@@ -669,7 +668,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		if (ok && exInput == ExInputWaitLoadEnd) {
 			NOTICE_LOG(COMMON, "LoadEndMsg Join:%d", frame);
 			gdxsv_WriteMem16(memExInputAddr, ExInputNone);
-			if (!ggpo::rollbacking()) {
+			if (!ggpo::isInRollback()) {
 				ggpo::setExInput(ExInputNone);
 			}
 			for (int i = 0; i < matching_.player_count(); i++) {
@@ -680,7 +679,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 	}
 
-	if (!ggpo::rollbacking() && !matching_.is_training_game()) {
+	if (!ggpo::isInRollback() && !matching_.is_training_game()) {
 		report_.set_frame_count(frame);
 
 		if (0 < frame && frame % 600 == 0) {
@@ -698,8 +697,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	}
 
 	if (0 < skipFrameCount && skipFrameCount + 1 == gdxsv_ReadMem16(DataStopCounter)) {
-		u64 inputs = appendKeyMsg1Inputs();
-		DEBUG_LOG(COMMON, "skipFrame completed at frame=%d, inputs=0x%llx", frame, inputs);
+		appendKeyMsg1Inputs();
 	}
 
 	verify(recv_buf_.size() <= size);
