@@ -223,6 +223,7 @@ public:
 		if (connection)
 			io_context->post([this, pkt]() { connection->send(pkt); });
 		postDebugTrapNeeded = true;
+		emu.debuggerStopped = true;  // Set flag before throwing
 		throw Stop();
 	}
 
@@ -259,8 +260,6 @@ private:
 			}
 			if (packet.empty())
 				return "";
-
-			DEBUG_LOG(NETWORK, "gdb: recv %s", packet.c_str());
 			std::vector<std::string> replies;
 			switch (packet[0])
 			{
@@ -613,8 +612,10 @@ private:
 		{
 			// Tell the remote stub about features supported by GDB,
 			// and query the stub for features it supports
+			// swbreak+ tells GDB to use Z0 packets for software breakpoints
+			// instead of writing trap instructions directly to memory
 			char qsupported[128];
-			snprintf(qsupported, 128, "PacketSize=%i;vContSupported+", MAX_PACKET_LEN);
+			snprintf(qsupported, 128, "PacketSize=%i;vContSupported+;swbreak+", MAX_PACKET_LEN);
 			return { qsupported };
 		}
 		else if (pkt.rfind("qSymbol:", 0) == 0)

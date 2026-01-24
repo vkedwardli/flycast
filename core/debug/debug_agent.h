@@ -97,6 +97,19 @@ public:
 	{
 		if (pc != 1)
 			Sh4cntx.pc = pc;
+		// If current PC is on a software breakpoint, step over it first
+		auto it = breakpoints[Breakpoint::BP_TYPE_SOFTWARE_BREAK].find(Sh4cntx.pc);
+		if (it != breakpoints[Breakpoint::BP_TYPE_SOFTWARE_BREAK].end()) {
+			// Temporarily remove breakpoint, step one instruction, then restore
+			u32 bpAddr = Sh4cntx.pc;
+			u16 savedOp = it->second.savedOp;
+			WriteMem16_nommu(bpAddr, savedOp);
+			icache.Invalidate();
+			// Execute one instruction directly
+			emu.getSh4Executor()->Step();
+			WriteMem16_nommu(bpAddr, 0xC308);	// Restore trapa #8 at original location
+			icache.Invalidate();
+		}
 		emu.start();
 	}
 
@@ -222,10 +235,8 @@ public:
 	bool insertMatchpoint(Breakpoint::Type type, u32 addr, u32 len)
 	{
 		if (type == Breakpoint::BP_TYPE_SOFTWARE_BREAK) {
-			if (len != 2) {
-				WARN_LOG(COMMON, "insertMatchpoint: length != 2: %d", len);
+			if (len != 2)
 				return false;
-			}
 			if (breakpoints[type].find(addr) != breakpoints[type].end())
 				return true;
 			breakpoints[type][addr] = Breakpoint(type, addr);
@@ -248,10 +259,8 @@ public:
 	bool removeMatchpoint(Breakpoint::Type type, u32 addr, u32 len)
 	{
 		if (type == Breakpoint::BP_TYPE_SOFTWARE_BREAK) {
-			if (len != 2) {
-				WARN_LOG(COMMON, "removeMatchpoint: length != 2: %d", len);
+			if (len != 2)
 				return false;
-			}
 			auto it = breakpoints[type].find(addr);
 			if (it == breakpoints[type].end())
 				return false;
