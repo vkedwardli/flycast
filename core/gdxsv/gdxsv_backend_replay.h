@@ -60,6 +60,7 @@ class GdxsvBackendReplay {
 			TogglePauseMenu,
 			TogglePause,
 			StepFrame,
+			JumpToKeyMsg,
 			SeekForward,
 			SeekBackward,
 			SetSpeed,
@@ -135,6 +136,8 @@ class GdxsvBackendReplay {
 	int recv_delay_ = 0;
 	bool end_of_frame_ = false;
 	bool seeking_ = false;
+	int target_round_ = 0;
+	int target_frame_ = 0;
 	bool pause_menu_opend_ = false;
 	bool lbs_first_skip_ = false;
 	int ctrl_play_speed_ = 0;

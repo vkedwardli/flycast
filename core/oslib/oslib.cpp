@@ -27,6 +27,7 @@
 #endif
 #if defined(USE_SDL)
 #include "sdl/sdl.h"
+#include "sdl/sdl_gamepad.h"
 #else
 	#if defined(SUPPORT_X11)
 		#include "linux-dist/x11.h"
@@ -485,6 +486,16 @@ void os_UpdateInputState()
 	input_sdl_handle();
 #elif defined(USE_EVDEV)
 	input_evdev_handle();
+#endif
+}
+
+void os_UpdateJoystickState()
+{
+	// Poll joystick state directly (can be called from EMU thread when polling mode is enabled)
+	// Uses SDL_HINT_JOYSTICK_THREAD on Windows to allow joystick updates from sub-threads
+	GamepadDevice::RampAnalog();
+#if defined(USE_SDL)
+	SDLGamepad::PollAllJoysticks();
 #endif
 }
 

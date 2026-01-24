@@ -69,6 +69,7 @@ bool isConnected(int playerNum);
 void disconnect(int playerNum);
 void randomInput(bool enable, u64 seed, u32 inputMask);
 void getNetworkStats(int playerNum, NetworkStats* stats);
+bool poll();
 std::future<bool> gdxsvStartNetwork(
     const char* sessionCode, int me,
     const std::vector<std::string>& ips,
@@ -80,6 +81,15 @@ static inline bool rollbacking() {
 
 	return inRollback;
 }
+
+static inline bool isInSkipFrame() {
+	extern bool inSkipFrame;
+
+	return inSkipFrame;
+}
+
+void notifySkipInput();
+int getSkippedFrames(int frame = -1);
 
 static inline void setExInput(u16 exInput) {
 	extern u16 localExInput;

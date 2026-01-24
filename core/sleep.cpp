@@ -23,6 +23,7 @@ static NTSTATUS(__stdcall* ZwSetTimerResolution)(IN ULONG RequestedResolution, I
 void set_timer_resolution()
 {
 #if _WIN32
+	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 	ULONG actual_resolution;
 	ZwSetTimerResolution(1, true, &actual_resolution);
 #elif __APPLE__

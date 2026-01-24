@@ -18,6 +18,7 @@
 #include "input/gamepad_device.h"
 #include "input/mouse.h"
 #include "sdl.h"
+#include <mutex>
 
 class SDLGamepad : public GamepadDevice
 {
@@ -65,6 +66,16 @@ public:
 		for (auto &[k, gamepad] : sdl_gamepads)
 			gamepad->update_rumble();
 	}
+	static void PollAllJoysticks() {
+		// Poll joystick state directly without using events
+		// Can be called from sub-thread when SDL_HINT_JOYSTICK_THREAD is enabled
+		// Mutex protects against concurrent calls from main thread and EMU thread
+		std::lock_guard<std::mutex> lock(pollMutex);
+		SDL_JoystickUpdate();
+		for (auto &[k, gamepad] : sdl_gamepads)
+			gamepad->pollState();
+	}
+	void pollState();
 
 	static void SetTorque(int port, float torque) {
 		applyToPort(port, &SDLGamepad::setTorque, torque);
@@ -101,6 +112,7 @@ private:
 	float vib_inclination = 0;
 	SDL_GameController *sdl_controller = nullptr;
 	static std::map<SDL_JoystickID, std::shared_ptr<SDLGamepad>> sdl_gamepads;
+	static std::mutex pollMutex;
 	SDL_Haptic *haptic = nullptr;
 	bool hapticRumble = false;
 	bool hasAutocenter = false;
@@ -109,6 +121,10 @@ private:
 	int constEffectId = -1;
 	int springEffectId = -1;
 	int damperEffectId = -1;
+	// State tracking for polling mode
+	u64 prevButtons = 0;       // Bitmask for up to 64 buttons
+	u32 prevHats = 0;          // 4 bits per hat, up to 8 hats
+	std::vector<Sint16> prevAxisState;
 };
 
 class SDLMouse : public Mouse

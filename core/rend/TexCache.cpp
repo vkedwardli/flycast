@@ -315,6 +315,7 @@ BaseTextureCacheData::BaseTextureCacheData(TSP tsp, TCW tcw, int area)
 	custom_image_data = nullptr;
 	custom_load_in_progress = 0;
 	gpuPalette = false;
+	is_custom_replaced = false;
 
 	//decode info from tsp/tcw into the texture struct
 	tex = &pvrTexInfo[tcw.PixelFmt == PixelReserved ? Pixel1555 : tcw.PixelFmt];	//texture format table entry
@@ -511,18 +512,21 @@ bool BaseTextureCacheData::Update()
 	{
 		u32 oldHash = texture_hash;
 		ComputeHash();
-		// gdxsv: Avoid texture glitch issue https://github.com/flyinghead/flycast/issues/2189
-		/*
 		if (Updates > 1 && oldHash == texture_hash)
 		{
 			// Texture hasn't changed so skip the update.
+			if (is_custom_replaced)
+			{
+				tex_type = TextureType::_8888;
+				gpuPalette = false;
+			}
 			protectVRam();
 			size = originalSize;
 			return true;
 		}
-		*/
 		custom_texture.loadCustomTextureAsync(this);
 	}
+	is_custom_replaced = false;
 
 	void *temp_tex_buffer = NULL;
 	u32 upscaled_w = width;
@@ -697,6 +701,7 @@ void BaseTextureCacheData::CheckCustomTexture()
 	{
 		tex_type = TextureType::_8888;
 		gpuPalette = false;
+		is_custom_replaced = true;
 		UploadToGPU(custom_width, custom_height, custom_image_data, IsMipmapped(), false);
 		free(custom_image_data);
 		custom_image_data = nullptr;

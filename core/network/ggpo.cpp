@@ -25,6 +25,7 @@
 #include "cfg/option.h"
 #include "oslib/oslib.h"
 #include <algorithm>
+#include <unordered_map>
 
 #include "sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
@@ -36,6 +37,8 @@ namespace ggpo
 {
 
 bool inRollback;
+bool skipInputOccurred;
+std::unordered_map<int, int> skippedFrames;
 u16 localExInput;
 std::atomic<int> timeSyncFrames;
 
@@ -298,10 +301,16 @@ static bool advance_frame(int)
 	getCurrentFrame(&frame);
 
 	settings.aica.muteAudio = true;
-	settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && frame + 1 < seekToFrame;
+	settings.gdxsv.skipRenderingHack = true;
 	rend_enable_renderer(false);
 	inRollback = true;
 
+	const int skips = skippedFrames[frame];
+	for (int i = 0; i < skips; i++) {
+		emu.run();
+	}
+
+	settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && frame + 1 < seekToFrame;
 	emu.run();
 	ggpo_advance_frame(ggpoSession);
 
@@ -487,6 +496,7 @@ static void free_buffer(void *buffer)
 		int frame;
 		deser >> frame;
 		deltaStates.erase(frame);
+		skippedFrames.erase(frame);
 		free(buffer);
 	}
 }
@@ -735,6 +745,20 @@ void getInput(MapleInputState inputState[4])
 	}
 }
 
+void notifySkipInput()
+{
+	skipInputOccurred = true;
+}
+
+int getSkippedFrames(int frame)
+{
+	if (frame < 0) {
+		getCurrentFrame(&frame);
+	}
+
+	return skippedFrames[frame];
+}
+
 bool nextFrame()
 {
 	if (!_endOfFrame)
@@ -742,6 +766,7 @@ bool nextFrame()
 	_endOfFrame = false;
 	if (inRollback)
 		return true;
+
 	auto now = std::chrono::steady_clock::now();
 	if (lastFrameTime != time_point<steady_clock>())
 	{
@@ -756,6 +781,19 @@ bool nextFrame()
 	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
 	if (ggpoSession == nullptr)
 		return false;
+
+	int frame;
+	getCurrentFrame(&frame);
+	if (skipInputOccurred) {
+		skipInputOccurred = false;
+		skippedFrames[frame]++;
+		if (active()) {
+			emu.getSh4Executor()->Start();
+			return true;
+		}
+		return false;
+	}
+
 	// will call save_game_state
 	GGPOErrorCode error = ggpo_advance_frame(ggpoSession);
 
@@ -774,7 +812,7 @@ bool nextFrame()
 	if (useRandInput) {
 		int frame;
 		ggpo::getCurrentFrame(&frame);
-		if (frame % 5 == 0) {
+		if ((frame + localPlayerNum) % 5 == 0) {
 			kcode[0] = ~(randSource() & randInputMask);
 		}
 	}
@@ -782,8 +820,12 @@ bool nextFrame()
 	// may call save_game_state
 	int loop_count = 0;
 	do {
-		if (!config::ThreadedRendering && !useRandInput)
-			os_UpdateInputState();
+		if (!useRandInput) {
+			if (!config::ThreadedRendering)
+				os_UpdateInputState();
+			else if (config::JoystickPolling)
+				os_UpdateJoystickState();  // Polling mode: EMU thread can safely poll joystick state
+		}
 		Inputs inputs;
 		inputs.kcode = ~kcode[0];
 		if (rt[0] >= 0x4000)
@@ -883,6 +925,27 @@ bool nextFrame()
 bool active()
 {
 	return ggpoSession != nullptr;
+}
+
+bool poll()
+{
+	if (!active())
+		return false;
+
+	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
+	if (ggpoSession == nullptr)
+		return false;
+
+	// Dont want to consider rolling back during skip frames
+	if (0 < getSkippedFrames())
+		return false;
+
+	GGPOErrorCode error = ggpo_idle(ggpoSession, 0);
+	if (error != GGPO_OK) {
+		WARN_LOG(NETWORK, "ggpo_idle in poll failed %d", error);
+		return false;
+	}
+	return true;
 }
 
 std::future<bool> startNetwork()

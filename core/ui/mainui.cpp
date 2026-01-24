@@ -114,39 +114,48 @@ void mainui_loop(bool forceStart)
 			return;
 
 		const auto period = get_period();
-		const auto deltaUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+		const int64_t minSleepMargin = 2000; // 2ms margin for sleep_and_busy_wait
+		const int64_t pollInterval = 1000;   // 1ms between polls
 		int64_t overSlept = 0;
-		if (deltaUs < period)
-			overSlept = sleep_and_busy_wait(period - deltaUs);
+
+		auto getElapsed = [&start]() {
+			return std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::steady_clock::now() - start).count();
+		};
+
+		if (ggpo::active() && !config::ThreadedRendering) {
+			// Poll GGPO while waiting, leaving margin for precise sleep
+			// Only in single-threaded mode to avoid conflicts with emu thread
+			while (true) {
+				auto remaining = period - getElapsed();
+				if (remaining <= minSleepMargin)
+					break;
+				if (!ggpo::poll())
+					break;
+				remaining = period - getElapsed();
+				if (remaining > minSleepMargin + pollInterval)
+					sleep_us(pollInterval);
+			}
+		}
+
+		auto remaining = period - getElapsed();
+		if (remaining > 0)
+			overSlept = sleep_and_busy_wait(remaining);
+
 		start = std::chrono::steady_clock::now();
 		if (1000 <= overSlept)
 			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
 	};
 
-	auto timeSyncInterval = [](int frame) -> int {
-		if (6 <= frame) return 20;
-		if (3 <= frame) return 30;
-		return 60;
-	};
-
 	while (mainui_enabled)
 	{
 		fc_profiler::startThread("main");
-
-		if (mainui_rend_frame())
-			fixedFrequencyWait();
+		const auto rendered = mainui_rend_frame();
 
 		if (imguiDriver == nullptr)
 			forceReinit = true;
 		else
 			imguiDriver->present();
-
-		if (ggpo::active() && 0 < ggpo::timeSyncFrames) {
-			if (MainFrameCount % timeSyncInterval(ggpo::timeSyncFrames) == 0) {
-				ggpo::timeSyncFrames.fetch_sub(1);
-				fixedFrequencyWait();
-			}
-		}
 
 		if (currentDupeFrames != config::DupeFrames) {
 			forceReinit = true;
@@ -166,6 +175,9 @@ void mainui_loop(bool forceStart)
 		}
 
 		gdxsv_emu_mainui_loop();
+
+		if (rendered)
+			fixedFrequencyWait();
 
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}

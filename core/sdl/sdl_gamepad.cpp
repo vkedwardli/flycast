@@ -20,6 +20,7 @@
 #include <cmath>
 
 std::map<SDL_JoystickID, std::shared_ptr<SDLGamepad>> SDLGamepad::sdl_gamepads;
+std::mutex SDLGamepad::pollMutex;
 
 template<bool Arcade = false, bool Gamepad = false>
 class DefaultInputMapping : public InputMapping
@@ -698,4 +699,98 @@ SDLMouse::SDLMouse(u64 mouseId) : Mouse("SDL")
 		this->_unique_id = "sdl_mouse_" + std::to_string(mouseId);
 	}
 	loadMapping();
+}
+
+void SDLGamepad::pollState()
+{
+	if (sdl_joystick == nullptr)
+		return;
+
+	int numButtons = std::min(SDL_JoystickNumButtons(sdl_joystick), 64);
+	int numAxes = SDL_JoystickNumAxes(sdl_joystick);
+	int numHats = std::min(SDL_JoystickNumHats(sdl_joystick), 8);
+
+	// Initialize axis state vector on first poll
+	if (prevAxisState.size() != (size_t)numAxes)
+		prevAxisState.resize(numAxes, 0);
+
+	// Poll buttons (bitmask)
+	u64 buttons = 0;
+	for (int i = 0; i < numButtons; i++)
+	{
+		if (SDL_JoystickGetButton(sdl_joystick, i))
+			buttons |= (1ULL << i);
+	}
+	u64 changed = buttons ^ prevButtons;
+	if (changed)
+	{
+		for (int i = 0; i < numButtons; i++)
+		{
+			if (changed & (1ULL << i))
+				gamepad_btn_input(i, (buttons & (1ULL << i)) != 0);
+		}
+		prevButtons = buttons;
+	}
+
+	// Poll axes
+	for (int i = 0; i < numAxes; i++)
+	{
+		Sint16 value = SDL_JoystickGetAxis(sdl_joystick, i);
+		if (value != prevAxisState[i])
+		{
+			prevAxisState[i] = value;
+			gamepad_axis_input(i, value);
+		}
+	}
+
+	// Poll hats (4 bits per hat)
+	u32 hats = 0;
+	for (int i = 0; i < numHats; i++)
+		hats |= (SDL_JoystickGetHat(sdl_joystick, i) & 0xF) << (i * 4);
+
+	u32 hatChanged = hats ^ prevHats;
+	if (hatChanged)
+	{
+		for (int i = 0; i < numHats; i++)
+		{
+			if (hatChanged & (0xF << (i * 4)))
+			{
+				Uint8 hatValue = (hats >> (i * 4)) & 0xF;
+				u32 hatid = (i + 1) << 8;
+				// Up/Down
+				if (hatValue & SDL_HAT_UP)
+				{
+					gamepad_btn_input(hatid + 0, true);
+					gamepad_btn_input(hatid + 1, false);
+				}
+				else if (hatValue & SDL_HAT_DOWN)
+				{
+					gamepad_btn_input(hatid + 0, false);
+					gamepad_btn_input(hatid + 1, true);
+				}
+				else
+				{
+					gamepad_btn_input(hatid + 0, false);
+					gamepad_btn_input(hatid + 1, false);
+				}
+				// Left/Right
+				if (hatValue & SDL_HAT_LEFT)
+				{
+					gamepad_btn_input(hatid + 2, true);
+					gamepad_btn_input(hatid + 3, false);
+				}
+				else if (hatValue & SDL_HAT_RIGHT)
+				{
+					gamepad_btn_input(hatid + 2, false);
+					gamepad_btn_input(hatid + 3, true);
+				}
+				else
+				{
+					gamepad_btn_input(hatid + 2, false);
+					gamepad_btn_input(hatid + 3, false);
+				}
+			}
+		}
+		prevHats = hats;
+	}
 }

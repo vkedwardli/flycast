@@ -573,7 +573,11 @@ extern std::array<Option<bool>, 4> UseNetworkExpansionDevices;
 extern Option<bool> PerGameVmu;
 #ifdef _WIN32
 extern Option<bool, false> UseRawInput;
+extern Option<bool, false> UseXInput;
+extern Option<bool, false> UseDirectInput;
+extern Option<bool, false> JoystickPolling;
 #else
+constexpr bool JoystickPolling = false;
 constexpr bool UseRawInput = false;
 #endif
 extern Option<bool> UsePhysicalVmuMemory;

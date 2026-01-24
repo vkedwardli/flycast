@@ -30,6 +30,7 @@
 #include "switch_gamepad.h"
 #endif
 #include "dreamlink.h"
+#include "cfg/option.h"
 #include <unordered_map>
 
 static SDL_Window* window = NULL;
@@ -204,14 +205,22 @@ void input_sdl_init()
 		// We want joystick events even if we loose focus
 		SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 #ifdef _WIN32
-		if (cfgLoadBool("input", "DisableXInput", false))
+		if (!config::UseXInput)
 		{
 			// Disable XInput for some old joysticks
 			NOTICE_LOG(INPUT, "Disabling XInput, using DirectInput");
 			SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
 		}
+		if (!config::UseDirectInput)
+		{
+			// Disable DirectInput
+			NOTICE_LOG(INPUT, "Disabling DirectInput");
+			SDL_SetHint(SDL_HINT_DIRECTINPUT_ENABLED, "0");
+		}
 		// Don't close the app when pressing the B button
 		SDL_SetHint(SDL_HINT_WINRT_HANDLE_BACK_BUTTON, "1");
+		// Use separate thread for joystick input handling
+		SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
 #endif
 		std::string db = get_readonly_data_path("gamecontrollerdb.txt");
 		int rv = SDL_GameControllerAddMappingsFromFile(db.c_str());
@@ -305,6 +314,7 @@ static std::shared_ptr<SDLMouse> getMouse(u64 mouseId)
 	}
 	return mouse;
 }
+
 
 void input_sdl_handle()
 {
@@ -420,6 +430,7 @@ void input_sdl_handle()
 
 			case SDL_JOYBUTTONDOWN:
 			case SDL_JOYBUTTONUP:
+				if (!config::JoystickPolling)
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jbutton.which);
 					if (device != NULL)
@@ -427,6 +438,7 @@ void input_sdl_handle()
 				}
 				break;
 			case SDL_JOYAXISMOTION:
+				if (!config::JoystickPolling)
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jaxis.which);
 					if (device != NULL)
@@ -434,6 +446,7 @@ void input_sdl_handle()
 				}
 				break;
 			case SDL_JOYHATMOTION:
+				if (!config::JoystickPolling)
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jhat.which);
 					if (device != NULL)
@@ -589,6 +602,10 @@ void input_sdl_handle()
 				break;
 		}
 	}
+
+	// When polling mode is enabled, poll joystick state here (main thread)
+	if (config::JoystickPolling)
+		SDLGamepad::PollAllJoysticks();
 }
 
 static float hdpiScaling = 1.f;

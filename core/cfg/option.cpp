@@ -244,6 +244,9 @@ std::array<Option<bool>, 4> UseNetworkExpansionDevices{
 Option<bool> PerGameVmu("PerGameVmu", false, "config");
 #ifdef _WIN32
 Option<bool, false> UseRawInput("RawInput", false, "input");
+Option<bool, false> UseXInput("UseXInput", true, "input");
+Option<bool, false> UseDirectInput("UseDirectInput", true, "input");
+Option<bool, false> JoystickPolling("JoystickPolling", false, "input");
 #endif
 Option<bool> UsePhysicalVmuMemory("UsePhysicalVmuMemory", true);
 
