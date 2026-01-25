@@ -36,6 +36,8 @@ struct Watchpoint {
     WatchType type;
 };
 
+#ifdef GDB_SERVER
+
 // Initialize watchpoint system
 void init();
 
@@ -61,5 +63,18 @@ u32 getLastHitAddr();
 
 // Check if watchpoints are active (for fast path optimization)
 bool hasActiveWatchpoints();
+
+#else
+
+static inline void init() {}
+static inline void reset() {}
+static inline bool add(WatchType type, u32 addr, u32 len) { return false; }
+static inline bool remove(WatchType type, u32 addr, u32 len) { return false; }
+static inline bool checkRead(u32 addr, u32 len) { return false; }
+static inline bool checkWrite(u32 addr, u32 len) { return false; }
+static inline u32 getLastHitAddr() { return 0; }
+static inline bool hasActiveWatchpoints() { return false; }
+
+#endif
 
 } // namespace watchpoint
