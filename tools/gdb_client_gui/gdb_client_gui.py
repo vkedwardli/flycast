@@ -610,6 +610,11 @@ class SafeExprEvaluator:
             for name, value in cls.CONSTANTS.items():
                 expr = re.sub(rf'\b{name}\b', str(value), expr)
 
+            # If expression looks like a hex number without 0x prefix, add it
+            # Matches: 0c123456, 8c010000, etc. (starts with hex digit, all hex chars)
+            if re.match(r'^[0-9a-fA-F]+$', expr.strip()):
+                expr = '0x' + expr.strip()
+
             tree = ast.parse(expr, mode='eval')
             return cls._eval_node(tree.body)
         except Exception as e:
