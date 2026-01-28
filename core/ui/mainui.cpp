@@ -112,35 +112,16 @@ void mainui_loop(bool forceStart)
 	std::chrono::time_point<std::chrono::steady_clock> start;
 	int64_t benchmarkReportCounter = 0;
 	const int64_t benchmarkReportInterval = 600;  // Report every ~10 seconds at 60fps
-
-	auto fixedFrequencyWait = [&start, &benchmarkReportCounter]() {
+	auto getElapsed = [&start]() {
+		return std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now() - start).count();
+	};
+	auto fixedFrequencyWait = [&start, &getElapsed, &benchmarkReportCounter]() {
 		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
 			return;
 
 		const auto period = get_period();
-		const int64_t minSleepMargin = 2000; // 2ms margin for sleep_and_busy_wait
-		const int64_t pollInterval = 1000;   // 1ms between polls
 		int64_t overSlept = 0;
-
-		auto getElapsed = [&start]() {
-			return std::chrono::duration_cast<std::chrono::microseconds>(
-				std::chrono::steady_clock::now() - start).count();
-		};
-
-		if (ggpo::active() && !config::ThreadedRendering) {
-			// Poll GGPO while waiting, leaving margin for precise sleep
-			// Only in single-threaded mode to avoid conflicts with emu thread
-			while (true) {
-				auto remaining = period - getElapsed();
-				if (remaining <= minSleepMargin)
-					break;
-				if (!ggpo::poll())
-					break;
-				remaining = period - getElapsed();
-				if (remaining > minSleepMargin + pollInterval)
-					sleep_us(pollInterval);
-			}
-		}
 
 		auto remaining = period - getElapsed();
 		if (remaining > 0)
