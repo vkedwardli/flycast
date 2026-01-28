@@ -190,8 +190,8 @@ bool CustomTexture::init()
 			// Add your source after the default `CustomTextureSource`(data/textures/<game id> folder), so end-users can override your textures.
 			addSource(std::make_unique<CustomTextureSource>(game_id));
 			if (game_id == "T13306M") {
-				addSource(std::make_unique<GdxsvTexturePackSource>());
 				addSource(std::make_unique<GdxsvEmbedTextureSource>());
+				addSource(std::make_unique<GdxsvTexturePackSource>());
 			}
 		}
 	}
