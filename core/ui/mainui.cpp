@@ -108,8 +108,12 @@ void mainui_loop(bool forceStart)
 	int currentDupeFrames = config::DupeFrames;
 
 	set_timer_resolution();
+	sleep_benchmark_reset();
 	std::chrono::time_point<std::chrono::steady_clock> start;
-	auto fixedFrequencyWait = [&start]() {
+	int64_t benchmarkReportCounter = 0;
+	const int64_t benchmarkReportInterval = 600;  // Report every ~10 seconds at 60fps
+
+	auto fixedFrequencyWait = [&start, &benchmarkReportCounter]() {
 		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
 			return;
 
@@ -145,6 +149,13 @@ void mainui_loop(bool forceStart)
 		start = std::chrono::steady_clock::now();
 		if (1000 <= overSlept)
 			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
+
+		// Periodic benchmark report
+		if (++benchmarkReportCounter >= benchmarkReportInterval) {
+			sleep_benchmark_report();
+			sleep_benchmark_reset();
+			benchmarkReportCounter = 0;
+		}
 	};
 
 	while (mainui_enabled)
@@ -182,6 +193,8 @@ void mainui_loop(bool forceStart)
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
 
+	sleep_benchmark_report();
+	sleep_benchmark_reset();
 	reset_timer_resolution();
 	mainui_term();
 }
