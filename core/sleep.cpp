@@ -16,31 +16,36 @@
 
 #include "log/Log.h"
 
-// Enable sleep benchmark (set to 1 to enable)
-#define SLEEP_BENCHMARK 1
-
 #if _WIN32
 static NTSTATUS(__stdcall* NtDelayExecution)(BOOL Alertable, PLARGE_INTEGER DelayInterval) = (NTSTATUS(__stdcall*)(BOOL, PLARGE_INTEGER)) GetProcAddress(GetModuleHandle("ntdll.dll"), "NtDelayExecution");
 static NTSTATUS(__stdcall* ZwSetTimerResolution)(IN ULONG RequestedResolution, IN BOOLEAN Set, OUT PULONG ActualResolution) = (NTSTATUS(__stdcall*)(ULONG, BOOLEAN, PULONG)) GetProcAddress(GetModuleHandle("ntdll.dll"), "ZwSetTimerResolution");
 #endif
 
-// Benchmark statistics
-static SleepBenchmarkStats g_benchmarkStats = {};
+#ifdef SLEEP_BENCHMARK
+// Benchmark statistics (internal)
+static constexpr int64_t kSleepBenchmarkReportInterval = 600;  // Report every ~10 seconds at 60fps
+static struct {
+	int64_t frameCount = 0;
+	int64_t totalRequested = 0;
+	int64_t totalSlept = 0;
+	int64_t totalBusyWait = 0;
+	int64_t totalOvershoot = 0;
+	int64_t maxOvershoot = 0;
+	int64_t oversleepCount = 0;
+	int64_t frameDropCount = 0;
+	int64_t reportCounter = 0;
+} g_sleepBenchmark;
+#endif
 
-void sleep_benchmark_reset()
+void sleep_benchmark_periodic_report()
 {
-	g_benchmarkStats = {};
-}
+#ifdef SLEEP_BENCHMARK
+	if (++g_sleepBenchmark.reportCounter < kSleepBenchmarkReportInterval)
+		return;
 
-const SleepBenchmarkStats& sleep_benchmark_get_stats()
-{
-	return g_benchmarkStats;
-}
+	g_sleepBenchmark.reportCounter = 0;
+	const auto& s = g_sleepBenchmark;
 
-void sleep_benchmark_report()
-{
-#if SLEEP_BENCHMARK
-	const auto& s = g_benchmarkStats;
 	if (s.frameCount == 0) {
 		NOTICE_LOG(COMMON, "SleepBenchmark: No data collected");
 		return;
@@ -62,6 +67,16 @@ void sleep_benchmark_report()
 	NOTICE_LOG(COMMON, "Oversleep (>1ms): %lld times (%.2f%%)", s.oversleepCount, (double)s.oversleepCount / s.frameCount * 100.0);
 	NOTICE_LOG(COMMON, "Frame drops: %lld (%.2f%%)", s.frameDropCount, (double)s.frameDropCount / s.frameCount * 100.0);
 	NOTICE_LOG(COMMON, "==============================");
+
+	// Reset stats after report
+	g_sleepBenchmark.frameCount = 0;
+	g_sleepBenchmark.totalRequested = 0;
+	g_sleepBenchmark.totalSlept = 0;
+	g_sleepBenchmark.totalBusyWait = 0;
+	g_sleepBenchmark.totalOvershoot = 0;
+	g_sleepBenchmark.maxOvershoot = 0;
+	g_sleepBenchmark.oversleepCount = 0;
+	g_sleepBenchmark.frameDropCount = 0;
 #endif
 }
 
@@ -151,13 +166,13 @@ int64_t sleep_and_busy_wait(int64_t us)
 {
 	const auto t1 = std::chrono::steady_clock::now();
 
-#if SLEEP_BENCHMARK
-	g_benchmarkStats.frameCount++;
-	g_benchmarkStats.totalRequested += std::max<int64_t>(0, us);
+#ifdef SLEEP_BENCHMARK
+	g_sleepBenchmark.frameCount++;
+	g_sleepBenchmark.totalRequested += std::max<int64_t>(0, us);
 
 	// Check for frame drop (no time to wait)
 	if (us <= 0) {
-		g_benchmarkStats.frameDropCount++;
+		g_sleepBenchmark.frameDropCount++;
 		return -us;  // Return how much we're behind
 	}
 #endif
@@ -178,14 +193,14 @@ int64_t sleep_and_busy_wait(int64_t us)
 	}
 #endif
 
-#if SLEEP_BENCHMARK
+#ifdef SLEEP_BENCHMARK
 	const auto afterSleep = std::chrono::steady_clock::now();
 	const auto sleptTime = std::chrono::duration_cast<std::chrono::microseconds>(afterSleep - t1).count();
-	g_benchmarkStats.totalSlept += sleptTime;
+	g_sleepBenchmark.totalSlept += sleptTime;
 
 	// Check for oversleep (slept more than requested + 1ms tolerance)
 	if (sleepRequested > 0 && sleptTime > sleepRequested + 1000) {
-		g_benchmarkStats.oversleepCount++;
+		g_sleepBenchmark.oversleepCount++;
 	}
 #endif
 
@@ -201,13 +216,13 @@ int64_t sleep_and_busy_wait(int64_t us)
 		}
 	}
 
-#if SLEEP_BENCHMARK
+#ifdef SLEEP_BENCHMARK
 	const auto t3 = std::chrono::steady_clock::now();
 	const auto totalTime = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t1).count();
 	const auto busyWaitTime = totalTime - sleptTime;
-	g_benchmarkStats.totalBusyWait += busyWaitTime;
-	g_benchmarkStats.totalOvershoot += overshoot;
-	g_benchmarkStats.maxOvershoot = std::max(g_benchmarkStats.maxOvershoot, overshoot);
+	g_sleepBenchmark.totalBusyWait += busyWaitTime;
+	g_sleepBenchmark.totalOvershoot += overshoot;
+	g_sleepBenchmark.maxOvershoot = std::max(g_sleepBenchmark.maxOvershoot, overshoot);
 #endif
 
 	return overshoot;

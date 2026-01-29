@@ -157,6 +157,45 @@ def run_rbk_test_random(idx: int) -> subprocess.Popen:
     )
 
 
+EMU_BENCHMARK_FRAMES = int(os.getenv("EMU_BENCHMARK_FRAMES", 1800))  # Default: 30 seconds at 60fps
+EMU_BENCHMARK_REPLAY_ID = os.getenv("EMU_BENCHMARK_REPLAY_ID", "1769530875357")  # Default replay ID
+
+
+def download_replay(replay_id: str, dest_dir: str) -> str:
+    """Download replay file from gdxsv storage and return local path"""
+    url = f"https://storage.googleapis.com/gdxsv/replays/{replay_id}.pb"
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, f"{replay_id}.pb")
+
+    if os.path.isfile(dest_path):
+        print(f"Replay already exists: {dest_path}")
+        return dest_path
+
+    print(f"Downloading replay: {url}")
+    urllib.request.urlretrieve(url, dest_path)
+    print(f"Downloaded to: {dest_path}")
+    return dest_path
+
+
+def run_emu_benchmark(idx: int) -> subprocess.Popen:
+    """Run emulation benchmark: replay with frame skip to measure CPU emulation speed"""
+    replays_dir = f"work/flycast{idx+1}/data/replays"
+    replay_path = download_replay(EMU_BENCHMARK_REPLAY_ID, replays_dir)
+
+    new_env = os.environ.copy()
+    new_env["FLYCAST_EMU_BENCHMARK_FRAMES"] = str(EMU_BENCHMARK_FRAMES)
+    cmd = " ".join([
+        FLYCAST_NAME, ROM,
+        conf_gdxsv(idx),
+        conf_volume(idx),
+        conf_window_layout(idx),
+        conf_log(idx),
+        f"--config gdxsv:replay={replay_path}"
+    ])
+    print(cmd)
+    return subprocess.Popen(cmd, shell=True, env=new_env)
+
+
 def truncate(path: str):
     with open(path, "w") as f:
         f.truncate(0)
@@ -179,6 +218,7 @@ def exec_func(func_name: str):
         run_replay,
         run_rbk_test,
         run_rbk_test_random,
+        run_emu_benchmark,
     ]}[func_name]
 
     popens: List[subprocess.Popen] = []

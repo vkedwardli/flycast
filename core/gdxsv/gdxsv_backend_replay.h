@@ -144,4 +144,14 @@ class GdxsvBackendReplay {
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
 	bool save_converted_log_ = false;
+
+	// Emulation benchmark mode
+	static constexpr int kEmuBenchmarkWarmupDuration = 600;  // 10 seconds at 60fps
+	struct {
+		int target_frames = 0;       // Number of frames to benchmark (0 = disabled)
+		int warmup_frames = 0;       // Frames elapsed since in_game() became true
+		bool started = false;        // True after warmup complete and benchmark skip started
+		bool Enabled() const { return target_frames > 0; }
+		bool InWarmup() const { return Enabled() && !started; }
+	} emu_benchmark_;
 };
