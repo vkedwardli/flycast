@@ -212,7 +212,8 @@ struct settings_t
 	struct
 	{
 		int disk;
-		bool skipRenderingHack;
+		u32 skipRenderingAddr;      // Active skip address (0 = disabled)
+		u32 skipRenderingBaseAddr;  // Pre-computed based on disk (set once at init)
 	} gdxsv;
 
 	bool disableRenderer;

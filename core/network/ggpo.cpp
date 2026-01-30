@@ -301,7 +301,7 @@ static bool advance_frame(int)
 	getCurrentFrame(&frame);
 
 	settings.aica.muteAudio = true;
-	settings.gdxsv.skipRenderingHack = true;
+	settings.gdxsv.skipRenderingAddr = settings.gdxsv.skipRenderingBaseAddr;
 	rend_enable_renderer(false);
 	inRollback = true;
 
@@ -310,12 +310,12 @@ static bool advance_frame(int)
 		emu.run();
 	}
 
-	settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && frame + 1 < seekToFrame;
+	settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && frame + 1 < seekToFrame) ? settings.gdxsv.skipRenderingBaseAddr : 0;
 	emu.run();
 	ggpo_advance_frame(ggpoSession);
 
 	settings.aica.muteAudio = false;
-	settings.gdxsv.skipRenderingHack = false;
+	settings.gdxsv.skipRenderingAddr = 0;
 	rend_enable_renderer(true);
 	inRollback = false;
 	_endOfFrame = false;

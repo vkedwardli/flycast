@@ -221,14 +221,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel()) {
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
 			settings.aica.muteAudio = true;
-			settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_;
+			settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_) ? settings.gdxsv.skipRenderingBaseAddr : 0;
 			rend_enable_renderer(false);
 			seeking_ = true;
 			emu.run();
 			seeking_ = false;
 			end_of_frame_ = false;
 			settings.aica.muteAudio = false;
-			settings.gdxsv.skipRenderingHack = false;
+			settings.gdxsv.skipRenderingAddr = 0;
 			rend_enable_renderer(true);
 			regular_save_state();
 			if (need_cancel()) break;
@@ -292,14 +292,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			
 			while (key_msg_count_ < target_key_msg_count) {
 				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
+				settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
 				seeking_ = false;
 				end_of_frame_ = false;
 				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingHack = false;
+				settings.gdxsv.skipRenderingAddr = 0;
 				rend_enable_renderer(true);
 				regular_save_state();
 				skipped_frame++;
@@ -329,14 +329,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int prev_key_msg_count = key_msg_count_;
 			for (skipped_frame = 0; skipped_frame < skip_frames; skipped_frame++) {
 				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames;
+				settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames) ? settings.gdxsv.skipRenderingBaseAddr : 0;
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
 				seeking_ = false;
 				end_of_frame_ = false;
 				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingHack = false;
+				settings.gdxsv.skipRenderingAddr = 0;
 				rend_enable_renderer(true);
 				regular_save_state();
 				if (need_cancel()) break;
@@ -371,14 +371,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			int skipped_frame = 0;
 			while (!(in_briefing() || in_game() || need_cancel())) {
 				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
+				settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
 				seeking_ = false;
 				end_of_frame_ = false;
 				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingHack = false;
+				settings.gdxsv.skipRenderingAddr = 0;
 				rend_enable_renderer(true);
 				regular_save_state();
 				skipped_frame++;
@@ -531,7 +531,7 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 
 void GdxsvBackendReplay::Stop() {
 	ctrl_commands_.clear();
-	settings.gdxsv.skipRenderingHack = false;
+	settings.gdxsv.skipRenderingAddr = 0;
 	settings.aica.muteAudio = false;
 	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();
