@@ -87,6 +87,7 @@ void Gdxsv::Reset() {
 	netmode_ = NetMode::Offline;
 	http::init();
 	settings.gdxsv.disk = 0;
+	settings.gdxsv.skipRenderingBaseAddr = 0;
 
 	// Automatically add ContentPath if it is empty.
 	if (config::ContentPath.get().empty()) {
@@ -103,6 +104,7 @@ void Gdxsv::Reset() {
 	if (disk_num == "1") disk_ = 1;
 	if (disk_num == "2") disk_ = 2;
 	settings.gdxsv.disk = disk_;
+	settings.gdxsv.skipRenderingBaseAddr = (disk_ == 1) ? 0x0c064cce : (disk_ == 2) ? 0x0c0520e2 : 0;
 
 	RestoreOnlinePatch();
 

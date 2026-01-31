@@ -1,10 +1,12 @@
 #include "gdxsv_backend_replay.h"
 
+#include <cstdlib>
 #include <sstream>
 
 #include "SDL_events.h"
 #include "cfg/option.h"
 #include "emulator.h"
+#include "ui/mainui.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
 #include "gdxsv_replay_util.h"
@@ -36,6 +38,17 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_step_frame_ = false;
 	ctrl_pause_ = false;
 	save_converted_log_ = false;
+	emu_benchmark_ = {};
+
+	// Check for emulation benchmark mode
+	const char* benchmarkEnv = std::getenv("FLYCAST_EMU_BENCHMARK_FRAMES");
+	if (benchmarkEnv) {
+		emu_benchmark_.target_frames = std::atoi(benchmarkEnv);
+		if (emu_benchmark_.Enabled()) {
+			NOTICE_LOG(COMMON, "Emulation benchmark mode: will skip %d frames after %d warmup frames",
+					   emu_benchmark_.target_frames, kEmuBenchmarkWarmupDuration);
+		}
+	}
 
 	gdxsv_save_state.Reset();
 	gdxsv.key_display_.Clear();
@@ -61,7 +74,8 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (state_ == State::McsWaitJoin) {
-		if (ctrl_commands_.empty()) {
+		// Skip in benchmark mode (handled by OnNextFrame)
+		if (ctrl_commands_.empty() && !emu_benchmark_.Enabled()) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 		}
 	}
@@ -73,14 +87,15 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 			// re-battle end
 			Stop();
 		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
-			// not game scene
-			if (ctrl_commands_.empty()) {
+			// not game scene - skip in benchmark mode (handled by OnNextFrame)
+			if (ctrl_commands_.empty() && !emu_benchmark_.Enabled()) {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 			}
 		}
 	}
 
-	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_) {
+	// Skip controller input handling in benchmark mode
+	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_ && !emu_benchmark_.Enabled()) {
 		constexpr u32 BTN_TRIGGER_LEFT = DC_BTN_BITMAPPED_LAST << 1;
 		constexpr u32 BTN_TRIGGER_RIGHT = DC_BTN_BITMAPPED_LAST << 2;
 		auto input = mapleInputState[0];
@@ -172,6 +187,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
 
 	auto regular_save_state = [&]() {
+		// Skip save state in benchmark mode for performance
+		if (emu_benchmark_.Enabled()) return;
 		if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty()) {
 			gdxsv_save_state.SaveState(key_msg_count_);
 		}
@@ -180,17 +197,38 @@ void GdxsvBackendReplay::OnNextFrame() {
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
 	regular_save_state();
 
+	// Emulation benchmark: skip to game start, wait for warmup, then skip specified frames
+	if (emu_benchmark_.InWarmup()) {
+		// Force normal speed in benchmark mode
+		ctrl_play_speed_ = 0;
+		ctrl_pause_ = false;
+
+		if (in_game()) {
+			emu_benchmark_.warmup_frames++;
+			if (emu_benchmark_.warmup_frames >= kEmuBenchmarkWarmupDuration) {
+				// Warmup complete, now skip the benchmark frames
+				emu_benchmark_.started = true;
+				NOTICE_LOG(COMMON, "Emulation benchmark: warmup complete (%d frames), skipping %d frames",
+						   emu_benchmark_.warmup_frames, emu_benchmark_.target_frames);
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, emu_benchmark_.target_frames);
+			}
+		} else if (ctrl_commands_.empty()) {
+			// Not in game yet, keep skipping until game starts
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, 60);
+		}
+	}
+
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel()) {
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
 			settings.aica.muteAudio = true;
-			settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_;
+			settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_) ? settings.gdxsv.skipRenderingBaseAddr : 0;
 			rend_enable_renderer(false);
 			seeking_ = true;
 			emu.run();
 			seeking_ = false;
 			end_of_frame_ = false;
 			settings.aica.muteAudio = false;
-			settings.gdxsv.skipRenderingHack = false;
+			settings.gdxsv.skipRenderingAddr = 0;
 			rend_enable_renderer(true);
 			regular_save_state();
 			if (need_cancel()) break;
@@ -254,14 +292,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			
 			while (key_msg_count_ < target_key_msg_count) {
 				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
+				settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
 				seeking_ = false;
 				end_of_frame_ = false;
 				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingHack = false;
+				settings.gdxsv.skipRenderingAddr = 0;
 				rend_enable_renderer(true);
 				regular_save_state();
 				skipped_frame++;
@@ -291,14 +329,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int prev_key_msg_count = key_msg_count_;
 			for (skipped_frame = 0; skipped_frame < skip_frames; skipped_frame++) {
 				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames;
+				settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames) ? settings.gdxsv.skipRenderingBaseAddr : 0;
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
 				seeking_ = false;
 				end_of_frame_ = false;
 				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingHack = false;
+				settings.gdxsv.skipRenderingAddr = 0;
 				rend_enable_renderer(true);
 				regular_save_state();
 				if (need_cancel()) break;
@@ -311,6 +349,16 @@ void GdxsvBackendReplay::OnNextFrame() {
 				char buf[256];
 				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
 				os_notify(buf, duration);
+
+				// Emulation benchmark: exit after skip complete
+				if (emu_benchmark_.started && skipped_frame >= emu_benchmark_.target_frames) {
+					NOTICE_LOG(COMMON, "=== Emulation Benchmark Complete ===");
+					NOTICE_LOG(COMMON, "Frames: %d", skipped_frame);
+					NOTICE_LOG(COMMON, "Time: %ld ms", ms);
+					NOTICE_LOG(COMMON, "Speed: %.2f ms/frame (%.1f fps equivalent)", (float)ms / skipped_frame, 1000.0f / ((float)ms / skipped_frame));
+					NOTICE_LOG(COMMON, "====================================");
+					mainui_stop();
+				}
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -323,14 +371,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 			int skipped_frame = 0;
 			while (!(in_briefing() || in_game() || need_cancel())) {
 				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingHack = config::GdxSkipRenderingHack;
+				settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
 				rend_enable_renderer(false);
 				seeking_ = true;
 				emu.run();
 				seeking_ = false;
 				end_of_frame_ = false;
 				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingHack = false;
+				settings.gdxsv.skipRenderingAddr = 0;
 				rend_enable_renderer(true);
 				regular_save_state();
 				skipped_frame++;
@@ -348,7 +396,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_play_speed_ = org_speed;
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
-			
+
 			if (target_round_ > 1) {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, target_round_);
 			} else if (target_frame_ != 0) {
@@ -483,7 +531,7 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 
 void GdxsvBackendReplay::Stop() {
 	ctrl_commands_.clear();
-	settings.gdxsv.skipRenderingHack = false;
+	settings.gdxsv.skipRenderingAddr = 0;
 	settings.aica.muteAudio = false;
 	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();

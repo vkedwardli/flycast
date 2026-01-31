@@ -1065,10 +1065,10 @@ _end:
 	// Hack: slow idle loop
 	if (config::GdxSlowIdleLoopHack) {
 		if (settings.gdxsv.disk == 1 && blk->addr == 0x0c2317fa) {
-			blk->guest_cycles = SH4_TIMESLICE;
+			blk->guest_cycles = 1448;
 		}
 		if (settings.gdxsv.disk == 2 && blk->addr == 0x0c2ccdba) {
-			blk->guest_cycles = SH4_TIMESLICE;
+			blk->guest_cycles = 1448;
 		}
 	}
 

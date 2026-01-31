@@ -77,6 +77,7 @@ option(ENABLE_CTEST "Enables unit tests" OFF)
 option(ENABLE_OPROFILE "Enable OProfile" OFF)
 option(TEST_AUTOMATION "Enable test automation" OFF)
 option(ENABLE_LOG "Enable full logging" OFF)
+option(ENABLE_SLEEP_BENCHMARK "Enable sleep timing benchmark logging" OFF)
 option(ASAN "Enable address sanitizer" OFF)
 option(USE_GLES "Use GLES[3] API" OFF)
 option(USE_GLES2 "Use GLES2 API" OFF)
@@ -312,6 +313,7 @@ endif()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 		$<$<BOOL:${APPLE}>:GL_SILENCE_DEPRECATION>
 		$<$<BOOL:${ENABLE_LOG}>:DEBUGFAST>
+		$<$<BOOL:${ENABLE_SLEEP_BENCHMARK}>:SLEEP_BENCHMARK>
 		$<$<BOOL:${IOS}>:TARGET_IPHONE>
 		$<$<BOOL:${TARGET_MAC}>:TARGET_MAC>
 		$<$<BOOL:${IOS}>:GLES>

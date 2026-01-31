@@ -56,12 +56,11 @@ static DynarecCodeEntryPtr DYNACALL bm_GetCode(u32 addr)
 // This returns an executable address
 DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 {
-	// Hack: skip something of game rendering function
-	if (settings.gdxsv.skipRenderingHack) {
-		if ((addr == 0x0c064cce && settings.gdxsv.disk == 1) || (addr == 0x0c0520e2 && settings.gdxsv.disk == 2)) {
-			Sh4cntx.pc += 4;
-			addr = Sh4cntx.pc;
-		}
+	// Hack: skip bsr render_current_frame during rollback
+	if (addr == settings.gdxsv.skipRenderingAddr) {
+		Sh4cntx.pc += 4;
+		Sh4cntx.cycle_counter -= 1000000;
+		addr = Sh4cntx.pc;
 	}
 
 	if (!mmu_enabled())

@@ -109,34 +109,17 @@ void mainui_loop(bool forceStart)
 
 	set_timer_resolution();
 	std::chrono::time_point<std::chrono::steady_clock> start;
-	auto fixedFrequencyWait = [&start]() {
+
+	auto getElapsed = [&start]() {
+		return std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now() - start).count();
+	};
+	auto fixedFrequencyWait = [&start, &getElapsed]() {
 		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
 			return;
 
 		const auto period = get_period();
-		const int64_t minSleepMargin = 2000; // 2ms margin for sleep_and_busy_wait
-		const int64_t pollInterval = 1000;   // 1ms between polls
 		int64_t overSlept = 0;
-
-		auto getElapsed = [&start]() {
-			return std::chrono::duration_cast<std::chrono::microseconds>(
-				std::chrono::steady_clock::now() - start).count();
-		};
-
-		if (ggpo::active() && !config::ThreadedRendering) {
-			// Poll GGPO while waiting, leaving margin for precise sleep
-			// Only in single-threaded mode to avoid conflicts with emu thread
-			while (true) {
-				auto remaining = period - getElapsed();
-				if (remaining <= minSleepMargin)
-					break;
-				if (!ggpo::poll())
-					break;
-				remaining = period - getElapsed();
-				if (remaining > minSleepMargin + pollInterval)
-					sleep_us(pollInterval);
-			}
-		}
 
 		auto remaining = period - getElapsed();
 		if (remaining > 0)
@@ -145,6 +128,8 @@ void mainui_loop(bool forceStart)
 		start = std::chrono::steady_clock::now();
 		if (1000 <= overSlept)
 			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
+
+		sleep_benchmark_periodic_report();
 	};
 
 	while (mainui_enabled)
