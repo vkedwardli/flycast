@@ -125,39 +125,39 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 
 		// Function to test a single region
 		auto test_region = [&get_path](const std::tuple<std::string, std::string, std::string> &region_host) -> std::pair<std::string, int> {
+			TcpClient client;
+			if (!client.Connect(std::get<1>(region_host).c_str(), 80)) {
+				ERROR_LOG(COMMON, "connect failed : %s", std::get<0>(region_host).c_str());
+				return {"", -1};
+			}
+
 			int min_rtt = -1;
 			for (int i = 0; i < 3; i++) {
-				TcpClient client;
 				std::stringstream ss;
 				ss << "HEAD " << get_path << " HTTP/1.1"
 				   << "\r\n";
 				ss << "Host: " << std::get<1>(region_host) << "\r\n";
 				ss << "User-Agent: flycast for gdxsv"
 				   << "\r\n";
+				ss << "Connection: keep-alive"
+				   << "\r\n";
 				ss << "Accept: */*"
 				   << "\r\n";
 				ss << "\r\n";  // end of header
 
-				if (!client.Connect(std::get<1>(region_host).c_str(), 80)) {
-					ERROR_LOG(COMMON, "connect failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
-					continue;
-				}
-
 				auto request_header = ss.str();
 				auto t1 = std::chrono::high_resolution_clock::now();
-				int n = client.Send(request_header.c_str(), request_header.size());
+				int n = client.Send(request_header.c_str(), (int)request_header.size());
 				if (n < request_header.size()) {
 					ERROR_LOG(COMMON, "send failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
-					client.Close();
-					continue;
+					break;
 				}
 
 				char buf[1024] = {0};
 				n = client.Recv(buf, 1024);
 				if (n <= 0) {
 					ERROR_LOG(COMMON, "recv failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
-					client.Close();
-					continue;
+					break;
 				}
 
 				auto t2 = std::chrono::high_resolution_clock::now();
@@ -165,11 +165,8 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 				const std::string response_header(buf, n);
 				if (response_header.find("200 OK") == std::string::npos && response_header.find("302 Found") == std::string::npos) {
 					ERROR_LOG(COMMON, "error response : %s (attempt %d)", response_header.c_str(), i + 1);
-					client.Close();
-					continue;
+					break;
 				}
-
-				client.Close();
 
 				NOTICE_LOG(COMMON, "%s : attempt %d: %d[ms]", std::get<2>(region_host).c_str(), i + 1, rtt);
 
@@ -177,6 +174,8 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 					min_rtt = rtt;
 				}
 			}
+
+			client.Close();
 
 			if (min_rtt == -1) {
 				ERROR_LOG(COMMON, "Ping test failed for all attempts : %s", std::get<0>(region_host).c_str());
