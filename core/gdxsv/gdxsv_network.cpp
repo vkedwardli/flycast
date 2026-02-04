@@ -125,56 +125,70 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 
 		// Function to test a single region
 		auto test_region = [&get_path](const std::tuple<std::string, std::string, std::string> &region_host) -> std::pair<std::string, int> {
-			TcpClient client;
-			std::stringstream ss;
-			ss << "HEAD " << get_path << " HTTP/1.1"
-			   << "\r\n";
-			ss << "Host: " << std::get<1>(region_host)<< "\r\n";
-			ss << "User-Agent: flycast for gdxsv"
-			   << "\r\n";
-			ss << "Accept: */*"
-			   << "\r\n";
-			ss << "\r\n";  // end of header
+			int min_rtt = -1;
+			for (int i = 0; i < 3; i++) {
+				TcpClient client;
+				std::stringstream ss;
+				ss << "HEAD " << get_path << " HTTP/1.1"
+				   << "\r\n";
+				ss << "Host: " << std::get<1>(region_host) << "\r\n";
+				ss << "User-Agent: flycast for gdxsv"
+				   << "\r\n";
+				ss << "Accept: */*"
+				   << "\r\n";
+				ss << "\r\n";  // end of header
 
-			if (!client.Connect(std::get<1>(region_host).c_str(), 80)) {
-				ERROR_LOG(COMMON, "connect failed : %s", std::get<0>(region_host).c_str());
-				return {"", -1};
-			}
+				if (!client.Connect(std::get<1>(region_host).c_str(), 80)) {
+					ERROR_LOG(COMMON, "connect failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
+					continue;
+				}
 
-			auto request_header = ss.str();
-			auto t1 = std::chrono::high_resolution_clock::now();
-			int n = client.Send(request_header.c_str(), request_header.size());
-			if (n < request_header.size()) {
-				ERROR_LOG(COMMON, "send failed : %s", std::get<0>(region_host).c_str());
+				auto request_header = ss.str();
+				auto t1 = std::chrono::high_resolution_clock::now();
+				int n = client.Send(request_header.c_str(), request_header.size());
+				if (n < request_header.size()) {
+					ERROR_LOG(COMMON, "send failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
+					client.Close();
+					continue;
+				}
+
+				char buf[1024] = {0};
+				n = client.Recv(buf, 1024);
+				if (n <= 0) {
+					ERROR_LOG(COMMON, "recv failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
+					client.Close();
+					continue;
+				}
+
+				auto t2 = std::chrono::high_resolution_clock::now();
+				int rtt = (int)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+				const std::string response_header(buf, n);
+				if (response_header.find("200 OK") == std::string::npos && response_header.find("302 Found") == std::string::npos) {
+					ERROR_LOG(COMMON, "error response : %s (attempt %d)", response_header.c_str(), i + 1);
+					client.Close();
+					continue;
+				}
+
 				client.Close();
-				return {"", -1};
+
+				NOTICE_LOG(COMMON, "%s : attempt %d: %d[ms]", std::get<2>(region_host).c_str(), i + 1, rtt);
+
+				if (min_rtt == -1 || rtt < min_rtt) {
+					min_rtt = rtt;
+				}
 			}
 
-			char buf[1024] = {0};
-			n = client.Recv(buf, 1024);
-			if (n <= 0) {
-				ERROR_LOG(COMMON, "recv failed : %s", std::get<0>(region_host).c_str());
-				client.Close();
+			if (min_rtt == -1) {
+				ERROR_LOG(COMMON, "Ping test failed for all attempts : %s", std::get<0>(region_host).c_str());
 				return {"", -1};
 			}
-
-			auto t2 = std::chrono::high_resolution_clock::now();
-			int rtt = (int)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
-			const std::string response_header(buf, n);
-			if (response_header.find("200 OK") == std::string::npos && response_header.find("302 Found") == std::string::npos) {
-				ERROR_LOG(COMMON, "error response : %s", response_header.c_str());
-				client.Close();
-				return {"", -1};
-			}
-
-			client.Close();
 
 			char latency_str[256];
-			snprintf(latency_str, 256, "%s : %d[ms]", std::get<2>(region_host).c_str(), rtt);
+			snprintf(latency_str, 256, "%s : %d[ms]", std::get<2>(region_host).c_str(), min_rtt);
 			NOTICE_LOG(COMMON, "%s", latency_str);
 			gdxsv.SetPingResult(std::string(latency_str));
 
-			return {std::get<0>(region_host), rtt};
+			return {std::get<0>(region_host), min_rtt};
 		};
 
 		// Execute ping tests with max 6 parallel workers
