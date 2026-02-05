@@ -20,6 +20,31 @@
 
 using namespace std::chrono;
 
+namespace {
+// maple input to mcs pad input (same as gdxsv_backend_rollback.cpp)
+u16 convertInput(MapleInputState input) {
+	u16 r = 0;
+	if (~input.kcode & DC_BTN_A) r |= McsKeyCode::A;
+	if (~input.kcode & DC_BTN_B) r |= McsKeyCode::B;
+	if (~input.kcode & DC_BTN_C) r |= McsKeyCode::C;
+	if (~input.kcode & DC_BTN_X) r |= McsKeyCode::X;
+	if (~input.kcode & DC_BTN_Y) r |= McsKeyCode::Y;
+	if (~input.kcode & DC_BTN_Z) r |= McsKeyCode::Z;
+	if (~input.kcode & DC_DPAD_UP) r |= McsKeyCode::UP;
+	if (~input.kcode & DC_DPAD_DOWN) r |= McsKeyCode::DOWN;
+	if (~input.kcode & DC_DPAD_RIGHT) r |= McsKeyCode::RIGHT;
+	if (~input.kcode & DC_DPAD_LEFT) r |= McsKeyCode::LEFT;
+	if (~input.kcode & DC_BTN_START) r |= McsKeyCode::START;
+	if (~input.kcode & (DC_BTN_BITMAPPED_LAST << 1)) r |= McsKeyCode::LT;
+	if (~input.kcode & (DC_BTN_BITMAPPED_LAST << 2)) r |= McsKeyCode::RT;
+	if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) r |= McsKeyCode::LEFT;
+	if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) r |= McsKeyCode::RIGHT;
+	if ((input.fullAxes[1] >> 8) + 128 <= 128 - 0x20) r |= McsKeyCode::UP;
+	if ((input.fullAxes[1] >> 8) + 128 >= 128 + 0x20) r |= McsKeyCode::DOWN;
+	return r;
+}
+}  // namespace
+
 void GdxsvBackendReplay::Reset() {
 	state_ = State::None;
 	ctrl_commands_.clear();
@@ -38,6 +63,8 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_step_frame_ = false;
 	ctrl_pause_ = false;
 	save_converted_log_ = false;
+	takeover_ = false;
+	takeover_saved_frame_ = -1;
 	emu_benchmark_ = {};
 
 	// Check for emulation benchmark mode
@@ -94,8 +121,8 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 	}
 
-	// Skip controller input handling in benchmark mode
-	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_ && !emu_benchmark_.Enabled()) {
+	// Skip controller input handling in benchmark and takeover modes
+	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_ && !emu_benchmark_.Enabled() && !takeover_) {
 		constexpr u32 BTN_TRIGGER_LEFT = DC_BTN_BITMAPPED_LAST << 1;
 		constexpr u32 BTN_TRIGGER_RIGHT = DC_BTN_BITMAPPED_LAST << 2;
 		auto input = mapleInputState[0];
@@ -218,7 +245,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 	}
 
-	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel()) {
+	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel() && !takeover_) {
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
 			settings.aica.muteAudio = true;
 			settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_) ? settings.gdxsv.skipRenderingBaseAddr : 0;
@@ -466,6 +493,40 @@ void GdxsvBackendReplay::OnNextFrame() {
 				EventManager::event(Event::GGPOGameEnd);
 			}
 
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::TakeOver) {
+			if (!recv_buf_.empty()) break;  // wait until game consumes recv_buf_
+			gdxsv_save_state.SaveState(key_msg_count_);
+			takeover_saved_frame_ = key_msg_count_;
+			takeover_ = true;
+			ctrl_pause_ = false;
+			ctrl_play_speed_ = 0;
+			NOTICE_LOG(COMMON, "TakeOver at key_msg_count_:%d", key_msg_count_);
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::RetryTakeover) {
+			if (!recv_buf_.empty()) break;  // wait until game consumes recv_buf_
+			gdxsv_save_state.LoadState(takeover_saved_frame_);
+			key_msg_count_ = takeover_saved_frame_;
+			recv_buf_.clear();
+			ctrl_pause_ = false;
+			gdxsv.key_display_.Clear();
+			NOTICE_LOG(COMMON, "RetryTakeover at key_msg_count_:%d", key_msg_count_);
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::ReturnToReplay) {
+			if (!recv_buf_.empty()) break;  // wait until game consumes recv_buf_
+			gdxsv_save_state.LoadState(takeover_saved_frame_);
+			key_msg_count_ = takeover_saved_frame_;
+			recv_buf_.clear();
+			takeover_ = false;
+			takeover_saved_frame_ = -1;
+			gdxsv.key_display_.Clear();
+			NOTICE_LOG(COMMON, "ReturnToReplay at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
 	}
@@ -1007,7 +1068,12 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			const u64 inputs = log_file_.inputs(key_msg_count_);
 
 			for (int i = 0; i < log_file_.users_size(); ++i) {
-				const u16 input = u16(inputs >> (i * 16));
+				u16 input;
+				if (takeover_ && i == pov_) {
+					input = convertInput(mapleInputState[0]);
+				} else {
+					input = u16(inputs >> (i * 16));
+				}
 				auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
 				key_msg.body[2] = input >> 8 & 0xff;
 				key_msg.body[3] = input & 0xff;
@@ -1020,7 +1086,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 				Stop();
 			}
 
-			if (ctrl_play_speed_ < 0) {
+			if (!takeover_ && ctrl_play_speed_ < 0) {
 				recv_delay_ = -ctrl_play_speed_;
 			}
 		}
@@ -1094,6 +1160,11 @@ void GdxsvBackendReplay::RestorePatch() {
 }
 
 void GdxsvBackendReplay::RenderPauseMenu() {
+	auto in_game = [disk = gdxsv.Disk()]() -> bool {
+		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 7
+						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
+	};
+
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
@@ -1103,38 +1174,70 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 	ImGui::Begin("##gdxsv-replay-pause", NULL,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
 
-	ImGui::Columns(2, "buttons", false);
-	if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(150, 50))) {
-		pause_menu_opend_ = false;
-		Stop();
-	}
-	ImGui::NextColumn();
-	if (ImGui::Button(ICON_FA_PLAY "  Resume", ScaledVec2(150, 50))) {
-		pause_menu_opend_ = false;
-	}
-	ImGui::EndColumns();
+	if (takeover_) {
+		// Takeover mode menu
+		ImGui::Columns(2, "buttons", false);
+		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(150, 50))) {
+			pause_menu_opend_ = false;
+			takeover_ = false;
+			Stop();
+		}
+		ImGui::NextColumn();
+		if (ImGui::Button(ICON_FA_PLAY "  Resume", ScaledVec2(150, 50))) {
+			pause_menu_opend_ = false;
+		}
+		ImGui::EndColumns();
 
-	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
-	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
+		if (ImGui::Button(ICON_FA_ROTATE_LEFT "  Retry Takeover", ScaledVec2(310, 40))) {
+			pause_menu_opend_ = false;
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+		}
+		if (ImGui::Button(ICON_FA_BACKWARD "  Return to Replay", ScaledVec2(310, 40))) {
+			pause_menu_opend_ = false;
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
+		}
+	} else {
+		// Normal replay mode menu
+		ImGui::Columns(2, "buttons", false);
+		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(150, 50))) {
+			pause_menu_opend_ = false;
+			Stop();
+		}
+		ImGui::NextColumn();
+		if (ImGui::Button(ICON_FA_PLAY "  Resume", ScaledVec2(150, 50))) {
+			pause_menu_opend_ = false;
+		}
+		ImGui::EndColumns();
 
-	ImGui::Columns(1, "usage", true);
-	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));
-	ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 1.0f);
-	ImGui::BeginDisabled();
-	ImGui::ButtonEx("Replay Control Commands", ImVec2(-1, 0));
-	ImGui::EndDisabled();
-	ImGui::PopStyleVar();
-	ImGui::PopStyleVar();
-	ImGui::Text("Menu: Toggle this menu");
-	ImGui::Text("B: Pause / Resume");
-	ImGui::Text("A: Step Frame (available during Pause)");
-	ImGui::Text("Up: Speed Up");
-	ImGui::Text("Down: Speed Down");
-	ImGui::Text("Right: Speed 2x (hold)");
-	ImGui::Text("Left: Seek Backward");
-	if (ChangeRoundAvailable()) {
-		ImGui::Text("RT: Next Round");
-		ImGui::Text("LT: Previous Round");
+		if (in_game()) {
+			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(310, 40))) {
+				pause_menu_opend_ = false;
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+			}
+		}
+
+		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
+		OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
+
+		ImGui::Columns(1, "usage", true);
+		ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));
+		ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 1.0f);
+		ImGui::BeginDisabled();
+		ImGui::ButtonEx("Replay Control Commands", ImVec2(-1, 0));
+		ImGui::EndDisabled();
+		ImGui::PopStyleVar();
+		ImGui::PopStyleVar();
+		ImGui::Text("Menu: Toggle this menu");
+		ImGui::Text("B: Pause / Resume");
+		ImGui::Text("A: Step Frame (available during Pause)");
+		ImGui::Text("Up: Speed Up");
+		ImGui::Text("Down: Speed Down");
+		ImGui::Text("Right: Speed 2x (hold)");
+		ImGui::Text("Left: Seek Backward");
+		if (ChangeRoundAvailable()) {
+			ImGui::Text("RT: Next Round");
+			ImGui::Text("LT: Previous Round");
+		}
 	}
 
 	// ImGui::Checkbox("Save converted replay on end", &save_converted_log_);

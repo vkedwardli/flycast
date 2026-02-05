@@ -67,6 +67,9 @@ class GdxsvBackendReplay {
 			NextSpeed,
 			SetRound,
 			NextRound,
+			TakeOver,
+			RetryTakeover,
+			ReturnToReplay,
 		};
 
 		ReplayCtrlCommand() = default;
@@ -144,6 +147,10 @@ class GdxsvBackendReplay {
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
 	bool save_converted_log_ = false;
+
+	// Takeover mode
+	bool takeover_ = false;
+	int takeover_saved_frame_ = -1;
 
 	// Emulation benchmark mode
 	static constexpr int kEmuBenchmarkWarmupDuration = 600;  // 10 seconds at 60fps
