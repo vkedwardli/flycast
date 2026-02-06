@@ -59,6 +59,7 @@
 
 #include <windows.h>
 #include <windowsx.h>
+#include <cwctype>
 
 // Gdxsv
 #include <fstream>
@@ -433,53 +434,71 @@ std::string os_GetMachineID()
 }
 
 std::string os_GetConnectionMedium(){
-    std::string result = "Unknown";
-    DWORD dwIfIndex;
-    if (NO_ERROR != GetBestInterface (inet_addr ("8.8.8.8"), &dwIfIndex))
-        return result;
+	std::string result = "Unknown";
+	DWORD dwIfIndex = 0;
 
-    PMIB_IF_TABLE2 table = NULL;
-    if (NOERROR != GetIfTable2Ex(MibIfTableRaw, &table) )
-        return result;
+	sockaddr_in6 addr6{};
+	addr6.sin6_family = AF_INET6;
+	// Google DNS IPv6: 2001:4860:4860::8888
+	const unsigned char google_dns_ipv6[] = { 0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0x88 };
+	memcpy(&addr6.sin6_addr, google_dns_ipv6, 16);
+	if (NO_ERROR != GetBestInterfaceEx((sockaddr*)&addr6, &dwIfIndex)) {
+		// Fallback to IPv4
+		if (NO_ERROR != GetBestInterface(inet_addr("8.8.8.8"), &dwIfIndex))
+			return result;
+	}
 
-    MIB_IF_ROW2 row;
-    ZeroMemory(&row, sizeof(MIB_IF_ROW2));
+	MIB_IF_ROW2 row{};
+	row.InterfaceIndex = dwIfIndex;
 
-    row.InterfaceIndex = dwIfIndex;
+	if (NOERROR == GetIfEntry2(&row)) {
+		auto has_vpn_keyword = [](const wchar_t* s) {
+			if (!s) return false;
+			std::wstring u(s);
+			for (auto& c : u) c = (wchar_t)std::towupper(c);
+			return	u.find(L"VPN")			!= std::wstring::npos ||
+					u.find(L"WIREGUARD")	!= std::wstring::npos ||
+					u.find(L"TAP")			!= std::wstring::npos ||
+					u.find(L"TUN")			!= std::wstring::npos;
+		};
 
-    if (NOERROR == GetIfEntry2(&row)) {
-        switch(row.PhysicalMediumType) {
-            case NdisPhysicalMediumWirelessLan:
-            case NdisPhysicalMediumWirelessWan:
-            case NdisPhysicalMediumNative802_11:
-            case NdisPhysicalMediumBluetooth:
-            case NdisPhysicalMediumWiMax:
-            case NdisPhysicalMediumUWB:
-            case NdisPhysicalMediumIrda:
-                result = "Wireless";
-                break;
-            case NdisPhysicalMediumCableModem:
-            case NdisPhysicalMediumPhoneLine:
-            case NdisPhysicalMediumPowerLine:
-            case NdisPhysicalMediumDSL:
-            case NdisPhysicalMediumFibreChannel:
-            case NdisPhysicalMedium1394:
-            case NdisPhysicalMediumInfiniband:
-            case NdisPhysicalMedium802_3:
-            case NdisPhysicalMedium802_5:
-            case NdisPhysicalMediumWiredWAN:
-            case NdisPhysicalMediumWiredCoWan:
-                result = "Wired";
-                break;
+		if (row.Type == IF_TYPE_TUNNEL || row.Type == IF_TYPE_PPP || row.Type == IF_TYPE_PROP_VIRTUAL || has_vpn_keyword(row.Description) || has_vpn_keyword(row.Alias) )
+		{
+			result = "VPN";
+		}
+		else
+		{
+			switch(row.PhysicalMediumType) {
+				case NdisPhysicalMediumWirelessLan:
+				case NdisPhysicalMediumWirelessWan:
+				case NdisPhysicalMediumNative802_11:
+				case NdisPhysicalMediumBluetooth:
+				case NdisPhysicalMediumWiMax:
+				case NdisPhysicalMediumUWB:
+				case NdisPhysicalMediumIrda:
+					result = "Wireless";
+					break;
+				case NdisPhysicalMediumCableModem:
+				case NdisPhysicalMediumPhoneLine:
+				case NdisPhysicalMediumPowerLine:
+				case NdisPhysicalMediumDSL:
+				case NdisPhysicalMediumFibreChannel:
+				case NdisPhysicalMedium1394:
+				case NdisPhysicalMediumInfiniband:
+				case NdisPhysicalMedium802_3:
+				case NdisPhysicalMedium802_5:
+				case NdisPhysicalMediumWiredWAN:
+				case NdisPhysicalMediumWiredCoWan:
+					result = "Wired";
+					break;
+				default:
+    			// leave as "Unknown"
+    			break;
+			}
+		}
+	}
 
-          default:
-                result = "Unspecified";
-        }
-
-    }
-    FreeMibTable(table);
-
-    return result;
+	return result;
 }
 
 void os_RunInstance(int argc, const char *argv[])
