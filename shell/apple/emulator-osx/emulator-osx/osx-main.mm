@@ -219,58 +219,57 @@ std::string os_GetMachineID(){
     return "";
 }
 
-NSString* runCommand(NSString* commandToRun) {
-    NSTask *task = [[NSTask alloc] init];
-    [task setLaunchPath:@"/bin/sh"];
-
-    NSArray *arguments = [NSArray arrayWithObjects:
-                          @"-c" ,
-                          [NSString stringWithFormat:@"%@", commandToRun],
-                          nil];
-    [task setArguments:arguments];
-
-    NSPipe *pipe = [NSPipe pipe];
-    [task setStandardOutput:pipe];
-
-    NSFileHandle *file = [pipe fileHandleForReading];
-
-    [task launch];
-
-    NSData *data = [file readDataToEndOfFile];
-
-    NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    return output;
-}
-
 std::string os_GetConnectionMedium() {
-    NSString* bestInterface = runCommand(@"route -n get 8.8.8.8 | grep interface | awk '{split($0,a,\": \"); printf \"%s\", a[2]}'");
+	std::string result = "Unknown";
+	@autoreleasepool {
+		SCDynamicStoreRef store = NULL;
+		CFPropertyListRef globalList = NULL;
+		CFStringRef setupKey = NULL;
+		CFPropertyListRef setupDict = NULL;
+		NSString* bestInterface = nil;
+		NSString* serviceID = nil;
+		NSString* hardware = nil;
 
-	if ( bestInterface == nil || [bestInterface isEqual:[NSNull null]] || ([bestInterface respondsToSelector:@selector(length)] && [bestInterface length] == 0)) {
-		return "Unknown";
+		store = SCDynamicStoreCreate(NULL, CFSTR("flycast"), NULL, NULL);
+		if (!store) goto done;
+
+		globalList = SCDynamicStoreCopyValue(store, CFSTR("State:/Network/Global/IPv6"));
+		if (!globalList)
+			globalList = SCDynamicStoreCopyValue(store, CFSTR("State:/Network/Global/IPv4"));
+		if (!globalList) goto done;
+
+		bestInterface = [(NSDictionary *)globalList objectForKey:@"PrimaryInterface"];
+		if ([bestInterface length] == 0) goto done;
+		
+		if ([bestInterface hasPrefix:@"utun"] || [bestInterface hasPrefix:@"ppp"] || [bestInterface hasPrefix:@"tun"] || [bestInterface hasPrefix:@"vpn"]) {
+			result = "VPN";
+			goto done;
+		}
+
+		serviceID = [(NSDictionary *)globalList objectForKey:@"PrimaryService"];
+		if (!serviceID) goto done;
+
+		setupKey = SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainSetup, (CFStringRef)serviceID, kSCEntNetInterface);
+		if (!setupKey) goto done;
+
+		setupDict = SCDynamicStoreCopyValue(store, setupKey);
+		if (!setupDict) goto done;
+
+		hardware = [(NSDictionary *)setupDict objectForKey:(NSString *)kSCPropNetInterfaceHardware];
+		if ([hardware isEqualToString:@"AirPort"] || [hardware isEqualToString:@"Bluetooth"] || [hardware isEqualToString:@"IrDA"]) {
+			result = "Wireless";
+		} else if ([hardware isEqualToString:@"Ethernet"]) {
+			result = "Wired";
+		}
+
+	done:
+		[(id)setupDict release];
+		[(id)setupKey release];
+		[(id)globalList release];
+		[(id)store release];
 	}
-	
-	if ([bestInterface hasPrefix:@"utun"] || [bestInterface hasPrefix:@"ppp"] || [bestInterface hasPrefix:@"tun"] || [bestInterface hasPrefix:@"vpn"]) {
-		return "VPN";
-	}
-	
-    CFArrayRef ref = SCNetworkInterfaceCopyAll();
-    NSArray* networkInterfaces = (__bridge NSArray *)(ref);
-    NSString* interfaceType = @"";
-    for(int i = 0; i < networkInterfaces.count; i++) {
-        SCNetworkInterfaceRef interface = (__bridge SCNetworkInterfaceRef)(networkInterfaces[i]);
-        NSString* bsdName = (NSString*) SCNetworkInterfaceGetBSDName(interface);
 
-        if([bestInterface isEqualToString:bsdName]){
-            interfaceType = ((NSString *)SCNetworkInterfaceGetInterfaceType(interface)) ;
-            break;
-        }
-    }
-
-    if ([interfaceType isEqualToString:@"IEEE80211"] || [interfaceType isEqualToString:@"Bluetooth"] || [interfaceType isEqualToString:@"IrDA"]) {
-        return "Wireless";
-    } else {
-        return "Wired";
-    }
+	return result;
 }
 
 void os_RunInstance(int argc, const char *argv[])
