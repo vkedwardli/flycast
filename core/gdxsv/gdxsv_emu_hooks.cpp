@@ -241,29 +241,27 @@ static void gdxsv_update_popup() {
 	}
 
 	if (ImGui::BeginPopupModal("New version", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
 		ImGui::TextWrapped("  %s is available for download!  ", gdxsv_update.GetLatestVersionTag().c_str());
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x -
-							 -55.f * settings.display.uiScale);
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
 		if (GdxsvUpdate::IsSupportSelfUpdate()) {
-			if (ImGui::Button("Update", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+			if (ImGui::Button("Update", ScaledVec2(100.f, 0.f))) {
 				self_update_result = gdxsv_update.StartSelfUpdate();
 				update_popup_shown = true;
 				ImGui::CloseCurrentPopup();
 			}
 		} else {
-			if (ImGui::Button("Download", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+			if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
 				os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
 				update_popup_shown = true;
 				ImGui::CloseCurrentPopup();
 			}
 		}
 		ImGui::SameLine();
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x +
-							 -55.f * settings.display.uiScale);
-		if (ImGui::Button("Cancel", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
+		if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
 			update_popup_shown = true;
 			ImGui::CloseCurrentPopup();
 		}
@@ -282,7 +280,7 @@ static void gdxsv_update_popup() {
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
 	if (ImGui::BeginPopupModal("Update", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
@@ -307,10 +305,9 @@ static void gdxsv_update_popup() {
 		} else {
 			ImGui::Text("Updating...");
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ImVec2(-1, 20.f * settings.display.uiScale));
+			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ScaledVec2(-1, 20.f));
 			ImGui::PopStyleColor();
 		}
-
 		ImGui::SetItemDefaultFocus();
 		ImGui::PopStyleVar();
 		ImGui::EndPopup();
@@ -338,7 +335,7 @@ static void gdxsv_texture_update_popup() {
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
 	if (ImGui::BeginPopupModal("Updating texture", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
@@ -353,7 +350,7 @@ static void gdxsv_texture_update_popup() {
 		} else {
 			ImGui::Text("Updating...");
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ImVec2(-1, 20.f * settings.display.uiScale));
+			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ScaledVec2(-1, 20.f));
 			ImGui::PopStyleColor();
 		}
 
@@ -375,13 +372,13 @@ static void wireless_warning_popup() {
 	}
 
 	if (ImGui::BeginPopupModal("Wireless connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
 		ImGui::TextWrapped("  Please use LAN cable for the best gameplay experience!  ");
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
 
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
-		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x);
+		if (ImGui::Button("OK", ScaledVec2(100.f, 0.f))) {
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SetItemDefaultFocus();
@@ -390,18 +387,27 @@ static void wireless_warning_popup() {
 	}
 	
 	if (show_wireless_warning && no_popup_opened && connection_medium == "VPN") {
-		ImGui::OpenPopup("VPN connection detected");
+		ImGui::OpenPopup("Possible VPN / virtual network detected");
 		show_wireless_warning = false;
 	}
 	
-	if (ImGui::BeginPopupModal("VPN connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
-		ImGui::TextWrapped("  Please DO NOT use VPN!  ");
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+	ImGui::SetNextWindowSizeConstraints(ScaledVec2(400.f, 0.f), ImVec2(FLT_MAX, FLT_MAX));
+	if (ImGui::BeginPopupModal("Possible VPN / virtual network detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+		
+		ImGui::SetCursorPosX(ImGui::GetCursorPos().x + uiScaled(6.f));
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f - 12.f));
+		ImGui::TextWrapped(
+						   "Your connection appears to use a VPN or virtual network interface.\n"
+						   "This may cause latency or instability.\n"
+						   "Please disable VPNs or use a direct network connection."
+						   );
+		ImGui::PopTextWrapPos();
+		
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
 		
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
-		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x);
+		if (ImGui::Button("OK", ScaledVec2(100.f, 0.f))) {
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SetItemDefaultFocus();
