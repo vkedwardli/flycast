@@ -244,7 +244,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
 	regular_save_state();
 
-	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel() && !takeover_) {
+	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
 			RunFrameSilently(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
 			regular_save_state();
@@ -260,6 +260,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 			if (takeover_countdown_ == 0) {
 				pause_menu_opend_ = !pause_menu_opend_;
 				if (pause_menu_opend_) {
+					if (!recv_buf_.empty()) {
+						RunFrameSilently(false);
+					}
 					verify(recv_buf_.empty());
 					gdxsv_save_state.SaveState(key_msg_count_);
 					NOTICE_LOG(COMMON, "Save Menu Opened frame %d", key_msg_count_);
@@ -678,14 +681,14 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 		return 0;
 	}
 
-	if (ctrl_pause_) {
+	if (ctrl_pause_ && !seeking_) {
 		if (!ctrl_step_frame_) {
 			return 0;
 		}
 		ctrl_step_frame_ = false;
 	}
 
-	if (pause_menu_opend_) {
+	if (pause_menu_opend_ && !seeking_) {
 		return 0;
 	}
 
