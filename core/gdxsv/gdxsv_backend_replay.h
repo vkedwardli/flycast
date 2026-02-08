@@ -46,6 +46,7 @@ class GdxsvBackendReplay {
 	void ProcessMcsMessage(const McsMessage& msg);
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
+	void RunFrameSilently(bool skip_rendering);
 	void RenderPauseMenu();
 	void RenderTakeoverCountdown();
 
@@ -153,4 +154,5 @@ class GdxsvBackendReplay {
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
 	int takeover_countdown_ = 0;
+	std::deque<u16> takeover_input_buf_;
 };

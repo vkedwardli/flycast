@@ -66,6 +66,7 @@ void GdxsvBackendReplay::Reset() {
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
+	takeover_input_buf_.clear();
 	gdxsv_save_state.Reset();
 	gdxsv.key_display_.Clear();
 }
@@ -144,8 +145,12 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
 		const u32 released = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
-		if (input.kcode != prev_kcode && !takeover_) {
-			if (~input.kcode & DC_BTN_X) {
+		if (input.kcode != prev_kcode) {
+			if (takeover_) {
+				if (~pressed & DC_BTN_START) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+				}
+			} else if (~input.kcode & DC_BTN_X) {
 				if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
 				} else if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
@@ -178,11 +183,6 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 				}
 			}
 		}
-		if (input.kcode != prev_kcode && takeover_) {
-			if (~pressed & DC_BTN_START) {
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
-			}
-		}
 		prev_kcode = input.kcode;
 	}
 
@@ -192,6 +192,19 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 void GdxsvBackendReplay::OnEndOfFrame() {
 	end_of_frame_ = true;
 	emu.getSh4Executor()->Stop();
+}
+
+void GdxsvBackendReplay::RunFrameSilently(bool skip_rendering) {
+	settings.aica.muteAudio = true;
+	settings.gdxsv.skipRenderingAddr = skip_rendering ? settings.gdxsv.skipRenderingBaseAddr : 0;
+	rend_enable_renderer(false);
+	seeking_ = true;
+	emu.run();
+	seeking_ = false;
+	end_of_frame_ = false;
+	settings.aica.muteAudio = false;
+	settings.gdxsv.skipRenderingAddr = 0;
+	rend_enable_renderer(true);
 }
 
 void GdxsvBackendReplay::OnNextFrame() {
@@ -219,16 +232,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel() && !takeover_) {
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
-			settings.aica.muteAudio = true;
-			settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_) ? settings.gdxsv.skipRenderingBaseAddr : 0;
-			rend_enable_renderer(false);
-			seeking_ = true;
-			emu.run();
-			seeking_ = false;
-			end_of_frame_ = false;
-			settings.aica.muteAudio = false;
-			settings.gdxsv.skipRenderingAddr = 0;
-			rend_enable_renderer(true);
+			RunFrameSilently(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
 			regular_save_state();
 			if (need_cancel()) break;
 		}
@@ -296,18 +300,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int target_key_msg_count = ctrl.arg1 ? ctrl.arg1 : 1;
 			int skipped_frame = 0;
 			auto t0 = high_resolution_clock::now();
-			
+
 			while (key_msg_count_ < target_key_msg_count) {
-				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
-				rend_enable_renderer(false);
-				seeking_ = true;
-				emu.run();
-				seeking_ = false;
-				end_of_frame_ = false;
-				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingAddr = 0;
-				rend_enable_renderer(true);
+				RunFrameSilently(config::GdxSkipRenderingHack);
 				regular_save_state();
 				skipped_frame++;
 				if (need_cancel()) break;
@@ -334,16 +329,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 			const int prev_key_msg_count = key_msg_count_;
 			for (skipped_frame = 0; skipped_frame < skip_frames; skipped_frame++) {
-				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames) ? settings.gdxsv.skipRenderingBaseAddr : 0;
-				rend_enable_renderer(false);
-				seeking_ = true;
-				emu.run();
-				seeking_ = false;
-				end_of_frame_ = false;
-				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingAddr = 0;
-				rend_enable_renderer(true);
+				RunFrameSilently(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
 				regular_save_state();
 				if (need_cancel()) break;
 			}
@@ -366,16 +352,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
 			while (!(in_briefing() || in_game() || need_cancel())) {
-				settings.aica.muteAudio = true;
-				settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
-				rend_enable_renderer(false);
-				seeking_ = true;
-				emu.run();
-				seeking_ = false;
-				end_of_frame_ = false;
-				settings.aica.muteAudio = false;
-				settings.gdxsv.skipRenderingAddr = 0;
-				rend_enable_renderer(true);
+				RunFrameSilently(config::GdxSkipRenderingHack);
 				regular_save_state();
 				skipped_frame++;
 				if (need_cancel()) break;
@@ -483,6 +460,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
 			recv_buf_.clear();
+			const int delay = config::GdxMinDelay.get();
+			while (static_cast<int>(takeover_input_buf_.size()) > delay) {
+				takeover_input_buf_.pop_front();
+			}
 			takeover_ = true;
 			pause_menu_opend_ = false;
 			settings.aica.muteAudio = false;
@@ -496,6 +477,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			settings.aica.muteAudio = true;
 			key_msg_count_ = takeover_saved_frame_;
 			recv_buf_.clear();
+			takeover_input_buf_.clear();
 			takeover_countdown_ = 60;
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
@@ -695,10 +677,6 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 	for (int i = 0; i < n; ++i) {
 		gdxsv_WriteMem8(addr + i, recv_buf_.front());
 		recv_buf_.pop_front();
-	}
-
-	if (0 < n) {
-	NOTICE_LOG(COMMON, "consume recv_buf %d bytes", n);
 	}
 
 	return n;
@@ -1015,7 +993,6 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::PingMsg) {
-		NOTICE_LOG(COMMON, "PingMsg");
 		for (int i = 0; i < log_file_.users_size(); ++i) {
 			if (i != pov_) {
 				auto pong_msg = McsMessage::Create(McsMessage::MsgType::PongMsg, i);
@@ -1025,7 +1002,6 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::PongMsg) {
-		NOTICE_LOG(COMMON, "PongMsg");
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::StartMsg) {
 		if (takeover_) {
@@ -1059,14 +1035,18 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
-		NOTICE_LOG(COMMON, "KeyMsg1");
 		verify(recv_buf_.empty());
 		gdxsv.maxlag_ = 0;
 
 		for (int i = 0; i < log_file_.users_size(); ++i) {
 			u16 input = 0;
 			if (takeover_ && i == pov_) {
-				input = convertInput(mapleInputState[0]);
+				const int delay = config::GdxMinDelay.get();
+				takeover_input_buf_.push_back(convertInput(mapleInputState[0]));
+				if (static_cast<int>(takeover_input_buf_.size()) > delay) {
+					input = takeover_input_buf_.front();
+					takeover_input_buf_.pop_front();
+				}
 			} else if (key_msg_count_ < log_file_.inputs_size()) {
 				const u64 inputs = log_file_.inputs(key_msg_count_);
 				input = u16(inputs >> (i * 16));
@@ -1177,6 +1157,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 
 	if (takeover_countdown_ > 0) {
 		takeover_countdown_--;
+		takeover_input_buf_.push_back(convertInput(mapleInputState[0]));
 		if (takeover_countdown_ == 0) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
 		} else {
