@@ -47,6 +47,7 @@ class GdxsvBackendReplay {
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void RunFrameSilently(bool skip_rendering);
+	void RebuildKeyDisplay() const;
 	void RenderPauseMenu();
 	void RenderTakeoverCountdown();
 

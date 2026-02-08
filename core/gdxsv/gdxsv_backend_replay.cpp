@@ -207,6 +207,20 @@ void GdxsvBackendReplay::RunFrameSilently(bool skip_rendering) {
 	rend_enable_renderer(true);
 }
 
+void GdxsvBackendReplay::RebuildKeyDisplay() const {
+	gdxsv.key_display_.Clear();
+	const int lookback = std::min(key_msg_count_, 120);
+	const int start = key_msg_count_ - lookback;
+	for (int t = start; t < key_msg_count_; t++) {
+		if (t < log_file_.inputs_size()) {
+			const u64 inputs = log_file_.inputs(t);
+			for (int i = 0; i < log_file_.users_size(); i++) {
+				gdxsv.key_display_.AppendInput(i, u16(inputs >> (i * 16)));
+			}
+		}
+	}
+}
+
 void GdxsvBackendReplay::OnNextFrame() {
 	if (!end_of_frame_) return;
 	if (seeking_) return;
@@ -384,7 +398,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				if (gdxsv_save_state.LoadStateMostRecent(target_frame)) {
 					key_msg_count_ = target_frame;
 					recv_buf_.clear();
-					gdxsv.key_display_.Clear();
+					RebuildKeyDisplay();
 					if (!in_game()) {
 						EventManager::event(Event::GGPOGameEnd);
 					}
@@ -445,6 +459,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::TakeOver) {
 			// SaveState has been performed when the menu opened
 			gdxsv_save_state.LoadStateMostRecent(key_msg_count_);
+			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			takeover_saved_frame_ = key_msg_count_;
 			takeover_countdown_ = 60;
@@ -459,6 +474,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::StartTakeover) {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
+			RebuildKeyDisplay();
 			recv_buf_.clear();
 			const int delay = config::GdxMinDelay.get();
 			while (static_cast<int>(takeover_input_buf_.size()) > delay) {
@@ -474,14 +490,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::RetryTakeover) {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
-			settings.aica.muteAudio = true;
 			key_msg_count_ = takeover_saved_frame_;
+			RebuildKeyDisplay();
+			settings.aica.muteAudio = true;
 			recv_buf_.clear();
 			takeover_input_buf_.clear();
 			takeover_countdown_ = 60;
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
-			gdxsv.key_display_.Clear();
 			NOTICE_LOG(COMMON, "RetryTakeover at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
@@ -489,12 +505,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::ReturnToReplay) {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
+			RebuildKeyDisplay();
 			recv_buf_.clear();
 			takeover_ = false;
 			takeover_saved_frame_ = -1;
 			pause_menu_opend_ = false;
 			SDL_ShowCursor(SDL_DISABLE);
-			gdxsv.key_display_.Clear();
 			NOTICE_LOG(COMMON, "ReturnToReplay at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
