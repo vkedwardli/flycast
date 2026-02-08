@@ -46,7 +46,10 @@ class GdxsvBackendReplay {
 	void ProcessMcsMessage(const McsMessage& msg);
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
+	void RunFrameSilently(bool skip_rendering);
+	void RebuildKeyDisplay() const;
 	void RenderPauseMenu();
+	void RenderTakeoverCountdown();
 
 	struct ReplayCtrlCommand {
 		enum Command {
@@ -67,6 +70,10 @@ class GdxsvBackendReplay {
 			NextSpeed,
 			SetRound,
 			NextRound,
+			TakeOver,
+			StartTakeover,
+			RetryTakeover,
+			ReturnToReplay,
 		};
 
 		ReplayCtrlCommand() = default;
@@ -145,13 +152,8 @@ class GdxsvBackendReplay {
 	bool ctrl_pause_ = false;
 	bool save_converted_log_ = false;
 
-	// Emulation benchmark mode
-	static constexpr int kEmuBenchmarkWarmupDuration = 600;  // 10 seconds at 60fps
-	struct {
-		int target_frames = 0;       // Number of frames to benchmark (0 = disabled)
-		int warmup_frames = 0;       // Frames elapsed since in_game() became true
-		bool started = false;        // True after warmup complete and benchmark skip started
-		bool Enabled() const { return target_frames > 0; }
-		bool InWarmup() const { return Enabled() && !started; }
-	} emu_benchmark_;
+	bool takeover_ = false;
+	int takeover_saved_frame_ = -1;
+	int takeover_countdown_ = 0;
+	std::deque<u16> takeover_input_buf_;
 };
