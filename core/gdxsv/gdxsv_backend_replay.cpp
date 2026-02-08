@@ -65,18 +65,7 @@ void GdxsvBackendReplay::Reset() {
 	save_converted_log_ = false;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
-	emu_benchmark_ = {};
-
-	// Check for emulation benchmark mode
-	const char* benchmarkEnv = std::getenv("FLYCAST_EMU_BENCHMARK_FRAMES");
-	if (benchmarkEnv) {
-		emu_benchmark_.target_frames = std::atoi(benchmarkEnv);
-		if (emu_benchmark_.Enabled()) {
-			NOTICE_LOG(COMMON, "Emulation benchmark mode: will skip %d frames after %d warmup frames",
-					   emu_benchmark_.target_frames, kEmuBenchmarkWarmupDuration);
-		}
-	}
-
+	takeover_countdown_ = 0;
 	gdxsv_save_state.Reset();
 	gdxsv.key_display_.Clear();
 }
@@ -101,9 +90,12 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (state_ == State::McsWaitJoin) {
-		// Skip in benchmark mode (handled by OnNextFrame)
-		if (ctrl_commands_.empty() && !emu_benchmark_.Enabled()) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+		if (ctrl_commands_.empty()) {
+			if (takeover_) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+			} else {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+			}
 		}
 	}
 
@@ -111,18 +103,26 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		const int disk = gdxsv.Disk();
 		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
 		if (gdxsv_ReadMem8(COM_R_No0) == 4 && (gdxsv_ReadMem8(COM_R_No0 + 5) == 3 || gdxsv_ReadMem8(COM_R_No0 + 5) == 4)) {
-			// re-battle end
-			Stop();
+			if (takeover_) {
+				if (ctrl_commands_.empty()) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+				}
+			} else {
+				// re-battle end
+				Stop();
+			}
 		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
-			// not game scene - skip in benchmark mode (handled by OnNextFrame)
-			if (ctrl_commands_.empty() && !emu_benchmark_.Enabled()) {
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+			if (ctrl_commands_.empty()) {
+				if (takeover_) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+				} else {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+				}
 			}
 		}
 	}
 
-	// Skip controller input handling in benchmark and takeover modes
-	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_ && !emu_benchmark_.Enabled() && !takeover_) {
+	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_) {
 		constexpr u32 BTN_TRIGGER_LEFT = DC_BTN_BITMAPPED_LAST << 1;
 		constexpr u32 BTN_TRIGGER_RIGHT = DC_BTN_BITMAPPED_LAST << 2;
 		auto input = mapleInputState[0];
@@ -144,47 +144,43 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
 		const u32 released = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
-		if (input.kcode != prev_kcode) {
+		if (input.kcode != prev_kcode && !takeover_) {
 			if (~input.kcode & DC_BTN_X) {
 				if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
-				}
-				if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
+				} else if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
 				}
 			} else {
 				if (~pressed & DC_BTN_B) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
-				}
-				if (~pressed & DC_BTN_A) {
+				} else if (~pressed & DC_BTN_A) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
-				}
-				if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
+				} else if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, 1);
-				}
-				if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
+				} else if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, -1);
-				}
-				if (~pressed & DC_DPAD_RIGHT) {
+				} else if (~pressed & DC_DPAD_RIGHT) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 1);
-				}
-				if (~released & DC_DPAD_RIGHT) {
+				} else if (~released & DC_DPAD_RIGHT) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
-				}
-				if (~pressed & DC_DPAD_LEFT) {
+				} else if (~pressed & DC_DPAD_LEFT) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
-				}
-				if (~pressed & DC_DPAD_UP) {
+				} else if (~pressed & DC_DPAD_UP) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
-				}
-				if (~pressed & DC_DPAD_DOWN) {
+				} else if (~pressed & DC_DPAD_DOWN) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 				}
+			}
+		}
+		if (input.kcode != prev_kcode && takeover_) {
+			if (~pressed & DC_BTN_START) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 			}
 		}
 		prev_kcode = input.kcode;
@@ -212,38 +208,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
 	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
-
 	auto regular_save_state = [&]() {
-		// Skip save state in benchmark mode for performance
-		if (emu_benchmark_.Enabled()) return;
-		if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty()) {
+		if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty() && !takeover_) {
 			gdxsv_save_state.SaveState(key_msg_count_);
 		}
 	};
 
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
 	regular_save_state();
-
-	// Emulation benchmark: skip to game start, wait for warmup, then skip specified frames
-	if (emu_benchmark_.InWarmup()) {
-		// Force normal speed in benchmark mode
-		ctrl_play_speed_ = 0;
-		ctrl_pause_ = false;
-
-		if (in_game()) {
-			emu_benchmark_.warmup_frames++;
-			if (emu_benchmark_.warmup_frames >= kEmuBenchmarkWarmupDuration) {
-				// Warmup complete, now skip the benchmark frames
-				emu_benchmark_.started = true;
-				NOTICE_LOG(COMMON, "Emulation benchmark: warmup complete (%d frames), skipping %d frames",
-						   emu_benchmark_.warmup_frames, emu_benchmark_.target_frames);
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, emu_benchmark_.target_frames);
-			}
-		} else if (ctrl_commands_.empty()) {
-			// Not in game yet, keep skipping until game starts
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, 60);
-		}
-	}
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !need_cancel() && !takeover_) {
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
@@ -267,8 +239,16 @@ void GdxsvBackendReplay::OnNextFrame() {
 		constexpr int duration = 1000;
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePauseMenu) {
-			pause_menu_opend_ = !pause_menu_opend_;
-			SDL_ShowCursor(pause_menu_opend_ ? SDL_ENABLE : SDL_DISABLE);
+			if (takeover_countdown_ == 0) {
+				pause_menu_opend_ = !pause_menu_opend_;
+				if (pause_menu_opend_) {
+					verify(recv_buf_.empty());
+					gdxsv_save_state.SaveState(key_msg_count_);
+					NOTICE_LOG(COMMON, "Save Menu Opened frame %d", key_msg_count_);
+				}
+				SDL_ShowCursor(pause_menu_opend_ ? SDL_ENABLE : SDL_DISABLE);
+			}
+
 			ctrl_commands_.pop_front();
 		}
 
@@ -343,7 +323,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 			
 			target_frame_ = 0;
-			
 			ctrl_commands_.pop_front();
 		}
 
@@ -376,16 +355,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 				char buf[256];
 				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
 				os_notify(buf, duration);
-
-				// Emulation benchmark: exit after skip complete
-				if (emu_benchmark_.started && skipped_frame >= emu_benchmark_.target_frames) {
-					NOTICE_LOG(COMMON, "=== Emulation Benchmark Complete ===");
-					NOTICE_LOG(COMMON, "Frames: %d", skipped_frame);
-					NOTICE_LOG(COMMON, "Time: %ld ms", ms);
-					NOTICE_LOG(COMMON, "Speed: %.2f ms/frame (%.1f fps equivalent)", (float)ms / skipped_frame, 1000.0f / ((float)ms / skipped_frame));
-					NOTICE_LOG(COMMON, "====================================");
-					mainui_stop();
-				}
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -497,21 +466,38 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::TakeOver) {
-			if (!recv_buf_.empty()) break;  // wait until game consumes recv_buf_
-			gdxsv_save_state.SaveState(key_msg_count_);
+			// SaveState has been performed when the menu opened
+			gdxsv_save_state.LoadStateMostRecent(key_msg_count_);
+			settings.aica.muteAudio = true;
 			takeover_saved_frame_ = key_msg_count_;
-			takeover_ = true;
+			takeover_countdown_ = 60;
+			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
 			ctrl_play_speed_ = 0;
-			NOTICE_LOG(COMMON, "TakeOver at key_msg_count_:%d", key_msg_count_);
+			recv_buf_.clear();
+			NOTICE_LOG(COMMON, "TakeOver countdown at key_msg_count_:%d", key_msg_count_);
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::StartTakeover) {
+			gdxsv_save_state.LoadState(takeover_saved_frame_);
+			key_msg_count_ = takeover_saved_frame_;
+			recv_buf_.clear();
+			takeover_ = true;
+			pause_menu_opend_ = false;
+			settings.aica.muteAudio = false;
+			SDL_ShowCursor(SDL_DISABLE);
+			NOTICE_LOG(COMMON, "StartTakeover at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::RetryTakeover) {
-			if (!recv_buf_.empty()) break;  // wait until game consumes recv_buf_
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
+			settings.aica.muteAudio = true;
 			key_msg_count_ = takeover_saved_frame_;
 			recv_buf_.clear();
+			takeover_countdown_ = 60;
+			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
 			gdxsv.key_display_.Clear();
 			NOTICE_LOG(COMMON, "RetryTakeover at key_msg_count_:%d", key_msg_count_);
@@ -519,12 +505,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::ReturnToReplay) {
-			if (!recv_buf_.empty()) break;  // wait until game consumes recv_buf_
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
 			recv_buf_.clear();
 			takeover_ = false;
 			takeover_saved_frame_ = -1;
+			pause_menu_opend_ = false;
+			SDL_ShowCursor(SDL_DISABLE);
 			gdxsv.key_display_.Clear();
 			NOTICE_LOG(COMMON, "ReturnToReplay at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
@@ -654,12 +641,11 @@ void GdxsvBackendReplay::Close() {
 }
 
 u32 GdxsvBackendReplay::OnSockWrite(u32 addr, u32 size) {
-	if (state_ <= State::LbsStartBattleFlow) {
+	if (state_ <= State::McsWaitJoin) {
 		u8 buf[InetBufSize];
 		for (int i = 0; i < size; ++i) {
 			buf[i] = gdxsv_ReadMem8(addr + i);
 		}
-
 		lbs_tx_reader_.Write((const char*)buf, size);
 		ProcessLbsMessage();
 	}
@@ -669,7 +655,7 @@ u32 GdxsvBackendReplay::OnSockWrite(u32 addr, u32 size) {
 }
 
 u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
-	if (state_ <= State::LbsStartBattleFlow) {
+	if (state_ <= State::McsWaitJoin) {
 		ProcessLbsMessage();
 	} else {
 		const int disk = gdxsv.Disk();
@@ -709,6 +695,10 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 	for (int i = 0; i < n; ++i) {
 		gdxsv_WriteMem8(addr + i, recv_buf_.front());
 		recv_buf_.pop_front();
+	}
+
+	if (0 < n) {
+	NOTICE_LOG(COMMON, "consume recv_buf %d bytes", n);
 	}
 
 	return n;
@@ -857,6 +847,7 @@ bool GdxsvBackendReplay::Start() {
 	key_msg_count_ = 0;
 	gdxsv_save_state.StartUsing();
 	rend_allow_rollback();
+
 	NOTICE_LOG(COMMON, "Replay Start");
 	return true;
 }
@@ -1024,6 +1015,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::PingMsg) {
+		NOTICE_LOG(COMMON, "PingMsg");
 		for (int i = 0; i < log_file_.users_size(); ++i) {
 			if (i != pov_) {
 				auto pong_msg = McsMessage::Create(McsMessage::MsgType::PongMsg, i);
@@ -1033,8 +1025,14 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			}
 		}
 	} else if (msg_type == McsMessage::MsgType::PongMsg) {
+		NOTICE_LOG(COMMON, "PongMsg");
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::StartMsg) {
+		if (takeover_) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+			return;
+		}
+
 		start_msg_count_++;
 		NOTICE_LOG(COMMON, "StartMsg key_msg_count %d", key_msg_count_);
 
@@ -1061,34 +1059,36 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
+		NOTICE_LOG(COMMON, "KeyMsg1");
 		verify(recv_buf_.empty());
 		gdxsv.maxlag_ = 0;
 
-		if (key_msg_count_ < log_file_.inputs_size()) {
-			const u64 inputs = log_file_.inputs(key_msg_count_);
-
-			for (int i = 0; i < log_file_.users_size(); ++i) {
-				u16 input;
-				if (takeover_ && i == pov_) {
-					input = convertInput(mapleInputState[0]);
-				} else {
-					input = u16(inputs >> (i * 16));
-				}
-				auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
-				key_msg.body[2] = input >> 8 & 0xff;
-				key_msg.body[3] = input & 0xff;
-				std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+		for (int i = 0; i < log_file_.users_size(); ++i) {
+			u16 input = 0;
+			if (takeover_ && i == pov_) {
+				input = convertInput(mapleInputState[0]);
+			} else if (key_msg_count_ < log_file_.inputs_size()) {
+				const u64 inputs = log_file_.inputs(key_msg_count_);
+				input = u16(inputs >> (i * 16));
+			}
+			auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
+			key_msg.body[2] = input >> 8 & 0xff;
+			key_msg.body[3] = input & 0xff;
+			std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+			if (takeover_countdown_ == 0) {
 				gdxsv.key_display_.AppendInput(i, input);
 			}
+		}
 
+		if (key_msg_count_ < log_file_.inputs_size()) {
 			++key_msg_count_;
-			if (key_msg_count_ == log_file_.inputs_size()) {
+			if (key_msg_count_ == log_file_.inputs_size() && !takeover_) {
 				Stop();
 			}
+		}
 
-			if (!takeover_ && ctrl_play_speed_ < 0) {
-				recv_delay_ = -ctrl_play_speed_;
-			}
+		if (!takeover_ && ctrl_play_speed_ < 0) {
+			recv_delay_ = -ctrl_play_speed_;
 		}
 	} else if (msg_type == McsMessage::MsgType::KeyMsg2) {
 		verify(false);
@@ -1108,6 +1108,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	} else {
 		WARN_LOG(COMMON, "unhandled mcs msg: %s", McsMessage::MsgTypeName(msg_type));
 		WARN_LOG(COMMON, "%s", msg.ToHex().c_str());
+		verify(false);
 	}
 }
 
@@ -1168,52 +1169,43 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
-	ImGui::SetNextWindowSize(ScaledVec2(330, 0));
+	ImGui::SetNextWindowSize(ScaledVec2(320, 0));
 	ImGui::SetNextWindowBgAlpha(0.9f);
 
 	ImGui::Begin("##gdxsv-replay-pause", NULL,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
 
-	if (takeover_) {
-		// Takeover mode menu
-		ImGui::Columns(2, "buttons", false);
-		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(150, 50))) {
-			pause_menu_opend_ = false;
-			takeover_ = false;
-			Stop();
+	if (takeover_countdown_ > 0) {
+		takeover_countdown_--;
+		if (takeover_countdown_ == 0) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
+		} else {
+			RenderTakeoverCountdown();
 		}
-		ImGui::NextColumn();
-		if (ImGui::Button(ICON_FA_PLAY "  Resume", ScaledVec2(150, 50))) {
-			pause_menu_opend_ = false;
-		}
-		ImGui::EndColumns();
+		ImGui::End();
+		return;
+	}
 
-		if (ImGui::Button(ICON_FA_ROTATE_LEFT "  Retry Takeover", ScaledVec2(310, 40))) {
-			pause_menu_opend_ = false;
+	if (takeover_) {
+		if (ImGui::Button(ICON_FA_ROTATE_LEFT "  Retry Takeover", ScaledVec2(300, 40))) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 		}
-		if (ImGui::Button(ICON_FA_BACKWARD "  Return to Replay", ScaledVec2(310, 40))) {
-			pause_menu_opend_ = false;
+		if (ImGui::Button(ICON_FA_BACKWARD "  Return to Replay", ScaledVec2(300, 40))) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
 		}
-	} else {
-		// Normal replay mode menu
-		ImGui::Columns(2, "buttons", false);
-		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(150, 50))) {
+		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(300, 40))) {
 			pause_menu_opend_ = false;
 			Stop();
 		}
-		ImGui::NextColumn();
-		if (ImGui::Button(ICON_FA_PLAY "  Resume", ScaledVec2(150, 50))) {
-			pause_menu_opend_ = false;
-		}
-		ImGui::EndColumns();
-
+	} else {
 		if (in_game()) {
-			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(310, 40))) {
-				pause_menu_opend_ = false;
+			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
 			}
+		}
+		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(300, 40))) {
+			pause_menu_opend_ = false;
+			Stop();
 		}
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
@@ -1240,7 +1232,42 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		}
 	}
 
-	// ImGui::Checkbox("Save converted replay on end", &save_converted_log_);
-
 	ImGui::End();
+}
+
+void GdxsvBackendReplay::RenderTakeoverCountdown() {
+	float progress = 1.0f - (float)takeover_countdown_ / 60.0f;
+	float radius = 30.0f * ImGui::GetIO().FontGlobalScale;
+
+	ImGui::Dummy(ScaledVec2(0, 10));
+	ImGui::Dummy(ScaledVec2(0, radius * 2));
+
+	ImVec2 pie_center = ImGui::GetWindowPos();
+	pie_center.x += ImGui::GetWindowSize().x * 0.5f;
+	pie_center.y += ImGui::GetCursorPosY() - radius - ImGui::GetStyle().ItemSpacing.y;
+
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+	// Background circle
+	draw_list->AddCircleFilled(pie_center, radius, IM_COL32(255, 255, 255, 40), 30);
+
+	// Pie fill
+	float start_angle = -IM_PI * 0.5f;
+	float end_angle = start_angle + progress * IM_PI * 2.0f;
+	if (progress > 0.0f) {
+		draw_list->PathLineTo(pie_center);
+		draw_list->PathArcTo(pie_center, radius, start_angle, end_angle, 30);
+		draw_list->PathLineTo(pie_center);
+		draw_list->PathFillConvex(IM_COL32(255, 255, 255, 200));
+	}
+
+	// "Get Ready!" text
+	ImGui::Dummy(ScaledVec2(0, 5));
+	{
+		auto w = ImGui::GetWindowSize().x;
+		auto tw = ImGui::CalcTextSize("Get Ready!").x;
+		ImGui::SetCursorPosX((w - tw) * 0.5f);
+		ImGui::Text("Get Ready!");
+	}
+	ImGui::Dummy(ScaledVec2(0, 10));
 }
