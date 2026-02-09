@@ -25,7 +25,8 @@ using namespace nlohmann;
 
 static void gdxsv_update_popup();
 static void gdxsv_texture_update_popup();
-static void wireless_warning_popup();
+static void wireless_warning_popup(const std::string& connection_medium);
+static void vpn_warning_toast(const std::string& connection_medium);
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
@@ -132,7 +133,10 @@ void gdxsv_emu_gui_display() {
 	if (gui_state == GuiState::Main) {
 		gdxsv_update_popup();
 		gdxsv_texture_update_popup();
-		wireless_warning_popup();
+		
+		static std::string connection_medium = os_GetConnectionMedium();
+		wireless_warning_popup(connection_medium);
+		vpn_warning_toast(connection_medium);
 	}
 
 	if (gui_state == GuiState::GdxsvReplay) {
@@ -361,14 +365,13 @@ static void gdxsv_texture_update_popup() {
 	ImGui::PopStyleVar(2);
 }
 
-static void wireless_warning_popup() {
-	static bool show_wireless_warning = true;
-	static std::string connection_medium = os_GetConnectionMedium();
+static void wireless_warning_popup(const std::string& connection_medium) {
+	static bool initialized = false;
 	const bool no_popup_opened = !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
 
-	if (show_wireless_warning && no_popup_opened && connection_medium == "Wireless") {
+	if (!initialized && no_popup_opened && connection_medium == "Wireless") {
 		ImGui::OpenPopup("Wireless connection detected");
-		show_wireless_warning = false;
+		initialized = true;
 	}
 
 	if (ImGui::BeginPopupModal("Wireless connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
@@ -385,34 +388,80 @@ static void wireless_warning_popup() {
 		ImGui::PopStyleVar();
 		ImGui::EndPopup();
 	}
+}
+
+static void vpn_warning_toast(const std::string& connection_medium) {
+	struct Toast
+	{
+		bool active = false;
+		bool shown = false;
+		float timer = 6.0f;
+	};
+	static Toast vpnToast;
 	
-	if (show_wireless_warning && no_popup_opened && connection_medium == "VPN") {
-		ImGui::OpenPopup("Possible VPN / virtual network detected");
-		show_wireless_warning = false;
+	static bool initialized = false;
+	if (!initialized) {
+		vpnToast.active = connection_medium.find("VPN") == 0;
+		initialized = true;
 	}
 	
-	ImGui::SetNextWindowSizeConstraints(ScaledVec2(400.f, 0.f), ImVec2(FLT_MAX, FLT_MAX));
-	if (ImGui::BeginPopupModal("Possible VPN / virtual network detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		
-		ImGui::SetCursorPosX(ImGui::GetCursorPos().x + uiScaled(6.f));
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f - 12.f));
-		ImGui::TextWrapped(
-						   "Your connection appears to use a VPN or virtual network interface.\n"
-						   "This may cause latency or instability.\n"
-						   "Please disable VPNs or use a direct network connection."
-						   );
-		ImGui::PopTextWrapPos();
-		
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
-		float currentwidth = ImGui::GetContentRegionAvail().x;
-		
-		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x);
-		if (ImGui::Button("OK", ScaledVec2(100.f, 0.f))) {
-			ImGui::CloseCurrentPopup();
+	static float anim = 0.f;
+	float dt = ImGui::GetIO().DeltaTime;
+
+	if (vpnToast.active && !vpnToast.shown)
+	{
+		if (vpnToast.timer > 0.f)
+		{
+			vpnToast.timer -= dt;
+			anim = ImMin(anim + dt * 3.0f, 1.0f);
 		}
-		ImGui::SetItemDefaultFocus();
+		else
+		{
+			anim = ImMax(anim - dt * 3.0f, 0.0f);
+			if (anim <= 0.f)
+				vpnToast.shown = true;
+		}
+	}
+
+	if (anim > 0.f)
+	{
+		ImGui::SetNextWindowBgAlpha(0.8f * anim);
+		float margin = uiScaled(24.0f);
+		
+		float slide = (vpnToast.timer > 0.f) ? ImLerp(-(uiScaled(460.0f) + margin), 0.0f, anim) : 0.0f;
+		ImGuiViewport* vp = ImGui::GetMainViewport();
+
+		ImVec2 pos;
+		pos.x = vp->WorkPos.x + margin + slide;
+		pos.y = vp->WorkPos.y + vp->WorkSize.y - margin;
+
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, anim);
+		ImGui::SetNextWindowPos(pos, ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+		ImGui::SetNextWindowSizeConstraints(ScaledVec2(460.f, 0.f), ImVec2(FLT_MAX, FLT_MAX));
+
+		ImGuiWindowFlags flags =
+			ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNav |
+			ImGuiWindowFlags_Tooltip;
+
+		if (ImGui::Begin("##VPNToast", nullptr, flags))
+		{
+			std::string vpn_name = "";
+			if (connection_medium.find("VPN: ") == 0)
+				vpn_name = " - " + connection_medium.substr(5);
+			
+			ImGui::Text("Possible VPN / virtual network detected %s", vpn_name.c_str());
+			ImGui::Separator();
+			ImGui::TextWrapped(
+				"Your connection appears to use a VPN or virtual network interface.\n"
+				"If matches feel unstable, try a direct connection."
+			);
+		}
+		ImGui::End();
 		ImGui::PopStyleVar();
-		ImGui::EndPopup();
 	}
 }
 
