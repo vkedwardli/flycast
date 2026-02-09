@@ -222,53 +222,86 @@ std::string os_GetMachineID(){
 std::string os_GetConnectionMedium() {
 	std::string result = "Unknown";
 	@autoreleasepool {
-		SCDynamicStoreRef store = NULL;
-		CFPropertyListRef globalList = NULL;
-		CFStringRef setupKey = NULL;
-		CFPropertyListRef setupDict = NULL;
-		NSString* bestInterface = nil;
-		NSString* serviceID = nil;
-		NSString* hardware = nil;
+		SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR("flycast"), NULL, NULL);
+		if (!store) return result;
 
-		store = SCDynamicStoreCreate(NULL, CFSTR("flycast"), NULL, NULL);
-		if (!store) goto done;
+		auto getVal = [&](CFStringRef key) -> id {
+			if (!key) return nil;
+			id val = (id)SCDynamicStoreCopyValue(store, key);
+			CFRelease(key);
+			return [val autorelease];
+		};
 
-		globalList = SCDynamicStoreCopyValue(store, CFSTR("State:/Network/Global/IPv6"));
+		NSDictionary *ipv4Global = getVal(CFSTR("State:/Network/Global/IPv4"));
+		NSDictionary *ipv6Global = getVal(CFSTR("State:/Network/Global/IPv6"));
+
+		NSDictionary *globalList = nil;
+		for (NSDictionary *global : { ipv6Global, ipv4Global }) {
+			if (!global) continue;
+			NSString* interface = [global objectForKey:@"PrimaryInterface"];
+			if ([interface hasPrefix:@"utun"] || [interface hasPrefix:@"ppp"] || [interface hasPrefix:@"tun"] || [interface hasPrefix:@"vpn"]) {
+				result = "VPN";
+				globalList = global;
+				break;
+			}
+		}
+
 		if (!globalList)
-			globalList = SCDynamicStoreCopyValue(store, CFSTR("State:/Network/Global/IPv4"));
-		if (!globalList) goto done;
-
-		bestInterface = [(NSDictionary *)globalList objectForKey:@"PrimaryInterface"];
-		if ([bestInterface length] == 0) goto done;
+			globalList = ipv6Global ?: ipv4Global;
 		
-		if ([bestInterface hasPrefix:@"utun"] || [bestInterface hasPrefix:@"ppp"] || [bestInterface hasPrefix:@"tun"] || [bestInterface hasPrefix:@"vpn"]) {
-			result = "VPN";
-			goto done;
+		NSString *bestInterface = [globalList objectForKey:@"PrimaryInterface"];
+		NSString *serviceID = [globalList objectForKey:@"PrimaryService"];
+
+		if (result == "VPN" && bestInterface) {
+			NSArray *keys = (NSArray *)SCDynamicStoreCopyKeyList(store, CFSTR("Setup:/Network/Service/[^/]+$"));
+			NSString *bestMatch = nil;
+
+			for (NSString *key in [keys autorelease]) {
+				NSString *sID = [key lastPathComponent];
+				
+				NSDictionary *idict = getVal(SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainSetup, (CFStringRef)sID, kSCEntNetInterface));
+				NSString *type = [idict objectForKey:(NSString *)kSCPropNetInterfaceType];
+				NSString *dev = [idict objectForKey:(NSString *)kSCPropNetInterfaceDeviceName];
+				
+				if (!dev) {
+					NSDictionary *sdict = getVal(SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainState, (CFStringRef)sID, CFSTR("IPv4")))
+					                   ?: getVal(SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainState, (CFStringRef)sID, CFSTR("IPv6")));
+					dev = [sdict objectForKey:@"InterfaceName"];
+				}
+
+				if ([dev isEqualToString:bestInterface]) {
+					bestMatch = sID;
+					break;
+				}
+				
+				if (!([type isEqualToString:@"VPN"] || [type isEqualToString:@"PPP"])) continue;
+
+				SCNetworkConnectionRef conn = SCNetworkConnectionCreateWithServiceID(NULL, (CFStringRef)sID, NULL, NULL);
+				if (conn) {
+					if (SCNetworkConnectionGetStatus(conn) == kSCNetworkConnectionConnected)
+						bestMatch = bestMatch ?: sID;
+					CFRelease(conn);
+				}
+				if (bestMatch) break;
+			}
+
+			NSDictionary *nd = getVal(SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainSetup, (CFStringRef)bestMatch, NULL));
+			NSString *name = [nd objectForKey:(NSString *)kSCPropUserDefinedName];
+			if ([name length] > 0)
+				result = "VPN: " + std::string([name UTF8String]);
 		}
 
-		serviceID = [(NSDictionary *)globalList objectForKey:@"PrimaryService"];
-		if (!serviceID) goto done;
-
-		setupKey = SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainSetup, (CFStringRef)serviceID, kSCEntNetInterface);
-		if (!setupKey) goto done;
-
-		setupDict = SCDynamicStoreCopyValue(store, setupKey);
-		if (!setupDict) goto done;
-
-		hardware = [(NSDictionary *)setupDict objectForKey:(NSString *)kSCPropNetInterfaceHardware];
-		if ([hardware isEqualToString:@"AirPort"] || [hardware isEqualToString:@"Bluetooth"] || [hardware isEqualToString:@"IrDA"]) {
-			result = "Wireless";
-		} else if ([hardware isEqualToString:@"Ethernet"]) {
-			result = "Wired";
+		if ((result == "Unknown" || result == "VPN") && serviceID) {
+			NSDictionary *setupDict = getVal(SCDynamicStoreKeyCreateNetworkServiceEntity(NULL, kSCDynamicStoreDomainSetup, (CFStringRef)serviceID, kSCEntNetInterface));
+			NSString *hardware = [setupDict objectForKey:(NSString *)kSCPropNetInterfaceHardware];
+			if ([hardware isEqualToString:@"AirPort"] || [hardware isEqualToString:@"Bluetooth"] || [hardware isEqualToString:@"IrDA"])
+				result = "Wireless";
+			else if ([hardware isEqualToString:@"Ethernet"])
+				result = "Wired";
 		}
 
-	done:
-		[(id)setupDict release];
-		[(id)setupKey release];
-		[(id)globalList release];
-		[(id)store release];
+		CFRelease(store);
 	}
-
 	return result;
 }
 
