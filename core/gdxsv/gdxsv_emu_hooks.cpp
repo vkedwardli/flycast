@@ -247,6 +247,7 @@ static void gdxsv_update_popup() {
 	if (ImGui::BeginPopupModal("New version", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
 		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
 		ImGui::TextWrapped("  %s is available for download!  ", gdxsv_update.GetLatestVersionTag().c_str());
+		ImGui::PopTextWrapPos();
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
 		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
@@ -377,6 +378,7 @@ static void wireless_warning_popup(const std::string& connection_medium) {
 	if (ImGui::BeginPopupModal("Wireless connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
 		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
 		ImGui::TextWrapped("  Please use LAN cable for the best gameplay experience!  ");
+		ImGui::PopTextWrapPos();
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
 

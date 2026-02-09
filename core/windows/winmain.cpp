@@ -451,7 +451,7 @@ std::string os_GetConnectionMedium(){
 		if (dwIfIndex == 0) return false;
 		MIB_IF_ROW2 row{};
 		row.InterfaceIndex = dwIfIndex;
-		if (NOERROR == GetIfEntry2(&row)) {
+		if (NO_ERROR == GetIfEntry2(&row)) {
 			auto has_vpn_keyword = [](const wchar_t* s) {
 				if (!s) return false;
 				std::wstring u(s);
@@ -463,6 +463,7 @@ std::string os_GetConnectionMedium(){
 						u.find(L"WAN MINIPORT") != std::wstring::npos ||
 						u.find(L"TUNNEL") != std::wstring::npos;
 			};
+
 			if (row.Type == IF_TYPE_TUNNEL || row.Type == IF_TYPE_PPP || row.Type == IF_TYPE_PROP_VIRTUAL || has_vpn_keyword(row.Description) || has_vpn_keyword(row.Alias)) {
 				result = "VPN";
 				nowide::stackstring name;
