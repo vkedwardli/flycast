@@ -25,7 +25,8 @@ using namespace nlohmann;
 
 static void gdxsv_update_popup();
 static void gdxsv_texture_update_popup();
-static void wireless_warning_popup();
+static void wireless_warning_popup(const std::string& connection_medium);
+static void vpn_warning_toast(const std::string& connection_medium);
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
@@ -132,7 +133,10 @@ void gdxsv_emu_gui_display() {
 	if (gui_state == GuiState::Main) {
 		gdxsv_update_popup();
 		gdxsv_texture_update_popup();
-		wireless_warning_popup();
+		
+		static std::string connection_medium = os_GetConnectionMedium();
+		wireless_warning_popup(connection_medium);
+		vpn_warning_toast(connection_medium);
 	}
 
 	if (gui_state == GuiState::GdxsvReplay) {
@@ -241,29 +245,28 @@ static void gdxsv_update_popup() {
 	}
 
 	if (ImGui::BeginPopupModal("New version", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
 		ImGui::TextWrapped("  %s is available for download!  ", gdxsv_update.GetLatestVersionTag().c_str());
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PopTextWrapPos();
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x -
-							 -55.f * settings.display.uiScale);
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
 		if (GdxsvUpdate::IsSupportSelfUpdate()) {
-			if (ImGui::Button("Update", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+			if (ImGui::Button("Update", ScaledVec2(100.f, 0.f))) {
 				self_update_result = gdxsv_update.StartSelfUpdate();
 				update_popup_shown = true;
 				ImGui::CloseCurrentPopup();
 			}
 		} else {
-			if (ImGui::Button("Download", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+			if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
 				os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
 				update_popup_shown = true;
 				ImGui::CloseCurrentPopup();
 			}
 		}
 		ImGui::SameLine();
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x +
-							 -55.f * settings.display.uiScale);
-		if (ImGui::Button("Cancel", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
+		if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
 			update_popup_shown = true;
 			ImGui::CloseCurrentPopup();
 		}
@@ -282,7 +285,7 @@ static void gdxsv_update_popup() {
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
 	if (ImGui::BeginPopupModal("Update", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
@@ -307,10 +310,9 @@ static void gdxsv_update_popup() {
 		} else {
 			ImGui::Text("Updating...");
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ImVec2(-1, 20.f * settings.display.uiScale));
+			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ScaledVec2(-1, 20.f));
 			ImGui::PopStyleColor();
 		}
-
 		ImGui::SetItemDefaultFocus();
 		ImGui::PopStyleVar();
 		ImGui::EndPopup();
@@ -338,7 +340,7 @@ static void gdxsv_texture_update_popup() {
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
 	if (ImGui::BeginPopupModal("Updating texture", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
@@ -353,7 +355,7 @@ static void gdxsv_texture_update_popup() {
 		} else {
 			ImGui::Text("Updating...");
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ImVec2(-1, 20.f * settings.display.uiScale));
+			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ScaledVec2(-1, 20.f));
 			ImGui::PopStyleColor();
 		}
 
@@ -364,49 +366,104 @@ static void gdxsv_texture_update_popup() {
 	ImGui::PopStyleVar(2);
 }
 
-static void wireless_warning_popup() {
-	static bool show_wireless_warning = true;
-	static std::string connection_medium = os_GetConnectionMedium();
+static void wireless_warning_popup(const std::string& connection_medium) {
+	static bool initialized = false;
 	const bool no_popup_opened = !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
 
-	if (show_wireless_warning && no_popup_opened && connection_medium == "Wireless") {
+	if (!initialized && no_popup_opened && connection_medium == "Wireless") {
 		ImGui::OpenPopup("Wireless connection detected");
-		show_wireless_warning = false;
+		initialized = true;
 	}
 
 	if (ImGui::BeginPopupModal("Wireless connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
+		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
 		ImGui::TextWrapped("  Please use LAN cable for the best gameplay experience!  ");
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
+		ImGui::PopTextWrapPos();
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
 
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
-		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
+		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x);
+		if (ImGui::Button("OK", ScaledVec2(100.f, 0.f))) {
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SetItemDefaultFocus();
 		ImGui::PopStyleVar();
 		ImGui::EndPopup();
 	}
+}
+
+static void vpn_warning_toast(const std::string& connection_medium) {
+	struct Toast
+	{
+		bool active = false;
+		bool shown = false;
+		float timer = 6.0f;
+	};
+	static Toast vpnToast;
 	
-	if (show_wireless_warning && no_popup_opened && connection_medium == "VPN") {
-		ImGui::OpenPopup("VPN connection detected");
-		show_wireless_warning = false;
+	static bool initialized = false;
+	if (!initialized) {
+		vpnToast.active = connection_medium.find("VPN") == 0;
+		initialized = true;
 	}
 	
-	if (ImGui::BeginPopupModal("VPN connection detected", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 400.f * settings.display.uiScale);
-		ImGui::TextWrapped("  Please DO NOT use VPN!  ");
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16 * settings.display.uiScale, 3 * settings.display.uiScale));
-		float currentwidth = ImGui::GetContentRegionAvail().x;
+	static float anim = 0.f;
+	float dt = ImGui::GetIO().DeltaTime;
+
+	if (vpnToast.active && !vpnToast.shown)
+	{
+		if (vpnToast.timer > 0.f)
+		{
+			vpnToast.timer -= dt;
+			anim = ImMin(anim + dt * 3.0f, 1.0f);
+		}
+		else
+		{
+			anim = ImMax(anim - dt * 3.0f, 0.0f);
+			if (anim <= 0.f)
+				vpnToast.shown = true;
+		}
+	}
+
+	if (anim > 0.f)
+	{
+		ImGui::SetNextWindowBgAlpha(0.8f * anim);
+		float margin = uiScaled(24.0f);
 		
-		ImGui::SetCursorPosX((currentwidth - 100.f * settings.display.uiScale) / 2.f + ImGui::GetStyle().WindowPadding.x);
-		if (ImGui::Button("OK", ImVec2(100.f * settings.display.uiScale, 0.f))) {
-			ImGui::CloseCurrentPopup();
+		float slide = (vpnToast.timer > 0.f) ? ImLerp(-(uiScaled(460.0f) + margin), 0.0f, anim) : 0.0f;
+		ImGuiViewport* vp = ImGui::GetMainViewport();
+
+		ImVec2 pos;
+		pos.x = vp->WorkPos.x + margin + slide;
+		pos.y = vp->WorkPos.y + vp->WorkSize.y - margin;
+
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, anim);
+		ImGui::SetNextWindowPos(pos, ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+		ImGui::SetNextWindowSizeConstraints(ScaledVec2(460.f, 0.f), ImVec2(FLT_MAX, FLT_MAX));
+
+		ImGuiWindowFlags flags =
+			ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNav |
+			ImGuiWindowFlags_Tooltip;
+
+		if (ImGui::Begin("##VPNToast", nullptr, flags))
+		{
+			std::string vpn_name = "";
+			if (connection_medium.find("VPN: ") == 0)
+				vpn_name = " - " + connection_medium.substr(5);
+			
+			ImGui::Text("Possible VPN / virtual network detected %s", vpn_name.c_str());
+			ImGui::Separator();
+			ImGui::TextWrapped(
+				"Your connection appears to use a VPN or virtual network interface.\n"
+				"If matches feel unstable, try a direct connection."
+			);
 		}
-		ImGui::SetItemDefaultFocus();
+		ImGui::End();
 		ImGui::PopStyleVar();
-		ImGui::EndPopup();
 	}
 }
 
