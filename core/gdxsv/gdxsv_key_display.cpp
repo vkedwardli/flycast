@@ -59,6 +59,9 @@ void GdxsvKeyDisplay::DisplayOSD() {
 
 	const float w = ImGui::GetIO().DisplaySize.x;
 	const float h = ImGui::GetIO().DisplaySize.y;
+
+	if (history_[display_player_].empty()) return;
+
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f, ImGui::GetIO().DisplaySize.y / 2.f), ImGuiCond_Always,
