@@ -50,8 +50,9 @@ AudioBackend *AudioBackend::getBackend(const std::string& slug)
 
 void WriteSample(s16 r, s16 l)
 {
-	Buffer[writePtr].r = r * config::AudioVolume.dbPower();
-	Buffer[writePtr].l = l * config::AudioVolume.dbPower();
+	float vol = config::AudioVolume.dbPower() * settings.aica.audioFade;
+	Buffer[writePtr].r = r * vol;
+	Buffer[writePtr].l = l * vol;
 
 	if (++writePtr == SAMPLE_COUNT)
 	{
