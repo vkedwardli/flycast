@@ -63,6 +63,12 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_step_frame_ = false;
 	ctrl_pause_ = false;
 	save_converted_log_ = false;
+	ctrl_bar_visibility_ = 0.0f;
+	ctrl_bar_idle_timer_ = 0.0f;
+	ctrl_bar_prev_kcode_ = ~0u;
+	audio_fade_frames_ = 0;
+	step_hold_timer_ = 0.0f;
+	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
@@ -124,69 +130,89 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_) {
-		constexpr u32 BTN_TRIGGER_LEFT = DC_BTN_BITMAPPED_LAST << 1;
-		constexpr u32 BTN_TRIGGER_RIGHT = DC_BTN_BITMAPPED_LAST << 2;
 		auto input = mapleInputState[0];
-		if (input.fullAxes[0] + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
-		if (input.fullAxes[0] + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_RIGHT;
-		if (input.fullAxes[1] + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_UP;
-		if (input.fullAxes[1] + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_DOWN;
-		if (rt[0] >= 64)
-			input.kcode |= BTN_TRIGGER_RIGHT;
-		else
-			input.kcode &= ~BTN_TRIGGER_RIGHT;
-		if (lt[0] >= 64)
-			input.kcode |= BTN_TRIGGER_LEFT;
-		else
-			input.kcode &= ~BTN_TRIGGER_LEFT;
+		// Map analog stick to d-pad (fullAxes are 16-bit, >> 8 to match convertInput thresholds)
+		if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
+		if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_RIGHT;
+		if ((input.fullAxes[1] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_UP;
+		if ((input.fullAxes[1] >> 8) + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_DOWN;
 
 		static u32 prev_kcode = 0;
 		if (prev_kcode == 0) prev_kcode = input.kcode;
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
-		const u32 released = ~((input.kcode ^ prev_kcode) & ~prev_kcode);
 
 		if (input.kcode != prev_kcode) {
 			if (takeover_) {
 				if (~pressed & DC_BTN_START) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 				}
-			} else if (~input.kcode & DC_BTN_X) {
-				if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
-				} else if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
-				}
 			} else {
-				if (~pressed & DC_BTN_B) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
+				// A: Play/Pause toggle
+				if (~pressed & DC_BTN_A) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
-				} else if (~pressed & DC_BTN_A) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
-				} else if (~pressed & (BTN_TRIGGER_RIGHT | DC_BTN_Z)) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, 1);
-				} else if (~pressed & (BTN_TRIGGER_LEFT | DC_BTN_C)) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, -1);
-				} else if (~pressed & DC_DPAD_RIGHT) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 1);
-				} else if (~released & DC_DPAD_RIGHT) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
-				} else if (~pressed & DC_DPAD_LEFT) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, 0);
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
-				} else if (~pressed & DC_DPAD_UP) {
+				}
+				// Right: Step frame (paused) / Seek forward (playing)
+				else if (~pressed & DC_DPAD_RIGHT) {
+					if (ctrl_pause_) {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+					} else {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
+					}
+				}
+				// Left: Step frame backward (paused) / Seek backward (playing)
+				else if (~pressed & DC_DPAD_LEFT) {
+					if (ctrl_pause_) {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+					} else {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
+					}
+				}
+				// Up/Down: Speed control
+				else if (~pressed & DC_DPAD_UP) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
-				} else if (~pressed & DC_DPAD_DOWN) {
+				}
+				else if (~pressed & DC_DPAD_DOWN) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 				}
 			}
 		}
 		prev_kcode = input.kcode;
+
+		// Auto-repeat for step frame when paused and Left/Right held
+		if (ctrl_pause_ && !takeover_) {
+			bool holding_lr = (~input.kcode & DC_DPAD_RIGHT) || (~input.kcode & DC_DPAD_LEFT);
+			if (holding_lr) {
+				step_hold_timer_ += ImGui::GetIO().DeltaTime;
+				if (step_hold_timer_ >= 0.5f && ctrl_commands_.empty()) {
+					if (~input.kcode & DC_DPAD_RIGHT) {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+					} else {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+					}
+				}
+			} else {
+				step_hold_timer_ = 0.0f;
+			}
+		} else {
+			step_hold_timer_ = 0.0f;
+		}
 	}
 
 	gui_delayed_keys_up();
+}
+
+bool GdxsvBackendReplay::IsInBriefing() const {
+	const int disk = gdxsv.Disk();
+	const u32 addr1 = disk == 1 ? 0x0c336254u : 0x0c3d16d4u;
+	const u32 addr2 = disk == 1 ? 0x0c336255u : 0x0c3d16d5u;
+	return gdxsv_ReadMem8(addr1) == 2 && gdxsv_ReadMem8(addr2) == 5;
+}
+
+bool GdxsvBackendReplay::IsInGame() const {
+	const int disk = gdxsv.Disk();
+	const u32 addr1 = disk == 1 ? 0x0c336254u : 0x0c3d16d4u;
+	const u32 addr2 = disk == 1 ? 0x0c336255u : 0x0c3d16d5u;
+	return gdxsv_ReadMem8(addr1) == 2 && gdxsv_ReadMem8(addr2) == 7;
 }
 
 void GdxsvBackendReplay::OnEndOfFrame() {
@@ -209,7 +235,7 @@ void GdxsvBackendReplay::RunFrameSilently(bool skip_rendering) {
 
 void GdxsvBackendReplay::RebuildKeyDisplay() const {
 	gdxsv.key_display_.Clear();
-	const int lookback = std::min(key_msg_count_, 120);
+	const int lookback = std::min(key_msg_count_, 256);
 	const int start = key_msg_count_ - lookback;
 	for (int t = start; t < key_msg_count_; t++) {
 		if (t < log_file_.inputs_size()) {
@@ -226,22 +252,22 @@ void GdxsvBackendReplay::OnNextFrame() {
 	if (seeking_) return;
 
 	constexpr int save_interval = 180;
-	auto in_briefing = [disk = gdxsv.Disk()]() -> bool {
-		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 5
-						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 5;
-	};
-	auto in_game = [disk = gdxsv.Disk()]() -> bool {
-		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 7
-						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
-	};
 	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
 	auto regular_save_state = [&]() {
-		if ((in_briefing() || in_game()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty() && !takeover_) {
+		if ((IsInGame() || IsInBriefing()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty() && !takeover_) {
 			gdxsv_save_state.SaveState(key_msg_count_);
 		}
 	};
 
-	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && in_game());
+	// Audio fade-in after save state load (e.g. StepFrameBackward)
+	// Quadratic curve: stays near 0 initially, ramps up quickly at the end
+	if (audio_fade_frames_ > 0) {
+		audio_fade_frames_--;
+		float t = 1.0f - (float)audio_fade_frames_ / 20.0f; // 0.0 -> 1.0
+		settings.aica.audioFade = t * t;
+	}
+
+	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame());
 	regular_save_state();
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
@@ -295,10 +321,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePause) {
 			if (state_ == State::McsInBattle) {
 				ctrl_pause_ = !ctrl_pause_;
-				if (ctrl_pause_)
-					os_notify("Paused", duration);
-				else
-					os_notify("Resumed", duration);
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -306,58 +328,80 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::StepFrame) {
 			if (ctrl_pause_) {
 				ctrl_step_frame_ = true;
-				os_notify(("StepFrame:" + std::to_string(key_msg_count_)).c_str(), duration);
+			}
+			ctrl_commands_.pop_front();
+		}
+
+		if (ctrl.cmd == ReplayCtrlCommand::StepFrameBackward) {
+			// When paused, the game has already pre-read the input for the next frame:
+			//   key_msg_count_ = N (frame N's input processed), displayed frame = N-1
+			// To display frame N-2, we fast-forward to key_msg_count_ = N-2,
+			// then let the game naturally re-read frame N-1's input and pause again.
+			if (ctrl_pause_ && key_msg_count_ > 1) {
+				const int goal = key_msg_count_ - 2;
+				int load_frame = goal;
+				bool loaded = gdxsv_save_state.LoadStateMostRecent(load_frame);
+				if (!loaded) {
+					int first = gdxsv_save_state.FirstSavedFrame();
+					if (first >= 0 && first <= goal) {
+						loaded = gdxsv_save_state.LoadState(first);
+						if (loaded) load_frame = first;
+					}
+				}
+				if (loaded) {
+					settings.aica.muteAudio = true;
+					key_msg_count_ = load_frame;
+					recv_buf_.clear();
+					recv_delay_ = 0;
+					int frames_run = 0;
+					while (key_msg_count_ < goal) {
+						RunFrameSilently(config::GdxSkipRenderingHack && key_msg_count_ + 1 < goal);
+						regular_save_state();
+						frames_run++;
+						if (need_cancel() || frames_run > 1000) break;
+					}
+					RebuildKeyDisplay();
+					settings.aica.muteAudio = false;
+					settings.aica.audioFade = 0.0f;
+					audio_fade_frames_ = 20;
+					NOTICE_LOG(COMMON, "StepFrameBackward: %d -> %d (loaded:%d ran:%d frames)", goal + 1, key_msg_count_, load_frame, frames_run);
+				} else {
+					NOTICE_LOG(COMMON, "StepFrameBackward: no save state for goal=%d", goal);
+				}
 			}
 			ctrl_commands_.pop_front();
 		}
 		
 		if (ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg) {
-			os_notify(">>", duration);
 			const int prev_key_msg_count = key_msg_count_;
 			const int target_key_msg_count = ctrl.arg1 ? ctrl.arg1 : 1;
-			int skipped_frame = 0;
-			auto t0 = high_resolution_clock::now();
 
 			while (key_msg_count_ < target_key_msg_count) {
 				RunFrameSilently(config::GdxSkipRenderingHack);
 				regular_save_state();
-				skipped_frame++;
 				if (need_cancel()) break;
 			}
-			
-			if (0 < skipped_frame) {
-				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
-				NOTICE_LOG(COMMON, "JumpToKeyMsg skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
-						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
-				char buf[256];
-				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
-				os_notify(buf, duration);
-			}
-			
+
 			target_frame_ = 0;
 			ctrl_commands_.pop_front();
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekForward) {
-			os_notify(">>", duration);
 			const int skip_frames = 1 <= ctrl.arg1 ? ctrl.arg1 : save_interval;
-			int skipped_frame;
-			auto t0 = high_resolution_clock::now();
-
 			const int prev_key_msg_count = key_msg_count_;
-			for (skipped_frame = 0; skipped_frame < skip_frames; skipped_frame++) {
+			auto t0 = high_resolution_clock::now();
+			int skipped_frame = 0;
+			for (; skipped_frame < skip_frames; skipped_frame++) {
 				RunFrameSilently(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
 				regular_save_state();
 				if (need_cancel()) break;
 			}
-
 			if (0 < skipped_frame) {
 				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
 				NOTICE_LOG(COMMON, "SeekForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
 						   (float)ms / skipped_frame, prev_key_msg_count, key_msg_count_, key_msg_count_ - prev_key_msg_count);
-				char buf[256];
-				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
-				os_notify(buf, duration);
+				settings.aica.audioFade = 0.0f;
+				audio_fade_frames_ = 20;
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -366,21 +410,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int org_speed = ctrl_play_speed_;
 			ctrl_play_speed_ = 0;
 
-			auto t0 = high_resolution_clock::now();
-			int skipped_frame = 0;
-			while (!(in_briefing() || in_game() || need_cancel())) {
+			while (!(IsInBriefing() || IsInGame() || need_cancel())) {
 				RunFrameSilently(config::GdxSkipRenderingHack);
 				regular_save_state();
-				skipped_frame++;
 				if (need_cancel()) break;
-			}
-
-			if (0 < skipped_frame) {
-				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
-				NOTICE_LOG(COMMON, "SeekToBriefing skipped %d[fr] in %ld[ms] (%.2f[ms/fr])", skipped_frame, ms, (float)ms / skipped_frame);
-				char buf[256];
-				snprintf(buf, sizeof(buf), "Skipped %d frames %.2f[ms/fr]", skipped_frame, (float)ms / skipped_frame);
-				os_notify(buf, duration);
 			}
 
 			ctrl_play_speed_ = org_speed;
@@ -395,17 +428,18 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekBackward) {
-			if (in_game()) {
+			if (IsInGame()) {
 				const int ahead_frame = key_msg_count_ - gdxsv_save_state.LastSavedFrame();
 				int target_frame = key_msg_count_ - (60 < ahead_frame ? 0 : save_interval);
 				if (gdxsv_save_state.LoadStateMostRecent(target_frame)) {
 					key_msg_count_ = target_frame;
 					recv_buf_.clear();
 					RebuildKeyDisplay();
-					if (!in_game()) {
+					settings.aica.audioFade = 0.0f;
+					audio_fade_frames_ = 20;
+					if (!IsInGame()) {
 						EventManager::event(Event::GGPOGameEnd);
 					}
-					os_notify("<<", duration);
 				}
 			}
 			ctrl_commands_.pop_front();
@@ -416,13 +450,6 @@ void GdxsvBackendReplay::OnNextFrame() {
 			speed = std::max<int>(-2, std::min<int>(2, speed));
 			if (speed != ctrl_play_speed_) {
 				ctrl_play_speed_ = speed;
-				std::string speed_text;
-				if (ctrl_play_speed_ == 0) speed_text = "Speed:100%";
-				if (ctrl_play_speed_ == 1) speed_text = "Speed:200%";
-				if (ctrl_play_speed_ == 2) speed_text = "Speed:300%";
-				if (ctrl_play_speed_ == -1) speed_text = "Speed:50%";
-				if (ctrl_play_speed_ == -2) speed_text = "Speed:33%";
-				os_notify(speed_text.c_str(), duration);
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -531,9 +558,12 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 }
 
 void GdxsvBackendReplay::DisplayOSD() {
+	if (seeking_) return;
 	if (pause_menu_opend_) {
 		RenderPauseMenu();
 	}
+	UpdateControlBarVisibility();
+	RenderControlBar();
 }
 
 bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
@@ -1160,11 +1190,6 @@ void GdxsvBackendReplay::RestorePatch() {
 }
 
 void GdxsvBackendReplay::RenderPauseMenu() {
-	auto in_game = [disk = gdxsv.Disk()]() -> bool {
-		return disk == 1 ? gdxsv_ReadMem8(0x0c336254) == 2 && gdxsv_ReadMem8(0x0c336255) == 7
-						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
-	};
-
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
@@ -1198,37 +1223,63 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 			Stop();
 		}
 	} else {
-		if (in_game()) {
-			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+		bool canTakeOver = IsInGame();
+		ImGui::BeginDisabled(!canTakeOver);
+		if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+		}
+		ImGui::EndDisabled();
+
+		// Round control: Round [<] 2/3 [>]
+		if (ChangeRoundAvailable()) {
+			ImGui::Separator();
+
+			const float btnW = uiScaled(30.0f);
+			const float btnH = uiScaled(28.0f);
+			const float labelColX = ImGui::GetStyle().WindowPadding.x;
+			const float btnLColX = labelColX + ImGui::CalcTextSize("Round").x + ImGui::GetStyle().ItemSpacing.x;
+			const float valueColX = btnLColX + btnW + ImGui::GetStyle().ItemSpacing.x;
+			const float valueW = ImGui::CalcTextSize("9 / 9").x;
+			const float btnRColX = valueColX + valueW + ImGui::GetStyle().ItemSpacing.x;
+
+			int roundStart, roundEnd, totalRounds;
+			GetRoundBounds(roundStart, roundEnd, totalRounds);
+
+			ImGui::AlignTextToFramePadding();
+			ImGui::Text("Round");
+			ImGui::SameLine(btnLColX);
+			bool canPrev = start_msg_count_ > 1;
+			ImGui::BeginDisabled(!canPrev);
+			if (ImGui::Button(ICON_FA_ANGLE_LEFT "##rnd", ImVec2(btnW, btnH))) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, -1);
 			}
+			ImGui::EndDisabled();
+			ImGui::SameLine(valueColX);
+			char roundBuf[32];
+			snprintf(roundBuf, sizeof(roundBuf), "%d / %d", start_msg_count_, totalRounds);
+			float roundOfs = (valueW - ImGui::CalcTextSize(roundBuf).x) * 0.5f;
+			ImGui::SetCursorPosX(valueColX + roundOfs);
+			ImGui::AlignTextToFramePadding();
+			ImGui::Text("%s", roundBuf);
+			ImGui::SameLine(btnRColX);
+			bool canNext = start_msg_count_ < totalRounds;
+			ImGui::BeginDisabled(!canNext);
+			if (ImGui::Button(ICON_FA_ANGLE_RIGHT "##rnd", ImVec2(btnW, btnH))) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, 1);
+			}
+			ImGui::EndDisabled();
 		}
-		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(300, 40))) {
-			pause_menu_opend_ = false;
-			Stop();
-		}
+
+		ImGui::Separator();
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 		OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
 
-		ImGui::Columns(1, "usage", true);
-		ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));
-		ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 1.0f);
-		ImGui::BeginDisabled();
-		ImGui::ButtonEx("Replay Control Commands", ImVec2(-1, 0));
-		ImGui::EndDisabled();
-		ImGui::PopStyleVar();
-		ImGui::PopStyleVar();
-		ImGui::Text("Menu: Toggle this menu");
-		ImGui::Text("B: Pause / Resume");
-		ImGui::Text("A: Step Frame (available during Pause)");
-		ImGui::Text("Up: Speed Up");
-		ImGui::Text("Down: Speed Down");
-		ImGui::Text("Right: Speed 2x (hold)");
-		ImGui::Text("Left: Seek Backward");
-		if (ChangeRoundAvailable()) {
-			ImGui::Text("RT: Next Round");
-			ImGui::Text("LT: Previous Round");
+		ImGui::Separator();
+
+		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(300, 40))) {
+			pause_menu_opend_ = false;
+			Stop();
 		}
 	}
 
@@ -1270,4 +1321,164 @@ void GdxsvBackendReplay::RenderTakeoverCountdown() {
 		ImGui::Text("Get Ready!");
 	}
 	ImGui::Dummy(ScaledVec2(0, 10));
+}
+
+void GdxsvBackendReplay::GetRoundBounds(int& roundStart, int& roundEnd, int& totalRounds) const {
+	if (log_file_.start_msg_indexes_size() == 0) {
+		roundStart = 0;
+		roundEnd = log_file_.inputs_size();
+		totalRounds = 0;
+		return;
+	}
+
+	totalRounds = log_file_.start_msg_indexes_size();
+	int round = start_msg_count_;
+	if (round < 1) round = 1;
+	if (round > totalRounds) round = totalRounds;
+
+	roundStart = log_file_.start_msg_indexes(round - 1);
+	if (round < totalRounds) {
+		roundEnd = log_file_.start_msg_indexes(round);
+	} else {
+		roundEnd = log_file_.inputs_size();
+	}
+}
+
+const char* GdxsvBackendReplay::SpeedText() const {
+	switch (ctrl_play_speed_) {
+		case -2: return "33%";
+		case -1: return "50%";
+		case  0: return "100%";
+		case  1: return "200%";
+		case  2: return "300%";
+		default: return "100%";
+	}
+}
+
+void GdxsvBackendReplay::UpdateControlBarVisibility() {
+	if (state_ < State::McsInBattle) return;
+	if (takeover_) return;
+
+	// Map analog stick to d-pad (same as OnMainUiLoop) so stick input triggers visibility
+	u32 cur_kcode = mapleInputState[0].kcode;
+	auto axes = mapleInputState[0].fullAxes;
+	if ((axes[0] >> 8) + 128 <= 128 - 0x20) cur_kcode &= ~DC_DPAD_LEFT;
+	if ((axes[0] >> 8) + 128 >= 128 + 0x20) cur_kcode &= ~DC_DPAD_RIGHT;
+	if ((axes[1] >> 8) + 128 <= 128 - 0x20) cur_kcode &= ~DC_DPAD_UP;
+	if ((axes[1] >> 8) + 128 >= 128 + 0x20) cur_kcode &= ~DC_DPAD_DOWN;
+	if (cur_kcode != ctrl_bar_prev_kcode_) {
+		ctrl_bar_idle_timer_ = 3.0f;
+	}
+	ctrl_bar_prev_kcode_ = cur_kcode;
+
+	float dt = ImGui::GetIO().DeltaTime;
+	ctrl_bar_idle_timer_ = std::max(0.0f, ctrl_bar_idle_timer_ - dt);
+
+	constexpr float fadeSpeed = 4.0f;
+	if (ctrl_bar_idle_timer_ > 0.0f) {
+		ctrl_bar_visibility_ = std::min(1.0f, ctrl_bar_visibility_ + dt * fadeSpeed);
+	} else {
+		ctrl_bar_visibility_ = std::max(0.0f, ctrl_bar_visibility_ - dt * fadeSpeed);
+	}
+}
+
+void GdxsvBackendReplay::RenderControlBar() {
+	if (state_ < State::McsInBattle) return;
+	if (takeover_) return;
+	if (ctrl_bar_visibility_ <= 0.001f) return;
+
+	const float alpha = ctrl_bar_visibility_;
+	const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+	if (displaySize.x <= 0 || displaySize.y <= 0) return;
+
+	// Bar dimensions
+	const float barH = uiScaled(36.0f);
+	const float barW = displaySize.x * 0.85f;
+	const float barX = (displaySize.x - barW) * 0.5f;
+	const float barY = displaySize.y - barH - uiScaled(20.0f);
+	const float rounding = uiScaled(8.0f);
+	const float pad = uiScaled(8.0f);
+
+	// Create a transparent, non-interactive overlay window
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	ImGui::SetNextWindowPos(ImVec2(barX, barY));
+	ImGui::SetNextWindowSize(ImVec2(barW, barH));
+	ImGui::SetNextWindowBgAlpha(0.0f);
+	ImGui::Begin("##gdxsv-replay-ctrlbar", nullptr,
+				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+				 ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing |
+				 ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav);
+
+	ImDrawList* dl = ImGui::GetWindowDrawList();
+
+	// Background rounded rect
+	const ImU32 bgCol = IM_COL32(0, 0, 0, (int)(180 * alpha));
+	dl->AddRectFilled(ImVec2(barX, barY), ImVec2(barX + barW, barY + barH), bgCol, rounding);
+
+	// Text color
+	const ImU32 textCol = IM_COL32(255, 255, 255, (int)(255 * alpha));
+	const ImU32 dimCol = IM_COL32(180, 180, 180, (int)(200 * alpha));
+
+	// Layout positions
+	float cx = barX + pad;
+	const float cy = barY + barH * 0.5f;
+
+	// --- Left: Play/Pause icon + speed ---
+	const char* stateIcon = ctrl_pause_ ? ICON_FA_PAUSE : ICON_FA_PLAY;
+	ImVec2 iconSize = ImGui::CalcTextSize(stateIcon);
+	dl->AddText(ImVec2(cx, cy - iconSize.y * 0.5f), textCol, stateIcon);
+	cx += iconSize.x + uiScaled(4.0f);
+
+	const char* speedTxt = SpeedText();
+	ImVec2 speedSize = ImGui::CalcTextSize(speedTxt);
+	dl->AddText(ImVec2(cx, cy - speedSize.y * 0.5f), textCol, speedTxt);
+	cx += speedSize.x + uiScaled(10.0f);
+
+	// --- Right: Round/Frame info ---
+	int roundStart, roundEnd, totalRounds;
+	GetRoundBounds(roundStart, roundEnd, totalRounds);
+
+	const int roundLen = roundEnd - roundStart;
+	const int posInRound = key_msg_count_ - roundStart;
+
+	char rbuf[128];
+	if (totalRounds > 0) {
+		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, posInRound, roundLen);
+	} else {
+		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", key_msg_count_, log_file_.inputs_size());
+	}
+
+	ImVec2 rSize = ImGui::CalcTextSize(rbuf);
+	const float rightTotalW = rSize.x + pad;
+	float rx = barX + barW - rightTotalW;
+	dl->AddText(ImVec2(rx, cy - rSize.y * 0.5f), textCol, rbuf);
+
+	// --- Center: Progress bar ---
+	const float progX0 = cx;
+	const float progX1 = rx - uiScaled(10.0f);
+	const float progH = uiScaled(6.0f);
+	const float progY0 = cy - progH * 0.5f;
+	const float progY1 = cy + progH * 0.5f;
+
+	if (progX1 > progX0 + uiScaled(20.0f)) {
+		// Track background
+		const ImU32 trackCol = IM_COL32(80, 80, 80, (int)(180 * alpha));
+		dl->AddRectFilled(ImVec2(progX0, progY0), ImVec2(progX1, progY1), trackCol, progH * 0.5f);
+
+		// Fill
+		float progress = (roundLen > 0) ? std::clamp((float)posInRound / (float)roundLen, 0.0f, 1.0f) : 0.0f;
+		float fillX = progX0 + (progX1 - progX0) * progress;
+		const ImU32 fillCol = IM_COL32(60, 130, 230, (int)(220 * alpha));
+		dl->AddRectFilled(ImVec2(progX0, progY0), ImVec2(fillX, progY1), fillCol, progH * 0.5f);
+
+		// Playhead dot
+		const float dotR = uiScaled(5.0f);
+		const ImU32 dotCol = IM_COL32(255, 255, 255, (int)(240 * alpha));
+		dl->AddCircleFilled(ImVec2(fillX, cy), dotR, dotCol);
+	}
+
+	ImGui::End();
+	ImGui::PopStyleVar(3);
 }

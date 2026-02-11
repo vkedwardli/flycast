@@ -11,7 +11,6 @@ bool GdxsvSaveState::SaveState(int frame) {
 		// Already saved
 		return true;
 	}
-
 	// TODO this is way too much memory
 	size_t allocSize = (settings.platform.isNaomi() ? 20 : 10) * 1024 * 1024;
 	auto buffer = (unsigned char*)malloc(allocSize);

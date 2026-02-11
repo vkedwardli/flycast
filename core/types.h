@@ -167,6 +167,7 @@ struct settings_t
 	struct
 	{
 		bool muteAudio;
+		float audioFade = 1.0f; // 0.0 = silent, 1.0 = full volume (for fade-in effects)
 	} aica;
 
 	struct

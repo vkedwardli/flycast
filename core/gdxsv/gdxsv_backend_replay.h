@@ -41,6 +41,8 @@ class GdxsvBackendReplay {
 
    private:
 	bool Start();
+	bool IsInBriefing() const;
+	bool IsInGame() const;
 	void PrintDisconnectionSummary() const;
 	void ProcessLbsMessage();
 	void ProcessMcsMessage(const McsMessage& msg);
@@ -50,6 +52,10 @@ class GdxsvBackendReplay {
 	void RebuildKeyDisplay() const;
 	void RenderPauseMenu();
 	void RenderTakeoverCountdown();
+	void UpdateControlBarVisibility();
+	void RenderControlBar();
+	void GetRoundBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
+	const char* SpeedText() const;
 
 	struct ReplayCtrlCommand {
 		enum Command {
@@ -63,6 +69,7 @@ class GdxsvBackendReplay {
 			TogglePauseMenu,
 			TogglePause,
 			StepFrame,
+			StepFrameBackward,
 			JumpToKeyMsg,
 			SeekForward,
 			SeekBackward,
@@ -151,6 +158,12 @@ class GdxsvBackendReplay {
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
 	bool save_converted_log_ = false;
+
+	float ctrl_bar_visibility_ = 0.0f;
+	float ctrl_bar_idle_timer_ = 0.0f;
+	u32 ctrl_bar_prev_kcode_ = ~0u;
+	int audio_fade_frames_ = 0;
+	float step_hold_timer_ = 0.0f;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
