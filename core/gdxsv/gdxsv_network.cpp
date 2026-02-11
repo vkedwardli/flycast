@@ -13,6 +13,13 @@
 #include <sys/ioctl.h>
 #endif
 
+// External C header uses 'class' as a parameter name
+extern "C" {
+#define class _class
+#include "stun.h"
+#undef class
+}
+
 static std::vector<std::string> v4_urls = {"https://api.ipify.org", "https://ipv4.seeip.org"};
 
 static std::vector<std::string> v6_urls = {"https://api64.ipify.org", "https://api.seeip.org"};
@@ -45,50 +52,193 @@ std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6) {
 	});
 }
 
-std::future<std::string> test_udp_port_connectivity(int port, bool ipv6) {
-	return std::async(std::launch::async, [port, ipv6]() -> std::string {
-		UdpClient udp;
-		if (!udp.Bind(port)) {
-			return "Bind failed";
-		}
+static bool run_udp_reachability_test(UdpClient &udp, int port) {
+	auto public_addr_future = get_public_ip_address(false);
+	public_addr_future.wait();
+	auto [ok, myip] = public_addr_future.get();
+	if (!ok) return false;
 
-		auto public_addr = get_public_ip_address(ipv6);
-		public_addr.wait();
-		auto [ok, msg] = public_addr.get();
+	std::vector<http::PostField> fields;
+	fields.emplace_back("addr", myip + ":" + std::to_string(port));
+	int rc = http::post("https://asia-northeast1-gdxsv-274515.cloudfunctions.net/udptest", fields);
+	if (!http::success(rc)) return false;
 
-		if (!ok) {
-			return msg;
+	for (int t = 0; t < 30; t++) {
+		char buf[128];
+		sockaddr_storage sender{};
+		socklen_t addrlen = sizeof(sockaddr_storage);
+		if (udp.RecvFrom(buf, sizeof(buf), &sender, &addrlen) > 0) {
+			if (std::string(buf, 5) == "Hello") return true;
 		}
+		sleep_us(100 * 1000);
+	}
+	return false;
+}
 
-		const auto myip = msg;
-		std::vector<u8> content;
-		std::string content_type;
-		std::vector<http::PostField> fields;
-		auto test_addr = myip + ":" + std::to_string(port);
-		if (ipv6) {
-			test_addr = "[" + myip + "]:" + std::to_string(port);
-		}
-		fields.emplace_back("addr", test_addr);
-		int rc = http::post("https://asia-northeast1-gdxsv-274515.cloudfunctions.net/udptest", fields);
-		if (!http::success(rc)) {
-			return "HTTP Request failed: " + std::to_string(rc);
-		}
-
-		for (int t = 0; t < 30; t++) {
-			char buf[128];
+static std::string run_nat_mapping_test(UdpClient &udp, int &mapped_port) {
+	auto get_mapped_addr = [&](const char *host, int port, addr_record_t &mapped) -> bool {
+		UdpRemote server;
+		if (!server.Open(host, port)) return false;
+		uint8_t tid[STUN_TRANSACTION_ID_SIZE];
+		for (int i = 0; i < STUN_TRANSACTION_ID_SIZE; i++) tid[i] = rand() & 0xFF;
+		uint8_t buf[512];
+		int len = stun_write_header(buf, sizeof(buf), STUN_CLASS_REQUEST, STUN_METHOD_BINDING, tid);
+		if (len <= 0) return false;
+		if (udp.SendTo((const char *)buf, len, server) <= 0) return false;
+		for (int t = 0; t < 20; t++) {
 			sockaddr_storage sender{};
 			socklen_t addrlen = sizeof(sockaddr_storage);
-			int n = udp.RecvFrom(buf, sizeof(buf), &sender, &addrlen);
-			if (0 < n) {
-				if (std::string(buf, 5) == "Hello") {
-					return "Success";
+			int n = udp.RecvFrom((char *)buf, sizeof(buf), &sender, &addrlen);
+			if (n > 0) {
+				stun_message_t msg{};
+				if (stun_read(buf, n, &msg) >= 0 && msg.msg_class == STUN_CLASS_RESP_SUCCESS) {
+					if (memcmp(msg.transaction_id, tid, STUN_TRANSACTION_ID_SIZE) == 0) {
+						mapped = msg.mapped;
+						return true;
+					}
 				}
 			}
-
 			sleep_us(100 * 1000);
 		}
+		return false;
+	};
 
-		return "Failed (Timeout)";
+	addr_record_t addr1{}, addr2{};
+	bool ok1 = get_mapped_addr("stun.l.google.com", 19302, addr1);
+	bool ok2 = get_mapped_addr("stun.cloudflare.com", 3478, addr2);
+	if (!ok1 || !ok2) return "Timeout";
+
+	int port1 = 0, port2 = 0;
+	if (addr1.addr.ss_family == AF_INET) port1 = ntohs(((sockaddr_in *)&addr1.addr)->sin_port);
+	if (addr2.addr.ss_family == AF_INET) port2 = ntohs(((sockaddr_in *)&addr2.addr)->sin_port);
+
+	mapped_port = port1;
+	return (port1 == port2) ? "Cone" : "Symmetric";
+}
+
+static std::chrono::steady_clock::time_point last_p2p_update;
+
+static void set_p2p_status(const std::string& status, bool first = false) {
+	if (first) {
+		last_p2p_update = std::chrono::steady_clock::now();
+	} else {
+		auto now = std::chrono::steady_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_p2p_update).count();
+		if (elapsed < 500) {
+			sleep_us((500 - elapsed) * 1000);
+		}
+		last_p2p_update = std::chrono::steady_clock::now();
+	}
+	gdxsv.SetP2PStatus(status);
+}
+
+static void wait_p2p_status() {
+	auto now = std::chrono::steady_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_p2p_update).count();
+	if (elapsed < 500) {
+		sleep_us((500 - elapsed) * 1000);
+	}
+}
+
+std::future<P2PFeasibility> test_p2p_feasibility(int port) {
+	return std::async(std::launch::async, [port]() -> P2PFeasibility {
+		P2PFeasibility res;
+		res.color = 0xFFFFFFFF; // White
+
+		// 1. Baseline NAT Detection (using a random port to avoid lingering mapping interference)
+		set_p2p_status("Trying UDP Hole Punching...", true);
+		std::string global_nat_type = "Unknown";
+		bool is_full_cone_capable = false;
+		{
+			UdpClient test_udp;
+			std::random_device rd;
+			std::mt19937 gen(rd());
+			std::uniform_int_distribution<> dist(49152, 65535);
+			int test_port = dist(gen);
+			if (test_udp.Bind(test_port)) {
+				int mp = 0;
+				global_nat_type = run_nat_mapping_test(test_udp, mp);
+				if (global_nat_type == "Cone") {
+					is_full_cone_capable = run_udp_reachability_test(test_udp, test_port);
+				}
+			}
+		}
+
+		set_p2p_status("Testing Open Port...");
+		UdpClient udp;
+		if (!udp.Bind(port)) {
+			res.status = "Unknown";
+			res.description = "Bind failed";
+			res.port_test_v4 = "Bind failed";
+			wait_p2p_status();
+			return res;
+		}
+
+		// 2. Virgin Reachability Check
+		bool virgin_reachability = run_udp_reachability_test(udp, port);
+		res.port_test_v4 = virgin_reachability ? "Success" : "Failed (Timeout)";
+
+		if (virgin_reachability) {
+			auto &upnp = gdxsv.UPnP();
+			upnp.Term(); // Force refresh of lanAddress by triggering re-init in CheckPortMapping
+			if (upnp.CheckPortMapping(port, false)) {
+				res.upnp_result = "Success";
+				res.status = "OK (Direct)";
+				res.description = "UPnP";
+				res.color = 0xFF00FF00; // Green
+			} else if (is_full_cone_capable) {
+				res.status = "OK (Direct)";
+				res.description = "Open NAT (Full Cone)";
+				res.color = 0xFFFFFF00; // Cyan
+			} else {
+				res.status = "OK (Direct)";
+				res.description = "Port Forwarding / DMZ";
+				res.color = 0xFF00FF00; // Green
+			}
+			wait_p2p_status();
+			return res;
+		}
+
+		// 3. Try to activate UPnP
+		if (config::EnableUPnP) {
+			set_p2p_status("Adding UPnP rule to your router...");
+			auto &upnp = gdxsv.UPnP();
+			if (upnp.Init() && upnp.AddPortMapping(port, false)) {
+				res.upnp_result = "Success";
+				if (run_udp_reachability_test(udp, port)) {
+					res.status = "OK (Direct)";
+					res.description = "UPnP";
+					res.color = 0xFF00FF00; // Green
+					wait_p2p_status();
+					return res;
+				}
+			} else {
+				res.upnp_result = upnp.getLastError();
+				set_p2p_status("UPnP: Failed to add rule");
+			}
+		}
+
+		// 4. Final Classification based on baseline NAT test
+		if (is_full_cone_capable) {
+			res.status = "OK (Direct)";
+			res.description = "Open NAT (Full Cone)";
+			res.color = 0xFFFFFF00; // Cyan
+		} else if (global_nat_type == "Cone") {
+			res.status = "OK (Hole Punching)";
+			res.description = "Moderate NAT (Restricted Cone)";
+			res.color = 0xFFFFFF00; // Cyan
+		} else if (global_nat_type == "Symmetric") {
+			res.status = "Limited (May use Relay)";
+			res.description = "Strict NAT (Symmetric)";
+			res.color = 0xFF0000FF; // Red
+		} else {
+			res.status = "Unknown";
+			res.description = "UDP Error / Blocked";
+			res.color = 0xFF888888;
+		}
+
+		wait_p2p_status();
+		return res;
 	});
 }
 

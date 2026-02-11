@@ -1920,7 +1920,11 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/deps/protobuf-3.13.0/src/google/protobuf/wrappers.pb.cc
 		core/deps/protobuf-3.13.0/src/google/protobuf/wrappers.pb.h)
 
-target_include_directories(${PROJECT_NAME} PRIVATE core/deps/gdxsv)
+target_include_directories(${PROJECT_NAME} PRIVATE
+		core/deps/gdxsv
+		core/deps/libjuice/src
+		core/deps/libjuice/include/juice
+		)
 target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdx_rpc.h
 		core/gdxsv/gdxsv.cpp

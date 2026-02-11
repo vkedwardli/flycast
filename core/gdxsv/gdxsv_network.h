@@ -8,7 +8,15 @@
 #include "network/net_platform.h"
 #include "types.h"
 
-std::future<std::string> test_udp_port_connectivity(int port, bool ipv6);
+struct P2PFeasibility {
+	std::string status;
+	std::string description;
+	std::string port_test_v4;
+	std::string upnp_result;
+	uint32_t color; // ABGR
+};
+
+std::future<P2PFeasibility> test_p2p_feasibility(int port);
 std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6);
 std::future<std::map<std::string, int>> gcp_ping_test();
 int get_random_port_number();

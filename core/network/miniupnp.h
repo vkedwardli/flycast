@@ -40,6 +40,7 @@ public:
 	bool Init();
 	void Term();
 	bool AddPortMapping(int port, bool tcp);
+	bool CheckPortMapping(int port, bool tcp);
 	bool isMapped(int port, bool tcp) { return std::find(mappedPorts.begin(), mappedPorts.end(),
 		std::make_pair(std::to_string(port), tcp)) != mappedPorts.end(); }
 	const char *localAddress() const { return lanAddress; }

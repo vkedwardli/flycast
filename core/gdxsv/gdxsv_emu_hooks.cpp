@@ -27,6 +27,7 @@ static void gdxsv_update_popup();
 static void gdxsv_texture_update_popup();
 static void wireless_warning_popup(const std::string& connection_medium);
 static void vpn_warning_toast(const std::string& connection_medium);
+static void p2p_connection_toast();
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
@@ -53,7 +54,7 @@ void gdxsv_emu_start() {
 		} else {
 			gdxsv.StartPingTest();
 			gui_setState(GuiState::GdxsvLatencyCheck);
-			gdxsv.StartUdpPortTest();
+			gdxsv.StartP2PFeasibilityTest();
 			gdxsv.FetchPublicIP();
 		}
 	}
@@ -164,6 +165,8 @@ void gdxsv_emu_gui_display() {
 			gui_state = GuiState::Closed;
 			emu.start();
 		}
+		
+		p2p_connection_toast();
 	}
 }
 
@@ -173,7 +176,10 @@ void gdxsv_emu_apply_base_settings() { gdxsv_apply_base_settings(); }
 
 const char* gdxsv_emu_settings_text_for_preparing_font() { return gdxsv_gui_settings_text_for_preparing_font(); }
 
-void gdxsv_gui_display_osd() { gdxsv.DisplayOSD(); }
+void gdxsv_gui_display_osd() {
+	gdxsv.DisplayOSD();
+	p2p_connection_toast();
+}
 
 void gdxsv_crash_append_log(FILE* f) {
 	if (gdxsv.Enabled()) {
@@ -398,6 +404,7 @@ static void vpn_warning_toast(const std::string& connection_medium) {
 		bool active = false;
 		bool shown = false;
 		float timer = 6.0f;
+		u32 last_frame_id = 0;
 	};
 	static Toast vpnToast;
 	
@@ -408,7 +415,12 @@ static void vpn_warning_toast(const std::string& connection_medium) {
 	}
 	
 	static float anim = 0.f;
-	float dt = ImGui::GetIO().DeltaTime;
+	
+	u32 current_frame_id = (u32)ImGui::GetFrameCount();
+	bool should_update = (current_frame_id != vpnToast.last_frame_id);
+	vpnToast.last_frame_id = current_frame_id;
+
+	float dt = should_update ? ImGui::GetIO().DeltaTime : 0.f;
 
 	if (vpnToast.active && !vpnToast.shown)
 	{
@@ -464,6 +476,98 @@ static void vpn_warning_toast(const std::string& connection_medium) {
 		}
 		ImGui::End();
 		ImGui::PopStyleVar();
+	}
+}
+
+static void p2p_connection_toast() {
+	struct Toast {
+		bool shown = false;
+		float timer = 6.0f;
+		P2PFeasibility result;
+		u32 last_frame_id = 0;
+		bool test_finished = false;
+	};
+	static Toast p2pToast;
+	static float anim = 0.f;
+	auto future = gdxsv.P2PFeasibilityResult();
+	
+	if (p2pToast.shown || !future.valid())
+		return;
+	
+	// Prevent double-updating logic if called from both GUI and OSD in the same frame
+	u32 current_frame_id = (u32)ImGui::GetFrameCount();
+	bool should_update = (current_frame_id != p2pToast.last_frame_id);
+	p2pToast.last_frame_id = current_frame_id;
+
+	float dt = should_update ? ImGui::GetIO().DeltaTime : 0.f;
+
+	if (!p2pToast.shown)
+	{
+		if (p2pToast.timer > 0.f)
+		{
+			// Only count down if the test is actually finished
+			if (p2pToast.test_finished) {
+				p2pToast.timer -= dt;
+			}
+			anim = ImMin(anim + dt * 3.0f, 1.0f);
+		}
+		else
+		{
+			anim = ImMax(anim - dt * 3.0f, 0.0f);
+			if (anim <= 0.f)
+				p2pToast.shown = true;
+		}
+		
+		if (future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+			if (!p2pToast.test_finished) {
+				p2pToast.result = future.get();
+				p2pToast.test_finished = true;
+				p2pToast.timer = 6.0f; // Reset timer to show the final result
+			}
+		} else {
+			p2pToast.result.description = gdxsv.P2PStatus();
+			p2pToast.result.color = 0xFFFFFFFF;
+			p2pToast.timer = 6.0f; // Keep timer full while test is running
+		}
+	}
+
+	if (anim > 0.f)
+	{
+		ImGui::SetNextWindowBgAlpha(0.8f * anim);
+		float margin = uiScaled(24.0f);
+		
+		float slide = (p2pToast.timer > 0.f) ? ImLerp(-(uiScaled(300.0f) + margin), 0.0f, anim) : 0.0f;
+		ImGuiViewport* vp = ImGui::GetMainViewport();
+
+		ImVec2 pos;
+		pos.x = vp->WorkPos.x + margin + slide;
+		pos.y = vp->WorkPos.y + vp->WorkSize.y - margin;
+		
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, anim);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ScaledVec2(10.0f, 10.0f));
+		ImGui::SetNextWindowPos(pos, ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+		ImGui::SetNextWindowSizeConstraints(ScaledVec2(300.f, 0.f), ImVec2(FLT_MAX, FLT_MAX));
+
+		ImGuiWindowFlags flags =
+			ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNav |
+			ImGuiWindowFlags_Tooltip;
+
+		if (ImGui::Begin("##P2PToast", nullptr, flags))
+		{
+			ImGui::Text("P2P Connectivity Test");
+			if (p2pToast.test_finished) {
+				ImGui::SameLine();
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(p2pToast.result.color), "%s", p2pToast.result.status.c_str());
+			}
+			ImGui::Separator();
+			ImGui::TextWrapped("%s", p2pToast.result.description.c_str());
+		}
+		ImGui::End();
+		ImGui::PopStyleVar(2);
 	}
 }
 

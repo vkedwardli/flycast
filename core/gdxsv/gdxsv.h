@@ -45,7 +45,10 @@ class Gdxsv {
 	void StartPingTest();
 	std::string PingResult() const { return pingResult; }
 	void SetPingResult(const std::string& result) { pingResult = result; }
-	void StartUdpPortTest();
+	std::string P2PStatus() const { return p2pStatus; }
+	void SetP2PStatus(const std::string& status) { p2pStatus = status; }
+	void StartP2PFeasibilityTest();
+	std::shared_future<P2PFeasibility> P2PFeasibilityResult() const { return p2p_feasibility_result_; }
 	void FetchPublicIP();
 	void NotifyWanPort() const;
 	bool StartReplayFile(const char* path, int pov);
@@ -57,7 +60,6 @@ class Gdxsv {
 	MiniUPnP& UPnP() { return upnp_; }
 
    private:
-	void AddPortMapping();
 	static std::string GenerateLoginKey();
 	std::vector<u8> GeneratePlatformInfoPacket();
 	std::vector<u8> GenerateP2PMatchReportPacket();
@@ -72,14 +74,14 @@ class Gdxsv {
 	std::atomic<int> maxrebattle_;
 	std::string user_id_;
 	std::string pingResult = "Latency check...";
+	std::string p2pStatus;
 	std::map<std::string, u32> symbols_;
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;
 
 	std::shared_future<std::map<std::string, int>> gcp_ping_test_result_;
 	std::shared_future<std::pair<bool, std::string>> public_ipv4_, public_ipv6_;
-	std::shared_future<std::string> upnp_result_;
-	std::shared_future<std::string> port_test_result_v4_;
+	std::shared_future<P2PFeasibility> p2p_feasibility_result_;
 
 	MiniUPnP upnp_;
 	GdxsvBackendTcp lbs_net_;

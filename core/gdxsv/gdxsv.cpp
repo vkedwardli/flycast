@@ -339,19 +339,20 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 		}
 	}
 
-	if (future_is_ready(port_test_result_v4_)) {
-		ss << "port_test_v4=" << port_test_result_v4_.get() << "\n";
-	}
-
-	if (future_is_ready(upnp_result_)) {
-		ss << "upnp_result=" << upnp_result_.get() << "\n";
-		ss << "upnp_local_ip=" << upnp_.localAddress() << "\n";
-		ss << "upnp_public_ip=" << upnp_.externalAddress() << "\n";
-		ss << "upnp_local_ip_differ=" << static_cast<int>(lbs_net_.LocalIP() != std::string(upnp_.localAddress())) << "\n";
-		if (public_ipv4_.valid()) {
-			if (public_ipv4_.get().first) {
-				ss << "upnp_public_ip_differ=" << static_cast<int>(public_ipv4_.get().second != std::string(upnp_.externalAddress()))
-				   << "\n";
+	if (future_is_ready(p2p_feasibility_result_)) {
+		const auto& res = p2p_feasibility_result_.get();
+		ss << "port_test_v4=" << res.port_test_v4 << "\n";
+		
+		if (!res.upnp_result.empty() && upnp_.isInitialized()) {
+			ss << "upnp_result=" << res.upnp_result << "\n";
+			ss << "upnp_local_ip=" << upnp_.localAddress() << "\n";
+			ss << "upnp_public_ip=" << upnp_.externalAddress() << "\n";
+			ss << "upnp_local_ip_differ=" << static_cast<int>(lbs_net_.LocalIP() != std::string(upnp_.localAddress())) << "\n";
+			if (public_ipv4_.valid()) {
+				if (public_ipv4_.get().first) {
+					ss << "upnp_public_ip_differ=" << static_cast<int>(public_ipv4_.get().second != std::string(upnp_.externalAddress()))
+					<< "\n";
+				}
 			}
 		}
 	}
@@ -446,7 +447,6 @@ void Gdxsv::HandleRPC() {
 			if (lbs_net_.Connect(config::GdxLobbyServer, port)) {
 				netmode_ = NetMode::Lbs;
 				lbs_net_.Send(GeneratePlatformInfoPacket());
-				AddPortMapping();
 			} else {
 				netmode_ = NetMode::Offline;
 			}
@@ -535,9 +535,11 @@ void Gdxsv::HandleRPC() {
 
 void Gdxsv::StartPingTest() { gcp_ping_test_result_ = gcp_ping_test().share(); }
 
-void Gdxsv::StartUdpPortTest() {
+void Gdxsv::StartP2PFeasibilityTest() {
+	if (p2p_feasibility_result_.valid())
+		return;
 	if (config::GdxLocalPort != 0) {
-		port_test_result_v4_ = test_udp_port_connectivity(config::GdxLocalPort, false).share();
+		p2p_feasibility_result_ = test_p2p_feasibility(config::GdxLocalPort).share();
 	}
 }
 
@@ -583,23 +585,6 @@ void Gdxsv::NotifyWanPort() const {
 
 	udp.SendTo(buf, pkt.GetCachedSize(), remote);
 	udp.Close();
-}
-
-void Gdxsv::AddPortMapping() {
-	if (config::EnableUPnP) {
-		int port = config::GdxLocalPort;
-		if (upnp_.isMapped(port, false)) {
-			NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d is already mapped", port);
-			return;
-		}
-		upnp_result_ = std::async(std::launch::async, [this, port]() -> std::string {
-						   NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d", port);
-						   const bool ok = upnp_.Init() && upnp_.AddPortMapping(port, false);
-						   std::string result = ok ? "Success" : upnp_.getLastError();
-						   NOTICE_LOG(COMMON, "UPnP AddPortMapping port=%d %s", port, result.c_str());
-						   return result;
-					   }).share();
-	}
 }
 
 std::string Gdxsv::GenerateLoginKey() {

@@ -96,4 +96,27 @@ bool MiniUPnP::AddPortMapping(int port, bool tcp)
 	DEBUG_LOG(NETWORK, "MiniUPnP: forwarding %s port %d", tcp ? "TCP" : "UDP", port);
 	return true;
 }
+
+bool MiniUPnP::CheckPortMapping(int port, bool tcp)
+{
+	if (!initialized && !Init())
+		return false;
+
+	char internalClient[40];
+	char internalPort[10];
+	char duration[10];
+	char description[80];
+	char enabled[10];
+
+	int error = UPNP_GetSpecificPortMappingEntry(urls.controlURL, data.first.servicetype,
+		std::to_string(port).c_str(), tcp ? "TCP" : "UDP", nullptr,
+		internalClient, internalPort, description, enabled, duration);
+
+	if (error == 0) {
+		// Mapping exists. Check if it's for our IP.
+		return strcmp(internalClient, lanAddress) == 0;
+	}
+
+	return false;
+}
 #endif
