@@ -743,12 +743,13 @@ void UdpPingPong::Start(uint32_t session_id, uint8_t peer_id, int port, int dura
 		start_time_ = std::chrono::high_resolution_clock::now();
 
 		bool retried = false;
+		const int retry_timeout = 1000 + (peer_id * 250);
 
 		for (int loop_count = 0; running_; loop_count++) {
 			auto now = std::chrono::high_resolution_clock::now();
 			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_).count();
 
-			if (!retried && elapsed_ms > 1000) {
+			if (!retried && elapsed_ms > retry_timeout) {
 				bool has_pong = false;
 				{
 					std::lock_guard<std::recursive_mutex> lock(mutex_);
