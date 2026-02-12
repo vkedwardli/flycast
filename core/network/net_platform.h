@@ -76,6 +76,9 @@ static inline int get_last_error() { return WSAGetLastError(); }
 #ifndef SIO_UDP_CONNRESET
 #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
 #endif
+#ifndef SIO_UDP_NETRESET
+#define SIO_UDP_NETRESET _WSAIOW(IOC_VENDOR, 11)
+#endif
 #endif
 
 bool is_local_address(u32 addr);
@@ -86,6 +89,7 @@ static inline void set_udp_connreset(sock_t fd)
 	BOOL bNewBehavior = FALSE;
 	DWORD dwBytesReturned = 0;
 	WSAIoctl(fd, SIO_UDP_CONNRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytesReturned, NULL, NULL);
+	WSAIoctl(fd, SIO_UDP_NETRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytesReturned, NULL, NULL);
 #endif
 }
 
