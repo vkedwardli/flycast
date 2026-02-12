@@ -67,6 +67,7 @@ public:
 	bool Init() { return true; }
 	void Term() {}
 	bool AddPortMapping(int port, bool tcp) { return true; }
+	bool CheckPortMapping(int port, bool tcp);
 	const char *localAddress() const { return ""; }
 	const char *externalAddress() const { return ""; }
 	const char *getLastError() const { return ""; }

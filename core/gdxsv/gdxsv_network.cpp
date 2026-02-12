@@ -16,7 +16,7 @@
 // External C header uses 'class' as a parameter name
 extern "C" {
 #define class _class
-#include "stun.h"
+#include "libjuice/src/stun.h"
 #undef class
 }
 
