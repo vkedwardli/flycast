@@ -771,6 +771,7 @@ bool UdpClient::Bind(int port) {
 		set_recv_timeout(sock, 1);
 		set_send_timeout(sock, 1);
 		set_non_blocking(sock);
+		set_udp_connreset(sock);
 
 		if (af == AF_INET) {
 			sock_v4_ = sock;
