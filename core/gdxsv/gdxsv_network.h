@@ -84,7 +84,8 @@ class MessageFilter {
 
 class UdpRemote {
    public:
-	bool Open(const char *host, int port);
+	enum class IpPref { Any, V4Only, V6Only };
+	bool Open(const char *host, int port, IpPref pref = IpPref::Any);
 	bool Open(const std::string &ip_port);
 	bool Open(const sockaddr *addr, socklen_t addrlen);
 	void Close();

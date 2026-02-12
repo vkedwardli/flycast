@@ -8,17 +8,11 @@
 #include "oslib/http_client.h"
 #include "sleep.h"
 #include "gdxsv.h"
+#include "juice_helper.h"
 
 #ifndef _WIN32
 #include <sys/ioctl.h>
 #endif
-
-// External C header uses 'class' as a parameter name
-extern "C" {
-#define class _class
-#include "libjuice/src/stun.h"
-#undef class
-}
 
 static std::vector<std::string> v4_urls = {"https://api.ipify.org", "https://ipv4.seeip.org"};
 
@@ -73,26 +67,39 @@ static bool run_udp_reachability_test(UdpClient &udp, int port, const std::strin
 }
 
 static std::string run_nat_mapping_test(UdpClient &udp, int &mapped_port) {
-	auto get_mapped_addr = [&](const char *host, int port, addr_record_t &mapped) -> bool {
+	auto get_mapped_addr = [&](const char *host, int port, juice_mapped_addr_t &mapped) -> bool {
 		UdpRemote server;
-		if (!server.Open(host, port)) return false;
-		uint8_t tid[STUN_TRANSACTION_ID_SIZE];
-		for (int i = 0; i < STUN_TRANSACTION_ID_SIZE; i++) tid[i] = rand() & 0xFF;
+		if (!server.Open(host, port, UdpRemote::IpPref::V4Only)) return false;
+		
+		auto same_sender_v4 = [&](const sockaddr_storage& sender, socklen_t addrlen) -> bool {
+			if (sender.ss_family != AF_INET) return false;
+			if (addrlen < (socklen_t)sizeof(sockaddr_in)) return false;
+			if (server.net_addr()->sa_family != AF_INET) return false;
+			
+			const auto* s = (const sockaddr_in*)&sender;
+			const auto* d = (const sockaddr_in*)server.net_addr();
+			
+			return s->sin_port == d->sin_port && s->sin_addr.s_addr == d->sin_addr.s_addr;
+		};
+
+		static thread_local std::mt19937 rng{std::random_device{}()};
+		std::uniform_int_distribution<int> dist(0, 255);
+		uint8_t tid[JUICE_STUN_TID_SIZE];
+		for (int i = 0; i < JUICE_STUN_TID_SIZE; i++) tid[i] = (uint8_t)dist(rng);
 		uint8_t buf[512];
-		int len = stun_write_header(buf, sizeof(buf), STUN_CLASS_REQUEST, STUN_METHOD_BINDING, tid);
+		int len = juice_stun_write_binding_request(buf, sizeof(buf), tid);
 		if (len <= 0) return false;
 		if (udp.SendTo((const char *)buf, len, server) <= 0) return false;
 		for (int t = 0; t < 20; t++) {
 			sockaddr_storage sender{};
-			socklen_t addrlen = sizeof(sockaddr_storage);
+			socklen_t addrlen = sizeof(sender);
 			int n = udp.RecvFrom((char *)buf, sizeof(buf), &sender, &addrlen);
 			if (n > 0) {
-				stun_message_t msg{};
-				if (stun_read(buf, n, &msg) >= 0 && msg.msg_class == STUN_CLASS_RESP_SUCCESS) {
-					if (memcmp(msg.transaction_id, tid, STUN_TRANSACTION_ID_SIZE) == 0) {
-						mapped = msg.mapped;
-						return true;
-					}
+				if (!same_sender_v4(sender, addrlen))
+					continue;
+				
+				if (juice_stun_parse_binding_response(buf, n, tid, &mapped) == 0) {
+					return true;
 				}
 			}
 			sleep_us(100 * 1000);
@@ -100,7 +107,7 @@ static std::string run_nat_mapping_test(UdpClient &udp, int &mapped_port) {
 		return false;
 	};
 
-	addr_record_t addr1{}, addr2{};
+	juice_mapped_addr_t addr1{}, addr2{};
 	bool ok1 = get_mapped_addr("stun.l.google.com", 19302, addr1);
 	bool ok2 = get_mapped_addr("stun.cloudflare.com", 3478, addr2);
 	if (!ok1 || !ok2) return "Timeout";
@@ -642,11 +649,15 @@ void TcpClient::Close() {
 	}
 }
 
-bool UdpRemote::Open(const char *host, int port) {
+bool UdpRemote::Open(const char *host, int port, IpPref pref) {
 	verify(0 < port && port < 65536);
 	addrinfo *res = nullptr;
 	addrinfo hints{};
-	hints.ai_family = AF_UNSPEC;	  // IPv4 or IPv6
+	switch (pref) {
+		case IpPref::V4Only: hints.ai_family = AF_INET; break;
+		case IpPref::V6Only: hints.ai_family = AF_INET6; break;
+		default:             hints.ai_family = AF_UNSPEC; break; // IPv4 or IPv6
+	}
 	hints.ai_socktype = SOCK_DGRAM;	  // UDP
 	hints.ai_flags = AI_NUMERICSERV;  // service is port no
 	char service[10] = {};
