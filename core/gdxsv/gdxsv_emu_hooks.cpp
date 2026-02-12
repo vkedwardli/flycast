@@ -54,8 +54,8 @@ void gdxsv_emu_start() {
 		} else {
 			gdxsv.StartPingTest();
 			gui_setState(GuiState::GdxsvLatencyCheck);
-			gdxsv.StartP2PFeasibilityTest();
 			gdxsv.FetchPublicIP();
+			gdxsv.StartP2PFeasibilityTest();
 		}
 	}
 }

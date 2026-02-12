@@ -52,11 +52,8 @@ std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6) {
 	});
 }
 
-static bool run_udp_reachability_test(UdpClient &udp, int port) {
-	auto public_addr_future = get_public_ip_address(false);
-	public_addr_future.wait();
-	auto [ok, myip] = public_addr_future.get();
-	if (!ok) return false;
+static bool run_udp_reachability_test(UdpClient &udp, int port, const std::string &myip) {
+	if (myip.empty()) return false;
 
 	std::vector<http::PostField> fields;
 	fields.emplace_back("addr", myip + ":" + std::to_string(port));
@@ -145,6 +142,12 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 		P2PFeasibility res;
 		res.color = 0xFFFFFFFF; // White
 
+		auto public_addr_future = gdxsv.PublicIPv4();
+		if (!public_addr_future.valid()) {
+			public_addr_future = get_public_ip_address(false).share();
+		}
+		public_addr_future.wait();
+		auto [ok, myip] = public_addr_future.get();
 
 		// 1. Initial Check
 		set_p2p_status("Testing Open Port...", true);
@@ -158,7 +161,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 		}
 
 		// 2. Virgin Reachability Check
-		bool virgin_reachability = run_udp_reachability_test(udp, port);
+		bool virgin_reachability = run_udp_reachability_test(udp, port, myip);
 		res.port_test_v4 = virgin_reachability ? "Success" : "Failed (Timeout)";
 
 		if (virgin_reachability) {
@@ -184,7 +187,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 			auto &upnp = gdxsv.UPnP();
 			if (upnp.Init() && upnp.AddPortMapping(port, false)) {
 				res.upnp_result = "Success";
-				if (run_udp_reachability_test(udp, port)) {
+				if (run_udp_reachability_test(udp, port, myip)) {
 					res.status = "OK (Direct)";
 					res.description = "UPnP";
 					res.color = 0xFF00FF00; // Green
@@ -212,7 +215,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 				int mp = 0;
 				global_nat_type = run_nat_mapping_test(test_udp, mp);
 				if (global_nat_type == "Cone") {
-					is_full_cone_capable = run_udp_reachability_test(test_udp, mp);
+					is_full_cone_capable = run_udp_reachability_test(test_udp, mp, myip);
 				}
 			}
 		}

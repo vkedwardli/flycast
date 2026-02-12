@@ -50,6 +50,8 @@ class Gdxsv {
 	void StartP2PFeasibilityTest();
 	std::shared_future<P2PFeasibility> P2PFeasibilityResult() const { return p2p_feasibility_result_; }
 	void FetchPublicIP();
+	std::shared_future<std::pair<bool, std::string>> PublicIPv4() const { return public_ipv4_; }
+	std::shared_future<std::pair<bool, std::string>> PublicIPv6() const { return public_ipv6_; }
 	void NotifyWanPort() const;
 	bool StartReplayFile(const char* path, int pov);
 	void StopReplay();
