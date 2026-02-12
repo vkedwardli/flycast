@@ -599,6 +599,7 @@ bool UdpClient::Bind(int port) {
 		set_recv_timeout(sock, 1);
 		set_send_timeout(sock, 1);
 		set_non_blocking(sock);
+		set_udp_connreset(sock);
 
 		if (af == AF_INET) {
 			sock_v4_ = sock;
@@ -737,13 +738,45 @@ void UdpPingPong::Start(uint32_t session_id, uint8_t peer_id, int port, int dura
 	}
 
 	peer_id_ = peer_id;
-	std::thread([this, session_id, peer_id, duration_ms, network_delay]() {
+	std::thread([this, session_id, peer_id, port, duration_ms, network_delay]() {
 		WARN_LOG(COMMON, "Start UdpPingPong Thread");
 		start_time_ = std::chrono::high_resolution_clock::now();
+
+		bool retried = false;
 
 		for (int loop_count = 0; running_; loop_count++) {
 			auto now = std::chrono::high_resolution_clock::now();
 			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_).count();
+
+			if (!retried && elapsed_ms > 1000) {
+				bool has_pong = false;
+				{
+					std::lock_guard<std::recursive_mutex> lock(mutex_);
+					for (const auto &c : candidates_) {
+						if (0 < c.pong_count) {
+							has_pong = true;
+							break;
+						}
+					}
+				}
+				if (!has_pong) {
+					NOTICE_LOG(COMMON, "No PONG received after 1000ms. Retrying with port %d", port + 1);
+					client_.Close();
+					if (client_.Bind(port + 1)) {
+						retried = true;
+						// Reset start_time to give the new port a full duration
+						start_time_ = std::chrono::high_resolution_clock::now();
+						elapsed_ms = 0;
+					} else {
+						ERROR_LOG(COMMON, "Retry bind failed");
+						// Continue with the failed socket or stop? 
+						// For now, let's just mark it as retried so we don't loop here.
+						retried = true;
+					}
+				} else {
+					retried = true;
+				}
+			}
 
 			while (true) {
 				Packet recv{};
