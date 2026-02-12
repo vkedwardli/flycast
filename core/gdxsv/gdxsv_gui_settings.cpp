@@ -1,4 +1,4 @@
-﻿#include "gdxsv_gui_settings.h"
+#include "gdxsv_gui_settings.h"
 
 #include "gdxsv.h"
 #include "gdxsv_network.h"
@@ -348,18 +348,39 @@ u8"網絡對戰用嘅 UDP Port。\n唔可以同其他程式/電腦用一樣嘅 P
 	if (future_is_ready(v4_future)) {
 		v4_result = v4_future.get();
 	}
-	if (ImGui::Button(t({ "Test The Port", u8"ポート開放確認", u8"確認開 Port 成功" }), ScaledVec2(buttonWidth, 0)) && !v4_future.valid()) {
-		v4_result = "Please wait...";
-		v4_future = test_udp_port_connectivity(config::GdxLocalPort, false);
+	static P2PFeasibility p2p_feasibility;
+	static std::future<P2PFeasibility> p2p_future;
+	if (future_is_ready(p2p_future)) {
+		p2p_feasibility = p2p_future.get();
+	} else if (p2p_future.valid()) {
+		p2p_feasibility.description = gdxsv.P2PStatus();
+	}
+
+	if (ImGui::Button(t({ "Test Connectivity", u8"接続診断", u8"測試連線能力" }), ScaledVec2(buttonWidth, 0)) && !p2p_future.valid()) {
+		p2p_feasibility = { P2PStatus::Testing, "Testing...", "Running diagnostics...", "", "", 0xFFFFFFFF };
+		p2p_future = test_p2p_feasibility(config::GdxLocalPort);
 	}
 	ImGui::SameLine();
 	ShowHelpMarker(t({
-"Test receiving data using this UDP port.\nIf this test fails, it may result in the inability to establish a match or an increase in communication latency",
-u8"設定されたUDPポートを使って外部からデータを受信できるかテストします。\nこのテストに失敗する場合、対戦が成立しないか通信遅延が増加する場合があります。",
-u8"測試個 Port 能否接收數據。\n如果此測試失敗，可能會導致對戰無法建立或增加通訊延遲。"
+"Analyzes your network for P2P play:\n\n"
+"OK (Direct): Ideal. Port Forwarding, UPnP, or Full Cone NAT detected.\n"
+"OK (Hole Punching): Good. Moderate NAT detected. Hole Punching supported.\n"
+"Limited (May use Relay): Restricted. Symmetric NAT detected. May require a relay peer to connect.",
+u8"P2P対戦に向けたネットワーク診断を行います:\n\n"
+"OK (Direct): 最適。手動ポート開放、UPnP、または Full Cone NAT を確認しました。\n"
+"OK (Hole Punching): 良好。Moderate NAT が検出されました。ホールパンチングが可能です。\n"
+"Limited (May use Relay): 不可。Symmetric NAT が検出されました。リレーが必要になる可能性があります。",
+u8"分析你嘅網絡 P2P 對戰能力:\n\n"
+"OK (Direct): 完美。檢測到已手動開放 Port、UPnP 或 Full Cone NAT。\n"
+"OK (Hole Punching): 良好。檢測到 Moderate NAT。支援 Hole Punching。\n"
+"Limited (May use Relay): 差。檢測到 Symmetric NAT。你可能需要其他玩家幫你 Relay。"
 		}));
-	ImGui::SameLine();
-	ImGui::Text("%s", v4_result.c_str());
+	if (!p2p_feasibility.status.empty()) {
+		ImGui::SameLine();
+		ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(p2p_feasibility.color), "%s ", p2p_feasibility.status.c_str());
+		ImGui::SameLine();
+		ImGui::Text("%s", p2p_feasibility.description.c_str());
+	}
 
 	OptionArrowButtons(
 		t({"Gdx Minimum Delay", u8"最小入力遅延", u8"最少輸入延遲"}), config::GdxMinDelay, 2, 6,

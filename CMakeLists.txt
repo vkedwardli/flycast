@@ -1920,7 +1920,6 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/deps/protobuf-3.13.0/src/google/protobuf/wrappers.pb.cc
 		core/deps/protobuf-3.13.0/src/google/protobuf/wrappers.pb.h)
 
-target_include_directories(${PROJECT_NAME} PRIVATE core/deps/gdxsv)
 target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdx_rpc.h
 		core/gdxsv/gdxsv.cpp
@@ -1947,6 +1946,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_key_display.h
 		core/gdxsv/gdxsv_network.cpp
 		core/gdxsv/gdxsv_network.h
+		core/gdxsv/juice_helper.c
+		core/gdxsv/juice_helper.h
 		core/gdxsv/gdxsv_patch.inc
 		core/gdxsv/gdxsv_prof.cpp
 		core/gdxsv/gdxsv_prof.h
@@ -1962,6 +1963,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/lbs_message.h
 		core/gdxsv/libs.h
 		core/gdxsv/mcs_message.h)
+
+set_source_files_properties(core/gdxsv/juice_helper.c PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/core/deps/libjuice/include/juice")
 
 if(WIN32)
 	set(CMAKE_VS_SDK_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES})
