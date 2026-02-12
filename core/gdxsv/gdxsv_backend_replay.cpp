@@ -68,6 +68,10 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_bar_prev_kcode_ = ~0u;
 	audio_fade_frames_ = 0;
 	step_hold_timer_ = 0.0f;
+	flash_left_ = 0.0f;
+	flash_right_ = 0.0f;
+	flash_up_ = 0.0f;
+	flash_down_ = 0.0f;
 	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
@@ -158,6 +162,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 					} else {
 						ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
 					}
+					flash_right_ = 0.3f;
 				}
 				// Left: Step frame backward (paused) / Seek backward (playing)
 				else if (~pressed & DC_DPAD_LEFT) {
@@ -166,13 +171,16 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 					} else {
 						ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
 					}
+					flash_left_ = 0.3f;
 				}
 				// Up/Down: Speed control
 				else if (~pressed & DC_DPAD_UP) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
+					flash_up_ = 0.3f;
 				}
 				else if (~pressed & DC_DPAD_DOWN) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
+					flash_down_ = 0.3f;
 				}
 			}
 		}
@@ -186,8 +194,10 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 				if (step_hold_timer_ >= 0.5f && ctrl_commands_.empty()) {
 					if (~input.kcode & DC_DPAD_RIGHT) {
 						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+						flash_right_ = 0.3f;
 					} else {
 						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+						flash_left_ = 0.3f;
 					}
 				}
 			} else {
@@ -251,7 +261,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 	if (!end_of_frame_) return;
 	if (seeking_) return;
 
-	constexpr int save_interval = 180;
+	constexpr int save_interval = 60;
 	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
 	auto regular_save_state = [&]() {
 		if ((IsInGame() || IsInBriefing()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty() && !takeover_) {
@@ -263,8 +273,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 	// Quadratic curve: stays near 0 initially, ramps up quickly at the end
 	if (audio_fade_frames_ > 0) {
 		audio_fade_frames_--;
-		float t = 1.0f - (float)audio_fade_frames_ / 20.0f; // 0.0 -> 1.0
+		const float t = 1.0f - (float)audio_fade_frames_ / 20.0f; // 0.0 -> 1.0
 		settings.aica.audioFade = t * t;
+	}
+
+	// Unpause if we left the game phase (e.g. stepped into briefing)
+	if (ctrl_pause_ && !IsInGame()) {
+		ctrl_pause_ = false;
 	}
 
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame());
@@ -319,7 +334,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePause) {
-			if (state_ == State::McsInBattle) {
+			if (state_ == State::McsInBattle && IsInGame()) {
 				ctrl_pause_ = !ctrl_pause_;
 			}
 			ctrl_commands_.pop_front();
@@ -327,6 +342,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::StepFrame) {
 			if (ctrl_pause_) {
+				int roundStart, roundEnd, totalRounds;
+				GetRoundBounds(roundStart, roundEnd, totalRounds);
+				if (key_msg_count_ >= roundEnd) {
+					// Don't step past the end of the current round
+					ctrl_commands_.pop_front();
+					continue;
+				}
 				ctrl_step_frame_ = true;
 			}
 			ctrl_commands_.pop_front();
@@ -373,9 +395,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 		
 		if (ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg) {
-			const int prev_key_msg_count = key_msg_count_;
 			const int target_key_msg_count = ctrl.arg1 ? ctrl.arg1 : 1;
-
 			while (key_msg_count_ < target_key_msg_count) {
 				RunFrameSilently(config::GdxSkipRenderingHack);
 				regular_save_state();
@@ -558,8 +578,7 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 }
 
 void GdxsvBackendReplay::DisplayOSD() {
-	if (seeking_) return;
-	if (pause_menu_opend_) {
+	if (!seeking_ && pause_menu_opend_) {
 		RenderPauseMenu();
 	}
 	UpdateControlBarVisibility();
@@ -1083,6 +1102,8 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
+	} else if (msg_type == McsMessage::MsgType::LagControlTestMsg) {
+		// do nothing
 	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
 		verify(recv_buf_.empty());
 		gdxsv.maxlag_ = 0;
@@ -1417,24 +1438,51 @@ void GdxsvBackendReplay::RenderControlBar() {
 	const ImU32 bgCol = IM_COL32(0, 0, 0, (int)(180 * alpha));
 	dl->AddRectFilled(ImVec2(barX, barY), ImVec2(barX + barW, barY + barH), bgCol, rounding);
 
-	// Text color
+	// Decay flash timers
+	float dt = ImGui::GetIO().DeltaTime;
+	flash_left_ = std::max(0.0f, flash_left_ - dt);
+	flash_right_ = std::max(0.0f, flash_right_ - dt);
+	flash_up_ = std::max(0.0f, flash_up_ - dt);
+	flash_down_ = std::max(0.0f, flash_down_ - dt);
+
+	// Color helpers
 	const ImU32 textCol = IM_COL32(255, 255, 255, (int)(255 * alpha));
-	const ImU32 dimCol = IM_COL32(180, 180, 180, (int)(200 * alpha));
+	auto flashCol = [&](float flash) -> ImU32 {
+		float t = flash / 0.3f; // 1.0 -> 0.0
+		int brightness = 80 + (int)(175 * t);
+		return IM_COL32(255, 255, 255, (int)(brightness * alpha));
+	};
 
 	// Layout positions
 	float cx = barX + pad;
 	const float cy = barY + barH * 0.5f;
 
-	// --- Left: Play/Pause icon + speed ---
+	// --- Left: Play/Pause icon + Up/Down guide + speed + Left/Right guide ---
 	const char* stateIcon = ctrl_pause_ ? ICON_FA_PAUSE : ICON_FA_PLAY;
 	ImVec2 iconSize = ImGui::CalcTextSize(stateIcon);
-	dl->AddText(ImVec2(cx, cy - iconSize.y * 0.5f), textCol, stateIcon);
-	cx += iconSize.x + uiScaled(4.0f);
+	// Fixed-width slot for play/pause icon to prevent layout shift
+	float iconSlotW = std::max(ImGui::CalcTextSize(ICON_FA_PLAY).x, ImGui::CalcTextSize(ICON_FA_PAUSE).x);
+	float iconOfs = (iconSlotW - iconSize.x) * 0.5f;
+	dl->AddText(ImVec2(cx + iconOfs, cy - iconSize.y * 0.5f), textCol, stateIcon);
+	cx += iconSlotW + uiScaled(10.0f);
+
+	// Up/Down guide icons (for speed control)
+	ImVec2 udSize = ImGui::CalcTextSize(ICON_FA_ANGLE_UP);
+	dl->AddText(ImVec2(cx, cy - udSize.y - uiScaled(1.0f)), flashCol(flash_up_), ICON_FA_ANGLE_UP);
+	dl->AddText(ImVec2(cx, cy + uiScaled(1.0f)), flashCol(flash_down_), ICON_FA_ANGLE_DOWN);
+	cx += udSize.x + uiScaled(4.0f);
 
 	const char* speedTxt = SpeedText();
 	ImVec2 speedSize = ImGui::CalcTextSize(speedTxt);
 	dl->AddText(ImVec2(cx, cy - speedSize.y * 0.5f), textCol, speedTxt);
 	cx += speedSize.x + uiScaled(10.0f);
+
+	// Left/Right guide icons (for seek/step) - placed next to each other
+	ImVec2 lrSize = ImGui::CalcTextSize(ICON_FA_ANGLE_LEFT);
+	dl->AddText(ImVec2(cx, cy - lrSize.y * 0.5f), flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
+	cx += lrSize.x + uiScaled(2.0f);
+	dl->AddText(ImVec2(cx, cy - lrSize.y * 0.5f), flashCol(flash_right_), ICON_FA_ANGLE_RIGHT);
+	cx += lrSize.x + uiScaled(6.0f);
 
 	// --- Right: Round/Frame info ---
 	int roundStart, roundEnd, totalRounds;

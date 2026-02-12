@@ -164,6 +164,10 @@ class GdxsvBackendReplay {
 	u32 ctrl_bar_prev_kcode_ = ~0u;
 	int audio_fade_frames_ = 0;
 	float step_hold_timer_ = 0.0f;
+	float flash_left_ = 0.0f;
+	float flash_right_ = 0.0f;
+	float flash_up_ = 0.0f;
+	float flash_down_ = 0.0f;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
