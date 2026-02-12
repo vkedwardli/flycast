@@ -8,7 +8,16 @@
 #include "network/net_platform.h"
 #include "types.h"
 
+enum class P2PStatus {
+	Testing,
+	Optimal,    // Direct / UPnP / Full Cone
+	Fair,       // Restricted Cone (Hole Punching)
+	Poor,       // Symmetric NAT (Relay likely)
+	Blocked     // UDP blocked / Error
+};
+
 struct P2PFeasibility {
+	P2PStatus status_code = P2PStatus::Testing;
 	std::string status;
 	std::string description;
 	std::string port_test_v4;

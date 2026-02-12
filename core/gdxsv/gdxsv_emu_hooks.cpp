@@ -482,7 +482,7 @@ static void vpn_warning_toast(const std::string& connection_medium) {
 static void p2p_connection_toast() {
 	struct Toast {
 		bool shown = false;
-		float timer = 6.0f;
+		float timer = 0.0f;
 		P2PFeasibility result;
 		u32 last_frame_id = 0;
 		bool test_finished = false;
@@ -505,32 +505,30 @@ static void p2p_connection_toast() {
 	{
 		if (p2pToast.timer > 0.f)
 		{
-			// Only count down if the test is actually finished
-			if (p2pToast.test_finished) {
-				p2pToast.timer -= dt;
-			}
+			p2pToast.timer -= dt;
 			anim = ImMin(anim + dt * 3.0f, 1.0f);
 		}
-		else
+		else if (p2pToast.test_finished)
 		{
 			anim = ImMax(anim - dt * 3.0f, 0.0f);
 			if (anim <= 0.f)
 				p2pToast.shown = true;
 		}
-		
+
 		if (future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (!p2pToast.test_finished) {
 				p2pToast.result = future.get();
 				p2pToast.test_finished = true;
-				p2pToast.timer = 6.0f; // Reset timer to show the final result
+				
+				// Only start displaying the toast if there are connection issues
+				if (p2pToast.result.status_code == P2PStatus::Poor || p2pToast.result.status_code == P2PStatus::Blocked) {
+					p2pToast.timer = 6.0f; 
+				} else {
+					p2pToast.shown = true;
+				}
 			}
-		} else {
-			p2pToast.result.description = gdxsv.P2PStatus();
-			p2pToast.result.color = 0xFFFFFFFF;
-			p2pToast.timer = 6.0f; // Keep timer full while test is running
 		}
 	}
-
 	if (anim > 0.f)
 	{
 		ImGui::SetNextWindowBgAlpha(0.8f * anim);

@@ -141,6 +141,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 	return std::async(std::launch::async, [port]() -> P2PFeasibility {
 		P2PFeasibility res;
 		res.color = 0xFFFFFFFF; // White
+		res.status_code = P2PStatus::Blocked;
 
 		auto public_addr_future = gdxsv.PublicIPv4();
 		if (!public_addr_future.valid()) {
@@ -156,6 +157,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 			res.status = "Unknown";
 			res.description = "Bind failed";
 			res.port_test_v4 = "Bind failed";
+			res.status_code = P2PStatus::Blocked;
 			wait_p2p_status();
 			return res;
 		}
@@ -172,10 +174,12 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 				res.status = "OK (Direct)";
 				res.description = "UPnP";
 				res.color = 0xFF00FF00; // Green
+				res.status_code = P2PStatus::Optimal;
 			} else {
 				res.status = "OK (Direct)";
 				res.description = "Port Forwarding / DMZ";
 				res.color = 0xFF00FF00; // Green
+				res.status_code = P2PStatus::Optimal;
 			}
 			wait_p2p_status();
 			return res;
@@ -191,6 +195,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 					res.status = "OK (Direct)";
 					res.description = "UPnP";
 					res.color = 0xFF00FF00; // Green
+					res.status_code = P2PStatus::Optimal;
 					wait_p2p_status();
 					return res;
 				}
@@ -225,18 +230,22 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 			res.status = "OK (Direct)";
 			res.description = "Open NAT (Full Cone)";
 			res.color = 0xFFFFFF00; // Cyan
+			res.status_code = P2PStatus::Optimal;
 		} else if (global_nat_type == "Cone") {
 			res.status = "OK (Hole Punching)";
 			res.description = "Moderate NAT (Restricted Cone)";
 			res.color = 0xFFFFFF00; // Cyan
+			res.status_code = P2PStatus::Fair;
 		} else if (global_nat_type == "Symmetric") {
 			res.status = "Limited (May use Relay)";
 			res.description = "Strict NAT (Symmetric)";
 			res.color = 0xFF0000FF; // Red
+			res.status_code = P2PStatus::Poor;
 		} else {
 			res.status = "Unknown";
 			res.description = "UDP Error / Blocked";
 			res.color = 0xFF888888;
+			res.status_code = P2PStatus::Blocked;
 		}
 
 		wait_p2p_status();

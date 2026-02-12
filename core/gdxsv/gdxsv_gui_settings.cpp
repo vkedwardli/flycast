@@ -357,7 +357,7 @@ u8"網絡對戰用嘅 UDP Port。\n唔可以同其他程式/電腦用一樣嘅 P
 	}
 
 	if (ImGui::Button(t({ "Test Connectivity", u8"接続診断", u8"測試連線能力" }), ScaledVec2(buttonWidth, 0)) && !p2p_future.valid()) {
-		p2p_feasibility = { "Testing...", "Running diagnostics...", "", "", 0xFFFFFFFF };
+		p2p_feasibility = { P2PStatus::Testing, "Testing...", "Running diagnostics...", "", "", 0xFFFFFFFF };
 		p2p_future = test_p2p_feasibility(config::GdxLocalPort);
 	}
 	ImGui::SameLine();
