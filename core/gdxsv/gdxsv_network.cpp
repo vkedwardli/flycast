@@ -145,26 +145,9 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 		P2PFeasibility res;
 		res.color = 0xFFFFFFFF; // White
 
-		// 1. Baseline NAT Detection (using a random port to avoid lingering mapping interference)
-		set_p2p_status("Trying UDP Hole Punching...", true);
-		std::string global_nat_type = "Unknown";
-		bool is_full_cone_capable = false;
-		{
-			UdpClient test_udp;
-			std::random_device rd;
-			std::mt19937 gen(rd());
-			std::uniform_int_distribution<> dist(49152, 65535);
-			int test_port = dist(gen);
-			if (test_udp.Bind(test_port)) {
-				int mp = 0;
-				global_nat_type = run_nat_mapping_test(test_udp, mp);
-				if (global_nat_type == "Cone") {
-					is_full_cone_capable = run_udp_reachability_test(test_udp, test_port);
-				}
-			}
-		}
 
-		set_p2p_status("Testing Open Port...");
+		// 1. Initial Check
+		set_p2p_status("Testing Open Port...", true);
 		UdpClient udp;
 		if (!udp.Bind(port)) {
 			res.status = "Unknown";
@@ -186,10 +169,6 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 				res.status = "OK (Direct)";
 				res.description = "UPnP";
 				res.color = 0xFF00FF00; // Green
-			} else if (is_full_cone_capable) {
-				res.status = "OK (Direct)";
-				res.description = "Open NAT (Full Cone)";
-				res.color = 0xFFFFFF00; // Cyan
 			} else {
 				res.status = "OK (Direct)";
 				res.description = "Port Forwarding / DMZ";
@@ -215,6 +194,26 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 			} else {
 				res.upnp_result = upnp.getLastError();
 				set_p2p_status("UPnP: Failed to add rule");
+			}
+		}
+
+		// 4. Baseline NAT Detection (using a random port to avoid lingering mapping interference)
+		std::string global_nat_type = "Unknown";
+		bool is_full_cone_capable = false;
+		
+		set_p2p_status("Detecting NAT type...");
+		{
+			UdpClient test_udp;
+			std::random_device rd;
+			std::mt19937 gen(rd());
+			std::uniform_int_distribution<> dist(49152, 65535);
+			int test_port = dist(gen);
+			if (test_udp.Bind(test_port)) {
+				int mp = 0;
+				global_nat_type = run_nat_mapping_test(test_udp, mp);
+				if (global_nat_type == "Cone") {
+					is_full_cone_capable = run_udp_reachability_test(test_udp, mp);
+				}
 			}
 		}
 
