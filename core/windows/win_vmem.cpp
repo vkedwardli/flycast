@@ -60,6 +60,12 @@ static WinLibLoader kernel32("Kernel32.dll");
 static LPVOID(WINAPI *MapViewOfFileEx)(HANDLE, DWORD, DWORD, DWORD, SIZE_T, LPVOID);
 #endif
 
+// Fixed base address for deterministic memory layout (useful for Cheat Engine).
+// We want ram_base (= base_alloc + sizeof(Sh4RCB)) to be aligned to 0x10000000
+// so that the lower 28 bits of host addresses match the DC guest addresses.
+// e.g. DC 0x0C123456 -> host 0x?_0C123456
+static constexpr uintptr_t PREFERRED_RAM_BASE_ALIGNED = 0x210000000ULL; // ram_base target
+
 // Please read the POSIX implementation for more information. On Windows this is
 // rather straightforward.
 bool init(void **vmem_base_addr, void **sh4rcb_addr, size_t ramSize)
@@ -80,7 +86,17 @@ bool init(void **vmem_base_addr, void **sh4rcb_addr, size_t ramSize)
 
 	// Now allocate the actual address space (it will be 64KB aligned on windows).
 	unsigned memsize = 512_MB + sizeof(Sh4RCB) + ARAM_SIZE_MAX;
-	base_alloc = (char*)mem_region_reserve(NULL, memsize);
+	// Place base_alloc so that ram_base (base_alloc + sizeof(Sh4RCB)) lands on
+	// a 0x10000000 boundary. This makes lower 28 bits of host addr == DC guest addr.
+	// VirtualAlloc requires 64KB (0x10000) alignment, and sizeof(Sh4RCB) is
+	// guaranteed to be a multiple of MAX_PAGE_SIZE, so the subtraction stays aligned.
+	uintptr_t preferred_base = PREFERRED_RAM_BASE_ALIGNED - sizeof(Sh4RCB);
+	// Try fixed address first for deterministic layout, fall back to dynamic
+	base_alloc = (char*)mem_region_reserve((void*)preferred_base, memsize);
+	if (base_alloc == nullptr) {
+		WARN_LOG(VMEM, "Fixed base address %p unavailable, using dynamic allocation", (void*)preferred_base);
+		base_alloc = (char*)mem_region_reserve(NULL, memsize);
+	}
 
 	// Calculate pointers now
 	*sh4rcb_addr = &base_alloc[0];
