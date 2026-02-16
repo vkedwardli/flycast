@@ -48,7 +48,7 @@ struct TableStruct_gdxsv_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[15]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[16]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -59,6 +59,9 @@ namespace proto {
 class BattleLogFile;
 class BattleLogFileDefaultTypeInternal;
 extern BattleLogFileDefaultTypeInternal _BattleLogFile_default_instance_;
+class BattleLogRound;
+class BattleLogRoundDefaultTypeInternal;
+extern BattleLogRoundDefaultTypeInternal _BattleLogRound_default_instance_;
 class BattleLogUser;
 class BattleLogUserDefaultTypeInternal;
 extern BattleLogUserDefaultTypeInternal _BattleLogUser_default_instance_;
@@ -104,6 +107,7 @@ extern PongMessageDefaultTypeInternal _PongMessage_default_instance_;
 }  // namespace proto
 PROTOBUF_NAMESPACE_OPEN
 template<> ::proto::BattleLogFile* Arena::CreateMaybeMessage<::proto::BattleLogFile>(Arena*);
+template<> ::proto::BattleLogRound* Arena::CreateMaybeMessage<::proto::BattleLogRound>(Arena*);
 template<> ::proto::BattleLogUser* Arena::CreateMaybeMessage<::proto::BattleLogUser>(Arena*);
 template<> ::proto::BattleMessage* Arena::CreateMaybeMessage<::proto::BattleMessage>(Arena*);
 template<> ::proto::FinMessage* Arena::CreateMaybeMessage<::proto::FinMessage>(Arena*);
@@ -1736,6 +1740,168 @@ class BattleLogUser PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
+class BattleLogRound PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:proto.BattleLogRound) */ {
+ public:
+  inline BattleLogRound() : BattleLogRound(nullptr) {}
+  virtual ~BattleLogRound();
+
+  BattleLogRound(const BattleLogRound& from);
+  BattleLogRound(BattleLogRound&& from) noexcept
+    : BattleLogRound() {
+    *this = ::std::move(from);
+  }
+
+  inline BattleLogRound& operator=(const BattleLogRound& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline BattleLogRound& operator=(BattleLogRound&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const BattleLogRound& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const BattleLogRound* internal_default_instance() {
+    return reinterpret_cast<const BattleLogRound*>(
+               &_BattleLogRound_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    7;
+
+  friend void swap(BattleLogRound& a, BattleLogRound& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(BattleLogRound* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(BattleLogRound* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline BattleLogRound* New() const final {
+    return CreateMaybeMessage<BattleLogRound>(nullptr);
+  }
+
+  BattleLogRound* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<BattleLogRound>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const BattleLogRound& from);
+  void MergeFrom(const BattleLogRound& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(BattleLogRound* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "proto.BattleLogRound";
+  }
+  protected:
+  explicit BattleLogRound(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_gdxsv_2eproto);
+    return ::descriptor_table_gdxsv_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kUsedMsFieldNumber = 2,
+    kWinTeamFieldNumber = 1,
+  };
+  // repeated int32 used_ms = 2;
+  int used_ms_size() const;
+  private:
+  int _internal_used_ms_size() const;
+  public:
+  void clear_used_ms();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_used_ms(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_used_ms() const;
+  void _internal_add_used_ms(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_used_ms();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 used_ms(int index) const;
+  void set_used_ms(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_used_ms(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      used_ms() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_used_ms();
+
+  // int32 win_team = 1;
+  void clear_win_team();
+  ::PROTOBUF_NAMESPACE_ID::int32 win_team() const;
+  void set_win_team(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_win_team() const;
+  void _internal_set_win_team(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:proto.BattleLogRound)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > used_ms_;
+  mutable std::atomic<int> _used_ms_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::int32 win_team_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_gdxsv_2eproto;
+};
+// -------------------------------------------------------------------
+
 class BattleLogFile PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:proto.BattleLogFile) */ {
  public:
@@ -1778,7 +1944,7 @@ class BattleLogFile PROTOBUF_FINAL :
                &_BattleLogFile_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    7;
+    8;
 
   friend void swap(BattleLogFile& a, BattleLogFile& b) {
     a.Swap(&b);
@@ -1855,6 +2021,7 @@ class BattleLogFile PROTOBUF_FINAL :
     kInputsFieldNumber = 15,
     kStartMsgIndexesFieldNumber = 16,
     kStartMsgRandomsFieldNumber = 17,
+    kRoundDataFieldNumber = 18,
     kGdxsvVersionDeprecatedFieldNumber = 2,
     kBattleCodeFieldNumber = 3,
     kGameDiskFieldNumber = 5,
@@ -1984,6 +2151,24 @@ class BattleLogFile PROTOBUF_FINAL :
       start_msg_randoms() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
       mutable_start_msg_randoms();
+
+  // repeated .proto.BattleLogRound round_data = 18;
+  int round_data_size() const;
+  private:
+  int _internal_round_data_size() const;
+  public:
+  void clear_round_data();
+  ::proto::BattleLogRound* mutable_round_data(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >*
+      mutable_round_data();
+  private:
+  const ::proto::BattleLogRound& _internal_round_data(int index) const;
+  ::proto::BattleLogRound* _internal_add_round_data();
+  public:
+  const ::proto::BattleLogRound& round_data(int index) const;
+  ::proto::BattleLogRound* add_round_data();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
+      round_data() const;
 
   // string gdxsv_version_deprecated = 2;
   void clear_gdxsv_version_deprecated();
@@ -2117,6 +2302,7 @@ class BattleLogFile PROTOBUF_FINAL :
   mutable std::atomic<int> _start_msg_indexes_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 > start_msg_randoms_;
   mutable std::atomic<int> _start_msg_randoms_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound > round_data_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr gdxsv_version_deprecated_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr game_disk_;
@@ -2173,7 +2359,7 @@ class BattleMessage PROTOBUF_FINAL :
                &_BattleMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    8;
+    9;
 
   friend void swap(BattleMessage& a, BattleMessage& b) {
     a.Swap(&b);
@@ -2346,7 +2532,7 @@ class PingMessage PROTOBUF_FINAL :
                &_PingMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    9;
+    10;
 
   friend void swap(PingMessage& a, PingMessage& b) {
     a.Swap(&b);
@@ -2501,7 +2687,7 @@ class PongMessage PROTOBUF_FINAL :
                &_PongMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    10;
+    11;
 
   friend void swap(PongMessage& a, PongMessage& b) {
     a.Swap(&b);
@@ -2674,7 +2860,7 @@ class HelloServerMessage PROTOBUF_FINAL :
                &_HelloServerMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    12;
 
   friend void swap(HelloServerMessage& a, HelloServerMessage& b) {
     a.Swap(&b);
@@ -2847,7 +3033,7 @@ class FinMessage PROTOBUF_FINAL :
                &_FinMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    12;
+    13;
 
   friend void swap(FinMessage& a, FinMessage& b) {
     a.Swap(&b);
@@ -2991,7 +3177,7 @@ class HelloLbsMessage PROTOBUF_FINAL :
                &_HelloLbsMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    14;
 
   friend void swap(HelloLbsMessage& a, HelloLbsMessage& b) {
     a.Swap(&b);
@@ -3135,7 +3321,7 @@ class Packet PROTOBUF_FINAL :
                &_Packet_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    15;
 
   friend void swap(Packet& a, Packet& b) {
     a.Swap(&b);
@@ -5180,6 +5366,77 @@ inline void BattleLogUser::set_pos(::PROTOBUF_NAMESPACE_ID::int32 value) {
 
 // -------------------------------------------------------------------
 
+// BattleLogRound
+
+// int32 win_team = 1;
+inline void BattleLogRound::clear_win_team() {
+  win_team_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 BattleLogRound::_internal_win_team() const {
+  return win_team_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 BattleLogRound::win_team() const {
+  // @@protoc_insertion_point(field_get:proto.BattleLogRound.win_team)
+  return _internal_win_team();
+}
+inline void BattleLogRound::_internal_set_win_team(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  win_team_ = value;
+}
+inline void BattleLogRound::set_win_team(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_win_team(value);
+  // @@protoc_insertion_point(field_set:proto.BattleLogRound.win_team)
+}
+
+// repeated int32 used_ms = 2;
+inline int BattleLogRound::_internal_used_ms_size() const {
+  return used_ms_.size();
+}
+inline int BattleLogRound::used_ms_size() const {
+  return _internal_used_ms_size();
+}
+inline void BattleLogRound::clear_used_ms() {
+  used_ms_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 BattleLogRound::_internal_used_ms(int index) const {
+  return used_ms_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 BattleLogRound::used_ms(int index) const {
+  // @@protoc_insertion_point(field_get:proto.BattleLogRound.used_ms)
+  return _internal_used_ms(index);
+}
+inline void BattleLogRound::set_used_ms(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  used_ms_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.BattleLogRound.used_ms)
+}
+inline void BattleLogRound::_internal_add_used_ms(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  used_ms_.Add(value);
+}
+inline void BattleLogRound::add_used_ms(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_used_ms(value);
+  // @@protoc_insertion_point(field_add:proto.BattleLogRound.used_ms)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+BattleLogRound::_internal_used_ms() const {
+  return used_ms_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+BattleLogRound::used_ms() const {
+  // @@protoc_insertion_point(field_list:proto.BattleLogRound.used_ms)
+  return _internal_used_ms();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+BattleLogRound::_internal_mutable_used_ms() {
+  return &used_ms_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+BattleLogRound::mutable_used_ms() {
+  // @@protoc_insertion_point(field_mutable_list:proto.BattleLogRound.used_ms)
+  return _internal_mutable_used_ms();
+}
+
+// -------------------------------------------------------------------
+
 // BattleLogFile
 
 // string game_disk = 5;
@@ -5706,6 +5963,45 @@ inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >
 BattleLogFile::mutable_start_msg_randoms() {
   // @@protoc_insertion_point(field_mutable_list:proto.BattleLogFile.start_msg_randoms)
   return _internal_mutable_start_msg_randoms();
+}
+
+// repeated .proto.BattleLogRound round_data = 18;
+inline int BattleLogFile::_internal_round_data_size() const {
+  return round_data_.size();
+}
+inline int BattleLogFile::round_data_size() const {
+  return _internal_round_data_size();
+}
+inline void BattleLogFile::clear_round_data() {
+  round_data_.Clear();
+}
+inline ::proto::BattleLogRound* BattleLogFile::mutable_round_data(int index) {
+  // @@protoc_insertion_point(field_mutable:proto.BattleLogFile.round_data)
+  return round_data_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >*
+BattleLogFile::mutable_round_data() {
+  // @@protoc_insertion_point(field_mutable_list:proto.BattleLogFile.round_data)
+  return &round_data_;
+}
+inline const ::proto::BattleLogRound& BattleLogFile::_internal_round_data(int index) const {
+  return round_data_.Get(index);
+}
+inline const ::proto::BattleLogRound& BattleLogFile::round_data(int index) const {
+  // @@protoc_insertion_point(field_get:proto.BattleLogFile.round_data)
+  return _internal_round_data(index);
+}
+inline ::proto::BattleLogRound* BattleLogFile::_internal_add_round_data() {
+  return round_data_.Add();
+}
+inline ::proto::BattleLogRound* BattleLogFile::add_round_data() {
+  // @@protoc_insertion_point(field_add:proto.BattleLogFile.round_data)
+  return _internal_add_round_data();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
+BattleLogFile::round_data() const {
+  // @@protoc_insertion_point(field_list:proto.BattleLogFile.round_data)
+  return round_data_;
 }
 
 // int64 start_at = 20;
@@ -7075,6 +7371,8 @@ inline void Packet::set_allocated_hello_lbs_data(::proto::HelloLbsMessage* hello
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
