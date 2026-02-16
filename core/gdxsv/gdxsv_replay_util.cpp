@@ -62,6 +62,8 @@ struct ReplayEntry {
 	int zeon_win = 0;
 	time_t start_unix;
 	std::string replay_url;
+	std::string round_win;
+	std::vector<std::string> user_used_ms_list;
 };
 
 bool read_dir = false;
@@ -80,6 +82,7 @@ std::string search_battle_code;
 int search_ranking = -1;
 std::string search_disk;
 bool search_reverse;
+int search_used_ms = -1;
 
 std::shared_future<std::vector<UserEntry>> fetch_user_entry_future_;
 int fetch_user_entry_http_status;
@@ -358,6 +361,7 @@ void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEnt
 				user.set_team(u.at("team"));
 				user.set_pos(u.at("pos"));
 				entry.users.push_back(user);
+				entry.user_used_ms_list.push_back(u.value("used_ms_list", ""));
 			}
 
 			entry.round = item.value("round", 0);
@@ -365,6 +369,7 @@ void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEnt
 			entry.zeon_win = item.value("zeon_win", 0);
 			entry.start_unix = item.at("start_unix");
 			entry.replay_url = item.at("replay_url");
+			entry.round_win = item.value("round_win", "");
 
 			out.push_back(entry);
 		}
@@ -442,6 +447,9 @@ void fetch_replay_json() {
 		}
 		if (search_reverse) {
 			url += "&reverse=" + http::urlEncode(std::to_string(1));
+		}
+		if (search_used_ms != -1) {
+			url += "&used_ms=" + http::urlEncode(std::to_string(search_used_ms));
 		}
 
 		fetch_replay_entry_http_status = http::get(url, dl, content_type);
@@ -567,8 +575,8 @@ void gdxsv_replay_server_tab() {
 
 	ImGui::Text("Filter by");
 
-	const std::array<std::string, 9> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
-												   "Battle Code", "Ranking",   "Disk",		 "Reverse Order"};
+	const std::array<std::string, 10> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
+												    "Battle Code", "Ranking",   "Disk",		 "Reverse Order", "Used MS"};
 	static unsigned int filter_selected = 0;
 
 	ImGui::SameLine();
@@ -780,6 +788,35 @@ void gdxsv_replay_server_tab() {
 				}
 				break;
 			}
+			case 9:	 // Used MS
+			{
+				static const std::array<std::string, 30> ms_names{
+					u8"ガンダム", u8"ガンキャノン", u8"GM", u8"旧ザク", u8"ザク",
+					u8"シャアザク", u8"グフ", u8"ドム", u8"リックドム", u8"ゲルググ",
+					u8"シャアゲルググ", u8"ギャン", u8"ゴッグ", u8"アッガイ", u8"ズゴック",
+					u8"シャアズゴック", u8"ゾック", u8"ガンタンク", u8"ジオング", u8"陸戦型ガンダム",
+					u8"陸戦型ジム", u8"エルメス", u8"ボール", u8"ブラウブロ", u8"ダミー",
+					u8"ザクレロ", u8"ビグロ", u8"ビグザム", u8"アッザム", u8"Gファイター"};
+				static unsigned int ms_selected = 0;
+
+				ImGui::SameLine();
+				ImGui::PushItemWidth(200.0f * scaling);
+				if (ImGui::BeginCombo("##UsedMSItems", ms_names[ms_selected].c_str(), ImGuiComboFlags_HeightLargest)) {
+					for (u32 i = 0; i < ms_names.size(); i++) {
+						bool is_selected = i == ms_selected;
+						if (ImGui::Selectable(ms_names[i].c_str(), is_selected)) {
+							ms_selected = i;
+							search_used_ms = i + 1;  // 1-origin
+							fetch_new_results();
+						}
+						if (is_selected) ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+				ImGui::PopItemWidth();
+
+				break;
+			}
 			default:
 				break;
 		}
@@ -795,6 +832,9 @@ void gdxsv_replay_server_tab() {
 		draw_filter_label_yesno("Ranking", search_ranking);
 		draw_filter_label_string("Disk", search_disk);
 		draw_filter_label_bool("Reverse", search_reverse);
+		if (search_used_ms != -1) {
+			draw_filter_label("Used MS", std::to_string(search_used_ms), []() { search_used_ms = -1; });
+		}
 	}
 
 	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_server_list_paging"), ScaledVec2(450, 0), false, ImGuiWindowFlags_NoDecoration);

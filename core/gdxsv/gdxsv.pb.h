@@ -271,6 +271,7 @@ class P2PMatchingReport PROTOBUF_FINAL :
 
   enum : int {
     kFpsHistoryFieldNumber = 15,
+    kRoundDataFieldNumber = 20,
     kBattleCodeFieldNumber = 1,
     kCloseReasonFieldNumber = 5,
     kAfterLogFieldNumber = 11,
@@ -306,6 +307,24 @@ class P2PMatchingReport PROTOBUF_FINAL :
       fps_history() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< float >*
       mutable_fps_history();
+
+  // repeated .proto.BattleLogRound round_data = 20;
+  int round_data_size() const;
+  private:
+  int _internal_round_data_size() const;
+  public:
+  void clear_round_data();
+  ::proto::BattleLogRound* mutable_round_data(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >*
+      mutable_round_data();
+  private:
+  const ::proto::BattleLogRound& _internal_round_data(int index) const;
+  ::proto::BattleLogRound* _internal_add_round_data();
+  public:
+  const ::proto::BattleLogRound& round_data(int index) const;
+  ::proto::BattleLogRound* add_round_data();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
+      round_data() const;
 
   // string battle_code = 1;
   void clear_battle_code();
@@ -461,6 +480,7 @@ class P2PMatchingReport PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< float > fps_history_;
   mutable std::atomic<int> _fps_history_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound > round_data_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr after_log_;
@@ -4058,6 +4078,45 @@ inline void P2PMatchingReport::_internal_set_input_block_count_2(::PROTOBUF_NAME
 inline void P2PMatchingReport::set_input_block_count_2(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_input_block_count_2(value);
   // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.input_block_count_2)
+}
+
+// repeated .proto.BattleLogRound round_data = 20;
+inline int P2PMatchingReport::_internal_round_data_size() const {
+  return round_data_.size();
+}
+inline int P2PMatchingReport::round_data_size() const {
+  return _internal_round_data_size();
+}
+inline void P2PMatchingReport::clear_round_data() {
+  round_data_.Clear();
+}
+inline ::proto::BattleLogRound* P2PMatchingReport::mutable_round_data(int index) {
+  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.round_data)
+  return round_data_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >*
+P2PMatchingReport::mutable_round_data() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.round_data)
+  return &round_data_;
+}
+inline const ::proto::BattleLogRound& P2PMatchingReport::_internal_round_data(int index) const {
+  return round_data_.Get(index);
+}
+inline const ::proto::BattleLogRound& P2PMatchingReport::round_data(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.round_data)
+  return _internal_round_data(index);
+}
+inline ::proto::BattleLogRound* P2PMatchingReport::_internal_add_round_data() {
+  return round_data_.Add();
+}
+inline ::proto::BattleLogRound* P2PMatchingReport::add_round_data() {
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.round_data)
+  return _internal_add_round_data();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
+P2PMatchingReport::round_data() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.round_data)
+  return round_data_;
 }
 
 // -------------------------------------------------------------------

@@ -264,8 +264,9 @@ static void InitDefaultsscc_info_P2PMatchingReport_gdxsv_2eproto() {
   ::proto::P2PMatchingReport::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_P2PMatchingReport_gdxsv_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_P2PMatchingReport_gdxsv_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_P2PMatchingReport_gdxsv_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_P2PMatchingReport_gdxsv_2eproto}, {
+      &scc_info_BattleLogRound_gdxsv_2eproto.base,}};
 
 static void InitDefaultsscc_info_Packet_gdxsv_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -353,6 +354,7 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, input_block_count_0_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, input_block_count_1_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, input_block_count_2_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, round_data_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -507,21 +509,21 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
 };
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, sizeof(::proto::P2PMatchingReport)},
-  { 19, -1, sizeof(::proto::P2PMatching)},
-  { 33, -1, sizeof(::proto::PlayerAddress)},
-  { 43, -1, sizeof(::proto::GamePatch)},
-  { 52, -1, sizeof(::proto::GamePatchCode)},
-  { 61, -1, sizeof(::proto::GamePatchList)},
-  { 67, -1, sizeof(::proto::BattleLogUser)},
-  { 84, -1, sizeof(::proto::BattleLogRound)},
-  { 91, -1, sizeof(::proto::BattleLogFile)},
-  { 112, -1, sizeof(::proto::BattleMessage)},
-  { 120, -1, sizeof(::proto::PingMessage)},
-  { 127, -1, sizeof(::proto::PongMessage)},
-  { 135, -1, sizeof(::proto::HelloServerMessage)},
-  { 143, -1, sizeof(::proto::FinMessage)},
-  { 149, -1, sizeof(::proto::HelloLbsMessage)},
-  { 155, -1, sizeof(::proto::Packet)},
+  { 20, -1, sizeof(::proto::P2PMatching)},
+  { 34, -1, sizeof(::proto::PlayerAddress)},
+  { 44, -1, sizeof(::proto::GamePatch)},
+  { 53, -1, sizeof(::proto::GamePatchCode)},
+  { 62, -1, sizeof(::proto::GamePatchList)},
+  { 68, -1, sizeof(::proto::BattleLogUser)},
+  { 85, -1, sizeof(::proto::BattleLogRound)},
+  { 92, -1, sizeof(::proto::BattleLogFile)},
+  { 113, -1, sizeof(::proto::BattleMessage)},
+  { 121, -1, sizeof(::proto::PingMessage)},
+  { 128, -1, sizeof(::proto::PongMessage)},
+  { 136, -1, sizeof(::proto::HelloServerMessage)},
+  { 144, -1, sizeof(::proto::FinMessage)},
+  { 150, -1, sizeof(::proto::HelloLbsMessage)},
+  { 156, -1, sizeof(::proto::Packet)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -544,7 +546,7 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
 };
 
 const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\013gdxsv.proto\022\005proto\"\327\002\n\021P2PMatchingRepo"
+  "\n\013gdxsv.proto\022\005proto\"\202\003\n\021P2PMatchingRepo"
   "rt\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 "
   "\001(\005\022\024\n\014player_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001"
   "(\005\022\024\n\014close_reason\030\005 \001(\t\022\023\n\013frame_count\030"
@@ -553,60 +555,61 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "s_history\030\017 \003(\002\022\026\n\016total_timesync\030\020 \001(\005\022"
   "\033\n\023input_block_count_0\030\021 \001(\005\022\033\n\023input_bl"
   "ock_count_1\030\022 \001(\005\022\033\n\023input_block_count_2"
-  "\030\023 \001(\005\"\364\001\n\013P2PMatching\022\023\n\013battle_code\030\001 "
-  "\001(\t\022\022\n\nsession_id\030\002 \001(\005\022\024\n\014player_count\030"
-  "\003 \001(\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_test_dura"
-  "tion\030\006 \001(\005\022\030\n\020is_training_game\030\007 \001(\010\022\020\n\010"
-  "rule_bin\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.proto.Ba"
-  "ttleLogUser\022(\n\ncandidates\030\n \003(\0132\024.proto."
-  "PlayerAddress\"Y\n\rPlayerAddress\022\017\n\007user_i"
-  "d\030\001 \001(\t\022\017\n\007peer_id\030\002 \001(\005\022\n\n\002ip\030\003 \001(\t\022\014\n\004"
-  "port\030\004 \001(\005\022\014\n\004team\030\005 \001(\005\"e\n\tGamePatch\022\021\n"
-  "\tgame_disk\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\022\n\nwrite_"
-  "once\030\004 \001(\010\022#\n\005codes\030\n \003(\0132\024.proto.GamePa"
-  "tchCode\"Q\n\rGamePatchCode\022\014\n\004size\030\001 \001(\005\022\017"
-  "\n\007address\030\002 \001(\r\022\020\n\010original\030\003 \001(\r\022\017\n\007cha"
-  "nged\030\004 \001(\r\"2\n\rGamePatchList\022!\n\007patches\030\001"
-  " \003(\0132\020.proto.GamePatch\"\354\001\n\rBattleLogUser"
-  "\022\017\n\007user_id\030\001 \001(\t\022\021\n\tuser_name\030\002 \001(\t\022\022\n\n"
-  "pilot_name\030\003 \001(\t\022\022\n\ngame_param\030\004 \001(\014\022\024\n\014"
-  "battle_count\030\005 \001(\005\022\021\n\twin_count\030\006 \001(\005\022\022\n"
-  "\nlose_count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004team"
-  "\030\t \001(\005\022\020\n\010platform\030\n \001(\t\022\026\n\016user_name_sj"
-  "is\030\013 \001(\014\022\013\n\003pos\030\014 \001(\005\"3\n\016BattleLogRound\022"
-  "\020\n\010win_team\030\001 \001(\005\022\017\n\007used_ms\030\002 \003(\005\"\300\003\n\rB"
-  "attleLogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n\030gdxsv"
-  "_version_deprecated\030\002 \001(\t\022\023\n\013battle_code"
-  "\030\003 \001(\t\022\030\n\020log_file_version\030\004 \001(\005\022!\n\007patc"
-  "hes\030\007 \003(\0132\020.proto.GamePatch\022\020\n\010rule_bin\030"
-  "\n \001(\014\022#\n\005users\030\013 \003(\0132\024.proto.BattleLogUs"
-  "er\022)\n\013battle_data\030\014 \003(\0132\024.proto.BattleMe"
-  "ssage\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg_index"
-  "es\030\020 \003(\005\022\031\n\021start_msg_randoms\030\021 \003(\004\022)\n\nr"
-  "ound_data\030\022 \003(\0132\025.proto.BattleLogRound\022\020"
-  "\n\010start_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n\014clos"
-  "e_reason\030\030 \001(\t\022\035\n\025disconnect_user_index\030"
-  "\031 \001(\005\";\n\rBattleMessage\022\017\n\007user_id\030\001 \001(\t\022"
-  "\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013PingMessag"
-  "e\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\"F\n"
-  "\013PongMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_"
-  "id\030\002 \001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022HelloSe"
-  "rverMessage\022\035\n\025session_id_deprecated\030\001 \001"
-  "(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n\nFinMe"
-  "ssage\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsMessage"
-  "\022\017\n\007user_id\030\001 \001(\t\"\334\002\n\006Packet\022 \n\004type\030\001 \001"
-  "(\0162\022.proto.MessageType\022\013\n\003seq\030\002 \001(\r\022\013\n\003a"
-  "ck\030\003 \001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021hello_se"
-  "rver_data\030\n \001(\0132\031.proto.HelloServerMessa"
-  "ge\022%\n\tping_data\030\013 \001(\0132\022.proto.PingMessag"
-  "e\022%\n\tpong_data\030\014 \001(\0132\022.proto.PongMessage"
-  "\022)\n\013battle_data\030\r \003(\0132\024.proto.BattleMess"
-  "age\022#\n\010fin_data\030\016 \001(\0132\021.proto.FinMessage"
-  "\022.\n\016hello_lbs_data\030\017 \001(\0132\026.proto.HelloLb"
-  "sMessage*_\n\013MessageType\022\010\n\004None\020\000\022\017\n\013Hel"
-  "loServer\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006Battle"
-  "\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLbs\020\nB\rZ\013gdxsv/proto"
-  "b\006proto3"
+  "\030\023 \001(\005\022)\n\nround_data\030\024 \003(\0132\025.proto.Battl"
+  "eLogRound\"\364\001\n\013P2PMatching\022\023\n\013battle_code"
+  "\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\024\n\014player_cou"
+  "nt\030\003 \001(\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_test_d"
+  "uration\030\006 \001(\005\022\030\n\020is_training_game\030\007 \001(\010\022"
+  "\020\n\010rule_bin\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.proto"
+  ".BattleLogUser\022(\n\ncandidates\030\n \003(\0132\024.pro"
+  "to.PlayerAddress\"Y\n\rPlayerAddress\022\017\n\007use"
+  "r_id\030\001 \001(\t\022\017\n\007peer_id\030\002 \001(\005\022\n\n\002ip\030\003 \001(\t\022"
+  "\014\n\004port\030\004 \001(\005\022\014\n\004team\030\005 \001(\005\"e\n\tGamePatch"
+  "\022\021\n\tgame_disk\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\022\n\nwri"
+  "te_once\030\004 \001(\010\022#\n\005codes\030\n \003(\0132\024.proto.Gam"
+  "ePatchCode\"Q\n\rGamePatchCode\022\014\n\004size\030\001 \001("
+  "\005\022\017\n\007address\030\002 \001(\r\022\020\n\010original\030\003 \001(\r\022\017\n\007"
+  "changed\030\004 \001(\r\"2\n\rGamePatchList\022!\n\007patche"
+  "s\030\001 \003(\0132\020.proto.GamePatch\"\354\001\n\rBattleLogU"
+  "ser\022\017\n\007user_id\030\001 \001(\t\022\021\n\tuser_name\030\002 \001(\t\022"
+  "\022\n\npilot_name\030\003 \001(\t\022\022\n\ngame_param\030\004 \001(\014\022"
+  "\024\n\014battle_count\030\005 \001(\005\022\021\n\twin_count\030\006 \001(\005"
+  "\022\022\n\nlose_count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004t"
+  "eam\030\t \001(\005\022\020\n\010platform\030\n \001(\t\022\026\n\016user_name"
+  "_sjis\030\013 \001(\014\022\013\n\003pos\030\014 \001(\005\"3\n\016BattleLogRou"
+  "nd\022\020\n\010win_team\030\001 \001(\005\022\017\n\007used_ms\030\002 \003(\005\"\300\003"
+  "\n\rBattleLogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n\030gd"
+  "xsv_version_deprecated\030\002 \001(\t\022\023\n\013battle_c"
+  "ode\030\003 \001(\t\022\030\n\020log_file_version\030\004 \001(\005\022!\n\007p"
+  "atches\030\007 \003(\0132\020.proto.GamePatch\022\020\n\010rule_b"
+  "in\030\n \001(\014\022#\n\005users\030\013 \003(\0132\024.proto.BattleLo"
+  "gUser\022)\n\013battle_data\030\014 \003(\0132\024.proto.Battl"
+  "eMessage\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg_in"
+  "dexes\030\020 \003(\005\022\031\n\021start_msg_randoms\030\021 \003(\004\022)"
+  "\n\nround_data\030\022 \003(\0132\025.proto.BattleLogRoun"
+  "d\022\020\n\010start_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n\014c"
+  "lose_reason\030\030 \001(\t\022\035\n\025disconnect_user_ind"
+  "ex\030\031 \001(\005\";\n\rBattleMessage\022\017\n\007user_id\030\001 \001"
+  "(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013PingMes"
+  "sage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t"
+  "\"F\n\013PongMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007us"
+  "er_id\030\002 \001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022Hell"
+  "oServerMessage\022\035\n\025session_id_deprecated\030"
+  "\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n\nFi"
+  "nMessage\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsMess"
+  "age\022\017\n\007user_id\030\001 \001(\t\"\334\002\n\006Packet\022 \n\004type\030"
+  "\001 \001(\0162\022.proto.MessageType\022\013\n\003seq\030\002 \001(\r\022\013"
+  "\n\003ack\030\003 \001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021hello"
+  "_server_data\030\n \001(\0132\031.proto.HelloServerMe"
+  "ssage\022%\n\tping_data\030\013 \001(\0132\022.proto.PingMes"
+  "sage\022%\n\tpong_data\030\014 \001(\0132\022.proto.PongMess"
+  "age\022)\n\013battle_data\030\r \003(\0132\024.proto.BattleM"
+  "essage\022#\n\010fin_data\030\016 \001(\0132\021.proto.FinMess"
+  "age\022.\n\016hello_lbs_data\030\017 \001(\0132\026.proto.Hell"
+  "oLbsMessage*_\n\013MessageType\022\010\n\004None\020\000\022\017\n\013"
+  "HelloServer\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006Bat"
+  "tle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLbs\020\nB\rZ\013gdxsv/pr"
+  "otob\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_gdxsv_2eproto_deps[1] = {
 };
@@ -630,7 +633,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_gdxsv_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_gdxsv_2eproto = {
-  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 2488,
+  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 2531,
   &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 16, 0,
   schemas, file_default_instances, TableStruct_gdxsv_2eproto::offsets,
   file_level_metadata_gdxsv_2eproto, 16, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
@@ -669,14 +672,16 @@ class P2PMatchingReport::_Internal {
 
 P2PMatchingReport::P2PMatchingReport(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  fps_history_(arena) {
+  fps_history_(arena),
+  round_data_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
   // @@protoc_insertion_point(arena_constructor:proto.P2PMatchingReport)
 }
 P2PMatchingReport::P2PMatchingReport(const P2PMatchingReport& from)
   : ::PROTOBUF_NAMESPACE_ID::Message(),
-      fps_history_(from.fps_history_) {
+      fps_history_(from.fps_history_),
+      round_data_(from.round_data_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_battle_code().empty()) {
@@ -751,6 +756,7 @@ void P2PMatchingReport::Clear() {
   (void) cached_has_bits;
 
   fps_history_.Clear();
+  round_data_.Clear();
   battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   after_log_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -876,6 +882,18 @@ const char* P2PMatchingReport::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 152)) {
           input_block_count_2_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated .proto.BattleLogRound round_data = 20;
+      case 20:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 162)) {
+          ptr -= 2;
+          do {
+            ptr += 2;
+            ptr = ctx->ParseMessage(_internal_add_round_data(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<162>(ptr));
         } else goto handle_unusual;
         continue;
       default: {
@@ -1005,6 +1023,14 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(19, this->_internal_input_block_count_2(), target);
   }
 
+  // repeated .proto.BattleLogRound round_data = 20;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->_internal_round_data_size()); i < n; i++) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(20, this->_internal_round_data(i), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -1034,6 +1060,13 @@ size_t P2PMatchingReport::ByteSizeLong() const {
     _fps_history_cached_byte_size_.store(cached_size,
                                     std::memory_order_relaxed);
     total_size += data_size;
+  }
+
+  // repeated .proto.BattleLogRound round_data = 20;
+  total_size += 2UL * this->_internal_round_data_size();
+  for (const auto& msg : this->round_data_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
   }
 
   // string battle_code = 1;
@@ -1159,6 +1192,7 @@ void P2PMatchingReport::MergeFrom(const P2PMatchingReport& from) {
   (void) cached_has_bits;
 
   fps_history_.MergeFrom(from.fps_history_);
+  round_data_.MergeFrom(from.round_data_);
   if (from.battle_code().size() > 0) {
     _internal_set_battle_code(from._internal_battle_code());
   }
@@ -1222,6 +1256,7 @@ void P2PMatchingReport::InternalSwap(P2PMatchingReport* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   fps_history_.InternalSwap(&other->fps_history_);
+  round_data_.InternalSwap(&other->round_data_);
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.Swap(&other->close_reason_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   after_log_.Swap(&other->after_log_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());

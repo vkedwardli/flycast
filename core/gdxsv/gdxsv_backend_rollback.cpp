@@ -558,8 +558,8 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		NOTICE_LOG(COMMON, "ROUND %d WIN_TEAM = %d", round_data_.size(), round_data_.back().win_team());
 		for (int i = 0; i < matching_.player_count(); ++i) {
 			const auto ms_index = gdxsv_ReadMem8(0xc3d1cd4 + i * 0x2000 + 0x1f02);
-			round_data_.back().add_used_ms(ms_index);
-			NOTICE_LOG(COMMON, "%d USED MS = %d", i, ms_index);
+			round_data_.back().add_used_ms(ms_index + 1);  // 0-origin → 1-origin
+			NOTICE_LOG(COMMON, "%d USED MS = %d", i, ms_index + 1);
 		}
 	}
 
@@ -846,6 +846,9 @@ void GdxsvBackendRollback::SaveReplay() const {
 	}
 	for (const auto& kv : start_msg_randoms_) {
 		log->add_start_msg_randoms(kv.second);
+	}
+	for (const auto& rd : round_data_) {
+		log->add_round_data()->CopyFrom(rd);
 	}
 
 	log->set_start_at(start_at_);
