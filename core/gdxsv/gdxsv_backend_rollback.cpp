@@ -480,7 +480,8 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	const int NetCountDown = disk == 1 ? 0x0c310202 : 0x0c3ab942;
 	const int DataStopCounter = disk == 1 ? 0x0c30fdda : 0x0c3ab51a;
 	const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
-	const int WinTeam = disk == 1 ? 0 : 0xc3d1948; // FIXME
+	const int PlayerWork = disk == 1 ? 0x0c336854: 0xc3d1cd4;
+	const int WinTeam = disk == 1 ? 0x0c3364b6 : 0xc3d1948;
 	const auto inputState = mapleInputState;
 	const auto memExInputAddr = gdxsv.symbols_.at("rbk_ex_input");
 	const auto in_game = [disk = gdxsv.Disk()]() -> bool {
@@ -553,11 +554,11 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 	// round_data
 	if (ggpo::active() && !round_data_.empty() && gdxsv_ReadMem8(WinTeam) != 0 && gdxsv_ReadMem8(WinTeam) != round_data_.back().win_team()) {
-		round_data_.back().set_win_team(gdxsv_ReadMem8(0xc3d1948));
+		round_data_.back().set_win_team(gdxsv_ReadMem8(WinTeam));
 		round_data_.back().clear_used_ms();
 		NOTICE_LOG(COMMON, "ROUND %d WIN_TEAM = %d", round_data_.size(), round_data_.back().win_team());
 		for (int i = 0; i < matching_.player_count(); ++i) {
-			const auto ms_index = gdxsv_ReadMem8(0xc3d1cd4 + i * 0x2000 + 0x1f02);
+			const auto ms_index = gdxsv_ReadMem8(PlayerWork + i * 0x2000 + 0x1f02);
 			round_data_.back().add_used_ms(ms_index + 1);  // 0-origin → 1-origin
 			NOTICE_LOG(COMMON, "%d USED MS = %d", i, ms_index + 1);
 		}

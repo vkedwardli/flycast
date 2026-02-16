@@ -29,11 +29,32 @@
 #include "ui/IconsFontAwesome6.h"
 #include "stdclass.h"
 
+#include <sstream>
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
 
 namespace {
+
+const std::array<std::string, 30> ms_names{
+	u8"ガンダム", u8"ガンキャノン", u8"GM", u8"旧ザク", u8"ザク",
+	u8"シャアザク", u8"グフ", u8"ドム", u8"リックドム", u8"ゲルググ",
+	u8"シャアゲルググ", u8"ギャン", u8"ゴッグ", u8"アッガイ", u8"ズゴック",
+	u8"シャアズゴック", u8"ゾック", u8"ガンタンク", u8"ジオング", u8"陸戦型ガンダム",
+	u8"陸戦型ジム", u8"エルメス", u8"ボール", u8"ブラウブロ", u8"",
+	u8"ザクレロ", u8"ビグロ", u8"ビグザム", u8"アッザム", u8"Gファイター"};
+
+std::vector<int> parse_csv_ints(const std::string& s) {
+	std::vector<int> result;
+	if (s.empty()) return result;
+	std::istringstream iss(s);
+	std::string token;
+	while (std::getline(iss, token, ',')) {
+		result.push_back(std::atoi(token.c_str()));
+	}
+	return result;
+}
+
 struct UserEntry {
 	std::string user_id;
 	std::string name;
@@ -183,6 +204,26 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst) {
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
+	// Player cards + Replay button first
+	gdxsv_replay_draw_players(users);
+
+	ImGui::NewLine();
+
+	bool pov_selected = (pov_index == -1);
+	DisabledScope scope(pov_selected);
+
+	if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
+		!scope.isDisabled()) {
+		gdxsv_start_replay(replay_dst, pov_index);
+	}
+
+	if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
+		ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+	}
+
+	ImGui::NewLine();
+
+	// Details below
 	ImGui::Text("BattleCode: %s", battle_code.c_str());
 	ImGui::SameLine();
 	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
@@ -207,22 +248,55 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Hide name", config::GdxReplayHideName, "Replace player names with generic names");
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
-	ImGui::NewLine();
+}
 
-	gdxsv_replay_draw_players(users);
+void draw_round_detail(const ReplayEntry& entry) {
+	auto round_wins = parse_csv_ints(entry.round_win);
+	if (round_wins.empty()) return;
 
-	ImGui::NewLine();
-
-	bool pov_selected = (pov_index == -1);
-	DisabledScope scope(pov_selected);
-
-	if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
-		!scope.isDisabled()) {
-		gdxsv_start_replay(replay_dst, pov_index);
+	std::vector<std::vector<int>> user_ms_lists;
+	for (const auto& ms_str : entry.user_used_ms_list) {
+		user_ms_lists.push_back(parse_csv_ints(ms_str));
 	}
 
-	if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
-		ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+	ImGui::Separator();
+	ImGui::TextDisabled("Round Detail");
+
+	for (int r = 0; r < (int)round_wins.size(); r++) {
+		int win_team = round_wins[r];
+		ImGui::Text("R%d", r + 1);
+		ImGui::SameLine();
+		if (win_team == 1) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.42f, .79f, .99f, 1));
+			ImGui::Text(u8"連邦");
+		} else if (win_team == 2) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.97f, .23f, .35f, 1));
+			ImGui::Text(u8"ジオン");
+		} else {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.5f, .5f, .5f, 1));
+			ImGui::Text("  -  ");
+		}
+		ImGui::PopStyleColor();
+		ImGui::SameLine();
+		std::string renpo_ms, zeon_ms;
+		for (int j = 0; j < (int)entry.users.size(); j++) {
+			int ms_id = 0;
+			if (j < (int)user_ms_lists.size() && r < (int)user_ms_lists[j].size()) {
+				ms_id = user_ms_lists[j][r];
+			}
+			if (ms_id == 0) continue;
+			const char* name = (ms_id >= 1 && ms_id <= 30) ? ms_names[ms_id - 1].c_str() : "?";
+			if (entry.users[j].team() == 1) {
+				if (!renpo_ms.empty()) renpo_ms += ", ";
+				renpo_ms += name;
+			} else {
+				if (!zeon_ms.empty()) zeon_ms += ", ";
+				zeon_ms += name;
+			}
+		}
+		if (!renpo_ms.empty() || !zeon_ms.empty()) {
+			ImGui::Text("%s vs %s", renpo_ms.c_str(), zeon_ms.c_str());
+		}
 	}
 }
 
@@ -271,11 +345,12 @@ void gdxsv_replay_local_tab() {
 	}
 #elif defined(_WIN32) && !defined(TARGET_UWP)
 	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Open folder")) {
+		const std::string lpParam = "/root, " + replay_dir;
 		SHELLEXECUTEINFOA sei{};
 		sei.cbSize = sizeof(sei);
 		sei.fMask = SEE_MASK_NOCLOSEPROCESS;
 		sei.lpFile = "Explorer.exe";
-		sei.lpParameters = ("/root, " + replay_dir).c_str();
+		sei.lpParameters = lpParam.c_str();
 		sei.nShow = SW_SHOWDEFAULT;
 		ShellExecuteExA(&sei);
 	}
@@ -576,7 +651,7 @@ void gdxsv_replay_server_tab() {
 	ImGui::Text("Filter by");
 
 	const std::array<std::string, 10> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
-												    "Battle Code", "Ranking",   "Disk",		 "Reverse Order", "Used MS"};
+												    "Battle Code", "Ranking",   "Disk",		 "Used MS", "Reverse Order"};
 	static unsigned int filter_selected = 0;
 
 	ImGui::SameLine();
@@ -779,30 +854,15 @@ void gdxsv_replay_server_tab() {
 				}
 				break;
 			}
-			case 8:	 // Reverse
+			case 8:	 // Used MS
 			{
-				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
-					search_reverse = true;
-					fetch_new_results();
-				}
-				break;
-			}
-			case 9:	 // Used MS
-			{
-				static const std::array<std::string, 30> ms_names{
-					u8"ガンダム", u8"ガンキャノン", u8"GM", u8"旧ザク", u8"ザク",
-					u8"シャアザク", u8"グフ", u8"ドム", u8"リックドム", u8"ゲルググ",
-					u8"シャアゲルググ", u8"ギャン", u8"ゴッグ", u8"アッガイ", u8"ズゴック",
-					u8"シャアズゴック", u8"ゾック", u8"ガンタンク", u8"ジオング", u8"陸戦型ガンダム",
-					u8"陸戦型ジム", u8"エルメス", u8"ボール", u8"ブラウブロ", u8"ダミー",
-					u8"ザクレロ", u8"ビグロ", u8"ビグザム", u8"アッザム", u8"Gファイター"};
 				static unsigned int ms_selected = 0;
 
 				ImGui::SameLine();
 				ImGui::PushItemWidth(200.0f * scaling);
 				if (ImGui::BeginCombo("##UsedMSItems", ms_names[ms_selected].c_str(), ImGuiComboFlags_HeightLargest)) {
 					for (u32 i = 0; i < ms_names.size(); i++) {
+						if (ms_names[i].empty()) continue;
 						bool is_selected = i == ms_selected;
 						if (ImGui::Selectable(ms_names[i].c_str(), is_selected)) {
 							ms_selected = i;
@@ -815,6 +875,15 @@ void gdxsv_replay_server_tab() {
 				}
 				ImGui::PopItemWidth();
 
+				break;
+			}
+			case 9:	 // Reverse
+			{
+				ImGui::SameLine();
+				if (ImGui::Button("Add Filter")) {
+					search_reverse = true;
+					fetch_new_results();
+				}
 				break;
 			}
 			default:
@@ -953,6 +1022,7 @@ void gdxsv_replay_server_tab() {
 
 			gdxsv_replay_draw_info(battle_code, entry.disk, (int)entry.users.size(), "", entry.start_unix, 0, entry.users,
 								   entry.replay_url);
+			draw_round_detail(entry);
 		}
 	}
 	scrollWhenDraggingOnVoid();
