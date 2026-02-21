@@ -1490,7 +1490,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 	char rbuf[128];
 	if (totalRounds > 0) {
-		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, posInRound, roundLen);
+		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, key_msg_count_, log_file_.inputs_size());
 	} else {
 		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", key_msg_count_, log_file_.inputs_size());
 	}
