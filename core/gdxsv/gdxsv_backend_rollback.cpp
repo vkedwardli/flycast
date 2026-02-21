@@ -104,6 +104,7 @@ void GdxsvBackendRollback::Reset() {
 	input_logs_.clear();
 	start_msg_indexes_.clear();
 	start_msg_randoms_.clear();
+	round_data_.clear();
 
 	ggpo::stopSession();
 	gdxsv.key_display_.Clear();
@@ -479,6 +480,8 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	const int NetCountDown = disk == 1 ? 0x0c310202 : 0x0c3ab942;
 	const int DataStopCounter = disk == 1 ? 0x0c30fdda : 0x0c3ab51a;
 	const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
+	const int PlayerWork = disk == 1 ? 0x0c336854: 0xc3d1cd4;
+	const int WinTeam = disk == 1 ? 0x0c3364b6 : 0xc3d1948;
 	const auto inputState = mapleInputState;
 	const auto memExInputAddr = gdxsv.symbols_.at("rbk_ex_input");
 	const auto in_game = [disk = gdxsv.Disk()]() -> bool {
@@ -531,7 +534,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 	}
 
-	// Disconnect check (ignore re battle end scene)
+	// Disconnect check
 	if (ggpo::active() && !(gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 2)) {
 		for (int i = 0; i < matching_.player_count(); ++i) {
 			if (!ggpo::isConnected(i)) {
@@ -546,6 +549,18 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				error_fast_return_ = true;
 				break;
 			}
+		}
+	}
+
+	// round_data
+	if (ggpo::active() && !round_data_.empty() && gdxsv_ReadMem8(WinTeam) != 0 && gdxsv_ReadMem8(WinTeam) != round_data_.back().win_team()) {
+		round_data_.back().set_win_team(gdxsv_ReadMem8(WinTeam));
+		round_data_.back().clear_used_ms();
+		NOTICE_LOG(COMMON, "ROUND %d WIN_TEAM = %d", round_data_.size(), round_data_.back().win_team());
+		for (int i = 0; i < matching_.player_count(); ++i) {
+			const auto ms_index = gdxsv_ReadMem8(PlayerWork + i * 0x2000 + 0x1f02);
+			round_data_.back().add_used_ms(ms_index + 1);  // 0-origin → 1-origin
+			NOTICE_LOG(COMMON, "%d USED MS = %d", i, ms_index + 1);
 		}
 	}
 
@@ -663,6 +678,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			u16 rand_value = gdxsv_ReadMem16(gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40);
 			start_msg_indexes_.emplace_back(frame, input_logs_.size());
 			start_msg_randoms_.emplace_back(frame, rand_value);
+			round_data_.resize(start_msg_indexes_.size());
 		}
 
 		if (ok && exInput == ExInputWaitLoadEnd) {
@@ -831,6 +847,9 @@ void GdxsvBackendRollback::SaveReplay() const {
 	}
 	for (const auto& kv : start_msg_randoms_) {
 		log->add_start_msg_randoms(kv.second);
+	}
+	for (const auto& rd : round_data_) {
+		log->add_round_data()->CopyFrom(rd);
 	}
 
 	log->set_start_at(start_at_);

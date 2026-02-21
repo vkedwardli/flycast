@@ -37,6 +37,7 @@ class GdxsvBackendRollback {
 	void SaveReplay() const;
 	const proto::P2PMatching &GetMatching() { return matching_; }
 	const proto::P2PMatchingReport &GetReport() { return report_; }
+	const std::vector<proto::BattleLogRound> &GetRoundData() { return round_data_; }
 	void ClearReport() { report_.Clear(); }
 	void ToggleNetworkStat() { osd_network_stat_ = !osd_network_stat_; }
 
@@ -64,4 +65,5 @@ class GdxsvBackendRollback {
 	std::vector<std::pair<int, u64>> input_logs_;
 	std::vector<std::pair<int, int>> start_msg_indexes_;
 	std::vector<std::pair<int, u32>> start_msg_randoms_;
+	std::vector<proto::BattleLogRound> round_data_;
 };

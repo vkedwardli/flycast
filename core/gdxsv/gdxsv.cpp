@@ -399,6 +399,11 @@ std::vector<u8> Gdxsv::GenerateP2PMatchReportPacket() {
 	}
 	rbk_report.set_after_log(ss.str());
 
+	const auto& round_data = rollback_net_.GetRoundData();
+	for (const auto& rd : round_data) {
+		rbk_report.add_round_data()->CopyFrom(rd);
+	}
+
 	std::string data;
 	if (rbk_report.SerializeToString(&data)) {
 		if (!encode_zlib_deflate(data.c_str(), data.size(), msg.body)) {

@@ -54,9 +54,11 @@ void GdxsvBackendReplay::Reset() {
 	pov_ = 0;
 	key_msg_count_ = 0;
 	start_msg_count_ = 0;
+	round_start_frame_ = 0;
 	recv_delay_ = 0;
 	end_of_frame_ = false;
 	seeking_ = false;
+	pending_round_ = 0;
 	pause_menu_opend_ = false;
 	lbs_first_skip_ = false;
 	ctrl_play_speed_ = 0;
@@ -173,12 +175,12 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 					}
 					flash_left_ = 0.3f;
 				}
-				// Up/Down: Speed control
-				else if (~pressed & DC_DPAD_UP) {
+				// Up/Down: Speed control (ignored while Left/Right is held)
+				else if ((~pressed & DC_DPAD_UP) && !(~input.kcode & DC_DPAD_LEFT) && !(~input.kcode & DC_DPAD_RIGHT)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
 					flash_up_ = 0.3f;
 				}
-				else if (~pressed & DC_DPAD_DOWN) {
+				else if ((~pressed & DC_DPAD_DOWN) && !(~input.kcode & DC_DPAD_LEFT) && !(~input.kcode & DC_DPAD_RIGHT)) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 					flash_down_ = 0.3f;
 				}
@@ -186,17 +188,25 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 		prev_kcode = input.kcode;
 
-		// Auto-repeat for step frame when paused and Left/Right held
-		if (ctrl_pause_ && !takeover_) {
+		// Auto-repeat for Left/Right held
+		if (!takeover_) {
 			bool holding_lr = (~input.kcode & DC_DPAD_RIGHT) || (~input.kcode & DC_DPAD_LEFT);
 			if (holding_lr) {
 				step_hold_timer_ += ImGui::GetIO().DeltaTime;
 				if (step_hold_timer_ >= 0.5f && ctrl_commands_.empty()) {
 					if (~input.kcode & DC_DPAD_RIGHT) {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+						if (ctrl_pause_) {
+							ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+						} else {
+							ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
+						}
 						flash_right_ = 0.3f;
 					} else {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+						if (ctrl_pause_) {
+							ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+						} else {
+							ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
+						}
 						flash_left_ = 0.3f;
 					}
 				}
@@ -306,7 +316,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 					}
 					verify(recv_buf_.empty());
 					gdxsv_save_state.SaveState(key_msg_count_);
+					pending_round_ = start_msg_count_;
 					NOTICE_LOG(COMMON, "Save Menu Opened frame %d", key_msg_count_);
+				} else {
+					// Apply pending round change on menu close
+					if (pending_round_ != 0 && pending_round_ != start_msg_count_) {
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, pending_round_);
+					}
+					pending_round_ = 0;
 				}
 				SDL_ShowCursor(pause_menu_opend_ ? SDL_ENABLE : SDL_DISABLE);
 			}
@@ -436,6 +453,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				if (need_cancel()) break;
 			}
 
+			round_start_frame_ = key_msg_count_;
 			ctrl_play_speed_ = org_speed;
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
@@ -1251,44 +1269,18 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		}
 		ImGui::EndDisabled();
 
-		// Round control: Round [<] 2/3 [>]
+		// Round control: slider
 		if (ChangeRoundAvailable()) {
 			ImGui::Separator();
-
-			const float btnW = uiScaled(30.0f);
-			const float btnH = uiScaled(28.0f);
-			const float labelColX = ImGui::GetStyle().WindowPadding.x;
-			const float btnLColX = labelColX + ImGui::CalcTextSize("Round").x + ImGui::GetStyle().ItemSpacing.x;
-			const float valueColX = btnLColX + btnW + ImGui::GetStyle().ItemSpacing.x;
-			const float valueW = ImGui::CalcTextSize("9 / 9").x;
-			const float btnRColX = valueColX + valueW + ImGui::GetStyle().ItemSpacing.x;
 
 			int roundStart, roundEnd, totalRounds;
 			GetRoundBounds(roundStart, roundEnd, totalRounds);
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::Text("Round");
-			ImGui::SameLine(btnLColX);
-			bool canPrev = start_msg_count_ > 1;
-			ImGui::BeginDisabled(!canPrev);
-			if (ImGui::Button(ICON_FA_ANGLE_LEFT "##rnd", ImVec2(btnW, btnH))) {
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, -1);
-			}
-			ImGui::EndDisabled();
-			ImGui::SameLine(valueColX);
-			char roundBuf[32];
-			snprintf(roundBuf, sizeof(roundBuf), "%d / %d", start_msg_count_, totalRounds);
-			float roundOfs = (valueW - ImGui::CalcTextSize(roundBuf).x) * 0.5f;
-			ImGui::SetCursorPosX(valueColX + roundOfs);
-			ImGui::AlignTextToFramePadding();
-			ImGui::Text("%s", roundBuf);
-			ImGui::SameLine(btnRColX);
-			bool canNext = start_msg_count_ < totalRounds;
-			ImGui::BeginDisabled(!canNext);
-			if (ImGui::Button(ICON_FA_ANGLE_RIGHT "##rnd", ImVec2(btnW, btnH))) {
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::NextRound, 1);
-			}
-			ImGui::EndDisabled();
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+			ImGui::SliderInt("##round", &pending_round_, 1, totalRounds, "%d");
 		}
 
 		ImGui::Separator();
@@ -1357,7 +1349,11 @@ void GdxsvBackendReplay::GetRoundBounds(int& roundStart, int& roundEnd, int& tot
 	if (round < 1) round = 1;
 	if (round > totalRounds) round = totalRounds;
 
-	roundStart = log_file_.start_msg_indexes(round - 1);
+	if (round_start_frame_ > 0) {
+		roundStart = round_start_frame_;
+	} else {
+		roundStart = log_file_.start_msg_indexes(round - 1);
+	}
 	if (round < totalRounds) {
 		roundEnd = log_file_.start_msg_indexes(round);
 	} else {
@@ -1387,7 +1383,8 @@ void GdxsvBackendReplay::UpdateControlBarVisibility() {
 	if ((axes[0] >> 8) + 128 >= 128 + 0x20) cur_kcode &= ~DC_DPAD_RIGHT;
 	if ((axes[1] >> 8) + 128 <= 128 - 0x20) cur_kcode &= ~DC_DPAD_UP;
 	if ((axes[1] >> 8) + 128 >= 128 + 0x20) cur_kcode &= ~DC_DPAD_DOWN;
-	if (cur_kcode != ctrl_bar_prev_kcode_) {
+	bool holding_lr = (~cur_kcode & DC_DPAD_LEFT) || (~cur_kcode & DC_DPAD_RIGHT);
+	if (cur_kcode != ctrl_bar_prev_kcode_ || holding_lr) {
 		ctrl_bar_idle_timer_ = 3.0f;
 	}
 	ctrl_bar_prev_kcode_ = cur_kcode;
@@ -1493,7 +1490,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 	char rbuf[128];
 	if (totalRounds > 0) {
-		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, posInRound, roundLen);
+		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, key_msg_count_, log_file_.inputs_size());
 	} else {
 		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", key_msg_count_, log_file_.inputs_size());
 	}

@@ -29,11 +29,34 @@
 #include "ui/IconsFontAwesome6.h"
 #include "stdclass.h"
 
+#include <sstream>
+#include <thread>
+#include <chrono>
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
 
 namespace {
+
+const std::array<std::string, 30> ms_names{
+	u8"ガンダム", u8"ガンキャノン", u8"GM", u8"旧ザク", u8"ザク",
+	u8"シャアザク", u8"グフ", u8"ドム", u8"リックドム", u8"ゲルググ",
+	u8"シャアゲルググ", u8"ギャン", u8"ゴッグ", u8"アッガイ", u8"ズゴック",
+	u8"シャアズゴック", u8"ゾック", u8"ガンタンク", u8"ジオング", u8"陸戦型ガンダム",
+	u8"陸戦型ジム", u8"エルメス", u8"ボール", u8"ブラウブロ", u8"",
+	u8"ザクレロ", u8"ビグロ", u8"ビグザム", u8"アッザム", u8"Gファイター"};
+
+std::vector<int> parse_csv_ints(const std::string& s) {
+	std::vector<int> result;
+	if (s.empty()) return result;
+	std::istringstream iss(s);
+	std::string token;
+	while (std::getline(iss, token, ',')) {
+		result.push_back(std::atoi(token.c_str()));
+	}
+	return result;
+}
+
 struct UserEntry {
 	std::string user_id;
 	std::string name;
@@ -62,6 +85,9 @@ struct ReplayEntry {
 	int zeon_win = 0;
 	time_t start_unix;
 	std::string replay_url;
+	std::string round_win;
+	std::vector<std::string> user_used_ms_list;
+	int play_count = 0;
 };
 
 bool read_dir = false;
@@ -80,6 +106,7 @@ std::string search_battle_code;
 int search_ranking = -1;
 std::string search_disk;
 bool search_reverse;
+int search_used_ms = -1;
 
 std::shared_future<std::vector<UserEntry>> fetch_user_entry_future_;
 int fetch_user_entry_http_status;
@@ -177,9 +204,30 @@ void gdxsv_replay_draw_players(const std::vector<proto::BattleLogUser>& users) {
 
 void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& game_disk, const int& users_size,
 							const std::string& close_reason, const time_t& start_time, const time_t& end_time,
-							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst) {
+							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst,
+							int play_count = -1) {
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
+	// Player cards + Replay button first
+	gdxsv_replay_draw_players(users);
+
+	ImGui::NewLine();
+
+	bool pov_selected = (pov_index == -1);
+	DisabledScope scope(pov_selected);
+
+	if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
+		!scope.isDisabled()) {
+		gdxsv_start_replay(replay_dst, pov_index);
+	}
+
+	if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
+		ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+	}
+
+	ImGui::NewLine();
+
+	// Details below
 	ImGui::Text("BattleCode: %s", battle_code.c_str());
 	ImGui::SameLine();
 	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
@@ -188,6 +236,9 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
 	ImGui::Text("Game: %s", game_disk.c_str());
 	ImGui::Text("Players: %d", users_size);
+	if (play_count >= 0) {
+		ImGui::Text("Plays: %d", play_count);
+	}
 
 	char buf[128] = {0};
 	if (start_time != 0 && std::localtime(&start_time) != nullptr) {
@@ -204,22 +255,55 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Hide name", config::GdxReplayHideName, "Replace player names with generic names");
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
-	ImGui::NewLine();
+}
 
-	gdxsv_replay_draw_players(users);
+void draw_round_detail(const ReplayEntry& entry) {
+	auto round_wins = parse_csv_ints(entry.round_win);
+	if (round_wins.empty()) return;
 
-	ImGui::NewLine();
-
-	bool pov_selected = (pov_index == -1);
-	DisabledScope scope(pov_selected);
-
-	if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
-		!scope.isDisabled()) {
-		gdxsv_start_replay(replay_dst, pov_index);
+	std::vector<std::vector<int>> user_ms_lists;
+	for (const auto& ms_str : entry.user_used_ms_list) {
+		user_ms_lists.push_back(parse_csv_ints(ms_str));
 	}
 
-	if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
-		ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+	ImGui::Separator();
+	ImGui::TextDisabled("Round Detail");
+
+	for (int r = 0; r < (int)round_wins.size(); r++) {
+		int win_team = round_wins[r];
+		ImGui::Text("R%d", r + 1);
+		ImGui::SameLine();
+		if (win_team == 1) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.42f, .79f, .99f, 1));
+			ImGui::Text(u8"連邦");
+		} else if (win_team == 2) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.97f, .23f, .35f, 1));
+			ImGui::Text(u8"ジオン");
+		} else {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.5f, .5f, .5f, 1));
+			ImGui::Text("  -  ");
+		}
+		ImGui::PopStyleColor();
+		ImGui::SameLine();
+		std::string renpo_ms, zeon_ms;
+		for (int j = 0; j < (int)entry.users.size(); j++) {
+			int ms_id = 0;
+			if (j < (int)user_ms_lists.size() && r < (int)user_ms_lists[j].size()) {
+				ms_id = user_ms_lists[j][r];
+			}
+			if (ms_id == 0) continue;
+			const char* name = (ms_id >= 1 && ms_id <= 30) ? ms_names[ms_id - 1].c_str() : "?";
+			if (entry.users[j].team() == 1) {
+				if (!renpo_ms.empty()) renpo_ms += ", ";
+				renpo_ms += name;
+			} else {
+				if (!zeon_ms.empty()) zeon_ms += ", ";
+				zeon_ms += name;
+			}
+		}
+		if (!renpo_ms.empty() || !zeon_ms.empty()) {
+			ImGui::Text("%s vs %s", renpo_ms.c_str(), zeon_ms.c_str());
+		}
 	}
 }
 
@@ -268,11 +352,12 @@ void gdxsv_replay_local_tab() {
 	}
 #elif defined(_WIN32) && !defined(TARGET_UWP)
 	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Open folder")) {
+		const std::string lpParam = "/root, " + replay_dir;
 		SHELLEXECUTEINFOA sei{};
 		sei.cbSize = sizeof(sei);
 		sei.fMask = SEE_MASK_NOCLOSEPROCESS;
 		sei.lpFile = "Explorer.exe";
-		sei.lpParameters = ("/root, " + replay_dir).c_str();
+		sei.lpParameters = lpParam.c_str();
 		sei.nShow = SW_SHOWDEFAULT;
 		ShellExecuteExA(&sei);
 	}
@@ -358,6 +443,7 @@ void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEnt
 				user.set_team(u.at("team"));
 				user.set_pos(u.at("pos"));
 				entry.users.push_back(user);
+				entry.user_used_ms_list.push_back(u.value("used_ms_list", ""));
 			}
 
 			entry.round = item.value("round", 0);
@@ -365,6 +451,8 @@ void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEnt
 			entry.zeon_win = item.value("zeon_win", 0);
 			entry.start_unix = item.at("start_unix");
 			entry.replay_url = item.at("replay_url");
+			entry.round_win = item.value("round_win", "");
+			entry.play_count = item.value("play_count", 0);
 
 			out.push_back(entry);
 		}
@@ -442,6 +530,9 @@ void fetch_replay_json() {
 		}
 		if (search_reverse) {
 			url += "&reverse=" + http::urlEncode(std::to_string(1));
+		}
+		if (search_used_ms != -1) {
+			url += "&used_ms=" + http::urlEncode(std::to_string(search_used_ms));
 		}
 
 		fetch_replay_entry_http_status = http::get(url, dl, content_type);
@@ -567,8 +658,8 @@ void gdxsv_replay_server_tab() {
 
 	ImGui::Text("Filter by");
 
-	const std::array<std::string, 9> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
-												   "Battle Code", "Ranking",   "Disk",		 "Reverse Order"};
+	const std::array<std::string, 10> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
+												    "Battle Code", "Ranking",   "Disk",		 "Used MS", "Reverse Order"};
 	static unsigned int filter_selected = 0;
 
 	ImGui::SameLine();
@@ -771,7 +862,30 @@ void gdxsv_replay_server_tab() {
 				}
 				break;
 			}
-			case 8:	 // Reverse
+			case 8:	 // Used MS
+			{
+				static unsigned int ms_selected = 0;
+
+				ImGui::SameLine();
+				ImGui::PushItemWidth(200.0f * scaling);
+				if (ImGui::BeginCombo("##UsedMSItems", ms_names[ms_selected].c_str(), ImGuiComboFlags_HeightLargest)) {
+					for (u32 i = 0; i < ms_names.size(); i++) {
+						if (ms_names[i].empty()) continue;
+						bool is_selected = i == ms_selected;
+						if (ImGui::Selectable(ms_names[i].c_str(), is_selected)) {
+							ms_selected = i;
+							search_used_ms = i + 1;  // 1-origin
+							fetch_new_results();
+						}
+						if (is_selected) ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+				ImGui::PopItemWidth();
+
+				break;
+			}
+			case 9:	 // Reverse
 			{
 				ImGui::SameLine();
 				if (ImGui::Button("Add Filter")) {
@@ -795,6 +909,9 @@ void gdxsv_replay_server_tab() {
 		draw_filter_label_yesno("Ranking", search_ranking);
 		draw_filter_label_string("Disk", search_disk);
 		draw_filter_label_bool("Reverse", search_reverse);
+		if (search_used_ms != -1) {
+			draw_filter_label("Used MS", std::to_string(search_used_ms), []() { search_used_ms = -1; });
+		}
 	}
 
 	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_server_list_paging"), ScaledVec2(450, 0), false, ImGuiWindowFlags_NoDecoration);
@@ -912,7 +1029,8 @@ void gdxsv_replay_server_tab() {
 			battle_code = battle_code.substr(0, battle_code.find(".pb"));
 
 			gdxsv_replay_draw_info(battle_code, entry.disk, (int)entry.users.size(), "", entry.start_unix, 0, entry.users,
-								   entry.replay_url);
+								   entry.replay_url, entry.play_count);
+			draw_round_detail(entry);
 		}
 	}
 	scrollWhenDraggingOnVoid();
@@ -940,6 +1058,27 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 		dc_loadstate(99);
 		if (gdxsv.StartReplayFile(replay_file.c_str(), pov)) {
 			gui_state = GuiState::Closed;
+			// Fire-and-forget: notify server of replay play (HTTP replays only)
+			if (replay_file.find("http") == 0) {
+				auto pos = replay_file.find_last_of("/");
+				if (pos != std::string::npos) {
+					std::string battle_code = replay_file.substr(pos + 1);
+					auto dot = battle_code.find(".pb");
+					if (dot != std::string::npos) {
+						battle_code = battle_code.substr(0, dot);
+					}
+					std::thread([battle_code]() {
+						http::init();
+						std::vector<u8> dl;
+						std::string content_type;
+						auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+							std::chrono::system_clock::now().time_since_epoch()).count();
+						std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
+							+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
+						http::get(url, dl, content_type);
+					}).detach();
+				}
+			}
 		} else {
 			dc_loadstate(90);
 			broken_replay_path = replay_file;
