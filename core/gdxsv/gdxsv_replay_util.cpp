@@ -30,6 +30,8 @@
 #include "stdclass.h"
 
 #include <sstream>
+#include <thread>
+#include <chrono>
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
@@ -85,6 +87,7 @@ struct ReplayEntry {
 	std::string replay_url;
 	std::string round_win;
 	std::vector<std::string> user_used_ms_list;
+	int play_count = 0;
 };
 
 bool read_dir = false;
@@ -201,7 +204,8 @@ void gdxsv_replay_draw_players(const std::vector<proto::BattleLogUser>& users) {
 
 void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& game_disk, const int& users_size,
 							const std::string& close_reason, const time_t& start_time, const time_t& end_time,
-							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst) {
+							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst,
+							int play_count = -1) {
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
 	// Player cards + Replay button first
@@ -232,6 +236,9 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
 	ImGui::Text("Game: %s", game_disk.c_str());
 	ImGui::Text("Players: %d", users_size);
+	if (play_count >= 0) {
+		ImGui::Text("Plays: %d", play_count);
+	}
 
 	char buf[128] = {0};
 	if (start_time != 0 && std::localtime(&start_time) != nullptr) {
@@ -445,6 +452,7 @@ void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEnt
 			entry.start_unix = item.at("start_unix");
 			entry.replay_url = item.at("replay_url");
 			entry.round_win = item.value("round_win", "");
+			entry.play_count = item.value("play_count", 0);
 
 			out.push_back(entry);
 		}
@@ -1021,7 +1029,7 @@ void gdxsv_replay_server_tab() {
 			battle_code = battle_code.substr(0, battle_code.find(".pb"));
 
 			gdxsv_replay_draw_info(battle_code, entry.disk, (int)entry.users.size(), "", entry.start_unix, 0, entry.users,
-								   entry.replay_url);
+								   entry.replay_url, entry.play_count);
 			draw_round_detail(entry);
 		}
 	}
@@ -1050,6 +1058,27 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 		dc_loadstate(99);
 		if (gdxsv.StartReplayFile(replay_file.c_str(), pov)) {
 			gui_state = GuiState::Closed;
+			// Fire-and-forget: notify server of replay play (HTTP replays only)
+			if (replay_file.find("http") == 0) {
+				auto pos = replay_file.find_last_of("/");
+				if (pos != std::string::npos) {
+					std::string battle_code = replay_file.substr(pos + 1);
+					auto dot = battle_code.find(".pb");
+					if (dot != std::string::npos) {
+						battle_code = battle_code.substr(0, dot);
+					}
+					std::thread([battle_code]() {
+						http::init();
+						std::vector<u8> dl;
+						std::string content_type;
+						auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+							std::chrono::system_clock::now().time_since_epoch()).count();
+						std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
+							+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
+						http::get(url, dl, content_type);
+					}).detach();
+				}
+			}
 		} else {
 			dc_loadstate(90);
 			broken_replay_path = replay_file;
