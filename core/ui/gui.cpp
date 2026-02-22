@@ -297,6 +297,12 @@ void gui_initFonts()
         fontConfig.FontNo = 2;    // UIGothic
         if (font == nullptr)
             io.Fonts->AddFontFromFileTTF((fontDir + "msgothic.ttc").c_str(), fontSize, &fontConfig, cjk_ranges.Data);
+
+		largeFontConfig.FontNo = 2;    // Meiryo UI
+		ImFont* largeFont = io.Fonts->AddFontFromFileTTF((fontDir + "meiryo.ttc").c_str(), largeFontSize, &largeFontConfig, cjk_ranges.Data);
+		largeFontConfig.FontNo = 2;    // UIGothic
+		if (largeFont == nullptr)
+			io.Fonts->AddFontFromFileTTF((fontDir + "msgothic.ttc").c_str(), largeFontSize, &largeFontConfig, cjk_ranges.Data);
     }
 
 /* gdxsv: Load ShiftJIS only to prevent crash with older GPU
