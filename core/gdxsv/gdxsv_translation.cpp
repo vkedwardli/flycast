@@ -12,6 +12,7 @@
 #include "gdxsv_translation.h"
 
 #include "cfg/option.h"
+#include "oslib/i18n.h"
 
 const char* GdxsvTranslation::Text() const {
 	switch (GdxsvLanguage::Language()) {
@@ -61,8 +62,7 @@ std::string GdxsvLanguage::TextureDirectoryName() {
 
 GdxsvLanguage::Lang GdxsvLanguage::LanguageFromOS() {
 #ifdef __APPLE__
-	extern std::string os_Locale();
-	std::string locale = os_Locale();
+	std::string locale = i18n::getCurrentLocale();
 
 	time_t ts = 0;
 	struct tm t;
