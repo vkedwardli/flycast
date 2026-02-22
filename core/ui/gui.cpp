@@ -362,6 +362,7 @@ void gui_initFonts()
     std::string fontDir = std::string("/System/Library/Fonts/");
     // Always load ShiftJIS for Gdxsv
     io.Fonts->AddFontFromFileTTF((fontDir + "ヒラギノ角ゴシック W4.ttc").c_str(), fontSize, &fontConfig, cjk_ranges.Data);
+	io.Fonts->AddFontFromFileTTF((fontDir + "ヒラギノ角ゴシック W4.ttc").c_str(), largeFontSize, &largeFontConfig, io.Fonts->GetGlyphRangesJapanese());
 /* gdxsv: Load ShiftJIS only to prevent crash with older GPU
     extern std::string os_Locale();
     std::string locale = os_Locale();
