@@ -30,7 +30,7 @@
 #include "switch_gamepad.h"
 #endif
 #include "dreamlink.h"
-#include "cfg/option.h"
+#include "oslib/i18n.h"
 #include <unordered_map>
 
 static SDL_Window* window = NULL;
@@ -39,7 +39,7 @@ static u32 windowFlags;
 #define WINDOW_WIDTH  640
 #define WINDOW_HEIGHT  480
 
-static std::unordered_map<u64, std::shared_ptr<SDLMouse>> sdl_mice;
+static std::unordered_map<u32, std::shared_ptr<SDLMouse>> sdl_mice;
 static std::shared_ptr<SDLKeyboardDevice> sdl_keyboard;
 static bool window_fullscreen;
 static bool window_maximized;
@@ -83,7 +83,7 @@ static void sdl_open_joystick(int index)
 #elif defined(USE_DREAMLINK_DEVICES)
 		std::shared_ptr<SDLGamepad> gamepad;
 		if (DreamLinkGamepad::isDreamcastController(index))
-			gamepad = std::make_shared<DreamLinkGamepad>(index < MAPLE_PORTS ? index : -1, index, pJoystick);
+			gamepad = createDreamLinkGamepad(index < MAPLE_PORTS ? index : -1, index, pJoystick);
 		else
 			gamepad = std::make_shared<SDLGamepad>(index < MAPLE_PORTS ? index : -1, index, pJoystick);
 #else
@@ -106,7 +106,7 @@ static void sdl_close_joystick(SDL_JoystickID instance)
 static void setWindowTitleGame()
 {
 	if (settings.naomi.slave)
-		SDL_SetWindowTitle(window, ("Flycast - Multiboard Slave " + cfgLoadStr("naomi", "BoardId", "")).c_str());
+		SDL_SetWindowTitle(window, ("Flycast - Multiboard Slave " + config::loadStr("naomi", "BoardId")).c_str());
 	else
 		SDL_SetWindowTitle(window, ("Flycast - " + settings.content.title).c_str());
 }
@@ -304,7 +304,7 @@ inline void SDLMouse::setAbsPos(int x, int y)
 		Mouse::setAbsPos(x, y, width, height);
 }
 
-static std::shared_ptr<SDLMouse> getMouse(u64 mouseId)
+static std::shared_ptr<SDLMouse> getMouse(u32 mouseId)
 {
 	auto& mouse = sdl_mice[mouseId];
 	if (mouse == nullptr)
@@ -487,7 +487,7 @@ void input_sdl_handle()
 				break;
 
 			case SDL_MOUSEMOTION:
-				gui_set_mouse_position(event.motion.x, event.motion.y);
+				gui_set_mouse_position(event.motion.x, event.motion.y, false);
 				checkRawInput();
 				if (!config::UseRawInput)
 				{
@@ -512,12 +512,12 @@ void input_sdl_handle()
 			case SDL_MOUSEBUTTONUP:
 				{
 					Uint8 button;
-					gui_set_mouse_position(event.button.x, event.button.y);
+					gui_set_mouse_position(event.button.x, event.button.y, false);
 					// Swap middle and right clicks for GUI
 					button = event.button.button;
 					if (button == SDL_BUTTON_MIDDLE || button == SDL_BUTTON_RIGHT)
 						button ^= 1;
-					gui_set_mouse_button(button - 1, event.button.state == SDL_PRESSED);
+					gui_set_mouse_button(button - 1, event.button.state == SDL_PRESSED, false);
 					checkRawInput();
 					if (!config::UseRawInput)
 					{
@@ -574,7 +574,7 @@ void input_sdl_handle()
 					auto mouse = getMouse(0);
 					int x = event.tfinger.x * settings.display.width;
 					int y = event.tfinger.y * settings.display.height;
-					gui_set_mouse_position(x, y);
+					gui_set_mouse_position(x, y, true);
 					if (mouseCaptured && gameRunning && event.type == SDL_FINGERMOTION)
 					{
 						int dx = event.tfinger.dx * settings.display.width;
@@ -585,7 +585,7 @@ void input_sdl_handle()
 						mouse->setAbsPos(x, y);
 					if (event.type == SDL_FINGERDOWN) {
 						mouse->setButton(Mouse::LEFT_BUTTON, true);
-						gui_set_mouse_button(0, true);
+						gui_set_mouse_button(0, true, true);
 					}
 				}
 				break;
@@ -594,8 +594,8 @@ void input_sdl_handle()
 					auto mouse = getMouse(0);
 					int x = event.tfinger.x * settings.display.width;
 					int y = event.tfinger.y * settings.display.height;
-					gui_set_mouse_position(x, y);
-					gui_set_mouse_button(0, false);
+					gui_set_mouse_position(x, y, true);
+					gui_set_mouse_button(0, false, true);
 					mouse->setAbsPos(x, y);
 					mouse->setButton(Mouse::LEFT_BUTTON, false);
 				}
@@ -680,12 +680,12 @@ bool sdl_recreate_window(u32 flags)
 		settings.display.uiScale = 1.4f;
 	}
 #else
-	windowPos.x = cfgLoadInt("window", "left", windowPos.x);
-	windowPos.y = cfgLoadInt("window", "top", windowPos.y);
-	windowPos.w = cfgLoadInt("window", "width", windowPos.w);
-	windowPos.h = cfgLoadInt("window", "height", windowPos.h);
-	window_fullscreen = cfgLoadBool("window", "fullscreen", window_fullscreen);
-	window_maximized = cfgLoadBool("window", "maximized", window_maximized);
+	windowPos.x = config::loadInt("window", "left", windowPos.x);
+	windowPos.y = config::loadInt("window", "top", windowPos.y);
+	windowPos.w = config::loadInt("window", "width", windowPos.w);
+	windowPos.h = config::loadInt("window", "height", windowPos.h);
+	window_fullscreen = config::loadBool("window", "fullscreen", window_fullscreen);
+	window_maximized = config::loadBool("window", "maximized", window_maximized);
 	if (window != nullptr)
 		get_window_state();
 
@@ -852,7 +852,12 @@ void sdl_window_create()
 #endif
 	}
 	sdlDeInit.initialized = true;
-	initRenderApi();
+	try {
+		initRenderApi();
+	} catch (const FlycastException& e) {
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, i18n::T("Flycast Error"), e.what(), nullptr);
+		throw;
+	}
 	// ImGui copy & paste
 	ImGui::GetIO().GetClipboardTextFn = getClipboardText;
 	ImGui::GetIO().SetClipboardTextFn = setClipboardText;
@@ -868,12 +873,12 @@ void sdl_window_destroy()
 	if (!settings.naomi.slave && settings.naomi.drivingSimSlave == 0)
 	{
 		get_window_state();
-		cfgSaveInt("window", "left", windowPos.x);
-		cfgSaveInt("window", "top", windowPos.y);
-		cfgSaveInt("window", "width", windowPos.w);
-		cfgSaveInt("window", "height", windowPos.h);
-		cfgSaveBool("window", "maximized", window_maximized);
-		cfgSaveBool("window", "fullscreen", window_fullscreen);
+		config::saveInt("window", "left", windowPos.x);
+		config::saveInt("window", "top", windowPos.y);
+		config::saveInt("window", "width", windowPos.w);
+		config::saveInt("window", "height", windowPos.h);
+		config::saveBool("window", "maximized", window_maximized);
+		config::saveBool("window", "fullscreen", window_fullscreen);
 	}
 #endif
 	termRenderApi();

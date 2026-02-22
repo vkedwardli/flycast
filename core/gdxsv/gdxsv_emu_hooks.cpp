@@ -45,11 +45,11 @@ void gdxsv_emu_start() {
 	gdxsv.Reset();
 
 	if (gdxsv.Enabled()) {
-		auto replay = cfgLoadStr("gdxsv", "replay", "");
+		auto replay = config::loadStr("gdxsv", "replay", "");
 		if (!replay.empty()) {
 			dc_savestate(90);
 			dc_loadstate(99);
-		} else if (!cfgLoadStr("gdxsv", "rbk_test", "").empty()) {
+		} else if (!config::loadStr("gdxsv", "rbk_test", "").empty()) {
 			dc_loadstate(99);
 		} else {
 			gdxsv.StartPingTest();
@@ -102,13 +102,13 @@ void gdxsv_emu_savestate(int slot) {
 
 void gdxsv_emu_loadstate(int slot) {
 	if (gdxsv.Enabled()) {
-		auto replay = cfgLoadStr("gdxsv", "replay", "");
+		auto replay = config::loadStr("gdxsv", "replay", "");
 		if (!replay.empty() && slot == 99) {
-			auto replay_pov = cfgLoadInt("gdxsv", "ReplayPOV", 1);
+			auto replay_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
 			gdxsv.StartReplayFile(replay.c_str(), replay_pov - 1);
 		}
 
-		auto rbk_test = cfgLoadStr("gdxsv", "rbk_test", "");
+		auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
 		if (!rbk_test.empty() && slot == 99) {
 			gdxsv.StartRollbackTest(rbk_test.c_str());
 		}
