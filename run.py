@@ -115,45 +115,49 @@ def run(idx, *arg_list) -> subprocess.Popen:
 
 def run_rom(idx: int) -> subprocess.Popen:
     return run(idx,
-        FLYCAST_NAME, ROM,
+        FLYCAST_NAME,
         conf_gdxsv(idx),
         conf_volume(idx),
         conf_log(idx),
         conf_window_layout(idx),
+        ROM,
     )
 
 
 def run_replay(idx: int) -> subprocess.Popen:
     return run(idx,
-        FLYCAST_NAME, ROM,
+        FLYCAST_NAME,
         conf_gdxsv(idx),
         conf_volume(idx),
         conf_window_layout(idx),
         conf_log(idx),
-        f"--config gdxsv:replay={REPLAY}"
+        f"--config gdxsv:replay={REPLAY}",
+        ROM,
     )
 
 
 def run_rbk_test(idx: int) -> subprocess.Popen:
     return run(idx,
-        FLYCAST_NAME, ROM,
+        FLYCAST_NAME,
         conf_gdxsv(idx),
         conf_volume(idx),
         conf_window_layout(idx),
         conf_log(idx),
-        f"--config gdxsv:rbk_test={idx+1}/{N}"
+        f"--config gdxsv:rbk_test={idx+1}/{N}",
+        ROM,
     )
 
 
 def run_rbk_test_random(idx: int) -> subprocess.Popen:
     seed = random.randint(1, 99999)
     return run(idx,
-        FLYCAST_NAME, ROM,
+        FLYCAST_NAME,
         conf_gdxsv(idx),
         conf_volume(idx),
         conf_window_layout(idx),
         conf_log(idx),
-        f"--config gdxsv:rbk_test={idx+1}/{N} --config gdxsv:rand_input={seed}"
+        f"--config gdxsv:rbk_test={idx+1}/{N} --config gdxsv:rand_input={seed}",
+        ROM,
     )
 
 
@@ -185,12 +189,13 @@ def run_emu_benchmark(idx: int) -> subprocess.Popen:
     new_env = os.environ.copy()
     new_env["FLYCAST_EMU_BENCHMARK_FRAMES"] = str(EMU_BENCHMARK_FRAMES)
     cmd = " ".join([
-        FLYCAST_NAME, ROM,
+        FLYCAST_NAME,
         conf_gdxsv(idx),
         conf_volume(idx),
         conf_window_layout(idx),
         conf_log(idx),
-        f"--config gdxsv:replay={replay_path}"
+        f"--config gdxsv:replay={replay_path}",
+        ROM,
     ])
     print(cmd)
     return subprocess.Popen(cmd, shell=True, env=new_env)
