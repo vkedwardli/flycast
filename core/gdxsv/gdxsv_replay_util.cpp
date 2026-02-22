@@ -560,7 +560,7 @@ void fetch_user_json() {
 		http::init();
 		std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/user?";
 
-		std::string loginkey = cfgLoadStr("gdxsv", "loginkey", "");
+		std::string loginkey = config::loadStr("gdxsv", "loginkey", "");
 		std::vector<u8> e_loginkey(loginkey.size());
 		static constexpr int magic[] = {0x46, 0xcf, 0x2d, 0x55};
 		for (int i = 0; i < e_loginkey.size(); ++i) e_loginkey[i] ^= loginkey[i] ^ magic[i & 3];

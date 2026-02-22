@@ -337,7 +337,7 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 		n = args[2] - '0';
 	}
 
-	if (const u64 seed = cfgLoadInt64("gdxsv", "rand_input", 0)) {
+	if (const u64 seed = config::loadInt64("gdxsv", "rand_input", 0)) {
 		NOTICE_LOG(COMMON, "RandomInput Seed=%d", seed + me);
 		ggpo::randomInput(true, seed + me, 0x0004 | 0x0400 | 0x0200 | 0x0010 | 0x0040);
 	}

@@ -85,7 +85,9 @@ void GdxsvBackendReplay::Reset() {
 
 void GdxsvBackendReplay::OnMainUiLoop() {
 	if (state_ == State::End) {
+		state_ = State::None;
 		gdxsv_save_state.Reset();
+		gdxsv.netmode_ = Gdxsv::NetMode::Offline;
 		gdxsv_end_replay();
 		return;
 	}
@@ -623,8 +625,8 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 
 	pov_ = pov;
 	
-	target_round_ = cfgLoadInt("gdxsv", "replay_target_round", 0);
-	target_frame_ = cfgLoadInt("gdxsv", "replay_target_frame", 0);
+	target_round_ = config::loadInt("gdxsv", "replay_target_round", 0);
+	target_frame_ = config::loadInt("gdxsv", "replay_target_frame", 0);
 
 	return Start();
 }

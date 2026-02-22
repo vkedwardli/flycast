@@ -27,6 +27,7 @@
 #include "imgui_driver.h"
 #include "profiler/fc_profiler.h"
 #include "network/ggpo.h"
+#include "oslib/i18n.h"
 
 #include <chrono>
 #include <thread>
@@ -63,7 +64,13 @@ bool mainui_rend_frame()
 
 	if (gui_is_open())
 	{
-		gui_display_ui();
+		try {
+			gui_display_ui();
+		} catch (const FlycastException& e) {
+			// Assume this is a graphics API issue
+			forceReinit = true;
+			return false;
+		}
 #ifndef TARGET_IPHONE
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
 #endif
@@ -75,6 +82,14 @@ bool mainui_rend_frame()
 				return false;
 			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
 				gui_display_profiler();
+		} catch (const RendererException& e) {
+			gui_error(i18n::Ts("Renderer error:") + "\n" + e.what() + "\n\n"
+					+ i18n::Ts("The game has been paused but it is recommended to restart Flycast"));
+			rend_term_renderer();
+			if (!rend_init_renderer())
+				ERROR_LOG(RENDERER, "Renderer re-initialization failed");
+			gui_open_settings();
+			return false;
 		} catch (const FlycastException& e) {
 			gui_stop_game(e.what());
 			return false;
@@ -89,7 +104,7 @@ void mainui_init()
 {
 	if (!rend_init_renderer()) {
 		ERROR_LOG(RENDERER, "Renderer initialization failed");
-		gui_error("Renderer initialization failed.\nPlease select a different graphics API");
+		gui_error(i18n::T("Renderer initialization failed.\nPlease select a different graphics API"));
 	}
 }
 
@@ -137,10 +152,16 @@ void mainui_loop(bool forceStart)
 		fc_profiler::startThread("main");
 		const auto rendered = mainui_rend_frame();
 
+		if (rendered && imguiDriver != nullptr)
+		{
+			try {
+				imguiDriver->present();
+			} catch (const FlycastException& e) {
+				forceReinit = true;
+			}
+		}
 		if (imguiDriver == nullptr)
 			forceReinit = true;
-		else
-			imguiDriver->present();
 
 		if (currentDupeFrames != config::DupeFrames) {
 			forceReinit = true;
@@ -153,7 +174,25 @@ void mainui_loop(bool forceStart)
 			int prevApi = isOpenGL(currentRenderer) ? 0 : isVulkan(currentRenderer) ? 1 : currentRenderer == RenderType::DirectX9 ? 2 : 3;
 			int newApi = isOpenGL(config::RendererType) ? 0 : isVulkan(config::RendererType) ? 1 : config::RendererType == RenderType::DirectX9 ? 2 : 3;
 			if (newApi != prevApi || forceReinit)
-				switchRenderApi();
+			{
+				try {
+					switchRenderApi();
+				} catch (const FlycastException& e) {
+					ERROR_LOG(RENDERER, "switchRenderApi failed: %s", e.what());
+					if (prevApi == newApi)
+						// fatal
+						throw;
+					// try to go back to the previous API
+					config::RendererType = currentRenderer;
+					try {
+						switchRenderApi();
+					} catch (const FlycastException& e) {
+						ERROR_LOG(RENDERER, "Falling back to previous renderer also failed: %s", e.what());
+						// fatal
+						throw;
+					}
+				}
+			}
 			mainui_init();
 			forceReinit = false;
 			currentRenderer = config::RendererType;
