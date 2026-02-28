@@ -61,32 +61,15 @@ std::string GdxsvLanguage::TextureDirectoryName() {
 #endif
 
 GdxsvLanguage::Lang GdxsvLanguage::LanguageFromOS() {
-#ifdef __APPLE__
 	std::string locale = i18n::getCurrentLocale();
-
+#ifdef __APPLE__
 	time_t ts = 0;
 	struct tm t;
 	char buf[16];
 	localtime_r(&ts, &t);
 	strftime(buf, sizeof(buf), "%z%Z", &t);
-#elif _WIN32
-	std::string locale;
-	DWORD bufferLength = 0;
-	ULONG numberOfLanguages = 0;
-	std::wstring languagesWString;
-	GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &numberOfLanguages, NULL, &bufferLength);
-	languagesWString.resize(bufferLength);
-	BOOL result =
-		GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &numberOfLanguages, const_cast<PZZWSTR>(languagesWString.data()), &bufferLength);
-	if (result) {
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t> > convert;
-		locale = convert.to_bytes(languagesWString);
-	} else {
-		locale = "en";
-	}
-#else
-	std::string locale = "en";
 #endif
+
 	if (locale.find("ja") == 0
 #ifdef __APPLE__
 		|| strcmp(buf, "+0900JST") == 0
