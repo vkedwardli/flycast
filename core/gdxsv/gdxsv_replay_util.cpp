@@ -39,7 +39,7 @@ std::string os_PrecomposedString(std::string string);
 
 namespace {
 
-const std::array<const char*, 41> ms_names_localized{{
+const std::array<const char*, 41> ms_names_array{{
 	"Gundam",
 	"Guncannon",
 	"GM",
@@ -84,8 +84,8 @@ const std::array<const char*, 41> ms_names_localized{{
 }};
 
 static const char* ms_names(int id) {
-	if (id < 0 || id >= (int)ms_names_localized.size()) return "?";
-	const char* name = ms_names_localized[id];
+	if (id < 0 || id >= (int)ms_names_array.size()) return "?";
+	const char* name = ms_names_array[id];
 	if (strlen(name) == 0) return "";
 	return GdxsvLanguage::gdxT(name);
 }
@@ -915,7 +915,7 @@ void gdxsv_replay_server_tab() {
 				ImGui::SameLine();
 				ImGui::PushItemWidth(200.0f * scaling);
 				if (ImGui::BeginCombo("##UsedMSItems", ms_names(ms_selected), ImGuiComboFlags_HeightLargest)) {
-					for (u32 i = 0; i < ms_names_localized.size(); i++) {
+					for (u32 i = 0; i < ms_names_array.size(); i++) {
 						const char* name = ms_names(i);
 						if (strlen(name) == 0) continue;
 						bool is_selected = i == ms_selected;
