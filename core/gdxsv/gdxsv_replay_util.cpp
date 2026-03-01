@@ -213,16 +213,19 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 
 	ImGui::NewLine();
 
-	bool pov_selected = (pov_index == -1);
-	DisabledScope scope(pov_selected);
+	{
+		bool pov_selected = (pov_index == -1);
+		ImGui::BeginDisabled(pov_selected || !playable);
 
-	if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50), playable ? 0 : ImGuiItemFlags_Disabled) &&
-		!scope.isDisabled()) {
-		gdxsv_start_replay(replay_dst, pov_index);
-	}
+		if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50))) {
+			gdxsv_start_replay(replay_dst, pov_index);
+		}
 
-	if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
-		ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+		ImGui::EndDisabled();
+
+		if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
+			ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+		}
 	}
 
 	ImGui::NewLine();
@@ -235,9 +238,8 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	}
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
 	ImGui::Text("Game: %s", game_disk.c_str());
-	ImGui::Text("Players: %d", users_size);
 	if (play_count >= 0) {
-		ImGui::Text("Plays: %d", play_count);
+		ImGui::Text("Views: %d", play_count);
 	}
 
 	char buf[128] = {0};
