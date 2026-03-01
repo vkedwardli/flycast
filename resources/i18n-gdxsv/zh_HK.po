@@ -15,6 +15,12 @@ msgstr ""
 msgid "Patch game language and texture, for DX only"
 msgstr "中文化補丁，修改遊戲圖檔和文字"
 
+msgid "Japanese"
+msgstr "日本語"
+
+msgid "Cantonese"
+msgstr "廣東話"
+
 msgid "Settings to be changed:"
 msgstr "將會被更改的設定:"
 
@@ -134,7 +140,7 @@ msgid "Use Texture Pack"
 msgstr "高解像度紋理"
 
 msgid "Use up-scaled textures."
-msgstr "使用高品質紋理。"
+msgstr "遊戲內使用高品質圖檔"
 
 msgid ""
 "Run the emulated CPU and GPU on different threads.\n"
@@ -238,3 +244,156 @@ msgstr ""
 
 msgid "Enable UPnP"
 msgstr "使用 UPnP"
+
+msgid "Joystick Polling"
+msgstr "搖桿ポーリング"
+
+msgid "Use polling instead of events for joystick input. May improve input latency in multi-threaded mode."
+msgstr "使用Polling而非Event Trigger來獲取搖桿輸入。可能會改善多線程模式下的輸入延遲。"
+
+msgid "Federation"
+msgstr "聯邦"
+
+msgid "Zeon"
+msgstr "自護"
+
+msgid "Gundam"
+msgstr "高達"
+
+msgid "Guncannon"
+msgstr "鐳砲"
+
+msgid "GM"
+msgstr "吉姆"
+
+msgid "Old Zaku"
+msgstr "舊渣"
+
+msgid "Zaku"
+msgstr "綠渣"
+
+msgid "Char's Zaku"
+msgstr "紅渣"
+
+msgid "Gouf"
+msgstr "老虎"
+
+msgid "Dom"
+msgstr "大魔"
+
+msgid "Rick Dom"
+msgstr "加大魔"
+
+msgid "Gelgoog"
+msgstr "綠勇"
+
+msgid "Char's Gelgoog"
+msgstr "紅勇"
+
+msgid "Gyan"
+msgstr "強人"
+
+msgid "Gogg"
+msgstr "肥蟹"
+
+msgid "Acguy"
+msgstr "龜霸"
+
+msgid "Z'Gok"
+msgstr "藍蟹"
+
+msgid "Char's Z'Gok"
+msgstr "紅蟹"
+
+msgid "Zock"
+msgstr "雙面蟹"
+
+msgid "Guntank"
+msgstr "坦克"
+
+msgid "Zeong"
+msgstr "自護號"
+
+msgid "Ground Type Gundam"
+msgstr "陸高"
+
+msgid "Ground Type GM"
+msgstr "陸吉"
+
+msgid "Elmeth"
+msgstr "愛美號"
+
+msgid "Ball"
+msgstr "鐵球"
+
+msgid "Braw Bro"
+msgstr "菠蘿號"
+
+msgid "Grublo"
+msgstr "格拉布羅"
+
+msgid "Zakrello"
+msgstr "渣古尼羅"
+
+msgid "Bigro"
+msgstr "比格羅"
+
+msgid "Big Zam"
+msgstr "魔霸"
+
+msgid "Adzam"
+msgstr "阿薩姆"
+
+msgid "G-Fighter"
+msgstr "G-戰機"
+
+msgid "Taklamakan Desert"
+msgstr "塔克拉瑪干沙漠"
+
+msgid "Black Sea Forest"
+msgstr "黒海南岸森林地帶"
+
+msgid "Odessa"
+msgstr "奧迪沙"
+
+msgid "Belfast"
+msgstr "貝爾法斯特"
+
+msgid "New York"
+msgstr "紐約"
+
+msgid "Grand Canyon"
+msgstr "大峽谷"
+
+msgid "Jaburo"
+msgstr "査布羅"
+
+msgid "UG Complex"
+msgstr "地下基地"
+
+msgid "Solomon"
+msgstr "所羅門"
+
+msgid "Solomon (Space)"
+msgstr "所羅門宙域"
+
+msgid "A Baoa Qu (Space)"
+msgstr "阿・巴瓦・庫 宙域"
+
+msgid "A Baoa Qu (Outter)"
+msgstr "阿・巴瓦・庫 外部"
+
+msgid "A Baoa Qu (Inner)"
+msgstr "阿・巴瓦・庫 內部"
+
+msgid "Sat.Orbit 1"
+msgstr "衛星軌道１"
+
+msgid "Sat.Orbit 2"
+msgstr "衛星軌道２"
+
+msgid "SIDE 6 (Space)"
+msgstr "SIDE 6 宙域"
+
+msgid "SIDE 7 (Inner)"
+msgstr "SIDE 7 內部"

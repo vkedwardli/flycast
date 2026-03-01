@@ -1,4 +1,5 @@
 ﻿#include "gdxsv_replay_util.h"
+#include "gdxsv_translation.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -38,13 +39,56 @@ std::string os_PrecomposedString(std::string string);
 
 namespace {
 
-const std::array<std::string, 30> ms_names{
-	u8"ガンダム", u8"ガンキャノン", u8"GM", u8"旧ザク", u8"ザク",
-	u8"シャアザク", u8"グフ", u8"ドム", u8"リックドム", u8"ゲルググ",
-	u8"シャアゲルググ", u8"ギャン", u8"ゴッグ", u8"アッガイ", u8"ズゴック",
-	u8"シャアズゴック", u8"ゾック", u8"ガンタンク", u8"ジオング", u8"陸戦型ガンダム",
-	u8"陸戦型ジム", u8"エルメス", u8"ボール", u8"ブラウブロ", u8"",
-	u8"ザクレロ", u8"ビグロ", u8"ビグザム", u8"アッザム", u8"Gファイター"};
+const std::array<const char*, 41> ms_names_localized{{
+	"Gundam",
+	"Guncannon",
+	"GM",
+	"Old Zaku",
+	"Zaku",
+	"Char's Zaku",
+	"Gouf",
+	"Dom",
+	"Rick Dom",
+	"Gelgoog",
+	"Char's Gelgoog",
+	"Gyan",
+	"Gogg",
+	"Acguy",
+	"Z'Gok",
+	"Char's Z'Gok",
+	"Zock",
+	"Guntank",
+	"Zeong",
+	"Ground Type Gundam",
+	"Ground Type GM",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"Elmeth", //33
+	"Ball", //34
+	"Braw Bro", //35
+	"Grublo", //36
+	"Zakrello", //37
+	"Bigro", //38
+	"Big Zam", //39
+	"Adzam", //40
+	"G-Fighter", //41
+}};
+
+static const char* ms_names(int id) {
+	if (id < 0 || id >= (int)ms_names_localized.size()) return "?";
+	const char* name = ms_names_localized[id];
+	if (strlen(name) == 0) return "";
+	return GdxsvLanguage::gdxT(name);
+}
 
 std::vector<int> parse_csv_ints(const std::string& s) {
 	std::vector<int> result;
@@ -277,10 +321,10 @@ void draw_round_detail(const ReplayEntry& entry) {
 		ImGui::SameLine();
 		if (win_team == 1) {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.42f, .79f, .99f, 1));
-			ImGui::Text(u8"連邦");
+			ImGui::Text("%s", GdxsvLanguage::gdxT("Federation"));
 		} else if (win_team == 2) {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.97f, .23f, .35f, 1));
-			ImGui::Text(u8"ジオン");
+			ImGui::Text("%s", GdxsvLanguage::gdxT("Zeon"));
 		} else {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.5f, .5f, .5f, 1));
 			ImGui::Text("  -  ");
@@ -294,7 +338,7 @@ void draw_round_detail(const ReplayEntry& entry) {
 				ms_id = user_ms_lists[j][r];
 			}
 			if (ms_id == 0) continue;
-			const char* name = (ms_id >= 1 && ms_id <= 30) ? ms_names[ms_id - 1].c_str() : "?";
+			const char* name = (ms_id >= 1 && ms_id <= 41) ? ms_names(ms_id - 1) : "?";
 			if (entry.users[j].team() == 1) {
 				if (!renpo_ms.empty()) renpo_ms += ", ";
 				renpo_ms += name;
@@ -759,40 +803,40 @@ void gdxsv_replay_server_tab() {
 			}
 			case 3:	 // Lobby ID
 			{
-				const static std::array<std::array<std::string, 4>, 17> lobby_data{
-					{{u8"タクラマカン砂漠", u8"塔克拉瑪干沙漠", "Taklamakan Desert", "2"},
-					 {u8"黒海南岸森林地帯", u8"黒海南岸森林地帶", "Black Sea Forest", "4"},
-					 {u8"オデッサ", u8"奧迪沙", "Odessa", "5"},
-					 {u8"ベルファスト", u8"貝爾法斯特", "Belfast", "6"},
-					 {u8"ニューヤーク", u8"紐約", "New York", "9"},
-					 {u8"グレートキャニオン", u8"大峽谷", "Grand Canyon", "10"},
-					 {u8"ジャブロー", u8"査布羅", "Jaburo", "11"},
-					 {u8"地下基地", u8"地下基地", "UG Complex", "12"},
-					 {u8"ソロモン", u8"所羅門", "Solomon", "13"},
-					 {u8"ソロモン宙域", u8"所羅門宙域", "Solomon (Space)", "14"},
-					 {u8"ア・バオア・クー宙域", u8"阿・巴瓦・庫 宙域", "A Baoa Qu (Space)", "15"},
-					 {u8"ア・バオア・クー外部", u8"阿・巴瓦・庫 外部", "A Baoa Qu (Outter)", "16"},
-					 {u8"ア・バオア・クー内部", u8"阿・巴瓦・庫 内部", "A Baoa Qu (Inner)", "17"},
-					 {u8"衛星軌道１", u8"衛星軌道１", "Sat.Orbit 1", "19"},
-					 {u8"衛星軌道2", u8"衛星軌道２", "Sat.Orbit 2", "20"},
-					 {u8"サイド６宙域", u8"SIDE 6 宙域", "SIDE 6 (Space)", "21"},
-					 {u8"サイド７内部", u8"SIDE 7 内部", "SIDE 7 (Inner)", "22"}}};
+				const static std::array<std::array<const char*, 2>, 17> lobby_data{{
+					{ "Taklamakan Desert", "2" },
+					{ "Black Sea Forest", "4" },
+					{ "Odessa", "5" },
+					{ "Belfast", "6" },
+					{ "New York", "9" },
+					{ "Grand Canyon", "10" },
+					{ "Jaburo", "11" },
+					{ "UG Complex", "12" },
+					{ "Solomon", "13" },
+					{ "Solomon (Space)", "14" },
+					{ "A Baoa Qu (Space)", "15" },
+					{ "A Baoa Qu (Outter)", "16" },
+					{ "A Baoa Qu (Inner)", "17" },
+					{ "Sat.Orbit 1", "19" },
+					{ "Sat.Orbit 2", "20" },
+					{ "SIDE 6 (Space)", "21" },
+					{ "SIDE 7 (Inner)", "22" }
+				}};
 
 				static unsigned int lobby_selected = 0;
 
-				static int language = config::GdxLanguage.get();
-				if (language < 0 || 3 <= language) {
-					language = 0;
-				}
+				auto get_lobby_name = [&](size_t i) {
+					return GdxsvLanguage::gdxT(lobby_data[i][0]);
+				};
 
 				ImGui::SameLine();
 				ImGui::PushItemWidth(300.0f * scaling);
-				if (ImGui::BeginCombo("##LobbyItems", lobby_data[lobby_selected][language].c_str(), ImGuiComboFlags_HeightLargest)) {
+				if (ImGui::BeginCombo("##LobbyItems", get_lobby_name(lobby_selected), ImGuiComboFlags_HeightLargest)) {
 					for (u32 i = 0; i < lobby_data.size(); i++) {
 						bool is_selected = i == lobby_selected;
-						if (ImGui::Selectable(lobby_data[i][language].c_str(), is_selected)) {
+						if (ImGui::Selectable(get_lobby_name(i), is_selected)) {
 							lobby_selected = i;
-							search_lobby_id = lobby_data[i][3];
+							search_lobby_id = lobby_data[i][1];
 							fetch_new_results();
 						}
 						if (is_selected) ImGui::SetItemDefaultFocus();
@@ -870,11 +914,12 @@ void gdxsv_replay_server_tab() {
 
 				ImGui::SameLine();
 				ImGui::PushItemWidth(200.0f * scaling);
-				if (ImGui::BeginCombo("##UsedMSItems", ms_names[ms_selected].c_str(), ImGuiComboFlags_HeightLargest)) {
-					for (u32 i = 0; i < ms_names.size(); i++) {
-						if (ms_names[i].empty()) continue;
+				if (ImGui::BeginCombo("##UsedMSItems", ms_names(ms_selected), ImGuiComboFlags_HeightLargest)) {
+					for (u32 i = 0; i < ms_names_localized.size(); i++) {
+						const char* name = ms_names(i);
+						if (strlen(name) == 0) continue;
 						bool is_selected = i == ms_selected;
-						if (ImGui::Selectable(ms_names[i].c_str(), is_selected)) {
+						if (ImGui::Selectable(name, is_selected)) {
 							ms_selected = i;
 							search_used_ms = i + 1;  // 1-origin
 							fetch_new_results();
