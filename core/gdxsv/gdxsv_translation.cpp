@@ -13,6 +13,39 @@
 
 #include "cfg/option.h"
 #include "oslib/i18n.h"
+#include "oslib/resources.h"
+#include "tinygettext/tinygettext.hpp"
+#include "tinygettext/file_system.hpp"
+#include <sstream>
+
+using namespace tinygettext;
+
+namespace {
+class GdxsvResourceFileSystem : public FileSystem
+{
+	std::vector<std::string> open_directory(const std::string& pathname) override {
+		return resource::listDirectory(pathname);
+	}
+	std::unique_ptr<std::istream> open_file(const std::string& filename) override
+	{
+		size_t size;
+		std::unique_ptr<u8[]> data = resource::load(filename, size);
+		if (data == nullptr)
+			return nullptr;
+		std::string str((const char *)&data[0], (const char *)&data[size]);
+		return std::make_unique<std::istringstream>(str);
+	}
+};
+
+static DictionaryManager* gdxDictMgr = nullptr;
+
+static void initGdxDictMgr() {
+	if (gdxDictMgr == nullptr) {
+		gdxDictMgr = new DictionaryManager(std::make_unique<GdxsvResourceFileSystem>());
+		gdxDictMgr->add_directory("i18n-gdxsv");
+	}
+}
+}
 
 const char* GdxsvTranslation::Text() const {
 	switch (GdxsvLanguage::Language()) {
@@ -50,6 +83,21 @@ std::string GdxsvLanguage::TextureDirectoryName() {
 			return "Cantonese";
 		default:
 			return "Japanese";
+	}
+}
+
+const char* GdxsvLanguage::gdxT(const char* msg) {
+	initGdxDictMgr();
+	switch (Language()) {
+		case Lang::Japanese:
+			return gdxDictMgr->get_dictionary(Language::from_name("ja")).translate(msg).c_str();
+		case Lang::Cantonese:
+			return gdxDictMgr->get_dictionary(Language::from_name("zh_HK")).translate(msg).c_str();
+		case Lang::English:
+			return gdxDictMgr->get_dictionary(Language::from_name("en")).translate(msg).c_str();
+		case Lang::Disabled:
+		default:
+			return i18n::T(msg);
 	}
 }
 
