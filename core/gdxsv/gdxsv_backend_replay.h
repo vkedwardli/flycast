@@ -153,7 +153,6 @@ class GdxsvBackendReplay {
 	bool seeking_ = false;
 	int target_round_ = 0;
 	int target_frame_ = 0;
-	int pending_round_ = 0;
 	bool pause_menu_opend_ = false;
 	bool lbs_first_skip_ = false;
 	int ctrl_play_speed_ = 0;

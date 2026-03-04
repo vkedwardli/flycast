@@ -39,55 +39,8 @@ std::string os_PrecomposedString(std::string string);
 
 namespace {
 
-const std::array<const char*, 41> ms_names_array{{
-	"Gundam",
-	"Guncannon",
-	"GM",
-	"Old Zaku",
-	"Zaku",
-	"Char's Zaku",
-	"Gouf",
-	"Dom",
-	"Rick Dom",
-	"Gelgoog",
-	"Char's Gelgoog",
-	"Gyan",
-	"Gogg",
-	"Acguy",
-	"Z'Gok",
-	"Char's Z'Gok",
-	"Zock",
-	"Guntank",
-	"Zeong",
-	"Ground Type Gundam",
-	"Ground Type GM",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"Elmeth", //33
-	"Ball", //34
-	"Braw Bro", //35
-	"Grublo", //36
-	"Zakrello", //37
-	"Bigro", //38
-	"Big Zam", //39
-	"Adzam", //40
-	"G-Fighter", //41
-}};
-
 static const char* ms_names(int id) {
-	if (id < 0 || id >= (int)ms_names_array.size()) return "?";
-	const char* name = ms_names_array[id];
-	if (strlen(name) == 0) return "";
-	return GdxsvLanguage::gdxT(name);
+	return GdxsvLanguage::GetMSName(id);
 }
 
 std::vector<int> parse_csv_ints(const std::string& s) {
@@ -915,7 +868,7 @@ void gdxsv_replay_server_tab() {
 				ImGui::SameLine();
 				ImGui::PushItemWidth(200.0f * scaling);
 				if (ImGui::BeginCombo("##UsedMSItems", ms_names(ms_selected), ImGuiComboFlags_HeightLargest)) {
-					for (u32 i = 0; i < ms_names_array.size(); i++) {
+					for (int i = 0; i < GdxsvLanguage::GetMSCount(); i++) {
 						const char* name = ms_names(i);
 						if (strlen(name) == 0) continue;
 						bool is_selected = i == ms_selected;
