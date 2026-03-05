@@ -9,6 +9,7 @@
 #include "ui/mainui.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
+#include "gdxsv_translation.h"
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
@@ -58,7 +59,6 @@ void GdxsvBackendReplay::Reset() {
 	recv_delay_ = 0;
 	end_of_frame_ = false;
 	seeking_ = false;
-	pending_round_ = 0;
 	pause_menu_opend_ = false;
 	lbs_first_skip_ = false;
 	ctrl_play_speed_ = 0;
@@ -318,14 +318,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 					}
 					verify(recv_buf_.empty());
 					gdxsv_save_state.SaveState(key_msg_count_);
-					pending_round_ = start_msg_count_;
 					NOTICE_LOG(COMMON, "Save Menu Opened frame %d", key_msg_count_);
-				} else {
-					// Apply pending round change on menu close
-					if (pending_round_ != 0 && pending_round_ != start_msg_count_) {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, pending_round_);
-					}
-					pending_round_ = 0;
 				}
 				SDL_ShowCursor(pause_menu_opend_ ? SDL_ENABLE : SDL_DISABLE);
 			}
@@ -496,7 +489,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::SetRound || ctrl.cmd == ReplayCtrlCommand::NextRound) {
 			const int round = ctrl.cmd == ReplayCtrlCommand::SetRound ? ctrl.arg1 : start_msg_count_ + ctrl.arg1;
-			if (0 < round && round != start_msg_count_ && round - 1 < log_file_.start_msg_indexes_size() &&
+			if (0 < round && round - 1 < log_file_.start_msg_indexes_size() &&
 				round - 1 < log_file_.start_msg_randoms_size() && gdxsv_save_state.FirstSavedFrame() != -1) {
 				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame());
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
@@ -1271,18 +1264,87 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		}
 		ImGui::EndDisabled();
 
-		// Round control: slider
+		// Round control: buttons
 		if (ChangeRoundAvailable()) {
 			ImGui::Separator();
 
 			int roundStart, roundEnd, totalRounds;
 			GetRoundBounds(roundStart, roundEnd, totalRounds);
 
-			ImGui::AlignTextToFramePadding();
+			ImGui::BeginGroup();
+			float buttonHeight = uiScaled(40.0f);
+			float textHeight = ImGui::GetFontSize();
+			float initialY = ImGui::GetCursorPosY();
+
+			ImGui::SetCursorPosY(initialY + (buttonHeight - textHeight) * 0.5f);
 			ImGui::Text("Round");
 			ImGui::SameLine();
-			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-			ImGui::SliderInt("##round", &pending_round_, 1, totalRounds, "%d");
+
+			for (int i = 1; i <= totalRounds; i++) {
+				ImGui::SetCursorPosY(initialY);
+				char label[16];
+				snprintf(label, sizeof(label), "%d", i);
+
+				bool is_current = (i == start_msg_count_);
+				if (is_current) {
+					ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
+				}
+
+				if (ImGui::Button(label, ScaledVec2(40, 40))) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, i);
+					pause_menu_opend_ = false;
+					SDL_ShowCursor(SDL_DISABLE);
+				}
+
+				if (ImGui::IsItemHovered()) {
+					ImGui::BeginTooltip();
+					if (i - 1 < log_file_.round_data_size()) {
+						const auto& rd = log_file_.round_data(i - 1);
+						if (rd.win_team() == 1) {
+							ImGui::TextColored(ImVec4(.42f, .79f, .99f, 1), "%s", strprintf(GdxsvLanguage::gdxT("%s Wins"), GdxsvLanguage::gdxT("Federation")).c_str());
+						} else if (rd.win_team() == 2) {
+							ImGui::TextColored(ImVec4(.97f, .23f, .35f, 1), "%s", strprintf(GdxsvLanguage::gdxT("%s Wins"), GdxsvLanguage::gdxT("Zeon")).c_str());
+						} else {
+							ImGui::TextDisabled("  -  ");
+						}
+
+						if (rd.used_ms_size() > 0) {
+							std::string renpo_ms, zeon_ms;
+							for (int j = 0; j < rd.used_ms_size(); ++j) {
+								if (j >= log_file_.users_size()) break;
+								int ms_id = rd.used_ms(j);
+								const char* ms_name = GdxsvLanguage::GetMSName(ms_id - 1);
+								std::string name = (ms_name && strlen(ms_name) > 0 ? ms_name : "Unknown");
+
+								if (log_file_.users(j).team() == 1) {
+									if (!renpo_ms.empty()) renpo_ms += " ";
+									renpo_ms += name;
+								} else if (log_file_.users(j).team() == 2) {
+									if (!zeon_ms.empty()) zeon_ms += " ";
+									zeon_ms += name;
+								}
+							}
+							if (!renpo_ms.empty() && !zeon_ms.empty()) {
+								ImGui::Text("%s vs %s", renpo_ms.c_str(), zeon_ms.c_str());
+							} else if (!renpo_ms.empty() || !zeon_ms.empty()) {
+								ImGui::Text("%s%s", renpo_ms.c_str(), zeon_ms.c_str());
+							}
+						}
+					} else {
+						ImGui::TextDisabled("  -  ");
+					}
+					ImGui::EndTooltip();
+				}
+
+				if (is_current) {
+					ImGui::PopStyleColor();
+				}
+
+				if (i < totalRounds) {
+					ImGui::SameLine();
+				}
+			}
+			ImGui::EndGroup();
 		}
 
 		ImGui::Separator();

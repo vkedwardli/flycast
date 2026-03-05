@@ -55,6 +55,8 @@ class GdxsvLanguage {
 	static Lang Language();
 	static std::string TextureDirectoryName();
 	static const char* gdxT(const char* msg);
+	static const char* GetMSName(int id);
+	static int GetMSCount();
 
    private:
 	static Lang LanguageFromOS();

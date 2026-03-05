@@ -101,6 +101,61 @@ const char* GdxsvLanguage::gdxT(const char* msg) {
 	}
 }
 
+static const char* ms_names_array[] = {
+	"Gundam",
+	"Guncannon",
+	"GM",
+	"Old Zaku",
+	"Zaku",
+	"Char's Zaku",
+	"Gouf",
+	"Dom",
+	"Rick Dom",
+	"Gelgoog",
+	"Char's Gelgoog",
+	"Gyan",
+	"Gogg",
+	"Acguy",
+	"Z'Gok",
+	"Char's Z'Gok",
+	"Zock",
+	"Guntank",
+	"Zeong",
+	"Ground Type Gundam",
+	"Ground Type GM",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"Elmeth", //33
+	"Ball", //34
+	"Braw Bro", //35
+	"Grublo", //36
+	"Zakrello", //37
+	"Bigro", //38
+	"Big Zam", //39
+	"Adzam", //40
+	"G-Fighter", //41
+};
+
+const char* GdxsvLanguage::GetMSName(int id) {
+	if (id < 0 || id >= GetMSCount()) return "?";
+	const char* name = ms_names_array[id];
+	if (strlen(name) == 0) return "";
+	return gdxT(name);
+}
+
+int GdxsvLanguage::GetMSCount() {
+	return (int)(sizeof(ms_names_array) / sizeof(ms_names_array[0]));
+}
+
 #ifdef _WIN32
 #include <winnls.h>
 
