@@ -522,8 +522,15 @@ void gui_initFonts()
 	ImGui::GetIO().Fonts->AddFontFromFileTTF("/system/fonts/NotoColorEmoji.ttf", fontSize, &emojiConfig);
 	ImGui::GetIO().Fonts->AddFontFromFileTTF("/system/fonts/NotoColorEmoji.ttf", fontSize, &emojiBoldConfig);
 
-	registerFont(fonts,     { .lang="cjk", .paths={ "/system/fonts/NotoSansCJK-Medium.ttc" }, .size=fontSize * 1.05f });
-	registerFont(boldFonts, { .lang="cjk", .paths={ "/system/fonts/NotoSansCJK-Bold.ttc" }, .size=fontSize * 1.05f });
+	registerFont(fonts,     { .lang="cjk", .paths={
+		"/system/fonts/NotoSansCJK-Medium.ttc",
+		"/system/fonts/NotoSansCJK-Regular.ttc"
+	}, .size=fontSize * 1.05f });
+	registerFont(boldFonts, { .lang="cjk", .paths={
+		"/system/fonts/NotoSansCJK-Bold.ttc",
+		"/system/fonts/NotoSansCJK-Medium.ttc",
+		"/system/fonts/NotoSansCJK-Regular.ttc"
+	}, .size=fontSize * 1.05f });
 	
 #elif defined(__linux__)
 	for (const char* path : {
@@ -549,7 +556,16 @@ void gui_initFonts()
 		"/usr/local/share/fonts/NotoSansCJK-Medium.ttc",
 		"/usr/local/share/fonts/noto/NotoSansCJK-Medium.ttc",
 		"/usr/local/share/fonts/noto-cjk/NotoSansCJK-Medium.ttc",
-		"/usr/share/fonts/opentype/noto-cjk/NotoSansCJK-Medium.ttc"
+		"/usr/share/fonts/opentype/noto-cjk/NotoSansCJK-Medium.ttc",
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/TTF/NotoSansCJK-Regular.ttc",
+		"/usr/local/share/fonts/NotoSansCJK-Regular.ttc",
+		"/usr/local/share/fonts/noto/NotoSansCJK-Regular.ttc",
+		"/usr/local/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/opentype/noto-cjk/NotoSansCJK-Regular.ttc"
 	}, .size=fontSize * 1.05f });
 	registerFont(boldFonts, { .lang="cjk", .paths={
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
