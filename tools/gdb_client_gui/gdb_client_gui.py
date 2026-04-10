@@ -167,6 +167,7 @@ class GDBClient:
         # Initialize SH4 settings
         self._send_raw("-gdb-set architecture sh4")
         self._send_raw("-gdb-set endian little")
+        self._send_raw("-gdb-set confirm off")
         # Enable async mode for interrupt support
         self._send_raw("-gdb-set mi-async on")
         self._send_raw("-gdb-set target-async on")
@@ -1697,8 +1698,11 @@ class GDBClientGUI:
 
         manager = self.bp_panel.get_manager()
 
-        # First, delete all GDB breakpoints
-        self.gdb.send_command("delete breakpoints")
+        # Delete previously-synced GDB breakpoints using MI commands so GDB does not
+        # enter an interactive confirmation state.
+        existing_nums = [bp["gdb_num"] for bp in manager.breakpoints if bp.get("gdb_num")]
+        for gdb_num in existing_nums:
+            self.gdb.delete_breakpoint(gdb_num)
 
         # Clear GDB numbers
         manager.clear_gdb_nums()

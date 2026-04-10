@@ -230,6 +230,13 @@ public:
 private:
 	const u32 EXCEPT_NONE = 1;
 
+	std::string makeStopReply(u32 signal) const
+	{
+		char s[4];
+		snprintf(s, sizeof(s), "T%02X", signal);
+		return s;
+	}
+
 	void serverThread()
 	{
 		ThreadName _("GdbServer");
@@ -405,9 +412,7 @@ private:
 
 	std::string reportException()
 	{
-		char s[4];
-		snprintf(s, sizeof(s), "S%02X", agent.currentException());
-		return s;
+		return makeStopReply(agent.currentException());
 	}
 
 	void doContinue(const std::string& pkt)
@@ -668,7 +673,7 @@ private:
 	std::vector<std::string> vpacket(const std::string& pkt)
 	{
 		if (pkt.rfind("vAttach;", 0) == 0)
-			return { "S05" };
+			return { makeStopReply(SIGTRAP) };
 		else if (pkt.rfind("vCont?", 0) == 0)
 			// supported vCont actions - (c)ontinue, (s)tep, (r)ange-step
 			return { "vCont;c;s;r" };
@@ -720,7 +725,7 @@ private:
 			if (pkt != "vRun;")
 				WARN_LOG(COMMON, "unexpected vRun args ignored: %s", pkt.c_str());
 			agent.restart();
-			return { "S05" };
+			return { makeStopReply(SIGTRAP) };
 		}
 		else if (pkt.rfind("vKill", 0) == 0)
 		{
@@ -743,7 +748,7 @@ private:
 	{
 		try {
 			agent.step();
-			return "S05";
+			return makeStopReply(SIGTRAP);
 		} catch (const FlycastException& e) {
 			throw Error(e.what());
 		}
@@ -756,7 +761,7 @@ private:
 				agent.step();
 			else
 				agent.stepRange(from, to);
-			return { "OK", "S05" };
+			return { "OK", makeStopReply(SIGTRAP) };
 		} catch (const FlycastException& e) {
 			throw Error(e.what());
 		}
@@ -859,9 +864,7 @@ private:
 	std::string interrupt()
 	{
 		u32 signal = agentInterrupt();
-		char s[10];
-		snprintf(s, sizeof(s), "S%02x", signal);
-		return s;
+		return makeStopReply(signal);
 	}
 
 	char packnb(u8 b)

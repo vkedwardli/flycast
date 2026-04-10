@@ -976,6 +976,15 @@ void Emulator::run()
 		gdxsv_emu_next_frame();
 		if (ggpo::active())
 			ggpo::nextFrame();
+	} catch (const debugger::Stop&) {
+		// Debugger traps are expected while GDB is attached. In the single-threaded
+		// path we must stop locally so the UI doesn't treat them as fatal or restart
+		// execution before the next GDB packet performs post-trap cleanup.
+		getSh4Executor()->Stop();
+		if (!config::ThreadedRendering) {
+			TermAudio();
+			state = Loaded;
+		}
 	} catch (const std::exception& e) {
 		ERROR_LOG(COMMON, "Exception: %s\n", e.what());
 		setNetworkState(false);
@@ -1093,7 +1102,7 @@ bool Emulator::render()
 			return false;
 		run();
 		// TODO if stopping due to a user request, no frame has been rendered
-		return !renderTimeout;
+		return state == Running && !renderTimeout;
 	}
 	if (!checkStatus())
 		return false;
