@@ -192,8 +192,11 @@ public:
 		thread = std::thread(&GdbServer::serverThread, this);
 		if (config::GDBWaitForConnection)
 		{
-			DEBUG_LOG(COMMON, "Waiting for GDB connection...");
-			agentInterrupt();
+			if (config::GDBWaitForConnectionMode == config::GDB_WAIT_AT_START)
+			{
+				DEBUG_LOG(COMMON, "Waiting for GDB connection...");
+				agentInterrupt();
+			}
 		}
 	}
 
@@ -225,6 +228,16 @@ public:
 		postDebugTrapNeeded = true;
 		emu.debuggerStopped = true;  // Set flag before throwing
 		throw Stop();
+	}
+
+	void waitForConnectionPoint()
+	{
+		if (!config::GDBWaitForConnection || config::GDBWaitForConnectionMode != config::GDB_WAIT_AFTER_BOOTFILE_LOAD)
+			return;
+		if (!isRunning())
+			return;
+		DEBUG_LOG(COMMON, "Waiting for GDB connection after bootfile load...");
+		agentInterrupt();
 	}
 
 private:
@@ -1008,6 +1021,11 @@ void debugTrap(u32 event)
 void subroutineCall()
 {
 	gdbServer.agent.subroutineCall();
+}
+
+void waitForConnectionPoint()
+{
+	gdbServer.waitForConnectionPoint();
 }
 
 void subroutineReturn()

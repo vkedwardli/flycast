@@ -78,8 +78,17 @@ static void gui_settings_advanced()
 	header("Debugging");
 	{
 		OptionCheckbox("Enable GDB", config::GDB, "GDB debugging support, disables Dynarec and dramatically reduces performance when a debugger is connected.");
-		OptionCheckbox("Wait for connection", config::GDBWaitForConnection, "Start emulation once the debugger is connected.");
-#ifndef __ANDROID
+		OptionCheckbox("Wait for connection", config::GDBWaitForConnection, "Pause at the selected wait point until the debugger resumes execution.");
+		if (config::GDBWaitForConnection)
+		{
+			static const char *waitModes[] = {
+				"Before boot",
+				"After executable load",
+			};
+			OptionComboBox("Wait point", config::GDBWaitForConnectionMode, waitModes, std::size(waitModes),
+					"Choose whether emulation halts before boot starts or after the main executable (e.g. 1ST_READ.BIN) has been loaded into RAM.");
+		}
+	#ifndef __ANDROID
 		OptionCheckbox("Serial Console", config::SerialConsole, "Dump the Dreamcast serial console to stdout");
 		OptionCheckbox("Serial PTY", config::SerialPTY, "Requires the option \"Serial Console\" to work");
 #endif

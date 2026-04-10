@@ -34,6 +34,7 @@ struct Stop : public std::exception {
 	void term();
 	void run();
 	void debugTrap(u32 event);
+	void waitForConnectionPoint();
 	void subroutineCall();
 	void subroutineReturn();
 
@@ -42,6 +43,7 @@ struct Stop : public std::exception {
 	static inline void term() {}
 	static inline void run() {}
 	static inline void debugTrap(u32 event) {}
+	static inline void waitForConnectionPoint() {}
 	static inline void subroutineCall() {}
 	static inline void subroutineReturn() {}
 #endif

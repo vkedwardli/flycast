@@ -12,6 +12,8 @@
 
 #include "reios_elf.h"
 
+#include "cfg/option.h"
+#include "debug/gdb_server.h"
 #include "gdrom_hle.h"
 #include "descrambl.h"
 
@@ -112,6 +114,8 @@ static bool reios_locate_bootfile(const char* bootfile)
 	{
 		bootFile->read(dest, size, offset);
 	}
+	if (config::GDBWaitForConnection && config::GDBWaitForConnectionMode == config::GDB_WAIT_AFTER_BOOTFILE_LOAD)
+		debugger::waitForConnectionPoint();
 
 	u8 data[24] = {0};
 	// system id
