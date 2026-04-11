@@ -698,6 +698,8 @@ class BreakpointManager:
                     data = json.load(f)
                     self.breakpoints = data.get("breakpoints", [])
                     self.next_id = data.get("next_id", 1)
+                    for bp in self.breakpoints:
+                        bp["gdb_num"] = None
             except Exception as e:
                 print(f"Failed to load breakpoints: {e}")
                 self.breakpoints = []
@@ -705,8 +707,13 @@ class BreakpointManager:
     def save(self):
         """Save breakpoints to file"""
         try:
+            saved_breakpoints = []
+            for bp in self.breakpoints:
+                saved_bp = dict(bp)
+                saved_bp["gdb_num"] = None
+                saved_breakpoints.append(saved_bp)
             data = {
-                "breakpoints": self.breakpoints,
+                "breakpoints": saved_breakpoints,
                 "next_id": self.next_id
             }
             with open(self.filepath, 'w', encoding='utf-8') as f:
