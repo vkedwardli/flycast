@@ -112,6 +112,7 @@ public:
 			WriteMem16_nommu(bpAddr, SOFTWARE_BREAK_OPCODE);	// Restore trapa #8 at original location
 			icache.Invalidate();
 		}
+		emu.cancelStepRequests();
 		emu.start();
 	}
 

@@ -900,6 +900,13 @@ void Emulator::stepRange(u32 from, u32 to)
 	stop();
 }
 
+void Emulator::cancelStepRequests()
+{
+	singleStep = false;
+	stepRangeFrom = 0;
+	stepRangeTo = 0;
+}
+
 void Emulator::loadstate(Deserializer& deser)
 {
 	if (!custom_texture.preloaded())
