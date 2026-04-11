@@ -1376,9 +1376,12 @@ class GDBClientGUI:
         self._target_running = False  # Track if target is running
         self._step_then_continue = False  # Flag for step-then-continue sequence
         self._sync_pending = False  # Flag for pending breakpoint sync (when target was running)
+        self._session_ready = False  # True once the remote target is fully connected
+        self._sync_in_progress = False  # True while breakpoint changes are still settling
 
         self._create_menu()
         self._create_widgets()
+        self._update_button_states()
         self._poll_output()
         self._update_status_display()
         self._update_title()
@@ -1439,8 +1442,10 @@ class GDBClientGUI:
         ctrl_frame = ttk.Frame(right_frame)
         ctrl_frame.pack(fill=tk.X, padx=2, pady=2)
 
-        ttk.Button(ctrl_frame, text="Connect", command=self._connect, width=10).pack(side=tk.LEFT, padx=2)
-        ttk.Button(ctrl_frame, text="Disconnect", command=self._disconnect, width=10).pack(side=tk.LEFT, padx=2)
+        self.connect_btn = ttk.Button(ctrl_frame, text="Connect", command=self._connect, width=10)
+        self.connect_btn.pack(side=tk.LEFT, padx=2)
+        self.disconnect_btn = ttk.Button(ctrl_frame, text="Disconnect", command=self._disconnect, width=10)
+        self.disconnect_btn.pack(side=tk.LEFT, padx=2)
         ttk.Separator(ctrl_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
         self.run_btn = ttk.Button(ctrl_frame, text="Continue", command=self._toggle_run, width=8)
@@ -1451,7 +1456,8 @@ class GDBClientGUI:
         self.next_btn.pack(side=tk.LEFT, padx=2)
         ttk.Separator(ctrl_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        ttk.Button(ctrl_frame, text="Refresh", command=self._refresh_all, width=8).pack(side=tk.LEFT, padx=2)
+        self.refresh_btn = ttk.Button(ctrl_frame, text="Refresh", command=self._refresh_all, width=8)
+        self.refresh_btn.pack(side=tk.LEFT, padx=2)
 
         # Status label
         self.status_var = tk.StringVar(value="Disconnected")
@@ -1614,16 +1620,23 @@ class GDBClientGUI:
 
     def _connect(self):
         self._append_output("[Connecting to 127.0.0.1:3263...]\n")
+        self._session_ready = False
+        self._target_running = False
         self.status_var.set("Connecting...")
+        self._update_button_states()
         self.gdb.start("127.0.0.1:3263")
 
     def _disconnect(self):
         self.gdb.stop()
+        self._session_ready = False
+        self._target_running = False
+        self._sync_in_progress = False
         self._append_output("[Disconnected]\n")
         self.status_var.set("Disconnected")
         # Clear GDB numbers
         self.bp_panel.get_manager().clear_gdb_nums()
         self.bp_panel.refresh()
+        self._update_button_states()
 
     def _stepi(self):
         self.gdb.stepi()
@@ -1640,12 +1653,30 @@ class GDBClientGUI:
 
     def _update_button_states(self):
         """Update button states based on target running state"""
+        self.connect_btn.configure(state=tk.NORMAL if not self.gdb.connected else tk.DISABLED)
+        self.disconnect_btn.configure(state=tk.NORMAL if self.gdb.connected else tk.DISABLED)
+
+        if not self._session_ready:
+            self.refresh_btn.configure(state=tk.DISABLED)
+            self.run_btn.configure(text="Continue", state=tk.DISABLED)
+            self.step_btn.configure(state=tk.DISABLED)
+            self.next_btn.configure(state=tk.DISABLED)
+            return
+
+        if self._sync_in_progress:
+            self.refresh_btn.configure(state=tk.DISABLED)
+            self.run_btn.configure(text="Applying", state=tk.DISABLED)
+            self.step_btn.configure(state=tk.DISABLED)
+            self.next_btn.configure(state=tk.DISABLED)
+            return
+
+        self.refresh_btn.configure(state=tk.NORMAL if not self._target_running else tk.DISABLED)
         if self._target_running:
-            self.run_btn.configure(text="Interrupt")
+            self.run_btn.configure(text="Interrupt", state=tk.NORMAL)
             self.step_btn.configure(state=tk.DISABLED)
             self.next_btn.configure(state=tk.DISABLED)
         else:
-            self.run_btn.configure(text="Continue")
+            self.run_btn.configure(text="Continue", state=tk.NORMAL)
             self.step_btn.configure(state=tk.NORMAL)
             self.next_btn.configure(state=tk.NORMAL)
 
@@ -1774,16 +1805,21 @@ class GDBClientGUI:
 
         # Connection status
         if "^connected" in line:
+            self._session_ready = True
             self.status_var.set("Connected")
+            self._update_button_states()
             self._refresh_all()
             # Sync breakpoints after connection
             self.root.after(500, self._sync_breakpoints)
         elif "^error" in line:
             if "Remote connection closed" in line:
+                self._session_ready = False
+                self._target_running = False
                 self.status_var.set("Disconnected")
                 # Clear GDB numbers on disconnect
                 self.bp_panel.get_manager().clear_gdb_nums()
                 self.bp_panel.refresh()
+                self._update_button_states()
 
         # Stop notification
         if "*stopped" in line:
