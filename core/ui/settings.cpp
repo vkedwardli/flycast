@@ -83,10 +83,10 @@ static void gui_settings_advanced()
 		{
 			static const char *waitModes[] = {
 				"Before boot",
-				"After executable load",
+				"Wait at executable start",
 			};
 			OptionComboBox("Wait point", config::GDBWaitForConnectionMode, waitModes, std::size(waitModes),
-					"Choose whether emulation halts before boot starts or after the main executable (e.g. 1ST_READ.BIN) has been loaded into RAM.");
+					"Choose whether emulation halts before boot starts or when execution reaches the conventional Dreamcast executable start address 0x8c010000.");
 		}
 	#ifndef __ANDROID
 		OptionCheckbox("Serial Console", config::SerialConsole, "Dump the Dreamcast serial console to stdout");

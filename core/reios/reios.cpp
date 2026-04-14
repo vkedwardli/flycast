@@ -114,9 +114,6 @@ static bool reios_locate_bootfile(const char* bootfile)
 	{
 		bootFile->read(dest, size, offset);
 	}
-	if (config::GDBWaitForConnection && config::GDBWaitForConnectionMode == config::GDB_WAIT_AFTER_BOOTFILE_LOAD)
-		debugger::waitForConnectionPoint();
-
 	u8 data[24] = {0};
 	// system id
 	for (u32 j = 0; j < 8; j++)

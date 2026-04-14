@@ -24,6 +24,7 @@
 #include "watchpoint.h"
 #include "cfg/option.h"
 #include "oslib/oslib.h"
+#include "ui/gui.h"
 #include "util/shared_this.h"
 #include <asio.hpp>
 #include <stdexcept>
@@ -188,6 +189,7 @@ public:
 		if (thread.joinable())
 			return;
 		DEBUG_LOG(COMMON, "GdbServer starting");
+		waitForConnectionPointArmed = config::GDBWaitForConnection && config::GDBWaitForConnectionMode == config::GDB_WAIT_AT_EXECUTABLE_START;
 		io_context = std::make_unique<asio::io_context>();
 		thread = std::thread(&GdbServer::serverThread, this);
 		if (config::GDBWaitForConnection)
@@ -205,6 +207,9 @@ public:
 		if (thread.joinable())
 		{
 			DEBUG_LOG(COMMON, "GdbServer stopping");
+			waitForConnectionPointArmed = false;
+			waitingAtExecutableStart = false;
+			gui_runOnUiThread([]() { gui_hide_debugger_wait(); });
 			agent.resetAgent();
 			io_context->stop();
 			thread.join();
@@ -230,18 +235,33 @@ public:
 		throw Stop();
 	}
 
-	void waitForConnectionPoint()
+	void checkWaitForConnectionPoint(u32 pc)
 	{
-		if (!config::GDBWaitForConnection || config::GDBWaitForConnectionMode != config::GDB_WAIT_AFTER_BOOTFILE_LOAD)
+		if (!waitForConnectionPointArmed || !isExecutableStartAddress(pc))
 			return;
-		if (!isRunning())
-			return;
-		DEBUG_LOG(COMMON, "Waiting for GDB connection after bootfile load...");
-		agentInterrupt();
+
+		waitForConnectionPointArmed = false;
+		waitingAtExecutableStart = true;
+		DEBUG_LOG(COMMON, "Waiting for GDB connection at executable start %08x", pc);
+		gui_runOnUiThread([]() {
+			gui_show_debugger_wait("Waiting for debugger...\n\nReached executable start at 0x8c010000");
+		});
+		u32 signal = agentInterrupt();
+		if (connection)
+		{
+			std::string pkt = makeStopReply(signal);
+			io_context->post([this, pkt]() { connection->send(pkt); });
+		}
+		throw Stop();
 	}
 
 private:
 	const u32 EXCEPT_NONE = 1;
+
+	static bool isExecutableStartAddress(u32 pc)
+	{
+		return pc == 0x0c010000 || pc == 0x8c010000 || pc == 0xac010000;
+	}
 
 	std::string makeStopReply(u32 signal) const
 	{
@@ -433,6 +453,11 @@ private:
 		if (pkt[0] != 'c') {
 			WARN_LOG(COMMON, "Continue with signal not supported");
 			return;
+		}
+
+		if (waitingAtExecutableStart)
+		{
+			waitingAtExecutableStart = false;
 		}
 
 		if (pkt == "c")
@@ -912,6 +937,12 @@ private:
 	void clientConnected(Connection::Ptr connection) {
 		attached = true;
 		this->connection = connection;
+		if (waitingAtExecutableStart)
+		{
+			gui_runOnUiThread([]() {
+				gui_show_debugger_wait("Waiting for debugger...\n\nConnected. Press Continue to keep running.");
+			});
+		}
 		agentInterrupt();
 	}
 
@@ -938,6 +969,8 @@ private:
 
 	bool attached = false;
 	bool postDebugTrapNeeded = false;
+	bool waitForConnectionPointArmed = false;
+	bool waitingAtExecutableStart = false;
 	std::thread thread;
 	std::unique_ptr<asio::io_context> io_context;
 	int port = DEFAULT_PORT;
@@ -1023,9 +1056,9 @@ void subroutineCall()
 	gdbServer.agent.subroutineCall();
 }
 
-void waitForConnectionPoint()
+void checkWaitForConnectionPoint(u32 pc)
 {
-	gdbServer.waitForConnectionPoint();
+	gdbServer.checkWaitForConnectionPoint(pc);
 }
 
 void subroutineReturn()

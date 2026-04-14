@@ -63,8 +63,5 @@ bool reios_loadElf(const std::string& elf) {
 		memset(ptr, 0, elf_getProgramHeaderMemorySize(&elfFile, i) - len);
 	}
 	free(elfF);
-	if (config::GDBWaitForConnection && config::GDBWaitForConnectionMode == config::GDB_WAIT_AFTER_BOOTFILE_LOAD)
-		debugger::waitForConnectionPoint();
-
 	return true;
 }

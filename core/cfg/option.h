@@ -484,7 +484,7 @@ extern Option<int, false> VideoRoutingVRes;
 // Misc
 
 constexpr int GDB_WAIT_AT_START = 0;
-constexpr int GDB_WAIT_AFTER_BOOTFILE_LOAD = 1;
+constexpr int GDB_WAIT_AT_EXECUTABLE_START = 1;
 
 extern Option<bool> SerialConsole;
 extern Option<bool> SerialPTY;
