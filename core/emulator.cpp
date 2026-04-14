@@ -59,6 +59,19 @@
 settings_t settings;
 constexpr char const *BIOS_TITLE = "Dreamcast BIOS";
 
+static bool useDynarecExecutor()
+{
+#if FEAT_SHREC != DYNAREC_NONE
+#ifdef GDB_SERVER
+	return config::DynarecEnabled && !(config::GDB && config::GDBWaitForConnection);
+#else
+	return config::DynarecEnabled;
+#endif
+#else
+	return false;
+#endif
+}
+
 static void loadSpecialSettings()
 {
 	std::string& prod_id = settings.content.gameId;
@@ -509,7 +522,7 @@ void Emulator::init()
 #if FEAT_SHREC != DYNAREC_NONE
 	recompiler = Get_Sh4Recompiler();
 	recompiler->Init();
-	if(config::DynarecEnabled)
+	if (useDynarecExecutor())
 		INFO_LOG(DYNAREC, "Using Recompiler");
 	else
 #endif
@@ -524,7 +537,7 @@ void Emulator::init()
 Sh4Executor *Emulator::getSh4Executor()
 {
 #if FEAT_SHREC != DYNAREC_NONE
-	if(config::DynarecEnabled)
+	if (useDynarecExecutor())
 		return recompiler;
 	else
 #endif
