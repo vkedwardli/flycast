@@ -52,6 +52,8 @@ void gui_loadState(bool inRam = false);
 void gui_saveState(bool stopRestart = true, bool inRam = false);
 void gui_cycleSaveStateSlot(int step);
 void gui_togglePause();
+void gui_scheduleAutoPauseAfterLoadState();
+void gui_onGameFramePresented();
 std::string gui_getCurGameBoxartUrl();
 void gui_takeScreenshot();
 void gui_runOnUiThread(std::function<void()> function);

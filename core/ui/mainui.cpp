@@ -104,11 +104,14 @@ void mainui_loop(bool forceStart)
 	while (mainui_enabled)
 	{
 		fc_profiler::startThread("main");
+		const bool guiWasOpen = gui_is_open();
 
 		if (mainui_rend_frame() && imguiDriver != nullptr)
 		{
 			try {
 				imguiDriver->present();
+				if (!guiWasOpen)
+					gui_onGameFramePresented();
 			} catch (const FlycastException& e) {
 				forceReinit = true;
 			}

@@ -35,6 +35,8 @@ Option<int> Broadcast("Dreamcast.Broadcast", 0);	// NTSC
 Option<int> Language("Dreamcast.Language", 1);		// English
 OptionString UILanguage("UILanguage", "");
 Option<bool> AutoLoadState("Dreamcast.AutoLoadState");
+Option<bool> AutoPauseAfterLoadState("Dreamcast.AutoPauseAfterLoadState");
+Option<int> AutoPauseFrameDelay("Dreamcast.AutoPauseFrameDelay", 1);
 Option<bool> AutoSaveState("Dreamcast.AutoSaveState");
 Option<int, false> SavestateSlot("Dreamcast.SavestateSlot");
 Option<bool> ForceFreePlay("ForceFreePlay", true);

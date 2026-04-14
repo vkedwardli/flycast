@@ -62,6 +62,7 @@ using namespace i18n;
 #include <unistd.h>
 #endif
 #include <mutex>
+#include <atomic>
 #include <algorithm>
 
 bool game_started;
@@ -96,6 +97,23 @@ using LockGuard = std::lock_guard<std::recursive_mutex>;
 
 static Toast toast;
 static ThreadRunner uiThreadRunner;
+static std::atomic<int> pendingPauseAfterLoadStateFrames { 0 };
+
+static void cancelAutoPauseAfterLoadState()
+{
+	pendingPauseAfterLoadStateFrames = 0;
+}
+
+static bool consumeAutoPauseAfterLoadState()
+{
+	int remainingFrames = pendingPauseAfterLoadStateFrames.load();
+	while (remainingFrames > 0)
+	{
+		if (pendingPauseAfterLoadStateFrames.compare_exchange_weak(remainingFrames, remainingFrames - 1))
+			return remainingFrames == 1;
+	}
+	return false;
+}
 
 static void emuEventCallback(Event event, void *)
 {
@@ -409,6 +427,7 @@ void gui_open_settings()
 			{
 				vgamepad::hide();
 				try {
+					cancelAutoPauseAfterLoadState();
 					emu.stop();
 					gui_setState(GuiState::Commands);
 				} catch (const FlycastException& e) {
@@ -450,6 +469,7 @@ void gui_start_game(const std::string& path)
 	if (gui_state != GuiState::Main && gui_state != GuiState::Closed && gui_state != GuiState::Commands
 			&& gui_state != GuiState::Pause)
 		return;
+	cancelAutoPauseAfterLoadState();
 	emu.unloadGame();
 	reset_vmus();
     chat.reset();
@@ -462,6 +482,7 @@ void gui_start_game(const std::string& path)
 void gui_stop_game(const std::string& message)
 {
 	const LockGuard lock(guiMutex);
+	cancelAutoPauseAfterLoadState();
 	if (!commandLineStart)
 	{
 		// Exit to main menu
@@ -640,7 +661,7 @@ static void gui_display_commands()
 				if (IconButton(ICON_FA_CLOCK_ROTATE_LEFT, T("Load State"), ScaledVec2(buttonWidth, 50)).realize() && dc_savestateAllowed())
 				{
 					gui_setState(GuiState::Closed);
-					dc_loadstate(config::SavestateSlot);
+					gui_loadState();
 				}
 			}
 
@@ -1558,13 +1579,16 @@ void gui_loadState(bool inRam)
 	if (gui_state == GuiState::Closed && dc_savestateAllowed())
 	{
 		try {
-			emu.stop();
+			if (emu.running())
+				emu.stop();
 			if (inRam)
 				dc_loadstate(-2);  // special slot used for inRam states
 			else
 				dc_loadstate(config::SavestateSlot);
+			gui_scheduleAutoPauseAfterLoadState();
 			emu.start();
 		} catch (const FlycastException& e) {
+			cancelAutoPauseAfterLoadState();
 			gui_stop_game(e.what());
 		}
 	}
@@ -1601,6 +1625,31 @@ void gui_cycleSaveStateSlot(int step)
 	os_notify(strprintf(T("Save state slot %d"), config::SavestateSlot + 1).c_str(), 2000);
 }
 
+void gui_scheduleAutoPauseAfterLoadState()
+{
+	pendingPauseAfterLoadStateFrames = config::AutoPauseAfterLoadState
+			? std::max(config::AutoPauseFrameDelay.get(), 0) + 1
+			: 0;
+}
+
+void gui_onGameFramePresented()
+{
+	const LockGuard lock(guiMutex);
+	if (!consumeAutoPauseAfterLoadState())
+		return;
+	if (gui_state != GuiState::Closed || !emu.running() || settings.network.online || settings.naomi.multiboard)
+		return;
+
+	try {
+		vgamepad::hide();
+		emu.stop();
+		gui_setState(GuiState::Pause);
+		os_notify(T("Auto-paused after loading state"), 2000);
+	} catch (const FlycastException& e) {
+		gui_stop_game(e.what());
+	}
+}
+
 void gui_togglePause()
 {
 	const LockGuard lock(guiMutex);
@@ -1612,6 +1661,7 @@ void gui_togglePause()
 		{
 			if (!achievements::canPause())
 				return;
+			cancelAutoPauseAfterLoadState();
 			vgamepad::hide();
 			emu.stop();
 			gui_setState(GuiState::Pause);

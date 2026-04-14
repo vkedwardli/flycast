@@ -402,6 +402,15 @@ void gui_settings_general()
 	ImGui::SameLine();
 	OptionCheckbox(T("Save"), config::AutoSaveState,
 			T("Save the state of the game when stopping"));
+	OptionCheckbox(T("Pause after Load"), config::AutoPauseAfterLoadState,
+			T("Automatically pause after loading a state. Useful for texture modding."));
+	if (config::AutoPauseAfterLoadState)
+	{
+		ImGui::Indent();
+		OptionSlider(T("Pause Frame Delay"), config::AutoPauseFrameDelay, 1, 10,
+				T("Number of extra game frames to advance before auto-pausing after load state. Useful for waiting for async custom texture popping so the paused image includes replaced textures."));
+		ImGui::Unindent();
+	}
 	OptionCheckbox(T("Naomi Free Play"), config::ForceFreePlay, T("Configure Naomi games in Free Play mode."));
 #if USE_DISCORD
 	OptionCheckbox(T("Discord Presence"), config::DiscordPresence, T("Show which game you are playing on Discord"));
