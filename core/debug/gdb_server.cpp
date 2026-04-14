@@ -64,6 +64,18 @@ public:
 		return socket;
 	}
 
+	void close()
+	{
+		std::error_code ec;
+		DEBUG_LOG(COMMON, "Closing GDB client socket");
+		socket.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+		if (ec)
+			DEBUG_LOG(COMMON, "GDB socket shutdown returned: %s", ec.message().c_str());
+		socket.close(ec);
+		if (ec)
+			DEBUG_LOG(COMMON, "GDB socket close returned: %s", ec.message().c_str());
+	}
+
 	void start() {
 		asio::async_read_until(socket, asio::dynamic_string_buffer(message, MAX_PACKET_LEN), packetMatcher,
 				std::bind(&Connection::handlePacket, shared_from_this(),
@@ -211,8 +223,15 @@ public:
 			waitingAtExecutableStart = false;
 			gui_runOnUiThread([]() { gui_hide_debugger_wait(); });
 			agent.resetAgent();
+			if (connection)
+			{
+				DEBUG_LOG(COMMON, "Stopping GDB server with active client connection");
+				connection->close();
+			}
 			io_context->stop();
 			thread.join();
+			attached = false;
+			connection.reset();
 			io_context.reset();
 		}
 	}

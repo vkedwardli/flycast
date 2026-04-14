@@ -1655,12 +1655,17 @@ class GDBClientGUI:
     def _disconnect(self):
         self._cancel_pending_refresh()
         self.gdb.stop()
+        self._mark_disconnected("[Disconnected]\n")
+
+    def _mark_disconnected(self, message=None):
+        self.gdb.connected = False
         self._session_ready = False
         self._target_running = False
         self._queued_continue_after_sync = False
         self._pending_sync_tokens.clear()
         self._set_sync_in_progress(False)
-        self._append_output("[Disconnected]\n")
+        if message:
+            self._append_output(message)
         self.status_var.set("Disconnected")
         # Clear GDB numbers
         self.bp_panel.get_manager().clear_gdb_nums()
@@ -1883,15 +1888,12 @@ class GDBClientGUI:
             self._refresh_all()
             # Sync breakpoints after connection
             self.root.after(500, self._sync_breakpoints)
-        elif "^error" in normalized_line:
-            if "Remote connection closed" in normalized_line:
-                self._session_ready = False
-                self._target_running = False
-                self.status_var.set("Disconnected")
-                # Clear GDB numbers on disconnect
-                self.bp_panel.get_manager().clear_gdb_nums()
-                self.bp_panel.refresh()
-                self._update_button_states()
+        elif "[GDB process terminated]" in normalized_line:
+            self._mark_disconnected("[GDB process terminated]\n")
+        elif "Remote connection closed" in normalized_line:
+            self._mark_disconnected()
+        elif "=thread-group-exited" in normalized_line:
+            self._mark_disconnected()
 
         # Stop notification
         if "*stopped" in normalized_line:
