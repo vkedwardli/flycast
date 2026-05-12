@@ -47,6 +47,14 @@ public:
 			custom_textures_available = hostfs::storage().exists(textures_path);
 			if (custom_textures_available)
 				NOTICE_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
+			else
+			{
+				try {
+					throw FlycastException(strprintf("Custom texture directory missing: %s", textures_path.c_str()));
+				} catch (const FlycastException& e) {
+					INFO_LOG(RENDERER, "Caught test exception: %s", e.what());
+				}
+			}
 		}
 	}
 	bool shouldReplace() const override { return config::CustomTextures && custom_textures_available; }
