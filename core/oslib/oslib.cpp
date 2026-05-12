@@ -43,45 +43,6 @@
 #include "input/gamepad_device.h"
 #include "input/dreampotato.h"
 #include "i18n.h"
-#include <cstdio>
-#include <exception>
-
-static void writeExceptionProbeLog(const char *tag, const char *message)
-{
-#if defined(__SWITCH__)
-	const char *path = "/flycast/exception_probe.log";
-#else
-	std::string pathString = get_writable_config_path("exception_probe.log");
-	const char *path = pathString.c_str();
-#endif
-	FILE *file = fopen(path, "ab");
-	if (file == nullptr)
-		return;
-	fprintf(file, "%s: %s\n", tag != nullptr ? tag : "(null)", message);
-	fflush(file);
-#ifndef _WIN32
-	fsync(fileno(file));
-#endif
-	fclose(file);
-}
-
-void os_DebugExceptionProbe(const char *tag)
-{
-	writeExceptionProbeLog(tag, "probe begin");
-	writeExceptionProbeLog(tag, "before throw");
-	try {
-		throw 1;
-	} catch (int e) {
-		char msg[64];
-		snprintf(msg, sizeof(msg), "caught int %d", e);
-		writeExceptionProbeLog(tag, msg);
-	} catch (const std::exception& e) {
-		writeExceptionProbeLog(tag, e.what());
-	} catch (...) {
-		writeExceptionProbeLog(tag, "caught unknown exception");
-	}
-	writeExceptionProbeLog(tag, "probe end");
-}
 
 namespace hostfs
 {

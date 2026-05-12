@@ -22,9 +22,19 @@
 #include "ui/mainui.h"
 #include "oslib/directory.h"
 #include "oslib/i18n.h"
-#include "oslib/oslib.h"
 #include <vector>
 #include <string>
+
+static void warmUpSwitchExceptions()
+{
+#if defined(__SWITCH__)
+	try {
+		volatile int value = 0;
+		throw value;
+	} catch (...) {
+	}
+#endif
+}
 
 int main(int argc, char *argv[])
 {
@@ -44,7 +54,7 @@ int main(int argc, char *argv[])
 	add_system_data_dir("./");
 	add_system_data_dir("data/");
 
-	os_DebugExceptionProbe("switch_main early");
+	warmUpSwitchExceptions();
 
 	LogManager::Init();
 	i18n::init();

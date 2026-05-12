@@ -43,7 +43,6 @@
 #include "hw/pvr/pvr.h"
 #include "profiler/fc_profiler.h"
 #include "oslib/storage.h"
-#include "oslib/oslib.h"
 #include "wsi/context.h"
 #include <chrono>
 #ifndef LIBRETRO
@@ -864,7 +863,6 @@ void loadGameSpecificSettings()
 	loadSpecialSettings();
 
 	config::Settings::instance().setGameId(settings.content.gameId);
-	os_DebugExceptionProbe("before custom_texture.init loadGameSpecificSettings");
 	custom_texture.init();
 
 	// Reload per-game settings
@@ -900,7 +898,6 @@ void Emulator::loadstate(Deserializer& deser)
 	if (!custom_texture.preloaded())
 	{
 		custom_texture.terminate();
-		os_DebugExceptionProbe("before custom_texture.init loadstate");
 		custom_texture.init();
 	}
 #if FEAT_AREC == DYNAREC_JIT

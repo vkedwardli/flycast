@@ -48,7 +48,13 @@ public:
 			if (custom_textures_available)
 				NOTICE_LOG(RENDERER, "Found custom textures directory: %s", textures_path.c_str());
 			else
-				os_DebugExceptionProbe("CustomTextureSource ctor missing texture dir");
+			{
+				try {
+					throw 1;
+				} catch (int e) {
+					INFO_LOG(RENDERER, "Caught test exception: %d", e);
+				}
+			}
 		}
 	}
 	bool shouldReplace() const override { return config::CustomTextures && custom_textures_available; }
