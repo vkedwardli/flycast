@@ -50,9 +50,9 @@ public:
 			else
 			{
 				try {
-					throw FlycastException(strprintf("Custom texture directory missing: %s", textures_path.c_str()));
-				} catch (const FlycastException& e) {
-					INFO_LOG(RENDERER, "Caught test exception: %s", e.what());
+					throw 1;
+				} catch (int e) {
+					INFO_LOG(RENDERER, "Caught test exception: %d", e);
 				}
 			}
 		}
