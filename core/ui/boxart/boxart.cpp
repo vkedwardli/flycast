@@ -166,6 +166,7 @@ void Boxart::fetchBoxart()
 			}
 		}
 		saveDatabase();
+		os_DebugExceptionProbe("boxart fetch complete");
 	});
 }
 

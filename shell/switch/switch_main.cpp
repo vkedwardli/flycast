@@ -22,6 +22,7 @@
 #include "ui/mainui.h"
 #include "oslib/directory.h"
 #include "oslib/i18n.h"
+#include "oslib/oslib.h"
 #include <vector>
 #include <string>
 
@@ -30,9 +31,6 @@ int main(int argc, char *argv[])
 	socketInitializeDefault();
 	nxlinkStdio();
 	//appletSetFocusHandlingMode(AppletFocusHandlingMode_NoSuspend);
-
-	LogManager::Init();
-	i18n::init();
 
 	// Set directories
 	flycast::mkdir("/flycast", 0755);
@@ -45,6 +43,11 @@ int main(int argc, char *argv[])
 	add_system_data_dir("/flycast/data/");
 	add_system_data_dir("./");
 	add_system_data_dir("data/");
+
+	os_DebugExceptionProbe("switch_main early");
+
+	LogManager::Init();
+	i18n::init();
 
 	if (flycast_init(argc, argv))
 		die("Flycast initialization failed");
