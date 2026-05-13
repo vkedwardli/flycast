@@ -86,7 +86,7 @@ jobs:
           fi
           "$OBJDUMP" -r mutex.o | grep -q TLSLE
 
-          "$CXX" -fPIC -fPIE -specs="$DEVKITPRO/libnx/switch.specs" -x c++ - -o /tmp/check-libstdcxx/throw-test.elf <<'EOF'
+          "$CXX" -c -fPIC -mtp=soft -ftls-model=local-exec -O2 -std=gnu++17 -x c++ - -o /tmp/check-libstdcxx/throw-test.o <<'EOF'
           #include <stdexcept>
           #include <mutex>
           int main() {
