@@ -38,6 +38,42 @@ jobs:
           key: ccache-switch-${{ matrix.config.name }}-${{ github.sha }}
           restore-keys: ccache-switch-${{ matrix.config.name }}-
 
+      - name: Patch Switch libstdc++ exception TLS
+        run: |
+          set -eux
+
+          CXX="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-g++"
+          AR="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ar"
+          RANLIB="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ranlib"
+          NM="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-nm"
+          OBJDUMP="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-objdump"
+          GCC_VER="$($CXX -dumpfullversion)"
+          GCC_SRC="/tmp/devkitpro-gcc"
+          PATCH_SRC="/tmp/libstdcxx-eh"
+
+          git clone --depth 1 --branch "releases/gcc-${GCC_VER}" https://github.com/devkitPro/gcc.git "$GCC_SRC"
+
+          mkdir -p "$PATCH_SRC"
+          cp "$GCC_SRC/libstdc++-v3/libsupc++/eh_globals.cc" "$PATCH_SRC/"
+          cp "$GCC_SRC/libstdc++-v3/libsupc++/unwind-cxx.h" "$PATCH_SRC/"
+
+          "$CXX" -c -fPIC -ftls-model=local-exec -O2 -std=gnu++17 \
+            -D_GLIBCXX_HAVE_TLS=1 \
+            -o /tmp/eh_globals.o \
+            "$PATCH_SRC/eh_globals.cc"
+
+          LIBSTDCPP="$("$CXX" -fPIC -print-file-name=libstdc++.a)"
+          "$AR" r "$LIBSTDCPP" /tmp/eh_globals.o
+          "$RANLIB" "$LIBSTDCPP"
+
+          mkdir -p /tmp/check-eh
+          cd /tmp/check-eh
+          "$AR" x "$LIBSTDCPP" eh_globals.o
+          if "$NM" -A eh_globals.o | grep -E 'pthread_(key_create|get|set)specific|malloc|free'; then
+            exit 1
+          fi
+          "$OBJDUMP" -r eh_globals.o | grep -q TLSLE
+
       - name: CMake
         run: |
           $DEVKITPRO/portlibs/switch/bin/aarch64-none-elf-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=artifact -G Ninja ${{ matrix.config.cmakeArgs }}
