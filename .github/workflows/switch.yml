@@ -54,6 +54,10 @@ jobs:
 
           perl -0pi -e 's/(\$as_echo "#define HAVE_MEMALIGN 1" >>confdefs\.h\n)/$1\n    case "\${target}" in\n      aarch64-none-elf*)\n        \$as_echo "#define HAVE_TLS 1" >>confdefs.h\n        ;;\n    esac\n/g' "$GCC_SRC/libstdc++-v3/configure"
 
+          perl -0pi -e 's/(      uclinux\*\)\n        ac_has_nanosleep=yes\n        ac_has_sched_yield=yes\n    esac\n)/$1\n    case "\${target}" in\n      aarch64-none-elf*)\n        ac_has_clock_monotonic=yes\n        ac_has_clock_realtime=yes\n        ac_has_nanosleep=yes\n        ac_has_sched_yield=yes\n        ;;\n    esac\n/g' "$GCC_SRC/libstdc++-v3/acinclude.m4"
+
+          perl -0pi -e 's/(      uclinux\*\)\n        ac_has_nanosleep=yes\n        ac_has_sched_yield=yes\n    esac\n)/$1\n    case "\${target}" in\n      aarch64-none-elf*)\n        ac_has_clock_monotonic=yes\n        ac_has_clock_realtime=yes\n        ac_has_nanosleep=yes\n        ac_has_sched_yield=yes\n        ;;\n    esac\n/g' "$GCC_SRC/libstdc++-v3/configure"
+
           mkdir -p "$GCC_BUILD"
           cd "$GCC_BUILD"
 
@@ -79,7 +83,6 @@ jobs:
             --disable-libssp \
             --disable-libgomp \
             --disable-libstdcxx-pch \
-            --enable-libstdcxx-time \
             --enable-libstdcxx-filesystem-ts \
             --with-newlib=yes \
             --with-native-system-header-dir=/include \
@@ -95,6 +98,10 @@ jobs:
 
           CXXCONFIG="$DEVKITPRO/devkitA64/aarch64-none-elf/include/c++/${GCC_VER}/aarch64-none-elf/pic/bits/c++config.h"
           grep -q '^#define _GLIBCXX_HAVE_TLS 1' "$CXXCONFIG"
+          grep -q '^#define _GLIBCXX_USE_CLOCK_MONOTONIC 1' "$CXXCONFIG"
+          grep -q '^#define _GLIBCXX_USE_CLOCK_REALTIME 1' "$CXXCONFIG"
+          grep -q '^#define _GLIBCXX_USE_NANOSLEEP 1' "$CXXCONFIG"
+          grep -q '^#define _GLIBCXX_USE_SCHED_YIELD 1' "$CXXCONFIG"
 
           mkdir -p /tmp/check-libstdcxx
           cd /tmp/check-libstdcxx
