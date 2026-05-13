@@ -46,12 +46,12 @@ jobs:
 
           git clone --depth 1 --branch "releases/gcc-${GCC_VER}" https://github.com/devkitPro/gcc.git "$GCC_SRC"
 
-          "$CXX" -c -fPIC -ftls-model=local-exec -O2 -std=gnu++17 \
+          "$CXX" -c -fPIC -mtp=soft -ftls-model=local-exec -O2 -std=gnu++17 \
             -D_GLIBCXX_HAVE_TLS=1 \
             -o /tmp/eh_globals.o \
             "$GCC_SRC/libstdc++-v3/libsupc++/eh_globals.cc"
 
-          "$CXX" -c -fPIC -ftls-model=local-exec -O2 -std=gnu++17 \
+          "$CXX" -c -fPIC -mtp=soft -ftls-model=local-exec -O2 -std=gnu++17 \
             -D_GLIBCXX_HAVE_TLS=1 \
             -o /tmp/mutex.o \
             "$GCC_SRC/libstdc++-v3/src/c++11/mutex.cc"
@@ -72,6 +72,10 @@ jobs:
           cd /tmp/check-libstdcxx
           "$AR" x "$LIBSTDCPP" eh_globals.o mutex.o
           if "$NM" -A eh_globals.o | grep -E 'pthread_(key_create|get|set)specific|malloc|free'; then
+            exit 1
+          fi
+          "$NM" -A eh_globals.o | grep -q ' U __aarch64_read_tp'
+          if "$OBJDUMP" -d eh_globals.o | grep -q 'mrs.*tpidr_el0'; then
             exit 1
           fi
           "$OBJDUMP" -r eh_globals.o | grep -q TLSLE
