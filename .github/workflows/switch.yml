@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - {name: standalone, destDir: switch}
+          # - {name: standalone, destDir: switch}
           - {
               name: standalone-debug,
               destDir: switch-debug,
@@ -24,13 +24,100 @@ jobs:
               cxxFlags: "-O0 -g3 -ggdb -fno-omit-frame-pointer",
               linkerFlags: "-Wl,--build-id"
             }
-          - {name: libretro, cmakeArgs: -DLIBRETRO=ON}
+          # - {name: libretro, cmakeArgs: -DLIBRETRO=ON}
 
     steps:
       - name: Set up build environment
         run: |
           sudo apt-get update
-          sudo apt-get -y install ccache cmake
+          sudo apt-get -y install ccache cmake build-essential flex bison texinfo libgmp-dev libmpfr-dev libmpc-dev libisl-dev zlib1g-dev libzstd-dev
+
+      - name: Rebuild Switch toolchain with libstdc++ TLS
+        run: |
+          set -eux
+
+          CXX="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-g++"
+          GCC="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-gcc"
+          AR="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ar"
+          NM="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-nm"
+          OBJDUMP="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-objdump"
+          GCC_VER="$($CXX -dumpfullversion)"
+          GCC_SRC="/tmp/devkitpro-gcc"
+          GCC_BUILD="/tmp/devkitpro-gcc-build"
+          SYSROOT="$DEVKITPRO/devkitA64/aarch64-none-elf"
+
+          git clone --depth 1 --branch "releases/gcc-${GCC_VER}" https://github.com/devkitPro/gcc.git "$GCC_SRC"
+
+          BUILD_TRIPLET="$("$GCC_SRC/config.guess")"
+
+          perl -0pi -e 's/AC_DEFINE\(HAVE_MEMALIGN\)\n/AC_DEFINE(HAVE_MEMALIGN)\n\n    case "\${target}" in\n      aarch64-none-elf*)\n        AC_DEFINE(HAVE_TLS)\n        ;;\n    esac\n/g' "$GCC_SRC/libstdc++-v3/configure.ac"
+
+          perl -0pi -e 's/(\$as_echo "#define HAVE_MEMALIGN 1" >>confdefs\.h\n)/$1\n    case "\${target}" in\n      aarch64-none-elf*)\n        \$as_echo "#define HAVE_TLS 1" >>confdefs.h\n        ;;\n    esac\n/g' "$GCC_SRC/libstdc++-v3/configure"
+
+          mkdir -p "$GCC_BUILD"
+          cd "$GCC_BUILD"
+
+          "$GCC_SRC/configure" \
+            --target=aarch64-none-elf \
+            --build="$BUILD_TRIPLET" \
+            --host="$BUILD_TRIPLET" \
+            --prefix="$DEVKITPRO/devkitA64" \
+            --enable-languages=c,c++,lto \
+            --with-gnu-as \
+            --with-gnu-ld \
+            --with-gcc \
+            --with-march=armv8 \
+            --enable-cxx-flags=-ffunction-sections \
+            --disable-libstdcxx-verbose \
+            --enable-poison-system-directories \
+            --enable-multilib \
+            --enable-threads \
+            --disable-win32-registry \
+            --disable-nls \
+            --disable-debug \
+            --disable-libmudflap \
+            --disable-libssp \
+            --disable-libgomp \
+            --disable-libstdcxx-pch \
+            --enable-libstdcxx-time \
+            --enable-libstdcxx-filesystem-ts \
+            --with-newlib=yes \
+            --with-native-system-header-dir=/include \
+            --with-sysroot="$SYSROOT" \
+            --enable-lto \
+            --disable-tm-clone-registry \
+            --disable-__cxa_atexit \
+            --with-bugurl=https://devkitpro.org \
+            --with-pkgversion=devkitA64
+
+          make -j"$(nproc)" all-gcc all-target-libgcc all-target-libstdc++-v3
+          make install-gcc install-target-libgcc install-target-libstdc++-v3
+
+          CXXCONFIG="$DEVKITPRO/devkitA64/aarch64-none-elf/include/c++/${GCC_VER}/aarch64-none-elf/pic/bits/c++config.h"
+          grep -q '^#define _GLIBCXX_HAVE_TLS 1' "$CXXCONFIG"
+
+          mkdir -p /tmp/check-libstdcxx
+          cd /tmp/check-libstdcxx
+          LIBSTDCPP="$("$CXX" -fPIC -print-file-name=libstdc++.a)"
+          "$AR" x "$LIBSTDCPP" eh_globals.o mutex.o
+          if "$NM" -A eh_globals.o | grep -E 'pthread_(key_create|get|set)specific|malloc|free'; then
+            exit 1
+          fi
+          "$OBJDUMP" -r eh_globals.o | grep -q TLSLE
+          "$NM" -A mutex.o | grep -q '_ZSt15__once_callable'
+          "$NM" -A mutex.o | grep -q '_ZSt11__once_call'
+          if "$NM" -A mutex.o | grep -q '_ZSt14__once_functor'; then
+            exit 1
+          fi
+
+          "$CXX" -fPIC -fPIE -specs="$DEVKITPRO/libnx/switch.specs" -x c++ - -o /tmp/check-libstdcxx/throw-test.elf <<'EOF'
+          #include <stdexcept>
+          int main() {
+            try { throw std::runtime_error("tls"); }
+            catch (const std::runtime_error&) { return 0; }
+            return 1;
+          }
+          EOF
 
       - uses: actions/checkout@v6
         with:
@@ -45,42 +132,6 @@ jobs:
           path: ~/.ccache
           key: ccache-switch-${{ matrix.config.name }}-${{ github.sha }}
           restore-keys: ccache-switch-${{ matrix.config.name }}-
-
-      - name: Patch Switch libstdc++ exception TLS
-        run: |
-          set -eux
-
-          CXX="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-g++"
-          AR="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ar"
-          RANLIB="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ranlib"
-          NM="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-nm"
-          OBJDUMP="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-objdump"
-          GCC_VER="$($CXX -dumpfullversion)"
-          GCC_SRC="/tmp/devkitpro-gcc"
-          PATCH_SRC="/tmp/libstdcxx-eh"
-
-          git clone --depth 1 --branch "releases/gcc-${GCC_VER}" https://github.com/devkitPro/gcc.git "$GCC_SRC"
-
-          mkdir -p "$PATCH_SRC"
-          cp "$GCC_SRC/libstdc++-v3/libsupc++/eh_globals.cc" "$PATCH_SRC/"
-          cp "$GCC_SRC/libstdc++-v3/libsupc++/unwind-cxx.h" "$PATCH_SRC/"
-
-          "$CXX" -c -fPIC -ftls-model=local-exec -O2 -std=gnu++17 \
-            -D_GLIBCXX_HAVE_TLS=1 \
-            -o /tmp/eh_globals.o \
-            "$PATCH_SRC/eh_globals.cc"
-
-          LIBSTDCPP="$("$CXX" -fPIC -print-file-name=libstdc++.a)"
-          "$AR" r "$LIBSTDCPP" /tmp/eh_globals.o
-          "$RANLIB" "$LIBSTDCPP"
-
-          mkdir -p /tmp/check-eh
-          cd /tmp/check-eh
-          "$AR" x "$LIBSTDCPP" eh_globals.o
-          if "$NM" -A eh_globals.o | grep -E 'pthread_(key_create|get|set)specific|malloc|free'; then
-            exit 1
-          fi
-          "$OBJDUMP" -r eh_globals.o | grep -q TLSLE
 
       - name: CMake
         run: |
