@@ -81,6 +81,10 @@ jobs:
           "$OBJDUMP" -r eh_globals.o | grep -q TLSLE
           "$NM" -A mutex.o | grep -q '_ZSt15__once_callable'
           "$NM" -A mutex.o | grep -q '_ZSt11__once_call'
+          "$NM" -A mutex.o | grep -q ' U __aarch64_read_tp'
+          if "$OBJDUMP" -d mutex.o | grep -q 'mrs.*tpidr_el0'; then
+            exit 1
+          fi
           if "$NM" -A mutex.o | grep -q '_ZSt14__once_functor'; then
             exit 1
           fi
