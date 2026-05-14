@@ -36,6 +36,7 @@ jobs:
         run: |
           set -eux
 
+          CC="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-gcc"
           CXX="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-g++"
           AR="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ar"
           RANLIB="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-ranlib"
@@ -45,6 +46,63 @@ jobs:
           GCC_SRC="/tmp/devkitpro-gcc"
 
           git clone --depth 1 --branch "releases/gcc-${GCC_VER}" https://github.com/devkitPro/gcc.git "$GCC_SRC"
+
+          LIBGCC_PATCH="/tmp/libgcc-switch"
+          mkdir -p "$LIBGCC_PATCH"
+          cp "$GCC_SRC/libgcc/unwind-dw2.c" "$LIBGCC_PATCH/unwind-dw2.c"
+          perl -0pi -e 's/#if __GTHREADS\n  \{\n    static __gthread_once_t once_regsizes = __GTHREAD_ONCE_INIT;\n    if \(__gthread_once \(&once_regsizes, init_dwarf_reg_size_table\) != 0\n\t&& dwarf_reg_size_table\[0\] == 0\)\n      init_dwarf_reg_size_table \(\);\n  \}\n#else\n  if \(dwarf_reg_size_table\[0\] == 0\)\n    init_dwarf_reg_size_table \(\);\n#endif/if (dwarf_reg_size_table[0] == 0)\n    init_dwarf_reg_size_table ();/s' "$LIBGCC_PATCH/unwind-dw2.c"
+
+          cat > "$LIBGCC_PATCH/tconfig.h" <<'EOF'
+          #ifndef GCC_TCONFIG_H
+          #define GCC_TCONFIG_H
+          #ifndef USED_FOR_TARGET
+          # define USED_FOR_TARGET
+          #endif
+          #include "auto-host.h"
+          #ifdef IN_GCC
+          # include "ansidecl.h"
+          #endif
+          #endif
+          EOF
+
+          cat > "$LIBGCC_PATCH/auto-host.h" <<'EOF'
+          #ifndef AUTO_HOST_H
+          #define AUTO_HOST_H
+          #endif
+          EOF
+
+          DEFINES="" HEADERS="$GCC_SRC/libgcc/config/aarch64/value-unwind.h" \
+            "$GCC_SRC/libgcc/mkheader.sh" > "$LIBGCC_PATCH/libgcc_tm.h"
+
+          ln -sf "$GCC_SRC/libgcc/unwind-generic.h" "$LIBGCC_PATCH/unwind.h"
+          ln -sf "$GCC_SRC/libgcc/gthr-posix.h" "$LIBGCC_PATCH/gthr-default.h"
+          ln -sf "$GCC_SRC/libgcc/config/aarch64/aarch64-unwind-def.h" "$LIBGCC_PATCH/md-unwind-def.h"
+          ln -sf "$GCC_SRC/libgcc/config/aarch64/aarch64-unwind.h" "$LIBGCC_PATCH/md-unwind-support.h"
+
+          "$CC" -c -fPIC -mtp=soft -ftls-model=local-exec -O2 -g \
+            -DIN_GCC -DIN_LIBGCC2 -DHAVE_CC_TLS \
+            -fbuilding-libgcc -fno-stack-protector -fexceptions \
+            -I"$LIBGCC_PATCH" \
+            -I"$GCC_SRC/libgcc" \
+            -I"$GCC_SRC/gcc" \
+            -I"$GCC_SRC/include" \
+            -I"$DEVKITPRO/devkitA64/lib/gcc/aarch64-none-elf/${GCC_VER}/plugin/include" \
+            -o /tmp/unwind-dw2.o \
+            "$LIBGCC_PATCH/unwind-dw2.c"
+
+          LIBGCC="$("$CC" -fPIC -print-libgcc-file-name)"
+          "$AR" r "$LIBGCC" /tmp/unwind-dw2.o
+          "$RANLIB" "$LIBGCC"
+
+          mkdir -p /tmp/check-libgcc
+          cd /tmp/check-libgcc
+          "$AR" x "$LIBGCC" unwind-dw2.o
+          "$NM" -A unwind-dw2.o | grep -q '_Unwind_RaiseException'
+          "$NM" -A unwind-dw2.o | grep -q 'dwarf_reg_size_table'
+          if "$NM" -A unwind-dw2.o | grep -q 'pthread_once'; then
+            exit 1
+          fi
+          cd /
 
           "$CXX" -c -fPIC -mtp=soft -ftls-model=local-exec -O2 -std=gnu++17 \
             -D_GLIBCXX_HAVE_TLS=1 \
