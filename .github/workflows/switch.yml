@@ -64,10 +64,6 @@ jobs:
           sed -i 's|/\* #undef _GLIBCXX_HAVE_TLS \*/|#define _GLIBCXX_HAVE_TLS 1|' "$CXXCONFIG"
           grep -q '^#define _GLIBCXX_HAVE_TLS 1' "$CXXCONFIG"
 
-          GTHR="$DEVKITPRO/devkitA64/aarch64-none-elf/include/c++/${GCC_VER}/aarch64-none-elf/pic/bits/gthr-default.h"
-          perl -0pi -e 's/__GTHREAD_INLINE int\n__gthread_once \(__gthread_once_t \*__once, void \(\*__func\) \(void\)\)\n\{\n  if \(__gthread_active_p \(\)\)\n    return __gthrw_\(pthread_once\) \(__once, __func\);\n  else\n    return -1;\n\}/__GTHREAD_INLINE int\n__gthread_once (__gthread_once_t *__once, void (*__func) (void))\n{\n  if (!__gthread_active_p ())\n    return -1;\n\n  int *__status = &__once->status;\n  int __expected = 0;\n\n  if (__atomic_load_n (__status, __ATOMIC_ACQUIRE) == 2)\n    return 0;\n\n  if (__atomic_compare_exchange_n (__status, &__expected, 1, false,\n                                   __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))\n    {\n#ifdef __EXCEPTIONS\n      try\n        {\n          __func ();\n          __atomic_store_n (__status, 2, __ATOMIC_RELEASE);\n        }\n      catch (...)\n        {\n          __atomic_store_n (__status, 0, __ATOMIC_RELEASE);\n          throw;\n        }\n#else\n      __func ();\n      __atomic_store_n (__status, 2, __ATOMIC_RELEASE);\n#endif\n      return 0;\n    }\n\n  while (__atomic_load_n (__status, __ATOMIC_ACQUIRE) != 2)\n    __gthread_yield ();\n\n  return 0;\n}/s' "$GTHR"
-          grep -q '__atomic_compare_exchange_n' "$GTHR"
-
           mkdir -p /tmp/check-libstdcxx
           cd /tmp/check-libstdcxx
           "$AR" x "$LIBSTDCPP" eh_globals.o mutex.o
