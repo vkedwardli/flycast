@@ -49,13 +49,11 @@ jobs:
 
           LIBGCC_PATCH="/tmp/libgcc-switch"
           mkdir -p "$LIBGCC_PATCH"
-          cp "$GCC_SRC/libgcc/unwind-dw2.c" "$LIBGCC_PATCH/unwind-dw2.c"
           cp "$GCC_SRC/libgcc/unwind-dw2-fde.c" "$LIBGCC_PATCH/unwind-dw2-fde.c"
-
-          perl -0pi -e 's/#if __GTHREADS\n  \{\n    static __gthread_once_t once_regsizes = __GTHREAD_ONCE_INIT;\n    if \(__gthread_once \(&once_regsizes, init_dwarf_reg_size_table\) != 0\n\t&& dwarf_reg_size_table\[0\] == 0\)\n      init_dwarf_reg_size_table \(\);\n  \}\n#else\n  if \(dwarf_reg_size_table\[0\] == 0\)\n    init_dwarf_reg_size_table \(\);\n#endif/if (dwarf_reg_size_table[0] == 0)\n    init_dwarf_reg_size_table ();/s' "$LIBGCC_PATCH/unwind-dw2.c"
-          perl -0pi -e 's/static inline int\nstart_fde_sort \(struct fde_accumulator \*accu, size_t count\)\n\{.*?\n\}\n\nstatic inline void\nfde_insert/static inline int\nstart_fde_sort (struct fde_accumulator *accu, size_t count)\n{\n  (void) count;\n  accu->linear = NULL;\n  accu->aux = NULL;\n  return 0;\n}\n\nstatic inline void\nfde_insert/s' "$LIBGCC_PATCH/unwind-dw2-fde.c"
-          grep -q "(void) count;" "$LIBGCC_PATCH/unwind-dw2-fde.c"
-          if grep -q "accu->linear = malloc" "$LIBGCC_PATCH/unwind-dw2-fde.c"; then
+          perl -0pi -e 's/(static struct object \*seen_objects;\n#endif\n)/$1\nstatic inline void init_object (struct object* ob);\n/s' "$LIBGCC_PATCH/unwind-dw2-fde.c"
+          perl -0pi -e 's/init_object_mutex_once \(\);\n  __gthread_mutex_lock \(&object_mutex\);\n\n  ob->next = unseen_objects;\n  unseen_objects = ob;\n\n  __gthread_mutex_unlock \(&object_mutex\);/struct object **p;\n\n  init_object (ob);\n  init_object_mutex_once ();\n  __gthread_mutex_lock (\&object_mutex);\n\n  for (p = \&seen_objects; *p; p = \&(*p)->next)\n    if ((*p)->pc_begin < ob->pc_begin)\n      break;\n  ob->next = *p;\n  *p = ob;\n\n  __gthread_mutex_unlock (\&object_mutex);/g' "$LIBGCC_PATCH/unwind-dw2-fde.c"
+          grep -q 'static inline void init_object' "$LIBGCC_PATCH/unwind-dw2-fde.c"
+          if grep -q 'unseen_objects = ob' "$LIBGCC_PATCH/unwind-dw2-fde.c"; then
             exit 1
           fi
 
@@ -94,32 +92,16 @@ jobs:
             -I"$GCC_SRC/gcc" \
             -I"$GCC_SRC/include" \
             -I"$DEVKITPRO/devkitA64/lib/gcc/aarch64-none-elf/${GCC_VER}/plugin/include" \
-            -o /tmp/unwind-dw2.o \
-            "$LIBGCC_PATCH/unwind-dw2.c"
-
-          "$CC" -c -fPIC -mtp=soft -ftls-model=local-exec -O2 -g \
-            -DIN_GCC -DIN_LIBGCC2 -DHAVE_CC_TLS \
-            -fbuilding-libgcc -fno-stack-protector -fexceptions \
-            -I"$LIBGCC_PATCH" \
-            -I"$GCC_SRC/libgcc" \
-            -I"$GCC_SRC/gcc" \
-            -I"$GCC_SRC/include" \
-            -I"$DEVKITPRO/devkitA64/lib/gcc/aarch64-none-elf/${GCC_VER}/plugin/include" \
             -o /tmp/unwind-dw2-fde.o \
             "$LIBGCC_PATCH/unwind-dw2-fde.c"
 
           LIBGCC="$("$CC" -fPIC -print-libgcc-file-name)"
-          "$AR" r "$LIBGCC" /tmp/unwind-dw2.o /tmp/unwind-dw2-fde.o
+          "$AR" r "$LIBGCC" /tmp/unwind-dw2-fde.o
           "$RANLIB" "$LIBGCC"
 
           mkdir -p /tmp/check-libgcc
           cd /tmp/check-libgcc
-          "$AR" x "$LIBGCC" unwind-dw2.o unwind-dw2-fde.o
-          "$NM" -A unwind-dw2.o | grep -q '_Unwind_RaiseException'
-          "$NM" -A unwind-dw2.o | grep -q 'dwarf_reg_size_table'
-          if "$NM" -A unwind-dw2.o | grep -q 'pthread_once'; then
-            exit 1
-          fi
+          "$AR" x "$LIBGCC" unwind-dw2-fde.o
           "$NM" -A unwind-dw2-fde.o | grep -q '_Unwind_Find_FDE'
           cd /
 
