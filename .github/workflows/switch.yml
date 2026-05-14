@@ -15,8 +15,16 @@ jobs:
     strategy:
       matrix:
         config:
-          - {name: standalone, destDir: switch}
-          - {name: libretro, cmakeArgs: -DLIBRETRO=ON}
+          # - {name: standalone, destDir: switch}
+          - {
+              name: standalone-debug,
+              destDir: switch-debug,
+              buildType: Debug,
+              cFlags: "-O0 -g3 -ggdb -fno-omit-frame-pointer",
+              cxxFlags: "-O0 -g3 -ggdb -fno-omit-frame-pointer",
+              linkerFlags: "-Wl,--build-id",
+            }
+          # - {name: libretro, cmakeArgs: -DLIBRETRO=ON}
 
     steps:
       - name: Set up build environment
@@ -40,8 +48,31 @@ jobs:
 
       - name: CMake
         run: |
-          $DEVKITPRO/portlibs/switch/bin/aarch64-none-elf-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=artifact -G Ninja ${{ matrix.config.cmakeArgs }}
-          cmake --build build --config Release --target install
+          set -eux
+
+          BUILD_TYPE="${{ matrix.config.buildType || 'Release' }}"
+          BUILD_TYPE_UPPER=$(printf '%s' "$BUILD_TYPE" | tr '[:lower:]' '[:upper:]')
+          CMAKE_EXTRA_ARGS="${{ matrix.config.cmakeArgs || '' }}"
+
+          set -- -B build "-DCMAKE_BUILD_TYPE=$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX=artifact -G Ninja
+          if [ -n "${{ matrix.config.cFlags || '' }}" ]; then
+            set -- "$@" "-DCMAKE_C_FLAGS_${BUILD_TYPE_UPPER}=${{ matrix.config.cFlags }}"
+          fi
+          if [ -n "${{ matrix.config.cxxFlags || '' }}" ]; then
+            set -- "$@" "-DCMAKE_CXX_FLAGS_${BUILD_TYPE_UPPER}=${{ matrix.config.cxxFlags }}"
+          fi
+          if [ -n "${{ matrix.config.linkerFlags || '' }}" ]; then
+            set -- "$@" "-DCMAKE_EXE_LINKER_FLAGS_${BUILD_TYPE_UPPER}=${{ matrix.config.linkerFlags }}"
+          fi
+          if [ -n "$CMAKE_EXTRA_ARGS" ]; then
+            set -- "$@" $CMAKE_EXTRA_ARGS
+          fi
+
+          $DEVKITPRO/portlibs/switch/bin/aarch64-none-elf-cmake "$@"
+          cmake --build build --config "$BUILD_TYPE" --target install
+          if [ -f build/flycast.elf ]; then
+            cp build/flycast.elf artifact/bin/flycast.elf
+          fi
 
       - uses: actions/upload-artifact@v6
         with:
