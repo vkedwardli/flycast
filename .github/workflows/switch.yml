@@ -53,7 +53,7 @@ jobs:
           perl -0pi -e 's/(static struct object \*seen_objects;\n#endif\n)/$1\nstatic inline void init_object (struct object* ob);\n/s' "$LIBGCC_PATCH/unwind-dw2-fde.c"
           perl -0pi -e 's/init_object_mutex_once \(\);\n  __gthread_mutex_lock \(&object_mutex\);\n\n  ob->next = unseen_objects;\n  unseen_objects = ob;\n\n  __gthread_mutex_unlock \(&object_mutex\);/struct object **p;\n\n  init_object (ob);\n  init_object_mutex_once ();\n  __gthread_mutex_lock (\&object_mutex);\n\n  for (p = \&seen_objects; *p; p = \&(*p)->next)\n    if ((*p)->pc_begin < ob->pc_begin)\n      break;\n  ob->next = *p;\n  *p = ob;\n\n  __gthread_mutex_unlock (\&object_mutex);/g' "$LIBGCC_PATCH/unwind-dw2-fde.c"
           grep -q 'static inline void init_object' "$LIBGCC_PATCH/unwind-dw2-fde.c"
-          if grep -q 'unseen_objects = ob' "$LIBGCC_PATCH/unwind-dw2-fde.c"; then
+          if grep -q 'unseen_objects = ob;' "$LIBGCC_PATCH/unwind-dw2-fde.c"; then
             exit 1
           fi
 
