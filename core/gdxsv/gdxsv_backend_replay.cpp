@@ -242,17 +242,23 @@ void GdxsvBackendReplay::OnEndOfFrame() {
 	emu.getSh4Executor()->Stop();
 }
 
-void GdxsvBackendReplay::RunFrameSilently(bool skip_rendering) {
+void GdxsvBackendReplay::BeginSilentSeek() {
 	settings.aica.muteAudio = true;
-	settings.gdxsv.skipRenderingAddr = skip_rendering ? settings.gdxsv.skipRenderingBaseAddr : 0;
 	rend_enable_renderer(false);
 	seeking_ = true;
+}
+
+void GdxsvBackendReplay::RunSilentSeekFrame(bool skip_rendering) {
+	settings.gdxsv.skipRenderingAddr = skip_rendering ? settings.gdxsv.skipRenderingBaseAddr : 0;
 	emu.run();
-	seeking_ = false;
 	end_of_frame_ = false;
+}
+
+void GdxsvBackendReplay::EndSilentSeek() {
 	settings.aica.muteAudio = false;
 	settings.gdxsv.skipRenderingAddr = 0;
 	rend_enable_renderer(true);
+	seeking_ = false;
 }
 
 void GdxsvBackendReplay::RebuildKeyDisplay() const {
@@ -298,11 +304,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 	regular_save_state();
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
+		BeginSilentSeek();
 		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
-			RunFrameSilently(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
+			RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
 			regular_save_state();
 			if (need_cancel()) break;
 		}
+		EndSilentSeek();
 	}
 
 	ReplayCtrlCommand ctrl{};
@@ -314,7 +322,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 				pause_menu_opend_ = !pause_menu_opend_;
 				if (pause_menu_opend_) {
 					if (!recv_buf_.empty()) {
-						RunFrameSilently(false);
+						BeginSilentSeek();
+						RunSilentSeekFrame(false);
+						EndSilentSeek();
 					}
 					verify(recv_buf_.empty());
 					gdxsv_save_state.SaveState(key_msg_count_);
@@ -388,12 +398,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 					recv_buf_.clear();
 					recv_delay_ = 0;
 					int frames_run = 0;
+					BeginSilentSeek();
 					while (key_msg_count_ < goal) {
-						RunFrameSilently(config::GdxSkipRenderingHack && key_msg_count_ + 1 < goal);
+						RunSilentSeekFrame(config::GdxSkipRenderingHack && key_msg_count_ + 1 < goal);
 						regular_save_state();
 						frames_run++;
 						if (need_cancel() || frames_run > 1000) break;
 					}
+					EndSilentSeek();
 					RebuildKeyDisplay();
 					settings.aica.muteAudio = false;
 					settings.aica.audioFade = 0.0f;
@@ -407,11 +419,49 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 		
 		if (ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg) {
-			const int target_key_msg_count = ctrl.arg1 ? ctrl.arg1 : 1;
+			if (log_file_.inputs_size() <= 0) {
+				target_frame_ = 0;
+				ctrl_commands_.pop_front();
+				continue;
+			}
+			const int target_key_msg_count = std::clamp(ctrl.arg1, 0, log_file_.inputs_size());
+			const int previous_key_msg_count = key_msg_count_;
+			const auto jump_start = high_resolution_clock::now();
+			int loaded_frame = -1;
+
+			const int load_frame = gdxsv_save_state.FindSavedFrameAtOrBefore(target_key_msg_count);
+			if (load_frame >= 0 && load_frame != key_msg_count_ &&
+				((key_msg_count_ < target_key_msg_count && key_msg_count_ < load_frame) ||
+				 (target_key_msg_count < key_msg_count_ && load_frame <= target_key_msg_count))) {
+				if (gdxsv_save_state.LoadState(load_frame)) {
+					key_msg_count_ = load_frame;
+					loaded_frame = load_frame;
+					recv_buf_.clear();
+					recv_delay_ = 0;
+				} else {
+					WARN_LOG(COMMON, "Failed loading replay save state frame=%d target=%d", load_frame, target_key_msg_count);
+				}
+			}
+
+			BeginSilentSeek();
+			int frames_run = 0;
 			while (key_msg_count_ < target_key_msg_count) {
-				RunFrameSilently(config::GdxSkipRenderingHack);
+				const bool skip_rendering = config::GdxSkipRenderingHack && key_msg_count_ + 1 < target_key_msg_count;
+				RunSilentSeekFrame(skip_rendering);
 				regular_save_state();
+				frames_run++;
 				if (need_cancel()) break;
+			}
+			EndSilentSeek();
+			const long long jump_ms = duration_cast<milliseconds>(high_resolution_clock::now() - jump_start).count();
+			const float ms_per_frame = frames_run > 0 ? static_cast<float>(jump_ms) / frames_run : 0.0f;
+			NOTICE_LOG(COMMON, "JumpToKeyMsg %d->%d target=%d load=%d ran=%d frames in %lld[ms] (%.2f[ms/fr])",
+					   previous_key_msg_count, key_msg_count_, target_key_msg_count, loaded_frame, frames_run, jump_ms, ms_per_frame);
+
+			if (key_msg_count_ != previous_key_msg_count) {
+				RebuildKeyDisplay();
+				settings.aica.audioFade = 0.0f;
+				audio_fade_frames_ = 20;
 			}
 
 			target_frame_ = 0;
@@ -423,11 +473,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int prev_key_msg_count = key_msg_count_;
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
+			BeginSilentSeek();
 			for (; skipped_frame < skip_frames; skipped_frame++) {
-				RunFrameSilently(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
+				RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
 				regular_save_state();
 				if (need_cancel()) break;
 			}
+			EndSilentSeek();
 			if (0 < skipped_frame) {
 				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
 				NOTICE_LOG(COMMON, "SeekForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
@@ -442,11 +494,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int org_speed = ctrl_play_speed_;
 			ctrl_play_speed_ = 0;
 
+			BeginSilentSeek();
 			while (!(IsInBriefing() || IsInGame() || need_cancel())) {
-				RunFrameSilently(config::GdxSkipRenderingHack);
+				RunSilentSeekFrame(config::GdxSkipRenderingHack);
 				regular_save_state();
 				if (need_cancel()) break;
 			}
+			EndSilentSeek();
 
 			round_start_frame_ = key_msg_count_;
 			ctrl_play_speed_ = org_speed;
@@ -1138,7 +1192,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			key_msg.body[2] = input >> 8 & 0xff;
 			key_msg.body[3] = input & 0xff;
 			std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
-			if (takeover_countdown_ == 0) {
+			if (takeover_countdown_ == 0 && !seeking_) {
 				gdxsv.key_display_.AppendInput(i, input);
 			}
 		}

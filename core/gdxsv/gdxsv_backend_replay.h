@@ -48,7 +48,9 @@ class GdxsvBackendReplay {
 	void ProcessMcsMessage(const McsMessage& msg);
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
-	void RunFrameSilently(bool skip_rendering);
+	void BeginSilentSeek();
+	void RunSilentSeekFrame(bool skip_rendering);
+	void EndSilentSeek();
 	void RebuildKeyDisplay() const;
 	void RenderPauseMenu();
 	void RenderTakeoverCountdown();
