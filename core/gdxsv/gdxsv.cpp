@@ -87,6 +87,7 @@ void Gdxsv::Reset() {
 	netmode_ = NetMode::Offline;
 	http::init();
 	settings.gdxsv.disk = 0;
+	settings.gdxsv.replayModeActive = false;
 	settings.gdxsv.skipRenderingBaseAddr = 0;
 
 	// Automatically add ContentPath if it is empty.

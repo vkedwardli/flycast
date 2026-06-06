@@ -171,6 +171,10 @@ class GdxsvBackendReplay {
 	float flash_right_ = 0.0f;
 	float flash_up_ = 0.0f;
 	float flash_down_ = 0.0f;
+	float ctrl_bar_prev_mouse_x_ = -1.0f;
+	float ctrl_bar_prev_mouse_y_ = -1.0f;
+	bool ctrl_bar_dragging_ = false;
+	int ctrl_bar_drag_target_frame_ = -1;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;

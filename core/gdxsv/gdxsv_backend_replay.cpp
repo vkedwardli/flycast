@@ -74,6 +74,11 @@ void GdxsvBackendReplay::Reset() {
 	flash_right_ = 0.0f;
 	flash_up_ = 0.0f;
 	flash_down_ = 0.0f;
+	ctrl_bar_prev_mouse_x_ = -1.0f;
+	ctrl_bar_prev_mouse_y_ = -1.0f;
+	ctrl_bar_dragging_ = false;
+	ctrl_bar_drag_target_frame_ = -1;
+	settings.gdxsv.replayModeActive = false;
 	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
@@ -330,7 +335,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 					gdxsv_save_state.SaveState(key_msg_count_);
 					NOTICE_LOG(COMMON, "Save Menu Opened frame %d", key_msg_count_);
 				}
-				SDL_ShowCursor(pause_menu_opend_ ? SDL_ENABLE : SDL_DISABLE);
+				SDL_ShowCursor(SDL_ENABLE);
 			}
 
 			ctrl_commands_.pop_front();
@@ -584,6 +589,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			ctrl_pause_ = false;
 			ctrl_play_speed_ = 0;
 			recv_buf_.clear();
+			SDL_ShowCursor(SDL_ENABLE);
 			NOTICE_LOG(COMMON, "TakeOver countdown at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
@@ -598,6 +604,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				takeover_input_buf_.pop_front();
 			}
 			takeover_ = true;
+			settings.gdxsv.replayModeActive = false;
 			pause_menu_opend_ = false;
 			settings.aica.muteAudio = false;
 			SDL_ShowCursor(SDL_DISABLE);
@@ -613,8 +620,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 			recv_buf_.clear();
 			takeover_input_buf_.clear();
 			takeover_countdown_ = 60;
+			settings.gdxsv.replayModeActive = true;
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
+			SDL_ShowCursor(SDL_ENABLE);
 			NOTICE_LOG(COMMON, "RetryTakeover at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
@@ -625,9 +634,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 			RebuildKeyDisplay();
 			recv_buf_.clear();
 			takeover_ = false;
+			settings.gdxsv.replayModeActive = true;
 			takeover_saved_frame_ = -1;
 			pause_menu_opend_ = false;
-			SDL_ShowCursor(SDL_DISABLE);
+			SDL_ShowCursor(SDL_ENABLE);
 			NOTICE_LOG(COMMON, "ReturnToReplay at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
@@ -696,8 +706,10 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 
 void GdxsvBackendReplay::Stop() {
 	ctrl_commands_.clear();
+	settings.gdxsv.replayModeActive = false;
 	settings.gdxsv.skipRenderingAddr = 0;
 	settings.aica.muteAudio = false;
+	SDL_ShowCursor(SDL_ENABLE);
 	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();
 	gdxsv.key_display_.enabled(false);
@@ -960,6 +972,8 @@ bool GdxsvBackendReplay::Start() {
 	key_msg_count_ = 0;
 	gdxsv_save_state.StartUsing();
 	rend_allow_rollback();
+	settings.gdxsv.replayModeActive = true;
+	SDL_ShowCursor(SDL_ENABLE);
 
 	NOTICE_LOG(COMMON, "Replay Start");
 	return true;
@@ -1347,7 +1361,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 				if (ImGui::Button(label, ScaledVec2(40, 40))) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, i);
 					pause_menu_opend_ = false;
-					SDL_ShowCursor(SDL_DISABLE);
+					SDL_ShowCursor(SDL_ENABLE);
 				}
 
 				if (ImGui::IsItemHovered()) {
@@ -1494,6 +1508,8 @@ void GdxsvBackendReplay::UpdateControlBarVisibility() {
 	if (state_ < State::McsInBattle) return;
 	if (takeover_) return;
 
+	ImGuiIO& io = ImGui::GetIO();
+
 	// Map analog stick to d-pad (same as OnMainUiLoop) so stick input triggers visibility
 	u32 cur_kcode = mapleInputState[0].kcode;
 	auto axes = mapleInputState[0].fullAxes;
@@ -1507,7 +1523,19 @@ void GdxsvBackendReplay::UpdateControlBarVisibility() {
 	}
 	ctrl_bar_prev_kcode_ = cur_kcode;
 
-	float dt = ImGui::GetIO().DeltaTime;
+	if (io.MousePos.x >= 0.0f && io.MousePos.y >= 0.0f && io.MousePos.x <= io.DisplaySize.x && io.MousePos.y <= io.DisplaySize.y) {
+		const bool hasPrevMouse = ctrl_bar_prev_mouse_x_ >= 0.0f && ctrl_bar_prev_mouse_y_ >= 0.0f;
+		const float dx = io.MousePos.x - ctrl_bar_prev_mouse_x_;
+		const float dy = io.MousePos.y - ctrl_bar_prev_mouse_y_;
+		const bool mouseMoved = hasPrevMouse && dx * dx + dy * dy > 1.0f;
+		if ((mouseMoved && io.MousePos.y >= io.DisplaySize.y - uiScaled(96.0f)) || ctrl_bar_dragging_) {
+			ctrl_bar_idle_timer_ = 3.0f;
+		}
+		ctrl_bar_prev_mouse_x_ = io.MousePos.x;
+		ctrl_bar_prev_mouse_y_ = io.MousePos.y;
+	}
+
+	float dt = io.DeltaTime;
 	ctrl_bar_idle_timer_ = std::max(0.0f, ctrl_bar_idle_timer_ - dt);
 
 	constexpr float fadeSpeed = 4.0f;
@@ -1535,7 +1563,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 	const float rounding = uiScaled(8.0f);
 	const float pad = uiScaled(8.0f);
 
-	// Create a transparent, non-interactive overlay window
+	// Create a transparent overlay window. The drawn progress track has an invisible hit target for dragging.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
@@ -1544,7 +1572,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 	ImGui::SetNextWindowBgAlpha(0.0f);
 	ImGui::Begin("##gdxsv-replay-ctrlbar", nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
-				 ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing |
+				 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing |
 				 ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav);
 
 	ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -1567,6 +1595,17 @@ void GdxsvBackendReplay::RenderControlBar() {
 		int brightness = 80 + (int)(175 * t);
 		return IM_COL32(255, 255, 255, (int)(brightness * alpha));
 	};
+	const ImU32 disabledCol = IM_COL32(120, 120, 120, (int)(120 * alpha));
+	auto iconButton = [&](const char* id, ImVec2 center, ImVec2 size, bool enabled) -> bool {
+		const float hitW = std::max(size.x + uiScaled(8.0f), uiScaled(20.0f));
+		const float hitH = std::max(size.y + uiScaled(6.0f), uiScaled(18.0f));
+		ImGui::SetCursorScreenPos(ImVec2(center.x - hitW * 0.5f, center.y - hitH * 0.5f));
+		ImGui::InvisibleButton(id, ImVec2(hitW, hitH));
+		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+			ctrl_bar_idle_timer_ = 3.0f;
+		}
+		return enabled && ImGui::IsItemClicked(ImGuiMouseButton_Left);
+	};
 
 	// Layout positions
 	float cx = barX + pad;
@@ -1578,13 +1617,29 @@ void GdxsvBackendReplay::RenderControlBar() {
 	// Fixed-width slot for play/pause icon to prevent layout shift
 	float iconSlotW = std::max(ImGui::CalcTextSize(ICON_FA_PLAY).x, ImGui::CalcTextSize(ICON_FA_PAUSE).x);
 	float iconOfs = (iconSlotW - iconSize.x) * 0.5f;
-	dl->AddText(ImVec2(cx + iconOfs, cy - iconSize.y * 0.5f), textCol, stateIcon);
+	const ImVec2 stateIconPos(cx + iconOfs, cy - iconSize.y * 0.5f);
+	dl->AddText(stateIconPos, textCol, stateIcon);
+	if (iconButton("##gdxsv-play-pause", ImVec2(cx + iconSlotW * 0.5f, cy), ImVec2(iconSlotW, iconSize.y), true)) {
+		ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
+	}
 	cx += iconSlotW + uiScaled(10.0f);
 
 	// Up/Down guide icons (for speed control)
 	ImVec2 udSize = ImGui::CalcTextSize(ICON_FA_ANGLE_UP);
-	dl->AddText(ImVec2(cx, cy - udSize.y - uiScaled(1.0f)), flashCol(flash_up_), ICON_FA_ANGLE_UP);
-	dl->AddText(ImVec2(cx, cy + uiScaled(1.0f)), flashCol(flash_down_), ICON_FA_ANGLE_DOWN);
+	const bool canSpeedUp = ctrl_play_speed_ < 2;
+	const bool canSpeedDown = ctrl_play_speed_ > -2;
+	const ImVec2 upPos(cx, cy - udSize.y - uiScaled(1.0f));
+	const ImVec2 downPos(cx, cy + uiScaled(1.0f));
+	dl->AddText(upPos, canSpeedUp ? flashCol(flash_up_) : disabledCol, ICON_FA_ANGLE_UP);
+	dl->AddText(downPos, canSpeedDown ? flashCol(flash_down_) : disabledCol, ICON_FA_ANGLE_DOWN);
+	if (iconButton("##gdxsv-speed-up", ImVec2(upPos.x + udSize.x * 0.5f, upPos.y + udSize.y * 0.5f), udSize, canSpeedUp)) {
+		ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
+		flash_up_ = 0.3f;
+	}
+	if (iconButton("##gdxsv-speed-down", ImVec2(downPos.x + udSize.x * 0.5f, downPos.y + udSize.y * 0.5f), udSize, canSpeedDown)) {
+		ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
+		flash_down_ = 0.3f;
+	}
 	cx += udSize.x + uiScaled(4.0f);
 
 	const char* speedTxt = SpeedText();
@@ -1594,9 +1649,19 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 	// Left/Right guide icons (for seek/step) - placed next to each other
 	ImVec2 lrSize = ImGui::CalcTextSize(ICON_FA_ANGLE_LEFT);
-	dl->AddText(ImVec2(cx, cy - lrSize.y * 0.5f), flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
+	const ImVec2 leftPos(cx, cy - lrSize.y * 0.5f);
+	dl->AddText(leftPos, flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
+	if (iconButton("##gdxsv-prev", ImVec2(leftPos.x + lrSize.x * 0.5f, leftPos.y + lrSize.y * 0.5f), lrSize, true)) {
+		ctrl_commands_.emplace_back(ctrl_pause_ ? ReplayCtrlCommand::StepFrameBackward : ReplayCtrlCommand::SeekBackward);
+		flash_left_ = 0.3f;
+	}
 	cx += lrSize.x + uiScaled(2.0f);
-	dl->AddText(ImVec2(cx, cy - lrSize.y * 0.5f), flashCol(flash_right_), ICON_FA_ANGLE_RIGHT);
+	const ImVec2 rightPos(cx, cy - lrSize.y * 0.5f);
+	dl->AddText(rightPos, flashCol(flash_right_), ICON_FA_ANGLE_RIGHT);
+	if (iconButton("##gdxsv-next", ImVec2(rightPos.x + lrSize.x * 0.5f, rightPos.y + lrSize.y * 0.5f), lrSize, true)) {
+		ctrl_commands_.emplace_back(ctrl_pause_ ? ReplayCtrlCommand::StepFrame : ReplayCtrlCommand::SeekForward);
+		flash_right_ = 0.3f;
+	}
 	cx += lrSize.x + uiScaled(6.0f);
 
 	// --- Right: Round/Frame info ---
@@ -1604,13 +1669,14 @@ void GdxsvBackendReplay::RenderControlBar() {
 	GetRoundBounds(roundStart, roundEnd, totalRounds);
 
 	const int roundLen = roundEnd - roundStart;
-	const int posInRound = key_msg_count_ - roundStart;
+	const int displayFrame = ctrl_bar_dragging_ && ctrl_bar_drag_target_frame_ >= 0 ? ctrl_bar_drag_target_frame_ : key_msg_count_;
+	const int displayPosInRound = displayFrame - roundStart;
 
 	char rbuf[128];
 	if (totalRounds > 0) {
-		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, key_msg_count_, log_file_.inputs_size());
+		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, displayFrame, log_file_.inputs_size());
 	} else {
-		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", key_msg_count_, log_file_.inputs_size());
+		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", displayFrame, log_file_.inputs_size());
 	}
 
 	ImVec2 rSize = ImGui::CalcTextSize(rbuf);
@@ -1626,12 +1692,43 @@ void GdxsvBackendReplay::RenderControlBar() {
 	const float progY1 = cy + progH * 0.5f;
 
 	if (progX1 > progX0 + uiScaled(20.0f)) {
+		const float progW = progX1 - progX0;
+		auto frameFromProgressX = [&](float x) -> int {
+			const float progress = std::clamp((x - progX0) / progW, 0.0f, 1.0f);
+			const int target = roundStart + (int)(progress * (float)std::max(roundLen, 0) + 0.5f);
+			return std::clamp(target, roundStart, roundEnd);
+		};
+
+		const float hitH = uiScaled(24.0f);
+		ImGui::SetCursorScreenPos(ImVec2(progX0, cy - hitH * 0.5f));
+		ImGui::InvisibleButton("##gdxsv-replay-progress-slider", ImVec2(progW, hitH));
+		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+			ctrl_bar_idle_timer_ = 3.0f;
+		}
+		if (ImGui::IsItemActivated() || ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+			ctrl_bar_dragging_ = true;
+			ctrl_bar_drag_target_frame_ = frameFromProgressX(ImGui::GetIO().MousePos.x);
+		}
+
+		if (ctrl_bar_dragging_ && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+			ctrl_bar_drag_target_frame_ = frameFromProgressX(ImGui::GetIO().MousePos.x);
+			ctrl_bar_idle_timer_ = 3.0f;
+		}
+
+		if (ctrl_bar_dragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+			if (ctrl_bar_drag_target_frame_ >= 0 && ctrl_bar_drag_target_frame_ != key_msg_count_) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, ctrl_bar_drag_target_frame_);
+			}
+			ctrl_bar_dragging_ = false;
+			ctrl_bar_drag_target_frame_ = -1;
+		}
+
 		// Track background
 		const ImU32 trackCol = IM_COL32(80, 80, 80, (int)(180 * alpha));
 		dl->AddRectFilled(ImVec2(progX0, progY0), ImVec2(progX1, progY1), trackCol, progH * 0.5f);
 
 		// Fill
-		float progress = (roundLen > 0) ? std::clamp((float)posInRound / (float)roundLen, 0.0f, 1.0f) : 0.0f;
+		float progress = (roundLen > 0) ? std::clamp((float)displayPosInRound / (float)roundLen, 0.0f, 1.0f) : 0.0f;
 		float fillX = progX0 + (progX1 - progX0) * progress;
 		const ImU32 fillCol = IM_COL32(60, 130, 230, (int)(220 * alpha));
 		dl->AddRectFilled(ImVec2(progX0, progY0), ImVec2(fillX, progY1), fillCol, progH * 0.5f);

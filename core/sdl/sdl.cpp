@@ -126,6 +126,15 @@ static void captureMouse(bool capture)
 	}
 	else
 	{
+		if (settings.gdxsv.replayModeActive)
+		{
+			if (!config::UseRawInput)
+				SDL_SetRelativeMouseMode(SDL_FALSE);
+			SDL_ShowCursor(SDL_ENABLE);
+			setWindowTitleGame();
+			mouseCaptured = false;
+			return;
+		}
 		if (config::UseRawInput
 				|| SDL_SetRelativeMouseMode(SDL_TRUE) == 0)
 		{
@@ -156,7 +165,7 @@ static void emuEventCallback(Event event, void *)
 	case Event::Resume:
 		gameRunning = true;
 		captureMouse(mouseCaptured);
-		if (window_fullscreen && !mouseCaptured)
+		if (window_fullscreen && !mouseCaptured && !settings.gdxsv.replayModeActive)
 			SDL_ShowCursor(SDL_DISABLE);
 		resumeHaptic();
 		break;
@@ -371,7 +380,7 @@ void input_sdl_handle()
 							else
 							{
 								SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
-								if (gameRunning)
+								if (gameRunning && !settings.gdxsv.replayModeActive)
 									SDL_ShowCursor(SDL_DISABLE);
 							}
 							window_fullscreen = !window_fullscreen;
@@ -418,7 +427,7 @@ void input_sdl_handle()
 				}
 				else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
 				{
-					if (window_fullscreen && gameRunning)
+					if (window_fullscreen && gameRunning && !settings.gdxsv.replayModeActive)
 						SDL_ShowCursor(SDL_DISABLE);
 				}
 				else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
