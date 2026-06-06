@@ -51,6 +51,8 @@ class GdxsvBackendReplay {
 	void BeginSilentSeek();
 	void RunSilentSeekFrame(bool skip_rendering);
 	void EndSilentSeek();
+	void BeginSilentSeekWithAudioReset();
+	void EndSilentSeekWithAudioReset();
 	void RebuildKeyDisplay() const;
 	void BeginLoadingHud();
 	void RenderPauseMenu();

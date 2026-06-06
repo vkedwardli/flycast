@@ -7,6 +7,7 @@
 
 #include "SDL_events.h"
 #include "cfg/option.h"
+#include "audio/audiostream.h"
 #include "emulator.h"
 #include "ui/mainui.h"
 #include "gdx_rpc.h"
@@ -293,6 +294,17 @@ void GdxsvBackendReplay::EndSilentSeek() {
 	seeking_ = false;
 }
 
+void GdxsvBackendReplay::BeginSilentSeekWithAudioReset() {
+	FlushAudio();
+	TermAudio();
+	BeginSilentSeek();
+}
+
+void GdxsvBackendReplay::EndSilentSeekWithAudioReset() {
+	EndSilentSeek();
+	InitAudio();
+}
+
 void GdxsvBackendReplay::RebuildKeyDisplay() const {
 	gdxsv.key_display_.Clear();
 	const int lookback = std::min(key_msg_count_, 256);
@@ -487,7 +499,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				}
 			}
 
-			BeginSilentSeek();
+			BeginSilentSeekWithAudioReset();
 			int frames_run = 0;
 			while (key_msg_count_ < target_key_msg_count) {
 				const bool skip_rendering = config::GdxSkipRenderingHack && key_msg_count_ + 1 < target_key_msg_count;
@@ -496,7 +508,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				frames_run++;
 				if (need_cancel()) break;
 			}
-			EndSilentSeek();
+			EndSilentSeekWithAudioReset();
 			const long long jump_ms = duration_cast<milliseconds>(high_resolution_clock::now() - jump_start).count();
 			const float ms_per_frame = frames_run > 0 ? static_cast<float>(jump_ms) / frames_run : 0.0f;
 			NOTICE_LOG(COMMON, "JumpToKeyMsg %d->%d target=%d load=%d ran=%d frames in %lld[ms] (%.2f[ms/fr])",
@@ -519,13 +531,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int prev_key_msg_count = key_msg_count_;
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
-			BeginSilentSeek();
+			BeginSilentSeekWithAudioReset();
 			for (; skipped_frame < skip_frames; skipped_frame++) {
 				RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
 				regular_save_state();
 				if (need_cancel()) break;
 			}
-			EndSilentSeek();
+			EndSilentSeekWithAudioReset();
 			if (0 < skipped_frame) {
 				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
 				NOTICE_LOG(COMMON, "SeekForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
@@ -541,13 +553,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int org_speed = ctrl_play_speed_;
 			ctrl_play_speed_ = 0;
 
-			BeginSilentSeek();
+			BeginSilentSeekWithAudioReset();
 			while (!(IsInBriefing() || IsInGame() || need_cancel())) {
 				RunSilentSeekFrame(config::GdxSkipRenderingHack);
 				regular_save_state();
 				if (need_cancel()) break;
 			}
-			EndSilentSeek();
+			EndSilentSeekWithAudioReset();
 
 			round_start_frame_ = key_msg_count_;
 			ctrl_play_speed_ = org_speed;
