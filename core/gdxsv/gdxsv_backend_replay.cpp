@@ -87,6 +87,8 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_play_speed_ = 0;
 	ctrl_step_frame_ = false;
 	ctrl_pause_ = false;
+	ctrl_loading_ = false;
+	ctrl_loading_wait_frames_ = 0;
 	save_converted_log_ = false;
 	ctrl_bar_visibility_ = 0.0f;
 	ctrl_bar_idle_timer_ = 0.0f;
@@ -137,6 +139,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 			if (takeover_) {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 			} else if (config::GdxReplaySkipMsSelection) {
+				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 			}
 		}
@@ -159,6 +162,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 				if (takeover_) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 				} else if (config::GdxReplaySkipMsSelection) {
+					BeginLoadingHud();
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 				}
 			}
@@ -303,6 +307,11 @@ void GdxsvBackendReplay::RebuildKeyDisplay() const {
 	}
 }
 
+void GdxsvBackendReplay::BeginLoadingHud() {
+	ctrl_loading_ = true;
+	ctrl_loading_wait_frames_ = 0;
+}
+
 void GdxsvBackendReplay::OnNextFrame() {
 	if (!end_of_frame_) return;
 	if (seeking_) return;
@@ -343,7 +352,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 	ReplayCtrlCommand ctrl{};
 	while (ctrl_commands_.try_get_front(ctrl)) {
-		constexpr int duration = 1000;
+		const bool wait_for_loading_hud = ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg || ctrl.cmd == ReplayCtrlCommand::SetRound ||
+										  ctrl.cmd == ReplayCtrlCommand::NextRound || ctrl.cmd == ReplayCtrlCommand::SeekToBriefing ||
+										  (ctrl.cmd == ReplayCtrlCommand::SeekForward && ctrl.arg1 > 0);
+		if (ctrl_loading_ && wait_for_loading_hud && ctrl_loading_wait_frames_++ < 2) {
+			return;
+		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePauseMenu) {
 			if (takeover_countdown_ == 0) {
@@ -449,6 +463,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg) {
 			if (log_file_.inputs_size() <= 0) {
 				target_frame_ = 0;
+				ctrl_bar_drag_target_frame_ = -1;
+				ctrl_loading_ = false;
 				ctrl_commands_.pop_front();
 				continue;
 			}
@@ -493,6 +509,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 
 			target_frame_ = 0;
+			ctrl_bar_drag_target_frame_ = -1;
+			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 		}
 
@@ -515,6 +533,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				settings.aica.audioFade = 0.0f;
 				audio_fade_frames_ = 20;
 			}
+			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 		}
 
@@ -532,12 +551,15 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 			round_start_frame_ = key_msg_count_;
 			ctrl_play_speed_ = org_speed;
+			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
 
 			if (target_round_ > 1) {
+				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, target_round_);
 			} else if (target_frame_ != 0) {
+				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, target_frame_);
 			}
 		}
@@ -557,6 +579,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 					}
 				}
 			}
+			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 		}
 
@@ -594,12 +617,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
 				if (config::GdxReplaySkipMsSelection) {
+					BeginLoadingHud();
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 				}
 
 				EventManager::event(Event::GGPOGameEnd);
 			}
 
+			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 		}
 
@@ -685,6 +710,7 @@ void GdxsvBackendReplay::DisplayOSD() {
 	}
 	UpdateControlBarVisibility();
 	RenderControlBar();
+	RenderLoadingHud();
 }
 
 bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
@@ -1206,6 +1232,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
 		if (config::GdxReplaySkipMsSelection) {
+			BeginLoadingHud();
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 		}
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
@@ -1318,6 +1345,28 @@ void GdxsvBackendReplay::RestorePatch() {
 	}
 }
 
+void GdxsvBackendReplay::RenderLoadingHud() {
+	if (!ctrl_loading_ || pause_menu_opend_ || takeover_) {
+		return;
+	}
+	ImguiStyleVar rounding(ImGuiStyleVar_WindowRounding, uiScaled(8.0f));
+	ImguiStyleVar border(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	ImguiStyleVar padding(ImGuiStyleVar_WindowPadding, ScaledVec2(28.0f, 18.0f));
+	centerNextWindow();
+	ImGui::SetNextWindowSize(ScaledVec2(200.0f, 76.0f));
+	ImGui::SetNextWindowBgAlpha(0.82f);
+	ImGui::Begin("##gdxsv-replay-loading", nullptr,
+				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav |
+					 ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoInputs);
+	const char* text = "Loading...";
+	const ImVec2 textSize = ImGui::CalcTextSize(text);
+	const ImVec2 avail = ImGui::GetContentRegionAvail();
+	ImGui::SetCursorPos(
+		ImVec2((avail.x - textSize.x) * 0.5f + ImGui::GetStyle().WindowPadding.x, (avail.y - textSize.y) * 0.5f + ImGui::GetStyle().WindowPadding.y));
+	ImGui::TextUnformatted(text);
+	ImGui::End();
+}
+
 void GdxsvBackendReplay::RenderPauseMenu() {
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
@@ -1386,6 +1435,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 				}
 
 				if (ImGui::Button(label, ScaledVec2(40, 40))) {
+					BeginLoadingHud();
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, i);
 					pause_menu_opend_ = false;
 					SDL_ShowCursor(SDL_ENABLE);
@@ -1710,7 +1760,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 	GetRoundBounds(roundStart, roundEnd, totalRounds);
 
 	const int roundLen = roundEnd - roundStart;
-	const int displayFrame = ctrl_bar_dragging_ && ctrl_bar_drag_target_frame_ >= 0 ? ctrl_bar_drag_target_frame_ : key_msg_count_;
+	const int displayFrame = ctrl_bar_drag_target_frame_ >= 0 ? ctrl_bar_drag_target_frame_ : key_msg_count_;
 	const int displayPosInRound = displayFrame - roundStart;
 
 	char rbuf[128];
@@ -1758,10 +1808,12 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 		if (ctrl_bar_dragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
 			if (ctrl_bar_drag_target_frame_ >= 0 && ctrl_bar_drag_target_frame_ != key_msg_count_) {
+				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, ctrl_bar_drag_target_frame_);
+			} else {
+				ctrl_bar_drag_target_frame_ = -1;
 			}
 			ctrl_bar_dragging_ = false;
-			ctrl_bar_drag_target_frame_ = -1;
 		}
 
 		// Track background

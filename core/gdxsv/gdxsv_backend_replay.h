@@ -52,10 +52,12 @@ class GdxsvBackendReplay {
 	void RunSilentSeekFrame(bool skip_rendering);
 	void EndSilentSeek();
 	void RebuildKeyDisplay() const;
+	void BeginLoadingHud();
 	void RenderPauseMenu();
 	void RenderTakeoverCountdown();
 	void UpdateControlBarVisibility();
 	void RenderControlBar();
+	void RenderLoadingHud();
 	void GetRoundBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
 	const char* SpeedText() const;
 
@@ -160,6 +162,8 @@ class GdxsvBackendReplay {
 	int ctrl_play_speed_ = 0;
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
+	bool ctrl_loading_ = false;
+	int ctrl_loading_wait_frames_ = 0;
 	bool save_converted_log_ = false;
 
 	float ctrl_bar_visibility_ = 0.0f;
