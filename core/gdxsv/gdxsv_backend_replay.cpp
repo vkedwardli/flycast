@@ -1,7 +1,9 @@
 #include "gdxsv_backend_replay.h"
 
+#include <cmath>
 #include <cstdlib>
 #include <sstream>
+#include <ctime>
 
 #include "SDL_events.h"
 #include "cfg/option.h"
@@ -22,6 +24,27 @@
 using namespace std::chrono;
 
 namespace {
+constexpr double kGdxsvReplayFallbackInputSeconds = 0.01668335002;
+
+std::string formatLocalClock(time_t ts) {
+	char buf[16];
+	const std::tm* t = std::localtime(&ts);
+	if (t == nullptr || std::strftime(buf, sizeof(buf), "%H:%M", t) == 0) {
+		return {};
+	}
+	return buf;
+}
+
+double replayInputSeconds(const proto::BattleLogFile& log_file) {
+	if (log_file.start_at() != 0 && log_file.end_at() > log_file.start_at() && log_file.inputs_size() > 0) {
+		const double seconds = static_cast<double>(log_file.end_at() - log_file.start_at()) / static_cast<double>(log_file.inputs_size());
+		if (0.01 <= seconds && seconds <= 0.2) {
+			return seconds;
+		}
+	}
+	return kGdxsvReplayFallbackInputSeconds;
+}
+
 // maple input to mcs pad input (same as gdxsv_backend_rollback.cpp)
 u16 convertInput(MapleInputState input) {
 	u16 r = 0;
@@ -1366,6 +1389,19 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 
 				if (ImGui::IsItemHovered()) {
 					ImGui::BeginTooltip();
+					if (log_file_.start_at() != 0 && i - 1 < log_file_.start_msg_indexes_size()) {
+						const int roundStart = log_file_.start_msg_indexes(i - 1);
+						const int roundEnd = i < log_file_.start_msg_indexes_size() ? log_file_.start_msg_indexes(i) : log_file_.inputs_size();
+						const double inputSeconds = replayInputSeconds(log_file_);
+						const int startSeconds = static_cast<int>(std::llround(roundStart * inputSeconds));
+						const int endSeconds = static_cast<int>(std::llround(roundEnd * inputSeconds));
+						const std::string startClock = formatLocalClock(static_cast<time_t>(log_file_.start_at() + startSeconds));
+						const std::string endClock = formatLocalClock(static_cast<time_t>(log_file_.start_at() + endSeconds));
+						if (!startClock.empty() && !endClock.empty()) {
+							ImGui::Text("Estimated Time: %s ~ %s", startClock.c_str(), endClock.c_str());
+							ImGui::Separator();
+						}
+					}
 					if (i - 1 < log_file_.round_data_size()) {
 						const auto& rd = log_file_.round_data(i - 1);
 						if (rd.win_team() == 1) {
