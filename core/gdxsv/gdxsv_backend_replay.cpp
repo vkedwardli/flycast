@@ -136,7 +136,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		if (ctrl_commands_.empty()) {
 			if (takeover_) {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
-			} else {
+			} else if (config::GdxReplaySkipMsSelection) {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 			}
 		}
@@ -158,7 +158,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 			if (ctrl_commands_.empty()) {
 				if (takeover_) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
-				} else {
+				} else if (config::GdxReplaySkipMsSelection) {
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 				}
 			}
@@ -593,7 +593,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 				target_round_ = 0;
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+				if (config::GdxReplaySkipMsSelection) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+				}
 
 				EventManager::event(Event::GGPOGameEnd);
 			}
@@ -1203,7 +1205,9 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
-		ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+		if (config::GdxReplaySkipMsSelection) {
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+		}
 	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
 		// do nothing
 	} else if (msg_type == McsMessage::MsgType::LagControlTestMsg) {
@@ -1455,6 +1459,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 		OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
+		OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
 
 		ImGui::Separator();
 
