@@ -62,6 +62,7 @@ private:
 
 void InitAudio();
 void TermAudio();
+void FlushAudio();
 void WriteSample(s16 right, s16 left);
 
 void StartAudioRecording(bool eight_khz);
