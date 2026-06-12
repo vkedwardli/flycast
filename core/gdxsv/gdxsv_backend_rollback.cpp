@@ -88,6 +88,7 @@ void GdxsvBackendRollback::Reset() {
 	state_ = State::None;
 	is_local_test_ = false;
 	error_fast_return_ = false;
+	ggpo_game_renderer_reset_ = false;
 	osd_network_stat_ = false;
 	osd_network_stat_countdown_ = 0;
 	start_button_counter_ = 0;
@@ -299,6 +300,8 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 
 	// Friend save scene
 	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 4 && ggpo::active() && !ggpo::isInRollback()) {
+		ResetGgpoGameRendererState();
+
 		int frame = 0;
 		ggpo::getCurrentFrame(&frame);
 
@@ -414,6 +417,7 @@ void GdxsvBackendRollback::Open() {
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Open");
 	recv_buf_.assign({0x0e, 0x61, 0x00, 0x22, 0x10, 0x31, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd});
 	state_ = State::McsSessionExchange;
+	ggpo_game_renderer_reset_ = false;
 	gdxsv.maxlag_ = 0;
 	ApplyPatch(true);
 	osd_network_stat_ = config::NetworkStats;
@@ -442,6 +446,14 @@ void GdxsvBackendRollback::Close() {
 	state_ = State::Closed;
 	EventManager::event(Event::GGPOGameEnd);
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Close Done");
+}
+
+void GdxsvBackendRollback::ResetGgpoGameRendererState() {
+	if (ggpo_game_renderer_reset_) {
+		return;
+	}
+	ggpo_game_renderer_reset_ = true;
+	EventManager::event(Event::GGPOGameEnd);
 }
 
 u32 GdxsvBackendRollback::OnSockWrite(u32 addr, u32 size) {
