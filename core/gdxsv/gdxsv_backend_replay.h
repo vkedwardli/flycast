@@ -53,6 +53,8 @@ class GdxsvBackendReplay {
 	void EndSilentSeek();
 	void BeginSilentSeekWithAudioReset();
 	void EndSilentSeekWithAudioReset();
+	void SendStartMsgs();
+	void PrepareRoundStartReplayState();
 	void RebuildKeyDisplay() const;
 	void BeginLoadingHud();
 	void RenderPauseMenu();
@@ -60,7 +62,8 @@ class GdxsvBackendReplay {
 	void UpdateControlBarVisibility();
 	void RenderControlBar();
 	void RenderLoadingHud();
-	void GetRoundBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
+	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
+	void GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const;
 	const char* SpeedText() const;
 
 	struct ReplayCtrlCommand {
@@ -153,7 +156,8 @@ class GdxsvBackendReplay {
 	int pov_ = 0;
 	int key_msg_count_ = 0;
 	int start_msg_count_ = 0;
-	int round_start_frame_ = 0;
+	int briefing_start_frame_ = 0;
+	int briefing_start_frame_round_ = 0;
 	int recv_delay_ = 0;
 	bool end_of_frame_ = false;
 	bool seeking_ = false;
