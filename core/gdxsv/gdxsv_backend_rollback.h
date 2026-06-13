@@ -45,10 +45,12 @@ class GdxsvBackendRollback {
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void ProcessLbsMessage();
+	void ResetGgpoGameRendererState();
 
 	State state_ = State::None;
 	bool is_local_test_ = false;
 	bool error_fast_return_ = false;
+	bool ggpo_game_renderer_reset_ = false;
 	bool osd_network_stat_ = false;
 	int osd_network_stat_countdown_ = 0;
 	int start_button_counter_ = 0;
