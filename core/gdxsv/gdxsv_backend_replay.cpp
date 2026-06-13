@@ -79,7 +79,8 @@ void GdxsvBackendReplay::Reset() {
 	pov_ = 0;
 	key_msg_count_ = 0;
 	start_msg_count_ = 0;
-	round_start_frame_ = 0;
+	briefing_start_frame_ = 0;
+	briefing_start_frame_round_ = 0;
 	recv_delay_ = 0;
 	end_of_frame_ = false;
 	seeking_ = false;
@@ -305,6 +306,22 @@ void GdxsvBackendReplay::EndSilentSeekWithAudioReset() {
 	InitAudio();
 }
 
+void GdxsvBackendReplay::SendStartMsgs() {
+	for (int i = 0; i < log_file_.users_size(); ++i) {
+		if (i != pov_) {
+			auto start_msg = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
+			std::copy(start_msg.body.begin(), start_msg.body.end(), std::back_inserter(recv_buf_));
+		}
+	}
+	gdxsv.maxlag_ = 1;
+}
+
+void GdxsvBackendReplay::PrepareRoundStartReplayState() {
+	gdxsv.key_display_.Clear();
+	SendStartMsgs();
+	EventManager::event(Event::GGPOGameEnd);
+}
+
 void GdxsvBackendReplay::RebuildKeyDisplay() const {
 	gdxsv.key_display_.Clear();
 	const int lookback = std::min(key_msg_count_, 256);
@@ -399,13 +416,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SendStartMsg) {
-			for (int i = 0; i < log_file_.users_size(); ++i) {
-				if (i != pov_) {
-					auto start_msg = McsMessage::Create(McsMessage::MsgType::StartMsg, i);
-					std::copy(start_msg.body.begin(), start_msg.body.end(), std::back_inserter(recv_buf_));
-				}
-			}
-			gdxsv.maxlag_ = 1;
+			SendStartMsgs();
 			ctrl_commands_.pop_front();
 		}
 
@@ -419,7 +430,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::StepFrame) {
 			if (ctrl_pause_) {
 				int roundStart, roundEnd, totalRounds;
-				GetRoundBounds(roundStart, roundEnd, totalRounds);
+				GetRoundReplayBounds(roundStart, roundEnd, totalRounds);
 				if (key_msg_count_ >= roundEnd) {
 					// Don't step past the end of the current round
 					ctrl_commands_.pop_front();
@@ -484,6 +495,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 			const int previous_key_msg_count = key_msg_count_;
 			const auto jump_start = high_resolution_clock::now();
 			int loaded_frame = -1;
+			int roundStart, roundEnd, totalRounds;
+			GetRoundReplayBounds(roundStart, roundEnd, totalRounds);
 
 			const int load_frame = gdxsv_save_state.FindSavedFrameAtOrBefore(target_key_msg_count);
 			if (load_frame >= 0 && load_frame != key_msg_count_ &&
@@ -497,6 +510,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 				} else {
 					WARN_LOG(COMMON, "Failed loading replay save state frame=%d target=%d", load_frame, target_key_msg_count);
 				}
+			}
+
+			if (loaded_frame == roundStart) {
+				PrepareRoundStartReplayState();
 			}
 
 			BeginSilentSeekWithAudioReset();
@@ -561,7 +578,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 			EndSilentSeekWithAudioReset();
 
-			round_start_frame_ = key_msg_count_;
+			if (config::GdxReplaySkipMsSelection) {
+				briefing_start_frame_ = key_msg_count_;
+				briefing_start_frame_round_ = start_msg_count_;
+			}
 			ctrl_play_speed_ = org_speed;
 			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
@@ -577,18 +597,40 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekBackward) {
-			if (IsInGame()) {
-				const int ahead_frame = key_msg_count_ - gdxsv_save_state.LastSavedFrame();
-				int target_frame = key_msg_count_ - (60 < ahead_frame ? 0 : save_interval);
-				if (gdxsv_save_state.LoadStateMostRecent(target_frame)) {
-					key_msg_count_ = target_frame;
+			if (state_ == State::McsInBattle) {
+				int roundStart, roundEnd, totalRounds;
+				GetRoundReplayBounds(roundStart, roundEnd, totalRounds);
+				int timelineStart, timelineEnd, timelineRounds;
+				GetControlTimelineBounds(timelineStart, timelineEnd, timelineRounds);
+				const int seekStart = key_msg_count_ < timelineStart ? roundStart : timelineStart;
+				const int target_frame = std::max(seekStart, key_msg_count_ - save_interval);
+				const int load_frame = gdxsv_save_state.FindSavedFrameAtOrBefore(target_frame);
+				if (load_frame >= roundStart && gdxsv_save_state.LoadState(load_frame)) {
+					key_msg_count_ = load_frame;
 					recv_buf_.clear();
-					RebuildKeyDisplay();
+					recv_delay_ = 0;
+					if (key_msg_count_ == roundStart) {
+						PrepareRoundStartReplayState();
+					} else {
+						RebuildKeyDisplay();
+						if (!IsInGame()) {
+							EventManager::event(Event::GGPOGameEnd);
+						}
+					}
+					BeginSilentSeek();
+					while (key_msg_count_ < target_frame) {
+						RunSilentSeekFrame(config::GdxSkipRenderingHack && key_msg_count_ + 1 < target_frame);
+						regular_save_state();
+						if (need_cancel()) break;
+					}
+					EndSilentSeek();
+					if (IsInGame()) {
+						RebuildKeyDisplay();
+					} else {
+						gdxsv.key_display_.Clear();
+					}
 					settings.aica.audioFade = 0.0f;
 					audio_fade_frames_ = 20;
-					if (!IsInGame()) {
-						EventManager::event(Event::GGPOGameEnd);
-					}
 				}
 			}
 			ctrl_loading_ = false;
@@ -611,6 +653,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame());
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
 				start_msg_count_ = round;
+				briefing_start_frame_ = 0;
+				briefing_start_frame_round_ = 0;
 				const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
 				const int battle_count = gdxsv.Disk() == 1 ? 0x0c2f6919 : 0x0c392059;
 				const int net_battle_count = gdxsv.Disk() == 1 ? 0x0c2f5cab : 0x0c3913eb;
@@ -1425,7 +1469,7 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 			ImGui::Separator();
 
 			int roundStart, roundEnd, totalRounds;
-			GetRoundBounds(roundStart, roundEnd, totalRounds);
+			GetRoundReplayBounds(roundStart, roundEnd, totalRounds);
 
 			ImGui::BeginGroup();
 			float buttonHeight = uiScaled(40.0f);
@@ -1571,7 +1615,7 @@ void GdxsvBackendReplay::RenderTakeoverCountdown() {
 	ImGui::Dummy(ScaledVec2(0, 10));
 }
 
-void GdxsvBackendReplay::GetRoundBounds(int& roundStart, int& roundEnd, int& totalRounds) const {
+void GdxsvBackendReplay::GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const {
 	if (log_file_.start_msg_indexes_size() == 0) {
 		roundStart = 0;
 		roundEnd = log_file_.inputs_size();
@@ -1584,15 +1628,19 @@ void GdxsvBackendReplay::GetRoundBounds(int& roundStart, int& roundEnd, int& tot
 	if (round < 1) round = 1;
 	if (round > totalRounds) round = totalRounds;
 
-	if (round_start_frame_ > 0) {
-		roundStart = round_start_frame_;
-	} else {
-		roundStart = log_file_.start_msg_indexes(round - 1);
-	}
+	roundStart = log_file_.start_msg_indexes(round - 1);
 	if (round < totalRounds) {
 		roundEnd = log_file_.start_msg_indexes(round);
 	} else {
 		roundEnd = log_file_.inputs_size();
+	}
+}
+
+void GdxsvBackendReplay::GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const {
+	GetRoundReplayBounds(timelineStart, timelineEnd, totalRounds);
+	if (config::GdxReplaySkipMsSelection && briefing_start_frame_ > timelineStart &&
+		briefing_start_frame_ < timelineEnd && briefing_start_frame_round_ == start_msg_count_) {
+		timelineStart = briefing_start_frame_;
 	}
 }
 
@@ -1768,12 +1816,12 @@ void GdxsvBackendReplay::RenderControlBar() {
 	cx += lrSize.x + uiScaled(6.0f);
 
 	// --- Right: Round/Frame info ---
-	int roundStart, roundEnd, totalRounds;
-	GetRoundBounds(roundStart, roundEnd, totalRounds);
+	int timelineStart, timelineEnd, totalRounds;
+	GetControlTimelineBounds(timelineStart, timelineEnd, totalRounds);
 
-	const int roundLen = roundEnd - roundStart;
+	const int timelineLen = timelineEnd - timelineStart;
 	const int displayFrame = ctrl_bar_drag_target_frame_ >= 0 ? ctrl_bar_drag_target_frame_ : key_msg_count_;
-	const int displayPosInRound = displayFrame - roundStart;
+	const int displayPosInTimeline = displayFrame - timelineStart;
 
 	char rbuf[128];
 	if (totalRounds > 0) {
@@ -1798,8 +1846,8 @@ void GdxsvBackendReplay::RenderControlBar() {
 		const float progW = progX1 - progX0;
 		auto frameFromProgressX = [&](float x) -> int {
 			const float progress = std::clamp((x - progX0) / progW, 0.0f, 1.0f);
-			const int target = roundStart + (int)(progress * (float)std::max(roundLen, 0) + 0.5f);
-			return std::clamp(target, roundStart, roundEnd);
+			const int target = timelineStart + (int)(progress * (float)std::max(timelineLen, 0) + 0.5f);
+			return std::clamp(target, timelineStart, timelineEnd);
 		};
 
 		const float hitH = uiScaled(24.0f);
@@ -1833,7 +1881,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 		dl->AddRectFilled(ImVec2(progX0, progY0), ImVec2(progX1, progY1), trackCol, progH * 0.5f);
 
 		// Fill
-		float progress = (roundLen > 0) ? std::clamp((float)displayPosInRound / (float)roundLen, 0.0f, 1.0f) : 0.0f;
+		float progress = (timelineLen > 0) ? std::clamp((float)displayPosInTimeline / (float)timelineLen, 0.0f, 1.0f) : 0.0f;
 		float fillX = progX0 + (progX1 - progX0) * progress;
 		const ImU32 fillCol = IM_COL32(60, 130, 230, (int)(220 * alpha));
 		dl->AddRectFilled(ImVec2(progX0, progY0), ImVec2(fillX, progY1), fillCol, progH * 0.5f);
