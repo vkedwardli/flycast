@@ -32,6 +32,6 @@ private:
 #ifdef STRICT_MODE
 	static constexpr int CPU_RATIO = 1;
 #else
-	static constexpr int CPU_RATIO = 8;
+	static constexpr int CPU_RATIO = 3;
 #endif
 };
