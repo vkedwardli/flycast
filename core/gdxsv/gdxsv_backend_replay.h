@@ -57,7 +57,9 @@ class GdxsvBackendReplay {
 	void PrepareRoundStartReplayState();
 	void RebuildKeyDisplay() const;
 	void BeginLoadingHud();
+	void CancelPendingTakeover();
 	void RenderPauseMenu();
+	void RenderTakeoverAlignment(u16 current_input);
 	void RenderTakeoverCountdown();
 	void UpdateControlBarVisibility();
 	void RenderControlBar();
@@ -185,9 +187,12 @@ class GdxsvBackendReplay {
 	float ctrl_bar_prev_mouse_y_ = -1.0f;
 	bool ctrl_bar_dragging_ = false;
 	int ctrl_bar_drag_target_frame_ = -1;
+	bool ctrl_input_release_pending_ = false;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
 	int takeover_countdown_ = 0;
+	bool takeover_aligning_ = false;
+	u16 takeover_target_input_ = 0;
 	std::deque<u16> takeover_input_buf_;
 };

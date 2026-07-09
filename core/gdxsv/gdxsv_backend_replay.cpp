@@ -16,6 +16,7 @@
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
+#include "oslib/oslib.h"
 #include "ui/gui.h"
 #include "ui/gui_util.h"
 #include "ui/IconsFontAwesome6.h"
@@ -46,7 +47,33 @@ double replayInputSeconds(const proto::BattleLogFile& log_file) {
 	return kGdxsvReplayFallbackInputSeconds;
 }
 
-// maple input to mcs pad input (same as gdxsv_backend_rollback.cpp)
+void refreshLiveInputState() {
+	if (!config::ThreadedRendering) {
+		os_UpdateInputState();
+	} else if (config::JoystickPolling) {
+		os_UpdateJoystickState();
+	}
+}
+
+MapleInputState liveInputState() {
+	MapleInputState input;
+
+	input.kcode = kcode[0];
+	input.halfAxes[PJTI_L] = lt[0];
+	input.halfAxes[PJTI_R] = rt[0];
+	input.halfAxes[PJTI_L2] = lt2[0];
+	input.halfAxes[PJTI_R2] = rt2[0];
+	input.fullAxes[PJAI_X1] = joyx[0];
+	input.fullAxes[PJAI_Y1] = joyy[0];
+
+	if (input.halfAxes[PJTI_L2] >= 64) input.kcode &= ~(DC_BTN_A | DC_BTN_X);
+	if (input.halfAxes[PJTI_R2] >= 64) input.kcode &= ~(DC_BTN_A | DC_BTN_Y);
+
+	return input;
+}
+
+// Maple input to MCS pad input. Keep GGPO/replay packed trigger bits, and also
+// accept live trigger axes for replay takeover input.
 u16 convertInput(MapleInputState input) {
 	u16 r = 0;
 	if (~input.kcode & DC_BTN_A) r |= McsKeyCode::A;
@@ -60,13 +87,56 @@ u16 convertInput(MapleInputState input) {
 	if (~input.kcode & DC_DPAD_RIGHT) r |= McsKeyCode::RIGHT;
 	if (~input.kcode & DC_DPAD_LEFT) r |= McsKeyCode::LEFT;
 	if (~input.kcode & DC_BTN_START) r |= McsKeyCode::START;
-	if (~input.kcode & (DC_BTN_BITMAPPED_LAST << 1)) r |= McsKeyCode::LT;
-	if (~input.kcode & (DC_BTN_BITMAPPED_LAST << 2)) r |= McsKeyCode::RT;
+	if ((~input.kcode & (DC_BTN_BITMAPPED_LAST << 1)) || input.halfAxes[PJTI_L] >= 0x4000) r |= McsKeyCode::LT;
+	if ((~input.kcode & (DC_BTN_BITMAPPED_LAST << 2)) || input.halfAxes[PJTI_R] >= 0x4000) r |= McsKeyCode::RT;
 	if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) r |= McsKeyCode::LEFT;
 	if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) r |= McsKeyCode::RIGHT;
 	if ((input.fullAxes[1] >> 8) + 128 <= 128 - 0x20) r |= McsKeyCode::UP;
 	if ((input.fullAxes[1] >> 8) + 128 >= 128 + 0x20) r |= McsKeyCode::DOWN;
 	return r;
+}
+
+u16 liveTakeoverMcsInput() {
+	refreshLiveInputState();
+	return convertInput(liveInputState());
+}
+
+u16 replayMcsInput(const proto::BattleLogFile& log_file, int frame, int player) {
+	if (frame < 0 || frame >= log_file.inputs_size() || player < 0 || player >= log_file.users_size()) {
+		return 0;
+	}
+	return u16(log_file.inputs(frame) >> (player * 16));
+}
+
+std::string formatMcsInput(u16 input) {
+	if (input == 0) {
+		return "Neutral";
+	}
+
+	std::string text;
+	auto append = [&](u16 code, const char* name) {
+		if ((input & code) == 0) {
+			return;
+		}
+		if (!text.empty()) {
+			text += " + ";
+		}
+		text += name;
+	};
+
+	append(McsKeyCode::UP, "Up");
+	append(McsKeyCode::DOWN, "Down");
+	append(McsKeyCode::LEFT, "Left");
+	append(McsKeyCode::RIGHT, "Right");
+	append(McsKeyCode::A, "A");
+	append(McsKeyCode::B, "B");
+	append(McsKeyCode::X, "X");
+	append(McsKeyCode::Y, "Y");
+	append(McsKeyCode::LT, "LT");
+	append(McsKeyCode::RT, "RT");
+	append(McsKeyCode::START, "Start");
+
+	return text;
 }
 }  // namespace
 
@@ -105,11 +175,14 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_bar_prev_mouse_y_ = -1.0f;
 	ctrl_bar_dragging_ = false;
 	ctrl_bar_drag_target_frame_ = -1;
+	ctrl_input_release_pending_ = false;
 	settings.gdxsv.replayModeActive = false;
 	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
+	takeover_aligning_ = false;
+	takeover_target_input_ = 0;
 	takeover_input_buf_.clear();
 	gdxsv_save_state.Reset();
 	gdxsv.key_display_.Clear();
@@ -181,6 +254,17 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 
 		static u32 prev_kcode = 0;
 		if (prev_kcode == 0) prev_kcode = input.kcode;
+		if (ctrl_input_release_pending_) {
+			constexpr u32 replay_control_buttons =
+				DC_BTN_A | DC_BTN_START | DC_DPAD_UP | DC_DPAD_DOWN | DC_DPAD_LEFT | DC_DPAD_RIGHT;
+			step_hold_timer_ = 0.0f;
+			prev_kcode = input.kcode;
+			if ((~input.kcode & replay_control_buttons) == 0) {
+				ctrl_input_release_pending_ = false;
+			}
+			gui_delayed_keys_up();
+			return;
+		}
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
 
 		if (input.kcode != prev_kcode) {
@@ -389,7 +473,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePauseMenu) {
-			if (takeover_countdown_ == 0) {
+			if (takeover_aligning_) {
+				CancelPendingTakeover();
+			} else if (takeover_countdown_ == 0) {
 				pause_menu_opend_ = !pause_menu_opend_;
 				if (pause_menu_opend_) {
 					if (!recv_buf_.empty()) {
@@ -690,13 +776,16 @@ void GdxsvBackendReplay::OnNextFrame() {
 			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			takeover_saved_frame_ = key_msg_count_;
-			takeover_countdown_ = 60;
+			takeover_countdown_ = 0;
+			takeover_aligning_ = true;
+			takeover_target_input_ = replayMcsInput(log_file_, takeover_saved_frame_, pov_);
+			takeover_input_buf_.clear();
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
 			ctrl_play_speed_ = 0;
 			recv_buf_.clear();
 			SDL_ShowCursor(SDL_ENABLE);
-			NOTICE_LOG(COMMON, "TakeOver countdown at key_msg_count_:%d", key_msg_count_);
+			NOTICE_LOG(COMMON, "TakeOver alignment at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
 
@@ -710,6 +799,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 				takeover_input_buf_.pop_front();
 			}
 			takeover_ = true;
+			takeover_aligning_ = false;
+			takeover_target_input_ = 0;
 			settings.gdxsv.replayModeActive = false;
 			pause_menu_opend_ = false;
 			settings.aica.muteAudio = false;
@@ -725,7 +816,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 			settings.aica.muteAudio = true;
 			recv_buf_.clear();
 			takeover_input_buf_.clear();
-			takeover_countdown_ = 60;
+			takeover_countdown_ = 0;
+			takeover_aligning_ = true;
+			takeover_target_input_ = replayMcsInput(log_file_, takeover_saved_frame_, pov_);
 			settings.gdxsv.replayModeActive = true;
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
@@ -740,9 +833,15 @@ void GdxsvBackendReplay::OnNextFrame() {
 			RebuildKeyDisplay();
 			recv_buf_.clear();
 			takeover_ = false;
+			takeover_aligning_ = false;
+			takeover_countdown_ = 0;
+			takeover_target_input_ = 0;
+			takeover_input_buf_.clear();
 			settings.gdxsv.replayModeActive = true;
 			takeover_saved_frame_ = -1;
-			pause_menu_opend_ = false;
+			ctrl_pause_ = true;
+			ctrl_step_frame_ = false;
+			pause_menu_opend_ = true;
 			SDL_ShowCursor(SDL_ENABLE);
 			NOTICE_LOG(COMMON, "ReturnToReplay at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
@@ -816,6 +915,13 @@ void GdxsvBackendReplay::Stop() {
 	settings.gdxsv.replayModeActive = false;
 	settings.gdxsv.skipRenderingAddr = 0;
 	settings.aica.muteAudio = false;
+	takeover_ = false;
+	takeover_saved_frame_ = -1;
+	takeover_countdown_ = 0;
+	takeover_aligning_ = false;
+	takeover_target_input_ = 0;
+	takeover_input_buf_.clear();
+	ctrl_input_release_pending_ = false;
 	SDL_ShowCursor(SDL_ENABLE);
 	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();
@@ -852,6 +958,19 @@ void GdxsvBackendReplay::Stop() {
 		}
 		NOTICE_LOG(COMMON, "SaveReplay: Done");
 	}
+}
+
+void GdxsvBackendReplay::CancelPendingTakeover() {
+	takeover_ = false;
+	takeover_aligning_ = false;
+	takeover_countdown_ = 0;
+	takeover_target_input_ = 0;
+	takeover_input_buf_.clear();
+	takeover_saved_frame_ = -1;
+	settings.aica.muteAudio = false;
+	settings.gdxsv.replayModeActive = true;
+	pause_menu_opend_ = true;
+	SDL_ShowCursor(SDL_ENABLE);
 }
 
 bool GdxsvBackendReplay::ChangeRoundAvailable() const {
@@ -1303,7 +1422,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			u16 input = 0;
 			if (takeover_ && i == pov_) {
 				const int delay = config::GdxMinDelay.get();
-				takeover_input_buf_.push_back(convertInput(mapleInputState[0]));
+				takeover_input_buf_.push_back(liveTakeoverMcsInput());
 				if (static_cast<int>(takeover_input_buf_.size()) > delay) {
 					input = takeover_input_buf_.front();
 					takeover_input_buf_.pop_front();
@@ -1430,12 +1549,26 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 	ImGui::SetNextWindowSize(ScaledVec2(320, 0));
 	ImGui::SetNextWindowBgAlpha(0.9f);
 
-	ImGui::Begin("##gdxsv-replay-pause", NULL,
-				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
+	ImGuiWindowFlags window_flags =
+		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
+		ImGuiWindowFlags_NoSavedSettings;
+	if (takeover_countdown_ > 0 || takeover_aligning_) {
+		window_flags |= ImGuiWindowFlags_NoNav;
+	}
+	ImGui::Begin("##gdxsv-replay-pause", NULL, window_flags);
 
 	if (takeover_countdown_ > 0) {
+		const u16 current_input = liveTakeoverMcsInput();
+		if (current_input != takeover_target_input_) {
+			takeover_countdown_ = 0;
+			takeover_aligning_ = true;
+			takeover_input_buf_.clear();
+			RenderTakeoverAlignment(current_input);
+			ImGui::End();
+			return;
+		}
 		takeover_countdown_--;
-		takeover_input_buf_.push_back(convertInput(mapleInputState[0]));
+		takeover_input_buf_.push_back(current_input);
 		if (takeover_countdown_ == 0) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
 		} else {
@@ -1445,16 +1578,26 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		return;
 	}
 
+	if (takeover_aligning_) {
+		const u16 current_input = liveTakeoverMcsInput();
+		if (current_input == takeover_target_input_) {
+			takeover_aligning_ = false;
+			takeover_countdown_ = 60;
+			takeover_input_buf_.clear();
+			RenderTakeoverCountdown();
+		} else {
+			RenderTakeoverAlignment(current_input);
+		}
+		ImGui::End();
+		return;
+	}
+
 	if (takeover_) {
 		if (ImGui::Button(ICON_FA_ROTATE_LEFT "  Retry Takeover", ScaledVec2(300, 40))) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 		}
-		if (ImGui::Button(ICON_FA_BACKWARD "  Return to Replay", ScaledVec2(300, 40))) {
+		if (ImGui::Button(ICON_FA_BACKWARD "  Back to Pause Menu", ScaledVec2(300, 40))) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
-		}
-		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(300, 40))) {
-			pause_menu_opend_ = false;
-			Stop();
 		}
 	} else {
 		bool canTakeOver = IsInGame();
@@ -1569,13 +1712,32 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 
 		ImGui::Separator();
 
-		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit", ScaledVec2(300, 40))) {
+		if (ImGui::Button(ICON_FA_PLAY "  Resume Playback", ScaledVec2(300, 40))) {
+			ctrl_pause_ = false;
+			ctrl_step_frame_ = false;
+			ctrl_input_release_pending_ = true;
+			pause_menu_opend_ = false;
+			SDL_ShowCursor(SDL_ENABLE);
+		}
+		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit Replay", ScaledVec2(300, 40))) {
 			pause_menu_opend_ = false;
 			Stop();
 		}
 	}
 
 	ImGui::End();
+}
+
+void GdxsvBackendReplay::RenderTakeoverAlignment(u16 current_input) {
+	ImGui::SetNextFrameWantCaptureKeyboard(false);
+	ImGui::TextUnformatted("Match replay input");
+	ImGui::Separator();
+	ImGui::Text("Replay: %s", formatMcsInput(takeover_target_input_).c_str());
+	ImGui::Text("Current: %s", formatMcsInput(current_input).c_str());
+	ImGui::Dummy(ScaledVec2(0, 8));
+	if (ImGui::Button(ICON_FA_XMARK "  Cancel", ScaledVec2(300, 40))) {
+		CancelPendingTakeover();
+	}
 }
 
 void GdxsvBackendReplay::RenderTakeoverCountdown() {
