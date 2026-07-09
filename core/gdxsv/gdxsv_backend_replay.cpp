@@ -352,6 +352,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 			gdxsv_save_state.SaveState(key_msg_count_);
 		}
 	};
+	auto can_run_silent_replay_frame = [&]() -> bool {
+		// Leave the final replay input for the normal frame path. Ending replay
+		// from a nested silent emu.run() can stall teardown, especially when the
+		// requested seek overshoots EOF while render skipping is still enabled.
+		return takeover_ || state_ != State::McsInBattle || key_msg_count_ + 1 < log_file_.inputs_size();
+	};
 
 	// Audio fade-in after save state load (e.g. StepFrameBackward)
 	// Quadratic curve: stays near 0 initially, ramps up quickly at the end
@@ -371,7 +377,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
 		BeginSilentSeek();
-		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_; skipped_frame++) {
+		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_ && can_run_silent_replay_frame(); skipped_frame++) {
 			RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
 			regular_save_state();
 			if (need_cancel()) break;
@@ -518,7 +524,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 			BeginSilentSeekWithAudioReset();
 			int frames_run = 0;
-			while (key_msg_count_ < target_key_msg_count) {
+			while (key_msg_count_ < target_key_msg_count && can_run_silent_replay_frame()) {
 				const bool skip_rendering = config::GdxSkipRenderingHack && key_msg_count_ + 1 < target_key_msg_count;
 				RunSilentSeekFrame(skip_rendering);
 				regular_save_state();
@@ -549,7 +555,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
 			BeginSilentSeekWithAudioReset();
-			for (; skipped_frame < skip_frames; skipped_frame++) {
+			for (; skipped_frame < skip_frames && can_run_silent_replay_frame(); skipped_frame++) {
 				RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
 				regular_save_state();
 				if (need_cancel()) break;
@@ -821,6 +827,7 @@ void GdxsvBackendReplay::Stop() {
 	gdxsv_save_state.EndUsing();
 	gdxsv.key_display_.enabled(false);
 	state_ = State::End;
+	emu.getSh4Executor()->Stop(); // Fix fastForwardMode hang
 
 	if (save_converted_log_) {
 		auto replay_dir = get_writable_data_path("replays");
