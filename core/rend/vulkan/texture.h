@@ -47,21 +47,28 @@ public:
 		std::swap(needsStaging, other.needsStaging);
 		std::swap(stagingBufferData, other.stagingBufferData);
 		std::swap(commandBuffer, other.commandBuffer);
+		std::swap(flightManager, other.flightManager);
 		std::swap(allocation, other.allocation);
 		std::swap(image, other.image);
 		std::swap(imageView, other.imageView);
 		std::swap(readOnlyImageView, other.readOnlyImageView);
 		std::swap(physicalDevice, other.physicalDevice);
 		std::swap(device, other.device);
+		std::swap(customTextureResource, other.customTextureResource);
 	}
 
 	void UploadToGPU(int width, int height, const u8 *data, bool mipmapped, bool mipmapsIncluded = false) override;
+	bool UploadCustomTexture(const PreparedCustomTexture& texture) override;
+	static CustomTextureCapabilities GetCustomTextureCapabilities();
 	u64 GetIntId() { return (u64)reinterpret_cast<uintptr_t>(this); }
 	std::string GetId() override { char s[20]; snprintf(s, sizeof(s), "%p", this); return s; }
 	vk::ImageView GetImageView() const { return *imageView; }
 	vk::Image GetImage() const { return *image; }
 	vk::ImageView GetReadOnlyImageView() const { return readOnlyImageView ? readOnlyImageView : *imageView; }
-	void SetCommandBuffer(vk::CommandBuffer commandBuffer) { this->commandBuffer = commandBuffer; }
+	void SetCommandBuffer(vk::CommandBuffer commandBuffer, FlightManager *manager = nullptr) {
+		this->commandBuffer = commandBuffer;
+		this->flightManager = manager;
+	}
 	bool Force32BitTexture(TextureType type) const override { return !VulkanContext::Instance()->IsFormatSupported(type); }
 	vk::Extent2D getSize() const { return extent; }
 	void deferDeleteResource(FlightManager *manager);
@@ -80,6 +87,8 @@ private:
 	bool needsStaging = false;
 	std::unique_ptr<BufferData> stagingBufferData;
 	vk::CommandBuffer commandBuffer;
+	FlightManager *flightManager = nullptr;
+	bool customTextureResource = false;
 
 	Allocation allocation;
 	vk::UniqueImage image;

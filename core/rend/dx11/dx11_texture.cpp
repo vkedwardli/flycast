@@ -136,17 +136,72 @@ bool DX11Texture::Delete()
 	return true;
 }
 
-void DX11Texture::loadCustomTexture()
+bool DX11Texture::UploadCustomTexture(const PreparedCustomTexture& customTexture)
 {
-	u32 size = custom_width * custom_height;
-	u8 *p = custom_image_data;
-	while (size--)
+	std::string validationError;
+	if (!validatePreparedCustomTexture(customTexture, validationError))
+		return false;
+	DXGI_FORMAT format;
+	switch (customTexture.nativeFormat)
 	{
-		// RGBA -> BGRA
-		std::swap(p[0], p[2]);
-		p += 4;
+	case NativeTextureFormat::Rgba8Unorm: format = DXGI_FORMAT_R8G8B8A8_UNORM; break;
+	case NativeTextureFormat::Bc7Unorm: format = DXGI_FORMAT_BC7_UNORM; break;
+	case NativeTextureFormat::Bc7Srgb: format = DXGI_FORMAT_BC7_UNORM_SRGB; break;
+	case NativeTextureFormat::Bc3Unorm: format = DXGI_FORMAT_BC3_UNORM; break;
+	default: return false;
 	}
-	CheckCustomTexture();
+
+	std::vector<D3D11_SUBRESOURCE_DATA> levels(customTexture.levels.size());
+	for (size_t i = 0; i < customTexture.levels.size(); ++i)
+	{
+		const PreparedMipLevel& level = customTexture.levels[i];
+		if (level.rowPitchBytes > UINT_MAX || level.byteSize > UINT_MAX)
+			return false;
+		levels[i].pSysMem = customTexture.bytes.data() + level.byteOffset;
+		levels[i].SysMemPitch = level.rowPitchBytes;
+		levels[i].SysMemSlicePitch = static_cast<UINT>(level.byteSize);
+	}
+
+	D3D11_TEXTURE2D_DESC desc{};
+	desc.Width = customTexture.width;
+	desc.Height = customTexture.height;
+	desc.MipLevels = static_cast<UINT>(customTexture.levels.size());
+	desc.ArraySize = 1;
+	desc.Format = format;
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	ComPtr<ID3D11Texture2D> newTexture;
+	ID3D11Device *device = DX11Context::Instance()->getDevice();
+	if (FAILED(device->CreateTexture2D(&desc, levels.data(), &newTexture.get())))
+		return false;
+	D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc{};
+	viewDesc.Format = format;
+	viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	viewDesc.Texture2D.MipLevels = desc.MipLevels;
+	ComPtr<ID3D11ShaderResourceView> newView;
+	if (FAILED(device->CreateShaderResourceView(newTexture, &viewDesc, &newView.get())))
+		return false;
+	texture = std::move(newTexture);
+	textureView = std::move(newView);
+	return true;
+}
+
+CustomTextureCapabilities DX11Texture::GetCustomTextureCapabilities()
+{
+	CustomTextureCapabilities capabilities = CustomTextureCapabilities::rgbaOnly(
+			CustomTextureBackend::Direct3D11, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+	ID3D11Device *device = DX11Context::Instance()->getDevice();
+	const auto query = [device](DXGI_FORMAT format) {
+		UINT support = 0;
+		return SUCCEEDED(device->CheckFormatSupport(format, &support))
+				&& (support & (D3D11_FORMAT_SUPPORT_TEXTURE2D | D3D11_FORMAT_SUPPORT_SHADER_SAMPLE))
+					== (D3D11_FORMAT_SUPPORT_TEXTURE2D | D3D11_FORMAT_SUPPORT_SHADER_SAMPLE);
+	};
+	capabilities.setSupported(NativeTextureFormat::Bc7Unorm, query(DXGI_FORMAT_BC7_UNORM));
+	capabilities.setSupported(NativeTextureFormat::Bc7Srgb, query(DXGI_FORMAT_BC7_UNORM_SRGB));
+	capabilities.setSupported(NativeTextureFormat::Bc3Unorm, query(DXGI_FORMAT_BC3_UNORM));
+	return capabilities;
 }
 
 HRESULT Samplers::createSampler(const D3D11_SAMPLER_DESC *desc, ID3D11SamplerState **sampler)

@@ -149,6 +149,12 @@ void setImageLayout(vk::CommandBuffer const& commandBuffer, vk::Image image, vk:
 
 void Texture::UploadToGPU(int width, int height, const u8 *data, bool mipmapped, bool mipmapsIncluded)
 {
+	if (customTextureResource && image)
+	{
+		verify(flightManager != nullptr);
+		deferDeleteResource(flightManager);
+		customTextureResource = false;
+	}
 	vk::Format format = vk::Format::eUndefined;
 	u32 dataSize = width * height * 2;
 	switch (tex_type)
@@ -189,6 +195,132 @@ void Texture::UploadToGPU(int width, int height, const u8 *data, bool mipmapped,
 	else
 		isNew = false;
 	SetImage(dataSize, data, isNew, mipmapped && !mipmapsIncluded);
+}
+
+namespace
+{
+vk::Format customVkFormat(NativeTextureFormat format)
+{
+	switch (format)
+	{
+	case NativeTextureFormat::Rgba8Unorm: return vk::Format::eR8G8B8A8Unorm;
+	case NativeTextureFormat::Bc7Unorm: return vk::Format::eBc7UnormBlock;
+	case NativeTextureFormat::Bc7Srgb: return vk::Format::eBc7SrgbBlock;
+	case NativeTextureFormat::Bc3Unorm: return vk::Format::eBc3UnormBlock;
+	case NativeTextureFormat::Etc2Rgba8Unorm: return vk::Format::eEtc2R8G8B8A8UnormBlock;
+	case NativeTextureFormat::Astc4x4Unorm: return vk::Format::eAstc4x4UnormBlock;
+	case NativeTextureFormat::Astc5x4Unorm: return vk::Format::eAstc5x4UnormBlock;
+	case NativeTextureFormat::Astc5x5Unorm: return vk::Format::eAstc5x5UnormBlock;
+	case NativeTextureFormat::Astc6x5Unorm: return vk::Format::eAstc6x5UnormBlock;
+	case NativeTextureFormat::Astc6x6Unorm: return vk::Format::eAstc6x6UnormBlock;
+	case NativeTextureFormat::Astc8x5Unorm: return vk::Format::eAstc8x5UnormBlock;
+	case NativeTextureFormat::Astc8x6Unorm: return vk::Format::eAstc8x6UnormBlock;
+	case NativeTextureFormat::Astc10x5Unorm: return vk::Format::eAstc10x5UnormBlock;
+	case NativeTextureFormat::Astc10x6Unorm: return vk::Format::eAstc10x6UnormBlock;
+	case NativeTextureFormat::Astc8x8Unorm: return vk::Format::eAstc8x8UnormBlock;
+	case NativeTextureFormat::Astc10x8Unorm: return vk::Format::eAstc10x8UnormBlock;
+	case NativeTextureFormat::Astc10x10Unorm: return vk::Format::eAstc10x10UnormBlock;
+	case NativeTextureFormat::Astc12x10Unorm: return vk::Format::eAstc12x10UnormBlock;
+	case NativeTextureFormat::Astc12x12Unorm: return vk::Format::eAstc12x12UnormBlock;
+	case NativeTextureFormat::Count: break;
+	}
+	return vk::Format::eUndefined;
+}
+}
+
+bool Texture::UploadCustomTexture(const PreparedCustomTexture& customTexture)
+{
+	std::string validationError;
+	if (!(bool)commandBuffer || !validatePreparedCustomTexture(customTexture, validationError)
+			|| customTexture.bytes.size() > UINT32_MAX)
+		return false;
+	const vk::Format newFormat = customVkFormat(customTexture.nativeFormat);
+	if (newFormat == vk::Format::eUndefined || (image && flightManager == nullptr))
+		return false;
+	try
+	{
+		auto newStaging = std::make_unique<BufferData>(customTexture.bytes.size(),
+				vk::BufferUsageFlagBits::eTransferSrc);
+		newStaging->upload(static_cast<u32>(customTexture.bytes.size()), customTexture.bytes.data());
+		Allocation newAllocation;
+		const vk::Extent2D newExtent(customTexture.width, customTexture.height);
+		const u32 newMipLevels = static_cast<u32>(customTexture.levels.size());
+		vk::ImageCreateInfo imageInfo(vk::ImageCreateFlags(), vk::ImageType::e2D, newFormat,
+				vk::Extent3D(newExtent, 1), newMipLevels, 1, vk::SampleCountFlagBits::e1,
+				vk::ImageTiling::eOptimal,
+				vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
+				vk::SharingMode::eExclusive, nullptr, vk::ImageLayout::eUndefined);
+		vk::UniqueImage newImage = device.createImageUnique(imageInfo);
+		VmaAllocationCreateInfo allocInfo = { VmaAllocationCreateFlags(), VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY };
+		newAllocation = VulkanContext::Instance()->GetAllocator().AllocateForImage(*newImage, allocInfo);
+		vk::ImageViewCreateInfo viewInfo(vk::ImageViewCreateFlags(), newImage.get(), vk::ImageViewType::e2D,
+				newFormat, vk::ComponentMapping(),
+				vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, newMipLevels, 0, 1));
+		vk::UniqueImageView newView = device.createImageViewUnique(viewInfo);
+		std::vector<vk::BufferImageCopy> regions;
+		regions.reserve(customTexture.levels.size());
+		for (u32 levelIndex = 0; levelIndex < newMipLevels; ++levelIndex)
+		{
+			const PreparedMipLevel& level = customTexture.levels[levelIndex];
+			regions.emplace_back(level.byteOffset, 0, 0,
+					vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, levelIndex, 0, 1),
+					vk::Offset3D(), vk::Extent3D(level.width, level.height, 1));
+		}
+		// Finish every potentially allocating operation before recording commands
+		// that reference the new resource. The command buffer cannot be rolled back
+		// if an allocation throws after this point.
+		if (image)
+			deferDeleteResource(flightManager);
+		setImageLayout(commandBuffer, newImage.get(), newFormat, newMipLevels,
+				vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+		commandBuffer.copyBufferToImage(newStaging->buffer.get(), newImage.get(),
+				vk::ImageLayout::eTransferDstOptimal, regions);
+		setImageLayout(commandBuffer, newImage.get(), newFormat, newMipLevels,
+				vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+		format = newFormat;
+		extent = newExtent;
+		mipmapLevels = newMipLevels;
+		usageFlags = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+		needsStaging = true;
+		stagingBufferData = std::move(newStaging);
+		allocation = std::move(newAllocation);
+		image = std::move(newImage);
+		imageView = std::move(newView);
+		readOnlyImageView = vk::ImageView();
+		customTextureResource = true;
+		return true;
+	}
+	catch (const std::exception& exception)
+	{
+		WARN_LOG(RENDERER, "Vulkan custom texture upload failed: %s", exception.what());
+		return false;
+	}
+}
+
+CustomTextureCapabilities Texture::GetCustomTextureCapabilities()
+{
+	VulkanContext *context = VulkanContext::Instance();
+	const vk::PhysicalDevice physicalDevice = context->GetPhysicalDevice();
+	const u32 maxDimension = physicalDevice.getProperties().limits.maxImageDimension2D;
+	CustomTextureCapabilities capabilities = CustomTextureCapabilities::rgbaOnly(
+			CustomTextureBackend::Vulkan, maxDimension);
+	const auto query = [physicalDevice](vk::Format format) {
+		const vk::FormatFeatureFlags features = physicalDevice.getFormatProperties(format).optimalTilingFeatures;
+		return (features & vk::FormatFeatureFlagBits::eSampledImage)
+				&& (features & vk::FormatFeatureFlagBits::eTransferDst);
+	};
+	for (NativeTextureFormat format : { NativeTextureFormat::Bc7Unorm, NativeTextureFormat::Bc7Srgb,
+			NativeTextureFormat::Bc3Unorm, NativeTextureFormat::Etc2Rgba8Unorm,
+			NativeTextureFormat::Astc4x4Unorm, NativeTextureFormat::Astc5x4Unorm,
+			NativeTextureFormat::Astc5x5Unorm, NativeTextureFormat::Astc6x5Unorm,
+			NativeTextureFormat::Astc6x6Unorm, NativeTextureFormat::Astc8x5Unorm,
+			NativeTextureFormat::Astc8x6Unorm, NativeTextureFormat::Astc10x5Unorm,
+			NativeTextureFormat::Astc10x6Unorm, NativeTextureFormat::Astc8x8Unorm,
+			NativeTextureFormat::Astc10x8Unorm, NativeTextureFormat::Astc10x10Unorm,
+			NativeTextureFormat::Astc12x10Unorm, NativeTextureFormat::Astc12x12Unorm })
+		capabilities.setSupported(format, query(customVkFormat(format)));
+	return capabilities;
 }
 
 void Texture::Init(u32 width, u32 height, vk::Format format, u32 dataSize, bool mipmapped, bool mipmapsIncluded)
