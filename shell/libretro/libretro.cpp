@@ -1211,7 +1211,8 @@ void retro_run()
 		refresh_devices(false);
 
 	custom_texture.init();
-	if (custom_texture.isPreloading())
+	const bool customTexturePreloading = custom_texture.isPreloading();
+	if (customTexturePreloading || rend_needs_gpu_preloaded_texture_cleanup())
 	{
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
 		if (isOpenGL(config::RendererType))
@@ -1222,7 +1223,10 @@ void retro_run()
 		if (isOpenGL(config::RendererType))
 			glsm_ctl(GLSM_CTL_STATE_UNBIND, nullptr);
 #endif
+	}
 
+	if (custom_texture.isPreloading())
+	{
 		int texLoaded, texTotal;
 		size_t loaded_size;
 		custom_texture.getPreloadProgress(texLoaded, texTotal, loaded_size);

@@ -12,6 +12,7 @@
 #include "profiler/fc_profiler.h"
 #include "network/ggpo.h"
 
+#include <cassert>
 #include <mutex>
 #include <deque>
 
@@ -263,9 +264,6 @@ private:
 	{
 		FC_PROFILE_SCOPE;
 
-#ifdef LIBRETRO
-		renderer->ProcessCustomTexturePreloads();
-#endif
 		if (renderer->Present())
 		{
 			presented = true;
@@ -494,6 +492,11 @@ bool rend_supports_gpu_texture_preload()
 	return renderer != nullptr && renderer->supportsGpuTexturePreload();
 }
 
+bool rend_needs_gpu_preloaded_texture_cleanup()
+{
+	return renderer != nullptr && renderer->needsGpuPreloadedTextureCleanup();
+}
+
 void rend_request_gpu_preloaded_texture_cleanup()
 {
 	if (renderer != nullptr)
@@ -519,8 +522,8 @@ std::shared_ptr<GpuPreloadedTexture> Renderer::findGpuPreloadedTexture(
 
 void Renderer::addGpuPreloadedTexture(u32 hash, std::shared_ptr<GpuPreloadedTexture> texture)
 {
-	if (texture)
-		gpuPreloadedTextures.emplace(hash, std::move(texture));
+	assert(texture);
+	gpuPreloadedTextures.emplace(hash, std::move(texture));
 }
 
 void Renderer::clearGpuPreloadedTextures()

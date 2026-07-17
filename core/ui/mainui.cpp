@@ -46,7 +46,6 @@ bool mainui_rend_frame()
 	{
 		try {
 			gui_display_ui();
-			rend_process_custom_texture_preloads();
 		} catch (const FlycastException& e) {
 			// Assume this is a graphics API issue
 			forceReinit = true;

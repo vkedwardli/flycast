@@ -29,6 +29,7 @@ void rend_enable_renderer(bool enabled);
 bool rend_is_enabled();
 void rend_process_custom_texture_preloads();
 bool rend_supports_gpu_texture_preload();
+bool rend_needs_gpu_preloaded_texture_cleanup();
 void rend_request_gpu_preloaded_texture_cleanup();
 void rend_serialize(Serializer& ser);
 void rend_deserialize(Deserializer& deser);
@@ -90,6 +91,9 @@ struct Renderer
 	virtual BaseTextureCacheData *GetTexture(TSP tsp, TCW tcw, int area = 0) { return nullptr; }
 	std::shared_ptr<GpuPreloadedTexture> findGpuPreloadedTexture(
 			u32 currentHash, u32 oldVqHash, u32 oldHash) const;
+	bool needsGpuPreloadedTextureCleanup() const {
+		return gpuPreloadedTextureCleanupRequested.load(std::memory_order_acquire);
+	}
 	void requestGpuPreloadedTextureCleanup() { gpuPreloadedTextureCleanupRequested = true; }
 
 protected:

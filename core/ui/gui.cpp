@@ -1354,6 +1354,7 @@ void gui_display_ui()
 	ImGui::NewFrame();
 	error_msg_shown = false;
 	bool gui_open = gui_is_open();
+	const bool loadingFrame = gui_state == GuiState::Loading;
 
 	switch (gui_state)
 	{
@@ -1408,6 +1409,12 @@ void gui_display_ui()
 	gui_endFrame(gui_open);
 	uiThreadRunner.execTasks();
 	ImguiFileTexture::resetLoadCount();
+	// GPU preloading and cleanup must finish before emulation starts. Use the
+	// state captured at the beginning of the frame because the load screen can
+	// transition to Closed above.
+	if (loadingFrame && (custom_texture.isPreloading()
+			|| rend_needs_gpu_preloaded_texture_cleanup()))
+		rend_process_custom_texture_preloads();
 
 	if (gui_state == GuiState::Closed)
 		emu.start();
