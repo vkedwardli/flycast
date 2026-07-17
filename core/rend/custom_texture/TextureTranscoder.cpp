@@ -17,22 +17,17 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "TextureTranscoder.h"
+#include "types.h"
 
 #include <basis_universal/transcoder/basisu_transcoder.h>
 
 #include <algorithm>
 #include <limits>
 #include <mutex>
-#include <new>
 
 namespace
 {
 constexpr uint32_t MaxMipLevels = 16;
-
-TextureTranscodeStatus error(TextureTranscodeError category, const std::string& message)
-{
-	return { category, message };
-}
 
 basist::transcoder_texture_format basisTarget(NativeTextureFormat format)
 {
@@ -125,47 +120,38 @@ bool hasUnsupportedOrientation(const basist::ktx2_transcoder& transcoder)
 			|| lower((*value)[4]) != 't' || (*value)[5] != '=' || lower((*value)[6]) != 'u';
 }
 
-TextureTranscodeStatus validateCommon(uint32_t width, uint32_t height, uint32_t levels)
+void validateCommon(uint32_t width, uint32_t height, uint32_t levels)
 {
 	if (width == 0 || height == 0)
-		return error(TextureTranscodeError::MalformedSource, "texture dimensions are invalid");
+		throw FlycastException("texture dimensions are invalid");
 	if (levels == 0 || levels > MaxMipLevels)
-		return error(TextureTranscodeError::MalformedSource, "invalid mip count");
+		throw FlycastException("invalid mip count");
 	uint32_t maxLevels = 1;
 	for (uint32_t dim = std::max(width, height); dim > 1; dim >>= 1)
 		++maxLevels;
 	if (levels > maxLevels)
-		return error(TextureTranscodeError::MalformedSource, "mip count exceeds the complete chain length");
-	return {};
+		throw FlycastException("mip count exceeds the complete chain length");
 }
 
-TextureTranscodeStatus allocatePayload(const TextureInspection& inspection,
+void allocatePayload(const TextureInspection& inspection,
 		NativeTextureFormat target, PreparedCustomTexture& output)
 {
 	uint64_t offset = 0;
 	uint32_t width = inspection.width;
 	uint32_t height = inspection.height;
-	try
+	output.levels.reserve(inspection.levels);
+	for (uint32_t levelIndex = 0; levelIndex < inspection.levels; ++levelIndex)
 	{
-		output.levels.reserve(inspection.levels);
-		for (uint32_t levelIndex = 0; levelIndex < inspection.levels; ++levelIndex)
-		{
-			PreparedMipLevel level;
-			std::string layoutError;
-			if (!computeMipLayout(target, width, height, offset, level, layoutError))
-				return error(TextureTranscodeError::MalformedSource, layoutError);
-			output.levels.push_back(level);
-			offset += level.byteSize;
-			width = std::max(1u, width / 2);
-			height = std::max(1u, height / 2);
-		}
-		output.bytes.resize(static_cast<size_t>(offset));
+		PreparedMipLevel level;
+		std::string layoutError;
+		if (!computeMipLayout(target, width, height, offset, level, layoutError))
+			throw FlycastException(layoutError);
+		output.levels.push_back(level);
+		offset += level.byteSize;
+		width = std::max(1u, width / 2);
+		height = std::max(1u, height / 2);
 	}
-	catch (const std::bad_alloc&)
-	{
-		return error(TextureTranscodeError::AllocationFailure, "unable to allocate prepared texture payload");
-	}
-	return {};
+	output.bytes.resize(static_cast<size_t>(offset));
 }
 
 uint32_t outputCapacity(const PreparedMipLevel& level, NativeTextureFormat target)
@@ -184,38 +170,36 @@ void TextureTranscoder::initializeOnce()
 	std::call_once(once, []() { basist::basisu_transcoder_init(); });
 }
 
-TextureTranscodeStatus TextureTranscoder::inspect(CustomTextureSourceKind hintedKind,
-		const std::vector<uint8_t>& fileBytes, TextureInspection& inspection) const
+TextureInspection TextureTranscoder::inspect(CustomTextureSourceKind hintedKind,
+		const std::vector<uint8_t>& fileBytes) const
 {
 	initializeOnce();
 	if (fileBytes.empty() || fileBytes.size() > std::numeric_limits<uint32_t>::max())
-		return error(TextureTranscodeError::MalformedSource, "source file is empty or exceeds the Basis input range");
+		throw FlycastException("source file is empty or exceeds the Basis input range");
 
 	if (hintedKind == CustomTextureSourceKind::DdsBc7)
 	{
 		basist::dds_transcoder transcoder;
 		if (!transcoder.init(fileBytes.data(), static_cast<uint32_t>(fileBytes.size())))
-			return error(TextureTranscodeError::MalformedSource, "Basis rejected the DDS container");
+			throw FlycastException("Basis rejected the DDS container");
 		if (transcoder.get_source_kind() != basist::dds_transcoder::source_kind::cBC7
 				|| transcoder.get_dds_format() != basist::dds_format::cBC7)
-			return error(TextureTranscodeError::UnsupportedSource, "DDS source is not BC7");
+			throw FlycastException("DDS source is not BC7");
 		if (transcoder.get_faces() != 1 || transcoder.get_layers() != 0 || transcoder.get_is_cubemap())
-			return error(TextureTranscodeError::UnsupportedSource, "DDS arrays and cubemaps are not supported");
-		if (TextureTranscodeStatus status = validateCommon(transcoder.get_width(), transcoder.get_height(), transcoder.get_levels()); !status)
-			return status;
-		inspection = { CustomTextureCodec::DdsBc7, transcoder.get_width(), transcoder.get_height(),
+			throw FlycastException("DDS arrays and cubemaps are not supported");
+		validateCommon(transcoder.get_width(), transcoder.get_height(), transcoder.get_levels());
+		return { CustomTextureCodec::DdsBc7, transcoder.get_width(), transcoder.get_height(),
 				transcoder.get_levels(), 4, 4, transcoder.is_srgb(), transcoder.get_has_alpha() != 0 };
-		return {};
 	}
 
 	basist::ktx2_transcoder transcoder;
 	if (!transcoder.init(fileBytes.data(), static_cast<uint32_t>(fileBytes.size())))
-		return error(TextureTranscodeError::MalformedSource, "Basis rejected the KTX2 container");
+		throw FlycastException("Basis rejected the KTX2 container");
 	const auto& header = transcoder.get_header();
 	if (header.m_pixel_depth != 0 || transcoder.get_faces() != 1 || transcoder.get_layers() != 0)
-		return error(TextureTranscodeError::UnsupportedSource, "only non-array 2D KTX2 textures are supported");
+		throw FlycastException("only non-array 2D KTX2 textures are supported");
 	if (!transcoder.is_ldr())
-		return error(TextureTranscodeError::UnsupportedSource, "HDR KTX2 textures are not supported");
+		throw FlycastException("HDR KTX2 textures are not supported");
 	CustomTextureCodec codec;
 	if (transcoder.is_xubc7())
 		codec = CustomTextureCodec::Xubc7;
@@ -224,63 +208,50 @@ TextureTranscodeStatus TextureTranscoder::inspect(CustomTextureSourceKind hinted
 	else if (transcoder.is_etc1s())
 		codec = CustomTextureCodec::Etc1s;
 	else
-		return error(TextureTranscodeError::UnsupportedSource, "KTX2 is not XUBC7, XUASTC LDR, or ETC1S");
+		throw FlycastException("KTX2 is not XUBC7, XUASTC LDR, or ETC1S");
 	if ((hintedKind == CustomTextureSourceKind::Ktx2Xubc7 && codec != CustomTextureCodec::Xubc7)
 			|| (hintedKind == CustomTextureSourceKind::Ktx2Xuastc && codec != CustomTextureCodec::XuastcLdr)
 			|| (hintedKind == CustomTextureSourceKind::Ktx2Etc1s && codec != CustomTextureCodec::Etc1s))
-		return error(TextureTranscodeError::UnsupportedSource, "explicit KTX2 suffix does not match the encoded codec");
+		throw FlycastException("explicit KTX2 suffix does not match the encoded codec");
 	if (hasUnsupportedOrientation(transcoder))
-		return error(TextureTranscodeError::UnsupportedSource, "KTXorientation must be ru for Flycast replacements");
-	if (TextureTranscodeStatus status = validateCommon(transcoder.get_width(), transcoder.get_height(), transcoder.get_levels()); !status)
-		return status;
+		throw FlycastException("KTXorientation must be ru for Flycast replacements");
+	validateCommon(transcoder.get_width(), transcoder.get_height(), transcoder.get_levels());
 	for (uint32_t levelIndex = 0; levelIndex < transcoder.get_levels(); ++levelIndex)
 	{
 		basist::ktx2_image_level_info info{};
 		if (!transcoder.get_image_level_info(info, levelIndex, 0, 0)
 				|| info.m_orig_width != std::max(1u, transcoder.get_width() >> levelIndex)
 				|| info.m_orig_height != std::max(1u, transcoder.get_height() >> levelIndex))
-			return error(TextureTranscodeError::MalformedSource, "KTX2 mip geometry is inconsistent");
+			throw FlycastException("KTX2 mip geometry is inconsistent");
 	}
-	inspection = { codec, transcoder.get_width(), transcoder.get_height(), transcoder.get_levels(),
+	return { codec, transcoder.get_width(), transcoder.get_height(), transcoder.get_levels(),
 			transcoder.get_block_width(), transcoder.get_block_height(), transcoder.is_srgb(),
 			transcoder.get_has_alpha() != 0 };
-	return {};
 }
 
-TextureTranscodeStatus TextureTranscoder::prepare(const TextureInspection& inspection,
+PreparedCustomTexture::Ptr TextureTranscoder::prepare(const TextureInspection& inspection,
 		const std::vector<uint8_t>& fileBytes, NativeTextureFormat target,
-		uint32_t replacementHash, const CancellationCheck& cancelled,
-		PreparedCustomTexturePtr& texture) const
+		uint32_t replacementHash, const CancellationCheck& cancelled) const
 {
 	initializeOnce();
 	if (cancelled && cancelled())
-		return error(TextureTranscodeError::Cancelled, "texture preparation was cancelled");
+		throw LoadCancelledException();
 	if (fileBytes.empty() || fileBytes.size() > std::numeric_limits<uint32_t>::max())
-		return error(TextureTranscodeError::MalformedSource, "source file is empty or exceeds the Basis input range");
-	if (TextureTranscodeStatus status = validateCommon(inspection.width, inspection.height,
-			inspection.levels); !status)
-		return status;
+		throw FlycastException("source file is empty or exceeds the Basis input range");
+	validateCommon(inspection.width, inspection.height, inspection.levels);
 	if (inspection.codec != CustomTextureCodec::Xubc7
 			&& inspection.codec != CustomTextureCodec::XuastcLdr
 			&& inspection.codec != CustomTextureCodec::Etc1s
 			&& inspection.codec != CustomTextureCodec::DdsBc7)
-		return error(TextureTranscodeError::UnsupportedSource, "inspection does not describe a supported compressed texture source");
+		throw FlycastException("inspection does not describe a supported compressed texture source");
 	if (inspection.hasAlpha && (target == NativeTextureFormat::Bc1Unorm
 			|| target == NativeTextureFormat::Etc2Rgb8Unorm))
-		return error(TextureTranscodeError::UnsupportedTarget, "opaque target cannot preserve source alpha");
+		throw FlycastException("opaque target cannot preserve source alpha");
 	const auto basisFormat = basisTarget(target);
 	if (basisFormat == basist::transcoder_texture_format::cTFTotalTextureFormats)
-		return error(TextureTranscodeError::UnsupportedTarget, "invalid native target format");
+		throw FlycastException("invalid native target format");
 
-	std::shared_ptr<PreparedCustomTexture> output;
-	try
-	{
-		output = std::make_shared<PreparedCustomTexture>();
-	}
-	catch (const std::bad_alloc&)
-	{
-		return error(TextureTranscodeError::AllocationFailure, "unable to allocate prepared texture descriptor");
-	}
+	auto output = std::make_shared<PreparedCustomTexture>();
 	output->replacementHash = replacementHash;
 	output->sourceCodec = inspection.codec;
 	output->nativeFormat = target;
@@ -294,7 +265,7 @@ TextureTranscodeStatus TextureTranscoder::prepare(const TextureInspection& inspe
 	{
 		basist::dds_transcoder transcoder;
 		if (!transcoder.init(fileBytes.data(), static_cast<uint32_t>(fileBytes.size())))
-			return error(TextureTranscodeError::MalformedSource, "Basis rejected the DDS container during preparation");
+			throw FlycastException("Basis rejected the DDS container during preparation");
 		if (transcoder.get_source_kind() != basist::dds_transcoder::source_kind::cBC7
 				|| transcoder.get_dds_format() != basist::dds_format::cBC7
 				|| transcoder.get_width() != inspection.width
@@ -302,29 +273,28 @@ TextureTranscodeStatus TextureTranscoder::prepare(const TextureInspection& inspe
 				|| transcoder.get_levels() != inspection.levels
 				|| transcoder.is_srgb() != inspection.sourceSrgb
 				|| (transcoder.get_has_alpha() != 0) != inspection.hasAlpha)
-			return error(TextureTranscodeError::MalformedSource, "DDS no longer matches its inspection result");
+			throw FlycastException("DDS no longer matches its inspection result");
 		if (!transcoder.is_transcode_format_supported(basisFormat))
-			return error(TextureTranscodeError::UnsupportedTarget, "DDS target is not supported by Basis");
-		if (TextureTranscodeStatus status = allocatePayload(inspection, target, *output); !status)
-			return status;
+			throw FlycastException("DDS target is not supported by Basis");
+		allocatePayload(inspection, target, *output);
 		if (!transcoder.start_transcoding())
-			return error(TextureTranscodeError::UpstreamFailure, "Basis failed to start DDS transcoding");
+			throw FlycastException("Basis failed to start DDS transcoding");
 		for (uint32_t levelIndex = 0; levelIndex < inspection.levels; ++levelIndex)
 		{
 			if (cancelled && cancelled())
-				return error(TextureTranscodeError::Cancelled, "texture preparation was cancelled between mips");
+				throw LoadCancelledException();
 			const PreparedMipLevel& level = output->levels[levelIndex];
 			const uint32_t capacity = outputCapacity(level, target);
 			if (capacity == 0 || !transcoder.transcode_image_level(levelIndex, 0, 0,
 					output->bytes.data() + level.byteOffset, capacity, basisFormat))
-				return error(TextureTranscodeError::UpstreamFailure, "Basis failed to transcode a DDS mip");
+				throw FlycastException("Basis failed to transcode a DDS mip");
 		}
 	}
 	else
 	{
 		basist::ktx2_transcoder transcoder;
 		if (!transcoder.init(fileBytes.data(), static_cast<uint32_t>(fileBytes.size())))
-			return error(TextureTranscodeError::MalformedSource, "Basis rejected the KTX2 container during preparation");
+			throw FlycastException("Basis rejected the KTX2 container during preparation");
 		const bool codecMatches = (inspection.codec == CustomTextureCodec::Xubc7 && transcoder.is_xubc7())
 				|| (inspection.codec == CustomTextureCodec::XuastcLdr && transcoder.is_xuastc_ldr())
 				|| (inspection.codec == CustomTextureCodec::Etc1s && transcoder.is_etc1s());
@@ -335,30 +305,28 @@ TextureTranscodeStatus TextureTranscoder::prepare(const TextureInspection& inspe
 				|| transcoder.get_block_height() != inspection.blockHeight
 				|| transcoder.is_srgb() != inspection.sourceSrgb
 				|| (transcoder.get_has_alpha() != 0) != inspection.hasAlpha)
-			return error(TextureTranscodeError::MalformedSource, "KTX2 no longer matches its inspection result");
+			throw FlycastException("KTX2 no longer matches its inspection result");
 		if (!basist::basis_is_format_supported(basisFormat, transcoder.get_basis_tex_format()))
-			return error(TextureTranscodeError::UnsupportedTarget, "KTX2 target is not supported by Basis");
-		if (TextureTranscodeStatus status = allocatePayload(inspection, target, *output); !status)
-			return status;
+			throw FlycastException("KTX2 target is not supported by Basis");
+		allocatePayload(inspection, target, *output);
 		if (!transcoder.start_transcoding())
-			return error(TextureTranscodeError::UpstreamFailure, "Basis failed to start KTX2 transcoding");
+			throw FlycastException("Basis failed to start KTX2 transcoding");
 		basist::ktx2_transcoder_state state;
 		state.clear();
 		for (uint32_t levelIndex = 0; levelIndex < inspection.levels; ++levelIndex)
 		{
 			if (cancelled && cancelled())
-				return error(TextureTranscodeError::Cancelled, "texture preparation was cancelled between mips");
+				throw LoadCancelledException();
 			const PreparedMipLevel& level = output->levels[levelIndex];
 			const uint32_t capacity = outputCapacity(level, target);
 			if (capacity == 0 || !transcoder.transcode_image_level(levelIndex, 0, 0,
 					output->bytes.data() + level.byteOffset, capacity, basisFormat, 0, 0, 0, -1, -1, &state))
-				return error(TextureTranscodeError::UpstreamFailure, "Basis failed to transcode a KTX2 mip");
+				throw FlycastException("Basis failed to transcode a KTX2 mip");
 		}
 	}
 
 	std::string validationError;
 	if (!validatePreparedCustomTexture(*output, validationError))
-		return error(TextureTranscodeError::UpstreamFailure, validationError);
-	texture = std::move(output);
-	return {};
+		throw FlycastException(validationError);
+	return output;
 }

@@ -21,27 +21,7 @@
 #include "CustomTextureTypes.h"
 
 #include <functional>
-#include <string>
 #include <vector>
-
-enum class TextureTranscodeError : uint8_t
-{
-	None,
-	UnsupportedSource,
-	MalformedSource,
-	UnsupportedTarget,
-	Cancelled,
-	AllocationFailure,
-	UpstreamFailure,
-};
-
-struct TextureTranscodeStatus
-{
-	TextureTranscodeError category = TextureTranscodeError::None;
-	std::string message;
-
-	explicit operator bool() const { return category == TextureTranscodeError::None; }
-};
 
 struct TextureInspection
 {
@@ -62,11 +42,10 @@ public:
 
 	static void initializeOnce();
 
-	TextureTranscodeStatus inspect(CustomTextureSourceKind hintedKind,
-			const std::vector<uint8_t>& fileBytes, TextureInspection& inspection) const;
+	TextureInspection inspect(CustomTextureSourceKind hintedKind,
+			const std::vector<uint8_t>& fileBytes) const;
 
-	TextureTranscodeStatus prepare(const TextureInspection& inspection,
+	PreparedCustomTexture::Ptr prepare(const TextureInspection& inspection,
 			const std::vector<uint8_t>& fileBytes, NativeTextureFormat target,
-			uint32_t replacementHash, const CancellationCheck& cancelled,
-			PreparedCustomTexturePtr& texture) const;
+			uint32_t replacementHash, const CancellationCheck& cancelled) const;
 };

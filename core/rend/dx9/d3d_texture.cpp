@@ -115,7 +115,7 @@ bool D3DTexture::Delete()
 	return true;
 }
 
-bool D3DTexture::UploadCustomTexture(const PreparedCustomTexture& customTexture)
+bool D3DTexture::uploadCustomTexture(const PreparedCustomTexture& customTexture)
 {
 	if (customTexture.nativeFormat != NativeTextureFormat::Rgba8Unorm
 			|| customTexture.levels.size() != 1)

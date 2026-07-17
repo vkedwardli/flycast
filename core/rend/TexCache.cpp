@@ -736,7 +736,7 @@ bool BaseTextureCacheData::Update()
 	return true;
 }
 
-bool BaseTextureCacheData::UploadCustomTexture(const PreparedCustomTexture& texture)
+bool BaseTextureCacheData::uploadCustomTexture(const PreparedCustomTexture& texture)
 {
 	if (texture.nativeFormat != NativeTextureFormat::Rgba8Unorm || texture.levels.size() != 1)
 		return false;
@@ -749,10 +749,10 @@ bool BaseTextureCacheData::CheckCustomTexture()
 {
 	if (gpuPreloadedTexture)
 	{
-		if (!UseGpuPreloadedTexture(gpuPreloadedTexture))
+		if (!useGpuPreloadedTexture(gpuPreloadedTexture))
 		{
 			WARN_LOG(RENDERER, "Could not use GPU-preloaded custom texture");
-			custom_texture.reportError(CustomTexture::Error::Upload);
+			custom_texture.reportError(CustomTextureException::Error::Upload);
 			custom_texture.showErrorNotification();
 			gpuPreloadedTexture.reset();
 			return false;
@@ -781,17 +781,18 @@ bool BaseTextureCacheData::CheckCustomTexture()
 				customPayload->replacementHash);
 		custom_texture.reportError(customPayload->width > capabilities.max2DWidth
 				|| customPayload->height > capabilities.max2DHeight
-				? CustomTexture::Error::TextureTooLarge : CustomTexture::Error::Upload);
+				? CustomTextureException::Error::TextureTooLarge
+				: CustomTextureException::Error::Upload);
 		custom_texture.showErrorNotification();
 		customPayload.reset();
 		customRequestId = {};
 		return false;
 	}
-	if (!UploadCustomTexture(*customPayload))
+	if (!uploadCustomTexture(*customPayload))
 	{
 		WARN_LOG(RENDERER, "Custom texture upload failed for %08x (%s)",
 				customPayload->replacementHash, nativeTextureFormatName(customPayload->nativeFormat));
-		custom_texture.reportError(CustomTexture::Error::Upload);
+		custom_texture.reportError(CustomTextureException::Error::Upload);
 		custom_texture.showErrorNotification();
 		customPayload.reset();
 		customRequestId = {};

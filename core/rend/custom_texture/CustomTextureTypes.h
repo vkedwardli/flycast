@@ -134,6 +134,8 @@ struct CustomTextureRequestId
 
 struct PreparedCustomTexture
 {
+	using Ptr = std::shared_ptr<const PreparedCustomTexture>;
+
 	uint32_t replacementHash = 0;
 	CustomTextureCodec sourceCodec = CustomTextureCodec::LegacyRgba;
 	NativeTextureFormat nativeFormat = NativeTextureFormat::Rgba8Unorm;
@@ -145,8 +147,6 @@ struct PreparedCustomTexture
 	std::vector<PreparedMipLevel> levels;
 	std::vector<uint8_t> bytes;
 };
-
-using PreparedCustomTexturePtr = std::shared_ptr<const PreparedCustomTexture>;
 
 struct CustomTextureCapabilities
 {

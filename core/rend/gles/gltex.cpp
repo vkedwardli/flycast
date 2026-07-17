@@ -254,7 +254,7 @@ GLenum customGlFormat(NativeTextureFormat format)
 
 }
 
-bool TextureCacheData::UploadCustomTexture(const PreparedCustomTexture& customTexture)
+bool TextureCacheData::uploadCustomTexture(const PreparedCustomTexture& customTexture)
 {
 	if (usingGpuPreloadedTexture)
 	{
@@ -322,7 +322,7 @@ bool TextureCacheData::UploadCustomTexture(const PreparedCustomTexture& customTe
 	return true;
 }
 
-GpuPreloadedTexturePtr TextureCacheData::CreateGpuPreloadedTexture(
+GpuPreloadedTexture::Ptr TextureCacheData::createGpuPreloadedTexture(
 		const PreparedCustomTexture& customTexture)
 {
 	if (!gl.textureStorageSupported)
@@ -330,7 +330,7 @@ GpuPreloadedTexturePtr TextureCacheData::CreateGpuPreloadedTexture(
 	auto texture = std::make_shared<OpenGLGpuPreloadedTexture>(
 			static_cast<u8>(customTexture.levels.size()));
 	TextureCacheData uploadedTexture({}, {}, 0);
-	if (!uploadedTexture.UploadCustomTexture(customTexture))
+	if (!uploadedTexture.uploadCustomTexture(customTexture))
 		return nullptr;
 	texture->texture = uploadedTexture.texID;
 	uploadedTexture.texID = 0;
@@ -338,7 +338,7 @@ GpuPreloadedTexturePtr TextureCacheData::CreateGpuPreloadedTexture(
 	return texture;
 }
 
-bool TextureCacheData::UseGpuPreloadedTexture(const GpuPreloadedTexturePtr& texture)
+bool TextureCacheData::useGpuPreloadedTexture(const GpuPreloadedTexture::Ptr& texture)
 {
 	auto openGlTexture = std::dynamic_pointer_cast<OpenGLGpuPreloadedTexture>(texture);
 	if (!openGlTexture)
@@ -348,7 +348,7 @@ bool TextureCacheData::UseGpuPreloadedTexture(const GpuPreloadedTexturePtr& text
 	return true;
 }
 
-CustomTextureCapabilities TextureCacheData::GetCustomTextureCapabilities()
+CustomTextureCapabilities TextureCacheData::getCustomTextureCapabilities()
 {
 	GLint maxTextureSize = 0;
 	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);

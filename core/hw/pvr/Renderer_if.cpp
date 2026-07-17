@@ -486,12 +486,12 @@ void rend_term_renderer()
 void rend_process_custom_texture_preloads()
 {
 	if (renderer != nullptr)
-		renderer->ProcessCustomTexturePreloads();
+		renderer->processCustomTexturePreloads();
 }
 
 bool rend_supports_gpu_texture_preload()
 {
-	return renderer != nullptr && renderer->SupportsGpuTexturePreload();
+	return renderer != nullptr && renderer->supportsGpuTexturePreload();
 }
 
 void rend_request_gpu_preloaded_texture_cleanup()

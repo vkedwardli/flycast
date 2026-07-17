@@ -241,7 +241,7 @@ vk::Format customVkFormat(NativeTextureFormat format)
 }
 }
 
-bool Texture::UploadCustomTexture(const PreparedCustomTexture& customTexture)
+bool Texture::uploadCustomTexture(const PreparedCustomTexture& customTexture)
 {
 	vulkanGpuPreloadedTexture = nullptr;
 	gpuPreloadedTexture.reset();
@@ -314,26 +314,26 @@ bool Texture::UploadCustomTexture(const PreparedCustomTexture& customTexture)
 	}
 }
 
-GpuPreloadedTexturePtr Texture::CreateGpuPreloadedTexture(
+GpuPreloadedTexture::Ptr Texture::createGpuPreloadedTexture(
 		const PreparedCustomTexture& customTexture, vk::CommandBuffer commandBuffer)
 {
 	auto texture = std::make_shared<VulkanGpuPreloadedTexture>(
 			static_cast<u8>(customTexture.levels.size()));
 	texture->texture.SetCommandBuffer(commandBuffer);
-	if (!texture->texture.UploadCustomTexture(customTexture))
+	if (!texture->texture.uploadCustomTexture(customTexture))
 		return nullptr;
 	texture->texture.SetCommandBuffer(vk::CommandBuffer());
 	return texture;
 }
 
-void Texture::ReleaseGpuPreloadStaging(const GpuPreloadedTexturePtr& texture)
+void Texture::releaseGpuPreloadStaging(const GpuPreloadedTexture::Ptr& texture)
 {
 	auto vulkanTexture = std::dynamic_pointer_cast<VulkanGpuPreloadedTexture>(texture);
 	if (vulkanTexture)
 		vulkanTexture->texture.stagingBufferData.reset();
 }
 
-bool Texture::UseGpuPreloadedTexture(const GpuPreloadedTexturePtr& texture)
+bool Texture::useGpuPreloadedTexture(const GpuPreloadedTexture::Ptr& texture)
 {
 	auto vulkanTexture = std::dynamic_pointer_cast<VulkanGpuPreloadedTexture>(texture);
 	if (!vulkanTexture)
@@ -381,7 +381,7 @@ vk::ImageView Texture::GetReadOnlyImageView() const
 	return readOnlyImageView ? readOnlyImageView : imageView.get();
 }
 
-CustomTextureCapabilities Texture::GetCustomTextureCapabilities()
+CustomTextureCapabilities Texture::getCustomTextureCapabilities()
 {
 	VulkanContext *context = VulkanContext::Instance();
 	const vk::PhysicalDevice physicalDevice = context->GetPhysicalDevice();
@@ -650,7 +650,7 @@ void Texture::deferDeleteResource(FlightManager *manager)
 		vk::UniqueImageView imageView;
 		std::unique_ptr<BufferData> bufferData;
 		Allocation allocation;
-		GpuPreloadedTexturePtr gpuPreloadedTexture;
+		GpuPreloadedTexture::Ptr gpuPreloadedTexture;
 	};
 	manager->addToFlight(new ResourceDeleter(this));
 }
