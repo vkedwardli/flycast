@@ -20,7 +20,9 @@ rm -rf ./bin
 mkdir bin
 
 sh4-linux-gnu-gcc-9 -O2 -fno-stack-protector src/main.c -c -o bin/main.x
-sh4-linux-gnu-ld -T src/ld.script bin/main.x -o bin/main.o
+sh4-linux-gnu-gcc-9 -c src/widescreen_transition_matte.s -o bin/widescreen_transition_matte.x
+sh4-linux-gnu-gcc-9 -c src/widescreen_result_black.s -o bin/widescreen_result_black.x
+sh4-linux-gnu-ld -T src/ld.script bin/main.x bin/widescreen_transition_matte.x bin/widescreen_result_black.x -o bin/main.o
 sh4-linux-gnu-objdump -h bin/main.o
 sh4-linux-gnu-objcopy \
     --only-section gdx.main1 --only-section gdx.main2 \
