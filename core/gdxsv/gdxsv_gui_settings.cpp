@@ -250,6 +250,23 @@ void gdxsv_gui_settings_tab()
 		"    rend.WideScreen=true\n"
 		"    rend.SuperWideScreen=true\n"
 		"    rend.WidescreenGameHacks=true"));
+	ImGui::Indent();
+	{
+		DisabledScope scope(!widescreen);
+		ImGui::Text("Battle HUD Placement:");
+		ImGui::SameLine();
+		OptionRadioButton("4:3 (Original)", config::GdxWidescreenHudLayout, 0);
+		ImGui::SameLine();
+		OptionRadioButton("16:9", config::GdxWidescreenHudLayout, 1);
+		ImGui::SameLine();
+		OptionRadioButton("Full Width", config::GdxWidescreenHudLayout, 2);
+	}
+	ImGui::SameLine();
+	ShowHelpMarker(T("Choose the horizontal boundary used for the battle HUD:\n"
+		"    4:3 (Original): Keep the stock positions\n"
+		"    16:9: Keep the HUD inside a 16:9 safe area\n"
+		"    Full Width: Move the HUD to the current viewport edges"));
+	ImGui::Unindent();
 
 	OptionCheckbox(T("VSync"), config::VSync,
 		T("Limit frame rate by VSync. Minimize video glitch"));

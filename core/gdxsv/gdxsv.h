@@ -86,6 +86,7 @@ class Gdxsv {
 	// Snapshotted once in Reset(). Widescreen changes require a game restart.
 	bool widescreen_patch_enabled_ = false;
 	float widescreen_patch_aspect_ = 4.f / 3.f;
+	float widescreen_hud_aspect_ = 16.f / 9.f;
 
 	std::shared_future<std::map<std::string, int>> gcp_ping_test_result_;
 	std::shared_future<std::pair<bool, std::string>> public_ipv4_, public_ipv6_;
