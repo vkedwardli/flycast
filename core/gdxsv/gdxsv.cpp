@@ -868,11 +868,12 @@ void Gdxsv::WriteWidescreenPatchDisk2() {
 	};
 	const u32 wider_left = widescreen_x_word(-5.f);
 	const u32 wider_right = widescreen_x_word(645.f);
-	constexpr u32 transition_right_x = 0x0c4f0638;
+	// The widescreen helper functions/data are emitted from gdxsv_patch/src/main.c
+	// and installed by the main gdxsv_patch.inc (see WritePatch); their addresses
+	// come from symbols_, so nothing is hard-coded here.
+	const u32 transition_right_x = symbols_["gdx_widescreen_transition_right_x"];
 	if (gdxsv_ReadMem32(transition_right_x) == wider_right)
 		return;
-
-#include "gdxsv_widescreen_patch.inc"
 
 	const u32 cull_positive = gdxsv_FloatBits(kDisk2CullVerticalHalfExtent * widescreen_aspect);
 	const u32 cull_negative = cull_positive ^ 0x80000000u;
@@ -887,7 +888,7 @@ void Gdxsv::WriteWidescreenPatchDisk2() {
 	// response. Its dynamic glyph loop has a separate private X-origin literal.
 	constexpr u32 kDisk2CockpitRendererTablePointer = 0x0c1196f0;
 	constexpr u32 kDisk2StockCockpitRendererTable = 0x0c2403a4;
-	constexpr u32 kDisk2WidescreenCockpitRendererTable = 0x0c4f0770;
+	const u32 kDisk2WidescreenCockpitRendererTable = symbols_["gdx_widescreen_hud_renderer_table"];
 	const u32 cockpit_renderer_table = gdxsv_ReadMem32(kDisk2CockpitRendererTablePointer);
 	if (widescreen_hud_aspect_ > kDisk2StockAspect) {
 		if (cockpit_renderer_table != kDisk2StockCockpitRendererTable &&

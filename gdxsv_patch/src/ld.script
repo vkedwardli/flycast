@@ -2,11 +2,13 @@ SECTIONS
 {
     . = 0x0C4E0200;
     gdx.data ALIGN(16) : {
-        *(gdx.data*)
+        *(gdx.data)
+        *(gdx.data.ws)
     }
     . = 0x0C4F0000;
     gdx.func ALIGN(16) : {
-        *(gdx.func*)
+        *(gdx.func)
+        *(gdx.func.ws)
         *(.rodata*)
     }
     . = 0x0C500000;

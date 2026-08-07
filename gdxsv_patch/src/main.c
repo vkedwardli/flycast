@@ -9,6 +9,10 @@ typedef unsigned int u32;
 #define GDXFUNC __attribute__((section("gdx.func")))
 #define GDXMAIN1 __attribute__((section("gdx.main1")))
 #define GDXMAIN2 __attribute__((section("gdx.main2")))
+// Widescreen helpers live in dedicated sub-sections so the linker script can
+// append them after the existing patch, keeping the generated addresses stable.
+#define GDXWSDATA __attribute__((section("gdx.data.ws")))
+#define GDXWSFUNC __attribute__((section("gdx.func.ws")))
 
 #if DEBUG_PRINT
 #include "mini-printf.h"
@@ -420,3 +424,184 @@ void GDXFUNC gdx_dial_start_disk2() {
     write8(0x0c391d79, 2);
 #endif
 }
+
+//
+// Widescreen (disk2) patch helpers.
+//
+// gdx_widescreen_transition_matte and gdx_widescreen_hud_render are reached as
+// ordinary ABI functions (via a callback pointer / a renderer dispatch table),
+// so they are written in plain C here.
+//
+// gdx_widescreen_result_black_postproject is a mid-function detour into
+// FUN_0c1be120 (entered by a raw jmp at 0x0c1be1dc). It depends on the live
+// fr5/r14 state of that loop and replays the overwritten stock instructions, so
+// it cannot be expressed in C and is emitted verbatim as file-scope asm below.
+//
+
+struct gdx_ws_vtx {
+    float x;
+    float y;
+    float z;
+    u32 color;
+};
+
+// Independently patchable endpoints; the host overwrites them per aspect ratio.
+GDXWSDATA float gdx_widescreen_transition_left_x = 0.0f;
+GDXWSDATA float gdx_widescreen_transition_right_x = 640.0f;
+
+// Centred arbitrary-aspect replacement for FUN_0c1955b4.
+void GDXWSFUNC gdx_widescreen_transition_matte(void) {
+    // Preserve the live packed color: (alpha << 24) | rgb.
+    u32 rgb = read32(0x0c470428);
+    u32 alpha = read32(0x0c47042c);
+    u32 color = (alpha << 24) | rgb;
+
+    float global_x = *(volatile float *)(0x0c3d0584 + 16);
+    float global_y = *(volatile float *)(0x0c3d0584 + 20);
+    float left = global_x + gdx_widescreen_transition_left_x;
+    float right = global_x + gdx_widescreen_transition_right_x;
+    float top = global_y;
+    float bottom = global_y + 480.0f;
+
+    struct gdx_ws_vtx v[4];
+    v[0].x = left;  v[0].y = top;    v[0].z = 0.02f; v[0].color = color;
+    v[1].x = left;  v[1].y = bottom; v[1].z = 0.02f; v[1].color = color;
+    v[2].x = right; v[2].y = top;    v[2].z = 0.02f; v[2].color = color;
+    v[3].x = right; v[3].y = bottom; v[3].z = 0.02f; v[3].color = color;
+
+    ((void (*)(int)) 0x0c19e390)(0);             // prepare
+    ((void (*)(int, void *)) 0x0c19e630)(4, v);  // submit(count, &vertices)
+}
+
+// Battle HUD margin anchors; the host overwrites them per aspect ratio.
+GDXWSDATA float gdx_widescreen_hud_right_offset = 0.0f;
+GDXWSDATA float gdx_widescreen_hud_left_offset = 0.0f;
+GDXWSDATA float gdx_widescreen_hud_half_left_offset = 0.0f;
+
+// Installed for right-side types 0..3, left-side type 6 and information-panel
+// type 12. Adds an aspect-derived displacement to the work field at +0x5c only
+// while the stock renderer draws, then restores the original bits.
+void GDXWSFUNC gdx_widescreen_hud_render(void *work_) {
+    u8 *work = (u8 *) work_;
+    int type = *(signed char *)(work + 3);
+    float offset;
+    if (type == 12) {
+        offset = gdx_widescreen_hud_half_left_offset;  // twice the screen response
+    } else if (type == 6) {
+        offset = gdx_widescreen_hud_left_offset;
+    } else {
+        offset = gdx_widescreen_hud_right_offset;
+    }
+
+    volatile float *field = (volatile float *)(work + 0x5c);
+    u32 saved = read32((u32) work + 0x5c);
+    *field = *field + offset;
+
+    // Dispatch through the untouched stock renderer table.
+    u32 *stock_table = (u32 *) 0x0c2403a4;
+    ((void (*)(void *)) stock_table[type])(work);
+
+    // Never leak the widescreen displacement into the stock work state.
+    write32((u32) work + 0x5c, saved);
+}
+
+GDXWSDATA u32 gdx_widescreen_hud_renderer_table[17] = {
+    (u32) gdx_widescreen_hud_render,  // type 0: right
+    (u32) gdx_widescreen_hud_render,  // type 1: right
+    (u32) gdx_widescreen_hud_render,  // type 2: right
+    (u32) gdx_widescreen_hud_render,  // type 3: right
+    0x0c11edea,
+    0x0c11ef96,
+    (u32) gdx_widescreen_hud_render,  // type 6: left
+    0x0c11f940,
+    0x0c11fb18,
+    0x0c120268,
+    0x0c11bec0,
+    0x0c120380,
+    (u32) gdx_widescreen_hud_render,  // type 12: information panel
+    0x0c121bc4,
+    0x0c121c74,
+    0x0c121c74,
+    0x0c121dbc,
+};
+
+// Mid-function detour of FUN_0c1be120 at 0x0c1be1dc. Emitted verbatim (see note
+// above). The center/scale literals stay inside this block so the PC-relative
+// loads reach them; the host overwrites gdx_widescreen_result_black_scale.
+asm(
+    ".section gdx.func.ws,\"ax\",@progbits\n"
+    ".align 2\n"
+    ".global gdx_widescreen_result_black_postproject\n"
+    ".type gdx_widescreen_result_black_postproject, @function\n"
+    "gdx_widescreen_result_black_postproject:\n"
+    "	fmul	fr7,fr5\n"
+    "	movt	r1\n"
+    "	mov.l	r1,@-r15\n"
+    "	sts	fpul,r1\n"
+    "	mov.l	r1,@-r15\n"
+    "	mov	r14,r1\n"
+    "	add	#-8,r1\n"
+    "	mov.l	@r1,r2\n"
+    "	mov.l	.Lx_positive,r1\n"
+    "	cmp/eq	r1,r2\n"
+    "	bt	.Lcheck_y\n"
+    "	mov.l	.Lx_negative,r1\n"
+    "	cmp/eq	r1,r2\n"
+    "	bf	.Lrestore_state\n"
+    ".Lcheck_y:\n"
+    "	mov	r14,r1\n"
+    "	add	#-4,r1\n"
+    "	mov.l	@r1,r2\n"
+    "	mov.l	.Ly_positive,r1\n"
+    "	cmp/eq	r1,r2\n"
+    "	bt	.Lscale\n"
+    "	mov.l	.Ly_negative,r1\n"
+    "	cmp/eq	r1,r2\n"
+    "	bf	.Lrestore_state\n"
+    ".Lscale:\n"
+    "	mov.l	gdx_widescreen_result_black_center,r2\n"
+    "	lds	r2,fpul\n"
+    "	fsts	fpul,fr0\n"
+    "	fsub	fr0,fr5\n"
+    "	mov.l	gdx_widescreen_result_black_scale,r2\n"
+    "	lds	r2,fpul\n"
+    "	fsts	fpul,fr1\n"
+    "	fmul	fr1,fr5\n"
+    "	fadd	fr0,fr5\n"
+    ".Lrestore_state:\n"
+    "	mov.l	@r15+,r1\n"
+    "	lds	r1,fpul\n"
+    "	mov.l	@r15+,r1\n"
+    "	mov	#1,r2\n"
+    "	cmp/eq	r2,r1\n"
+    "	fmov.s	fr6,@-r6\n"
+    "	add	#0x40,r5\n"
+    "	fmov.s	fr4,@-r6\n"
+    "	fmul	fr14,fr10\n"
+    "	mov.l	r0,@r6\n"
+    "	mov.l	.Lreturn,r2\n"
+    "	jmp	@r2\n"
+    "	 nop\n"
+    "	.balign 4\n"
+    ".Lx_positive:\n"
+    "	.long	0x3e800001\n"
+    ".Lx_negative:\n"
+    "	.long	0xbe800001\n"
+    ".Ly_positive:\n"
+    "	.long	0x3e408313\n"
+    ".Ly_negative:\n"
+    "	.long	0xbe408313\n"
+    ".Lreturn:\n"
+    "	.long	0x0c1be1e8\n"
+    "	.global gdx_widescreen_result_black_center\n"
+    "	.type gdx_widescreen_result_black_center, @object\n"
+    "gdx_widescreen_result_black_center:\n"
+    "	.float	320.0\n"
+    "	.size gdx_widescreen_result_black_center, 4\n"
+    "	.global gdx_widescreen_result_black_scale\n"
+    "	.type gdx_widescreen_result_black_scale, @object\n"
+    "gdx_widescreen_result_black_scale:\n"
+    "	.float	1.0\n"
+    "	.size gdx_widescreen_result_black_scale, 4\n"
+    "	.size gdx_widescreen_result_black_postproject, .-gdx_widescreen_result_black_postproject\n"
+);
