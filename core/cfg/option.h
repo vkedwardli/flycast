@@ -524,6 +524,7 @@ extern Option<std::string> GdxLobbyServer;
 extern Option<std::string> GdxLoginKey;
 extern Option<int> GdxLanguage;
 extern Option<bool> GdxUseTexturePack;
+extern Option<int> GdxWidescreenHudLayout; // 0: stock 4:3, 1: 16:9, 2: viewport edges
 extern OptionString GdxTexturePackChannel;
 extern Option<int> GdxLocalPort;
 extern Option<int> GdxMinDelay;

@@ -3,6 +3,8 @@
 #include <xxhash.h>
 #include <zlib.h>
 
+#include <cmath>
+#include <cstring>
 #include <random>
 #include <sstream>
 
@@ -79,6 +81,38 @@ const char *Gdxsv::NetModeString() const {
 	return "Unknown";
 }
 
+void Gdxsv::ResetWidescreenPatch() {
+	constexpr float kDisk2StockAspect = 4.f / 3.f;
+	constexpr float kDisk2SafeHudAspect = 16.f / 9.f;
+	widescreen_patch_enabled_ = false;
+	widescreen_patch_aspect_ = kDisk2StockAspect;
+	widescreen_hud_aspect_ = kDisk2SafeHudAspect;
+	widescreen_patch_enabled_ = config::Widescreen.get() && config::WidescreenGameHacks.get();
+	const bool super_widescreen = config::SuperWidescreen.get();
+	if (disk_ == 2 && widescreen_patch_enabled_) {
+		if (!super_widescreen) {
+			widescreen_patch_aspect_ = 16.f / 9.f;
+		} else if (settings.display.width > 0 && settings.display.height > 0) {
+			const float aspect = static_cast<float>(settings.display.width) / settings.display.height;
+			if (std::isfinite(aspect) && aspect > 0.f)
+				widescreen_patch_aspect_ = aspect;
+		}
+		switch (config::GdxWidescreenHudLayout.get()) {
+		case 0:
+			widescreen_hud_aspect_ = kDisk2StockAspect;
+			break;
+		case 2:
+			widescreen_hud_aspect_ = widescreen_patch_aspect_;
+			break;
+		default:
+			widescreen_hud_aspect_ = kDisk2SafeHudAspect;
+			break;
+		}
+	}
+	NOTICE_LOG(COMMON, "gdxsv widescreen snapshot: enabled=%s aspect=%.6f hud-aspect=%.6f",
+			   widescreen_patch_enabled_ ? "yes" : "no", widescreen_patch_aspect_, widescreen_hud_aspect_);
+}
+
 void Gdxsv::Reset() {
 	lbs_net_.Reset();
 	udp_net_.Reset();
@@ -104,6 +138,7 @@ void Gdxsv::Reset() {
 	std::string disk_num(ip_meta.disk_num, 1);
 	if (disk_num == "1") disk_ = 1;
 	if (disk_num == "2") disk_ = 2;
+	ResetWidescreenPatch();
 	settings.gdxsv.disk = disk_;
 	settings.gdxsv.skipRenderingBaseAddr = (disk_ == 1) ? 0x0c064cce : (disk_ == 2) ? 0x0c0520e2 : 0;
 
@@ -644,6 +679,7 @@ void Gdxsv::WritePatch() {
 	}
 
 	if (disk_ == 2) {
+		WriteWidescreenPatchDisk2();
 		if (symbols_["lang_patch_id"] == 0 || gdxsv_ReadMem32(symbols_["lang_patch_id"]) != symbols_[":lang_patch_id"] ||
 			symbols_[":lang_patch_lang"] != (u8)GdxsvLanguage::Language()) {
 			NOTICE_LOG(COMMON, "lang_patch id=%d prev=%d lang=%d", gdxsv_ReadMem32(symbols_["lang_patch_id"]), symbols_[":lang_patch_id"],
@@ -717,7 +753,7 @@ void Gdxsv::WritePatchDisk1() {
 	gdxsv_WriteMem8(0x0c2f6657, InGame() ? 1 : 0);
 
 	// Dirty widescreen cheat
-	if (config::WidescreenGameHacks.get()) {
+	if (widescreen_patch_enabled_) {
 		u32 ratio = 0x3faaaaab;	 // default 4/3
 		int stretching = 100;
 		if (gdxsv_ReadMem8(0x0c336254) == 2 && (gdxsv_ReadMem8(0x0c336255) == 5 || gdxsv_ReadMem8(0x0c336255) == 7)) {
@@ -802,23 +838,135 @@ void Gdxsv::WritePatchDisk2() {
 	// Disable soft reset
 	gdxsv_WriteMem8(0x0c391d97, InGame() ? 1 : 0);
 
-	// Dirty widescreen cheat
-	if (config::WidescreenGameHacks.get()) {
-		u32 ratio = 0x3faaaaab;	 // default 4/3
-		int stretching = 100;
-		if (gdxsv_ReadMem8(0x0c3d16d4) == 2 && (gdxsv_ReadMem8(0x0c3d16d5) == 5 || gdxsv_ReadMem8(0x0c3d16d5) == 7)) {
-			ratio = 0x40155555;
-			stretching = 175;
-		}
-		config::ScreenStretching.override(stretching);
-		gdxsv_WriteMem32(0x0c1e7948, ratio);
-		gdxsv_WriteMem32(0x0c1e7958, ratio);
-		gdxsv_WriteMem32(0x0c1e7968, ratio);
-		gdxsv_WriteMem32(0x0c1e7978, ratio);
-	}
-
 	// Online patch
 	ApplyOnlinePatch(false);
+}
+
+void Gdxsv::WriteWidescreenPatchDisk2() {
+	if (!widescreen_patch_enabled_)
+		return;
+
+	constexpr float kDisk2StockAspect = 4.f / 3.f;
+	constexpr float kDisk2CullVerticalHalfExtent = 0.075f;
+	constexpr float kDisk2InformationTextStockX = -0.0457f;
+	constexpr float kDisk2ModelClipStockCenter = 320.f;
+	// Both users of the shared briefing/battle transition builder load it through
+	// this callback pointer. The generated gdxsv connection payload supplies the
+	// replacement function and its independently patchable left/right literals.
+	constexpr u32 kDisk2TransitionMattePointer = 0x0c1955ac;
+	auto gdxsv_FloatBits = [](float value) {
+		u32 bits;
+		static_assert(sizeof(bits) == sizeof(value));
+		std::memcpy(&bits, &value, sizeof(bits));
+		return bits;
+	};
+
+	const float widescreen_aspect = widescreen_patch_aspect_;
+	const float widescreen_scale = widescreen_aspect / kDisk2StockAspect;
+	auto widescreen_x_word = [&](float stock_x) {
+		return gdxsv_FloatBits(kDisk2ModelClipStockCenter + (stock_x - kDisk2ModelClipStockCenter) * widescreen_scale);
+	};
+	const u32 wider_left = widescreen_x_word(-5.f);
+	const u32 wider_right = widescreen_x_word(645.f);
+	// The widescreen helper functions/data are emitted from gdxsv_patch/src/main.c
+	// and installed by the main gdxsv_patch.inc (see WritePatch); their addresses
+	// come from symbols_, so nothing is hard-coded here.
+	const u32 transition_right_x = symbols_["gdx_widescreen_transition_right_x"];
+	if (gdxsv_ReadMem32(transition_right_x) == wider_right)
+		return;
+
+	const u32 cull_positive = gdxsv_FloatBits(kDisk2CullVerticalHalfExtent * widescreen_aspect);
+	const u32 cull_negative = cull_positive ^ 0x80000000u;
+	const float hud_right_offset = kDisk2CullVerticalHalfExtent * (widescreen_hud_aspect_ - kDisk2StockAspect);
+	const float hud_left_offset = -hud_right_offset;
+	const float hud_half_left_offset = hud_left_offset * 0.5f;
+
+	// --- Battle HUD margin anchors ---
+	// The stock table remains available to the shim. Right-side types 0..3 and
+	// force-gauge type 6 use the normal offset. Information-panel type 12 uses
+	// half the offset because its renderer has twice the effective screen
+	// response. Its dynamic glyph loop has a separate private X-origin literal.
+	constexpr u32 kDisk2CockpitRendererTablePointer = 0x0c1196f0;
+	constexpr u32 kDisk2StockCockpitRendererTable = 0x0c2403a4;
+	const u32 kDisk2WidescreenCockpitRendererTable = symbols_["gdx_widescreen_hud_renderer_table"];
+	const u32 cockpit_renderer_table = gdxsv_ReadMem32(kDisk2CockpitRendererTablePointer);
+	if (widescreen_hud_aspect_ > kDisk2StockAspect) {
+		if (cockpit_renderer_table != kDisk2StockCockpitRendererTable &&
+			cockpit_renderer_table != kDisk2WidescreenCockpitRendererTable) {
+			ERROR_LOG(COMMON, "widescreen HUD patch rejected: renderer table=%08x", cockpit_renderer_table);
+			return;
+		}
+		gdxsv_WriteMem32(symbols_["gdx_widescreen_hud_right_offset"], gdxsv_FloatBits(hud_right_offset));
+		gdxsv_WriteMem32(symbols_["gdx_widescreen_hud_left_offset"], gdxsv_FloatBits(hud_left_offset));
+		gdxsv_WriteMem32(symbols_["gdx_widescreen_hud_half_left_offset"], gdxsv_FloatBits(hud_half_left_offset));
+		gdxsv_WriteMem32(kDisk2CockpitRendererTablePointer, symbols_["gdx_widescreen_hud_renderer_table"]);
+		gdxsv_WriteMem32(0x0c1213cc, gdxsv_FloatBits(kDisk2InformationTextStockX + hud_half_left_offset)); // stock -0.0457f
+	}
+
+	// --- Generic full-screen black fade (owner 0x0c015d0c) ---
+	gdxsv_WriteMem32(0x0c1ce374, wider_left);
+	gdxsv_WriteMem32(0x0c1ce384, wider_left);
+	gdxsv_WriteMem32(0x0c1ce394, wider_right);
+	gdxsv_WriteMem32(0x0c1ce3a4, wider_right);
+
+	// --- Opening full-height black fade (owner 0x0c057e48) ---
+	gdxsv_WriteMem32(0x0c1d3b88, wider_left);
+	gdxsv_WriteMem32(0x0c1d3b98, wider_left);
+	gdxsv_WriteMem32(0x0c1d3ba8, wider_right);
+	gdxsv_WriteMem32(0x0c1d3bb8, wider_right);
+
+	// --- Later opening centre-field fade (owner 0x0c057f54) ---
+	gdxsv_WriteMem32(0x0c1d3bc8, wider_left);
+	gdxsv_WriteMem32(0x0c1d3bd8, wider_left);
+	gdxsv_WriteMem32(0x0c1d3be8, wider_right);
+	gdxsv_WriteMem32(0x0c1d3bf8, wider_right);
+
+	// --- Title-logo fade and held black mask (owner 0x0c15d1b4) ---
+	gdxsv_WriteMem32(0x0c1d3e78, wider_left);
+	gdxsv_WriteMem32(0x0c1d3e88, wider_left);
+	gdxsv_WriteMem32(0x0c1d3e98, wider_right);
+	gdxsv_WriteMem32(0x0c1d3ea8, wider_right);
+
+	// --- Persistent opening/briefing cinema bars (owner 0x0c0631fe) ---
+	gdxsv_WriteMem32(0x0c1d3c60, wider_left);
+	gdxsv_WriteMem32(0x0c1d3c70, wider_left);
+	gdxsv_WriteMem32(0x0c1d3c80, wider_right);
+	gdxsv_WriteMem32(0x0c1d3c90, wider_right);
+	gdxsv_WriteMem32(0x0c1d3ca0, wider_left);
+	gdxsv_WriteMem32(0x0c1d3cb0, wider_left);
+	gdxsv_WriteMem32(0x0c1d3cc0, wider_right);
+	gdxsv_WriteMem32(0x0c1d3cd0, wider_right);
+
+	// --- In-battle pause-menu semi-transparent overlay (owner 0x0c01c68c) ---
+	gdxsv_WriteMem32(0x0c1deba8, wider_left);
+	gdxsv_WriteMem32(0x0c1debb8, wider_right);
+	gdxsv_WriteMem32(0x0c1debc8, wider_left);
+	gdxsv_WriteMem32(0x0c1debd8, wider_right);
+
+	// --- Shared selection/briefing/battle transition ---
+	gdxsv_WriteMem32(symbols_["gdx_widescreen_transition_left_x"], wider_left);
+	gdxsv_WriteMem32(transition_right_x, wider_right);
+	gdxsv_WriteMem32(kDisk2TransitionMattePointer, symbols_["gdx_widescreen_transition_matte"]);
+
+	// --- Intro/battle MS and building horizontal culling ---
+	gdxsv_WriteMem16(0x0c1aebea, 0x0009); // stock 0x8fc9
+	gdxsv_WriteMem16(0x0c1aec04, 0x0009); // stock 0x8dbc
+	gdxsv_WriteMem16(0x0c1ab226, 0x0009); // stock 0x8faf
+	gdxsv_WriteMem16(0x0c1ab240, 0x0009); // stock 0x8da2
+	gdxsv_WriteMem32(0x0c055280, cull_negative); // stock -0.100f
+	gdxsv_WriteMem32(0x0c055284, cull_positive); // stock +0.100f
+
+	// --- Result-screen hollow black surround (FUN_0c1be120) ---
+	gdxsv_WriteMem32(symbols_["gdx_widescreen_result_black_scale"], gdxsv_FloatBits(widescreen_scale * 650.f / 640.f));
+	gdxsv_WriteMem16(0x0c1be1dc, 0xd201); // mov.l 0x0c1be1e4,r2
+	gdxsv_WriteMem16(0x0c1be1de, 0x422b); // jmp @r2
+	gdxsv_WriteMem16(0x0c1be1e0, 0x0009); // nop (delay slot)
+	gdxsv_WriteMem16(0x0c1be1e2, 0x0009); // literal alignment
+	gdxsv_WriteMem32(0x0c1be1e4, symbols_["gdx_widescreen_result_black_postproject"]);
+
+	emu.getSh4Executor()->ResetCache();
+	NOTICE_LOG(COMMON, "widescreen patch refreshed: aspect=%.6f hud-aspect=%.6f",
+			   widescreen_aspect, widescreen_hud_aspect_);
 }
 
 bool Gdxsv::StartReplayFile(const char *path, int pov) {
