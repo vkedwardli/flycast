@@ -407,6 +407,11 @@ void input_sdl_handle()
 				break;
 
 			case SDL_WINDOWEVENT:
+				// gdxsv: handle outside window for network stats hovering
+				if (event.window.event == SDL_WINDOWEVENT_LEAVE)
+				{
+					gui_set_mouse_position(-1, -1, false);
+				}
 				if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED
 						|| event.window.event == SDL_WINDOWEVENT_RESTORED
 						|| event.window.event == SDL_WINDOWEVENT_MINIMIZED
