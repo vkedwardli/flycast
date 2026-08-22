@@ -1620,8 +1620,7 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
 						ImVec2(style.ItemSpacing.x * panel_scale, natural_item_spacing_y * panel_scale));
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, style.FramePadding * panel_scale);
-	ImGui::SetNextWindowPos(ImVec2(left_margin, (panel_top + panel_bottom) * 0.5f), ImGuiCond_Always,
-							ImVec2(0.0f, 0.5f));
+	ImGui::SetNextWindowPos(ImVec2(left_margin, panel_top), ImGuiCond_Always);
 	ImGui::SetNextWindowSizeConstraints(ImVec2(window_width, 0), ImVec2(window_width, max_height));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.122f, 0.122f, 0.122f, 0.055f));
 	ImGui::Begin("##gdxsv_osd_network_stats", NULL,
