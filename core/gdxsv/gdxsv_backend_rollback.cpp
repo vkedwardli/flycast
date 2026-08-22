@@ -1164,13 +1164,11 @@ struct ConnectionHealthTracker {
 	int ping_sample_count = 0;
 	int ping_sample_index = 0;
 	int ping_p20 = 0;
+	int ping_median = 0;
 	int ping_jitter = 0;
-	std::array<int, 30> queue_samples = {};
-	int queue_sample_count = 0;
-	int queue_sample_index = 0;
-	float queue_baseline = 0.f;
 
 	ConnectionHealth displayed = ConnectionHealth::Excellent;
+	ConnectionHealth pending = ConnectionHealth::Excellent;
 	double pending_since = 0.0;
 	double next_recovery_at = 0.0;
 };
@@ -1195,28 +1193,37 @@ ConnectionHealth queueHealth(int queue_excess) {
 	return ConnectionHealth::Poor;
 }
 
+ConnectionHealth stableLatencyHealth(int ping) {
+	// Stable RTT still adds input delay, but must never look as severe as a
+	// connection that is actively losing packets or stalling.
+	if (ping <= 60) return ConnectionHealth::Excellent;
+	if (ping <= 80) return ConnectionHealth::Good;
+	if (ping <= 100) return ConnectionHealth::Medium;
+	return ConnectionHealth::Fair;
+}
+
 ConnectionHealth jitterHealth(int jitter) {
-	if (jitter <= 10) return ConnectionHealth::Excellent;
-	if (jitter <= 20) return ConnectionHealth::Good;
-	if (jitter <= 35) return ConnectionHealth::Medium;
-	if (jitter <= 60) return ConnectionHealth::Fair;
+	if (jitter <= 5) return ConnectionHealth::Excellent;
+	if (jitter <= 10) return ConnectionHealth::Good;
+	if (jitter <= 15) return ConnectionHealth::Medium;
+	if (jitter <= 20) return ConnectionHealth::Fair;
 	return ConnectionHealth::Poor;
 }
 
 ConnectionHealth latencySpikeHealth(int spike) {
-	if (spike <= 17) return ConnectionHealth::Excellent;
-	if (spike <= 34) return ConnectionHealth::Good;
-	if (spike <= 50) return ConnectionHealth::Medium;
-	if (spike <= 84) return ConnectionHealth::Fair;
+	if (spike <= 10) return ConnectionHealth::Excellent;
+	if (spike <= 15) return ConnectionHealth::Good;
+	if (spike <= 20) return ConnectionHealth::Medium;
+	if (spike <= 35) return ConnectionHealth::Fair;
 	return ConnectionHealth::Poor;
 }
 
 ConnectionHealth pacingHealth(int frame_skew) {
 	const int skew = std::abs(frame_skew);
-	if (skew <= 1) return ConnectionHealth::Excellent;
-	if (skew == 2) return ConnectionHealth::Good;
-	if (skew <= 4) return ConnectionHealth::Medium;
-	if (skew <= 6) return ConnectionHealth::Fair;
+	if (skew <= 2) return ConnectionHealth::Excellent;
+	if (skew <= 4) return ConnectionHealth::Good;
+	if (skew <= 6) return ConnectionHealth::Medium;
+	if (skew <= 8) return ConnectionHealth::Fair;
 	return ConnectionHealth::Poor;
 }
 
@@ -1244,7 +1251,6 @@ ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
 		tracker.loss_initialized = true;
 		tracker.previous_loss_from = loss_from;
 		tracker.previous_loss_to = loss_to;
-		tracker.queue_baseline = static_cast<float>(stats.network.send_queue_len);
 	} else {
 		if (loss_from > tracker.previous_loss_from) {
 			const int loss = loss_from - tracker.previous_loss_from;
@@ -1269,17 +1275,16 @@ ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
 	}
 	const int recent_loss = std::max(tracker.recent_loss_from, tracker.recent_loss_to);
 
-	bool sampled_now = false;
 	if (!tracker.sample_initialized || now - tracker.last_sample_time >= 1.0) {
 		tracker.sample_initialized = true;
 		tracker.last_sample_time = now;
-		sampled_now = true;
 		if (stats.network.ping > 0) {
 			addSample(tracker.ping_samples, tracker.ping_sample_count, tracker.ping_sample_index,
 					  stats.network.ping);
 			if (tracker.ping_sample_count >= 4) {
 				const auto pings = sortedSamples(tracker.ping_samples, tracker.ping_sample_count);
 				tracker.ping_p20 = pings[(tracker.ping_sample_count - 1) / 5];
+				tracker.ping_median = pings[(tracker.ping_sample_count - 1) / 2];
 				tracker.ping_jitter = pings[(tracker.ping_sample_count - 1) * 9 / 10] -
 									  pings[(tracker.ping_sample_count - 1) / 10];
 			}
@@ -1289,22 +1294,19 @@ ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
 	int latency_spike = 0;
 	if (tracker.ping_sample_count >= 4)
 		latency_spike = std::max(stats.network.ping - tracker.ping_p20, 0);
-	const ConnectionHealth latency_health =
-		worse(jitterHealth(tracker.ping_jitter), latencySpikeHealth(latency_spike));
+	const int stable_ping = tracker.ping_sample_count >= 4 ? tracker.ping_median : stats.network.ping;
+	ConnectionHealth latency_health = stableLatencyHealth(stable_ping);
+	latency_health = worse(latency_health, jitterHealth(tracker.ping_jitter));
+	latency_health = worse(latency_health, latencySpikeHealth(latency_spike));
 
 	const int frame_skew = stats.timesync.local_frames_behind;
-	if (sampled_now && recent_loss == 0 &&
-		std::abs(frame_skew) <= 2 && static_cast<int>(latency_health) <= static_cast<int>(ConnectionHealth::Good) &&
-		static_cast<int>(tracker.displayed) <= static_cast<int>(ConnectionHealth::Good)) {
-		addSample(tracker.queue_samples, tracker.queue_sample_count, tracker.queue_sample_index,
-				  stats.network.send_queue_len);
-		if (tracker.queue_sample_count >= 5) {
-			const auto queues = sortedSamples(tracker.queue_samples, tracker.queue_sample_count);
-			tracker.queue_baseline = static_cast<float>(queues[(tracker.queue_sample_count - 1) / 5]);
-		}
-	}
-	const int queue_excess = std::max(stats.network.send_queue_len -
-									 static_cast<int>(std::round(tracker.queue_baseline)), 0);
+	constexpr double frame_time_ms = 1000.0 / 59.94;
+	// One pending input per elapsed game frame is normal while waiting for an
+	// acknowledgement. Only count queue growth beyond the RTT-sized window.
+	const int expected_queue = stats.network.ping > 0
+		? static_cast<int>(std::ceil(stats.network.ping / frame_time_ms))
+		: 0;
+	const int queue_excess = std::max(stats.network.send_queue_len - expected_queue, 0);
 	const ConnectionHealth loss_health = lossHealth(recent_loss);
 	const ConnectionHealth queue_health = queueHealth(queue_excess);
 	const ConnectionHealth pacing_health = pacingHealth(frame_skew);
@@ -1315,13 +1317,22 @@ ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
 	observed = worse(observed, latency_health);
 	observed = worse(observed, pacing_health);
 
-	// Loss is actionable immediately. Queue, jitter, and pacing must remain
-	// degraded for one second before they can lower the displayed health.
+	// Loss is actionable immediately. Other problems must persist for one
+	// second; severe pacing alone must persist for two seconds.
 	tracker.displayed = worse(tracker.displayed, loss_health);
 	if (static_cast<int>(observed) > static_cast<int>(tracker.displayed)) {
-		if (tracker.pending_since == 0.0)
+		if (tracker.pending_since == 0.0 || tracker.pending != observed) {
+			tracker.pending = observed;
 			tracker.pending_since = now;
-		if (now - tracker.pending_since >= 1.0) {
+		}
+		const bool poor_only_from_pacing =
+			pacing_health == ConnectionHealth::Poor &&
+			loss_health != ConnectionHealth::Poor &&
+			queue_health != ConnectionHealth::Poor &&
+			latency_health != ConnectionHealth::Poor;
+		const double degradation_delay =
+			observed == ConnectionHealth::Poor && poor_only_from_pacing ? 2.0 : 1.0;
+		if (now - tracker.pending_since >= degradation_delay) {
 			tracker.displayed = observed;
 			tracker.pending_since = 0.0;
 		}
@@ -1479,13 +1490,6 @@ void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool co
 		drawFramePacingMeter(stats.timesync.local_frames_behind,
 			width - ImGui::CalcTextSize(sync_label).x);
 	};
-	if (!connected) {
-		ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
-		textCentered("Disconnected");
-		ImGui::PopStyleColor();
-		draw_pacing_row();
-		return;
-	}
 
 	const ImVec4 text_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
 	const ImVec4 red(1.f, 0.2f, 0.2f, 1.f);
@@ -1531,7 +1535,13 @@ void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool co
 	draw_list->AddText(ImVec2(pos.x + width - ImGui::CalcTextSize(queue_value.c_str()).x, pos.y),
 					   ImGui::GetColorU32(queue_color), queue_value.c_str());
 	ImGui::Dummy(ImVec2(width, height));
-	draw_pacing_row();
+	if (connected) {
+		draw_pacing_row();
+	} else {
+		ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
+		textCentered("Disconnected");
+		ImGui::PopStyleColor();
+	}
 }
 
 void drawDetailedPlayerNetworkStats(int player, const proto::P2PMatching& matching,
@@ -1622,7 +1632,7 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	const ImVec2 title_size = ImGui::CalcTextSize("NETWORK STATS");
 	ImGui::GetWindowDrawList()->AddRectFilled(
 		panel_pos, panel_pos + ImVec2(window_width, title_height),
-		ImGui::GetColorU32(ImVec4(0.122f, 0.122f, 0.122f, 0.12f)));
+		ImGui::GetColorU32(ImVec4(0.122f, 0.122f, 0.122f, 0.16f)));
 	ImGui::GetWindowDrawList()->AddText(
 		ImVec2(panel_pos.x + (window_width - title_size.x) * 0.5f,
 			   panel_pos.y + std::max(0.f, (title_height - title_size.y) * 0.5f)),
