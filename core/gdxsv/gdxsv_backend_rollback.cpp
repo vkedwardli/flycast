@@ -1177,6 +1177,10 @@ ConnectionHealth worse(ConnectionHealth lhs, ConnectionHealth rhs) {
 	return static_cast<int>(lhs) >= static_cast<int>(rhs) ? lhs : rhs;
 }
 
+ConnectionHealth better(ConnectionHealth lhs, ConnectionHealth rhs) {
+	return static_cast<int>(lhs) <= static_cast<int>(rhs) ? lhs : rhs;
+}
+
 ConnectionHealth lossHealth(int loss) {
 	if (loss == 0) return ConnectionHealth::Excellent;
 	if (loss <= 2) return ConnectionHealth::Good;
@@ -1321,19 +1325,22 @@ ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
 	// second; severe pacing alone must persist for two seconds.
 	tracker.displayed = worse(tracker.displayed, loss_health);
 	if (static_cast<int>(observed) > static_cast<int>(tracker.displayed)) {
-		if (tracker.pending_since == 0.0 || tracker.pending != observed) {
+		// Keep one timer across bad-bucket changes. Equal samples do not erase
+		// degradation evidence already accumulated at a worse level.
+		if (tracker.pending_since == 0.0) {
 			tracker.pending = observed;
 			tracker.pending_since = now;
-		}
+		} else
+			tracker.pending = better(tracker.pending, observed);
 		const bool poor_only_from_pacing =
 			pacing_health == ConnectionHealth::Poor &&
 			loss_health != ConnectionHealth::Poor &&
 			queue_health != ConnectionHealth::Poor &&
 			latency_health != ConnectionHealth::Poor;
 		const double degradation_delay =
-			observed == ConnectionHealth::Poor && poor_only_from_pacing ? 2.0 : 1.0;
+			tracker.pending == ConnectionHealth::Poor && poor_only_from_pacing ? 2.0 : 1.0;
 		if (now - tracker.pending_since >= degradation_delay) {
-			tracker.displayed = observed;
+			tracker.displayed = tracker.pending;
 			tracker.pending_since = 0.0;
 		}
 		tracker.next_recovery_at = 0.0;
@@ -1346,7 +1353,6 @@ ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
 			tracker.next_recovery_at = now + 2.0;
 		}
 	} else {
-		tracker.pending_since = 0.0;
 		tracker.next_recovery_at = 0.0;
 	}
 
@@ -1490,6 +1496,13 @@ void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool co
 		drawFramePacingMeter(stats.timesync.local_frames_behind,
 			width - ImGui::CalcTextSize(sync_label).x);
 	};
+	if (!connected) {
+		ImGui::Dummy(ImVec2(width, height));
+		ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
+		textCentered("Disconnected");
+		ImGui::PopStyleColor();
+		return;
+	}
 
 	const ImVec4 text_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
 	const ImVec4 red(1.f, 0.2f, 0.2f, 1.f);
@@ -1535,13 +1548,7 @@ void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool co
 	draw_list->AddText(ImVec2(pos.x + width - ImGui::CalcTextSize(queue_value.c_str()).x, pos.y),
 					   ImGui::GetColorU32(queue_color), queue_value.c_str());
 	ImGui::Dummy(ImVec2(width, height));
-	if (connected) {
-		draw_pacing_row();
-	} else {
-		ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
-		textCentered("Disconnected");
-		ImGui::PopStyleColor();
-	}
+	draw_pacing_row();
 }
 
 void drawDetailedPlayerNetworkStats(int player, const proto::P2PMatching& matching,
