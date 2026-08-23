@@ -1201,9 +1201,8 @@ ConnectionHealth stableLatencyHealth(int ping) {
 	// Stable RTT still adds input delay, but must never look as severe as a
 	// connection that is actively losing packets or stalling.
 	if (ping <= 60) return ConnectionHealth::Excellent;
-	if (ping <= 80) return ConnectionHealth::Good;
-	if (ping <= 100) return ConnectionHealth::Medium;
-	return ConnectionHealth::Fair;
+	if (ping <= 180) return ConnectionHealth::Good;
+	return ConnectionHealth::Medium;
 }
 
 ConnectionHealth jitterHealth(int jitter) {
