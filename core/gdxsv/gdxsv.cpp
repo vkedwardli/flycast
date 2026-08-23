@@ -308,6 +308,11 @@ void Gdxsv::HookMainUiLoop() {
 
 std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 	std::stringstream ss;
+	// Without this, numeric fields below (e.g. udp_port) pick up the
+	// process-global locale set by i18n.cpp's std::locale::global(""),
+	// which under some locales inserts thousands separators (e.g.
+	// "58,348") that the server can't parse back as an integer.
+	ss.imbue(std::locale::classic());
 	ss << "cpu="
 	   <<
 #if HOST_CPU == CPU_X86

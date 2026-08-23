@@ -2,6 +2,7 @@
 #include <future>
 
 #include "gdxsv_network.h"
+#include "gdxsv_spectator_uplink.h"
 #include "lbs_message.h"
 
 class GdxsvBackendRollback {
@@ -61,6 +62,7 @@ class GdxsvBackendRollback {
 	proto::P2PMatching matching_;
 	proto::P2PMatchingReport report_;
 	UdpPingPong ping_pong_;
+	GdxsvSpectatorUplink spectator_uplink_;
 	std::future<bool> start_network_;
 
 	int64_t start_at_ = 0;

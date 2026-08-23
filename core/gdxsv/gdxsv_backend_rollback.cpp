@@ -103,6 +103,7 @@ void GdxsvBackendRollback::Reset() {
 	matching_.Clear();
 	report_.Clear();
 	ping_pong_.Reset();
+	spectator_uplink_.Stop();
 	start_network_ = std::future<bool>();
 
 	start_at_ = 0;
@@ -407,6 +408,8 @@ void GdxsvBackendRollback::Prepare(const proto::P2PMatching& matching, int port)
 		}
 	}
 	ping_pong_.Start(matching.session_id(), matching.peer_id(), port, matching.ping_test_duration());
+	spectator_uplink_.Start(gdxsv.lbs_net_.RemoteHost(), gdxsv.lbs_net_.RemotePort(), matching.battle_code(),
+							 matching.session_id(), matching.is_training_game());
 
 	report_.Clear();
 	report_.set_battle_code(matching.battle_code());
@@ -446,6 +449,7 @@ void GdxsvBackendRollback::Close() {
 	osd_network_stat_ = false;
 	error_fast_return_ = false;
 	SaveReplay();
+	spectator_uplink_.Stop();
 	gdxsv.key_display_.enabled(false);
 	state_ = State::Closed;
 	EventManager::event(Event::GGPOGameEnd);
@@ -523,6 +527,11 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 		if (!matching_.is_training_game()) {
 			input_logs_.emplace_back(frame, inputs);
+			// PushInput's index must match SaveReplay()'s ordinal position
+			// in input_logs_ (the Nth confirmed input), not GGPO's raw
+			// frame counter - the two diverge because GGPO's frame count
+			// doesn't start at 0 when battle input recording begins.
+			spectator_uplink_.PushInput(static_cast<int32_t>(input_logs_.size()) - 1, inputs);
 		}
 		return inputs;
 	};
@@ -578,6 +587,9 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			round_data_.back().add_used_ms(ms_index + 1);  // 0-origin → 1-origin
 			NOTICE_LOG(COMMON, "%d USED MS = %d", i, ms_index + 1);
 		}
+		spectator_uplink_.PushRoundResult(
+			static_cast<int32_t>(round_data_.size()) - 1, round_data_.back().win_team(),
+			std::vector<int32_t>(round_data_.back().used_ms().begin(), round_data_.back().used_ms().end()));
 	}
 
 	// Fast disconnect dialog appear
@@ -695,6 +707,9 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			start_msg_indexes_.emplace_back(frame, input_logs_.size());
 			start_msg_randoms_.emplace_back(frame, rand_value);
 			round_data_.resize(start_msg_indexes_.size());
+			// Mirrors PushInput: use the ordinal position (matching
+			// start_msg_indexes_'s saved kv.second), not the raw frame.
+			spectator_uplink_.PushRoundEvent(static_cast<int32_t>(input_logs_.size()), static_cast<uint64_t>(rand_value));
 		}
 
 		if (ok && exInput == ExInputWaitLoadEnd) {
