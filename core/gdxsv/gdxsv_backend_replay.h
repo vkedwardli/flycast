@@ -48,13 +48,24 @@ class GdxsvBackendReplay {
 	void ProcessMcsMessage(const McsMessage& msg);
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
-	void RunFrameSilently(bool skip_rendering);
+	void BeginSilentSeek();
+	void RunSilentSeekFrame(bool skip_rendering);
+	void EndSilentSeek();
+	void BeginSilentSeekWithAudioReset();
+	void EndSilentSeekWithAudioReset();
+	void SendStartMsgs();
+	void PrepareRoundStartReplayState();
 	void RebuildKeyDisplay() const;
+	void BeginLoadingHud();
+	void CancelPendingTakeover();
 	void RenderPauseMenu();
+	void RenderTakeoverAlignment(u16 current_input);
 	void RenderTakeoverCountdown();
 	void UpdateControlBarVisibility();
 	void RenderControlBar();
-	void GetRoundBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
+	void RenderLoadingHud();
+	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
+	void GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const;
 	const char* SpeedText() const;
 
 	struct ReplayCtrlCommand {
@@ -147,7 +158,8 @@ class GdxsvBackendReplay {
 	int pov_ = 0;
 	int key_msg_count_ = 0;
 	int start_msg_count_ = 0;
-	int round_start_frame_ = 0;
+	int briefing_start_frame_ = 0;
+	int briefing_start_frame_round_ = 0;
 	int recv_delay_ = 0;
 	bool end_of_frame_ = false;
 	bool seeking_ = false;
@@ -158,6 +170,8 @@ class GdxsvBackendReplay {
 	int ctrl_play_speed_ = 0;
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
+	bool ctrl_loading_ = false;
+	int ctrl_loading_wait_frames_ = 0;
 	bool save_converted_log_ = false;
 
 	float ctrl_bar_visibility_ = 0.0f;
@@ -169,9 +183,16 @@ class GdxsvBackendReplay {
 	float flash_right_ = 0.0f;
 	float flash_up_ = 0.0f;
 	float flash_down_ = 0.0f;
+	float ctrl_bar_prev_mouse_x_ = -1.0f;
+	float ctrl_bar_prev_mouse_y_ = -1.0f;
+	bool ctrl_bar_dragging_ = false;
+	int ctrl_bar_drag_target_frame_ = -1;
+	bool ctrl_input_release_pending_ = false;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
 	int takeover_countdown_ = 0;
+	bool takeover_aligning_ = false;
+	u16 takeover_target_input_ = 0;
 	std::deque<u16> takeover_input_buf_;
 };

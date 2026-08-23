@@ -8,6 +8,7 @@
 #include "oslib/http_client.h"
 #include "sleep.h"
 #include "gdxsv.h"
+#include "gdxsv_https_latency.h"
 #include "juice_helper.h"
 
 #ifndef _WIN32
@@ -293,69 +294,26 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 
 		// Function to test a single region
 		auto test_region = [&get_path](const std::tuple<std::string, std::string, std::string> &region_host) -> std::pair<std::string, int> {
-			TcpClient client;
-			if (!client.Connect(std::get<1>(region_host).c_str(), 80)) {
-				ERROR_LOG(COMMON, "connect failed : %s", std::get<0>(region_host).c_str());
-				return {"", -1};
+			const GdxsvHttpsLatencyResult latency = measureGdxsvHttpsLatency(std::get<1>(region_host), get_path, 3);
+			for (size_t i = 0; i < latency.attempts_ms.size(); i++)
+			{
+				const int rtt = latency.attempts_ms[i];
+				NOTICE_LOG(COMMON, "%s : attempt %d: %d[ms]", std::get<2>(region_host).c_str(), (int)i + 1, rtt);
 			}
 
-			int min_rtt = -1;
-			for (int i = 0; i < 3; i++) {
-				std::stringstream ss;
-				ss << "HEAD " << get_path << " HTTP/1.1"
-				   << "\r\n";
-				ss << "Host: " << std::get<1>(region_host) << "\r\n";
-				ss << "User-Agent: flycast for gdxsv"
-				   << "\r\n";
-				ss << "Connection: keep-alive"
-				   << "\r\n";
-				ss << "Accept: */*"
-				   << "\r\n";
-				ss << "\r\n";  // end of header
-
-				auto request_header = ss.str();
-				auto t1 = std::chrono::high_resolution_clock::now();
-				int n = client.Send(request_header.c_str(), (int)request_header.size());
-				if (n < request_header.size()) {
-					ERROR_LOG(COMMON, "send failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
-					break;
-				}
-
-				char buf[1024] = {0};
-				n = client.Recv(buf, 1024);
-				if (n <= 0) {
-					ERROR_LOG(COMMON, "recv failed : %s (attempt %d)", std::get<0>(region_host).c_str(), i + 1);
-					break;
-				}
-
-				auto t2 = std::chrono::high_resolution_clock::now();
-				int rtt = (int)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
-				const std::string response_header(buf, n);
-				if (response_header.find("200 OK") == std::string::npos && response_header.find("302 Found") == std::string::npos) {
-					ERROR_LOG(COMMON, "error response : %s (attempt %d)", response_header.c_str(), i + 1);
-					break;
-				}
-
-				NOTICE_LOG(COMMON, "%s : attempt %d: %d[ms]", std::get<2>(region_host).c_str(), i + 1, rtt);
-
-				if (min_rtt == -1 || rtt < min_rtt) {
-					min_rtt = rtt;
-				}
-			}
-
-			client.Close();
-
-			if (min_rtt == -1) {
-				ERROR_LOG(COMMON, "Ping test failed for all attempts : %s", std::get<0>(region_host).c_str());
+			if (!latency.ok)
+			{
+				ERROR_LOG(COMMON, "Ping test failed : %s status=%d error=%s", std::get<0>(region_host).c_str(),
+						  latency.status, latency.error.c_str());
 				return {"", -1};
 			}
 
 			char latency_str[256];
-			snprintf(latency_str, 256, "%s : %d[ms]", std::get<2>(region_host).c_str(), min_rtt);
+			snprintf(latency_str, 256, "%s : %d[ms]", std::get<2>(region_host).c_str(), latency.min_ms);
 			NOTICE_LOG(COMMON, "%s", latency_str);
 			gdxsv.SetPingResult(std::string(latency_str));
 
-			return {std::get<0>(region_host), min_rtt};
+			return {std::get<0>(region_host), latency.min_ms};
 		};
 
 		// Execute ping tests with max 6 parallel workers

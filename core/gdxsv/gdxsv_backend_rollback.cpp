@@ -1,6 +1,9 @@
 #include "gdxsv_backend_rollback.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <deque>
 #include <future>
 #include <map>
 #include <string>
@@ -18,6 +21,7 @@
 #include "network/ggpo.h"
 #include "network/net_platform.h"
 #include "oslib/http_client.h"
+#include "ui/IconsFontAwesome6.h"
 #include "ui/gui_util.h"
 #include "rend/transform_matrix.h"
 
@@ -88,6 +92,7 @@ void GdxsvBackendRollback::Reset() {
 	state_ = State::None;
 	is_local_test_ = false;
 	error_fast_return_ = false;
+	ggpo_game_renderer_reset_ = false;
 	osd_network_stat_ = false;
 	osd_network_stat_countdown_ = 0;
 	start_button_counter_ = 0;
@@ -299,6 +304,8 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 
 	// Friend save scene
 	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 4 && ggpo::active() && !ggpo::isInRollback()) {
+		ResetGgpoGameRendererState();
+
 		int frame = 0;
 		ggpo::getCurrentFrame(&frame);
 
@@ -414,6 +421,7 @@ void GdxsvBackendRollback::Open() {
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Open");
 	recv_buf_.assign({0x0e, 0x61, 0x00, 0x22, 0x10, 0x31, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd});
 	state_ = State::McsSessionExchange;
+	ggpo_game_renderer_reset_ = false;
 	gdxsv.maxlag_ = 0;
 	ApplyPatch(true);
 	osd_network_stat_ = config::NetworkStats;
@@ -442,6 +450,14 @@ void GdxsvBackendRollback::Close() {
 	state_ = State::Closed;
 	EventManager::event(Event::GGPOGameEnd);
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Close Done");
+}
+
+void GdxsvBackendRollback::ResetGgpoGameRendererState() {
+	if (ggpo_game_renderer_reset_) {
+		return;
+	}
+	ggpo_game_renderer_reset_ = true;
+	EventManager::event(Event::GGPOGameEnd);
 }
 
 u32 GdxsvBackendRollback::OnSockWrite(u32 addr, u32 size) {
@@ -1118,6 +1134,447 @@ void textCentered(std::string text) {
 	ImGui::Text(text.c_str());
 }
 
+const ImVec4 kNetworkStatBarColor(0.557f, 0.268f, 0.965f, 1.f);
+const ImVec4 kNetworkStatWarningColor(0.6f, 0.2f, 0.2f, 1.f);
+
+enum class ConnectionHealth {
+	Excellent,
+	Good,
+	Medium,
+	Fair,
+	Poor,
+};
+
+struct LossEvent {
+	double time;
+	int count;
+};
+
+struct ConnectionHealthTracker {
+	bool loss_initialized = false;
+	int previous_loss_from = 0;
+	int previous_loss_to = 0;
+	std::deque<LossEvent> loss_from_events;
+	std::deque<LossEvent> loss_to_events;
+	int recent_loss_from = 0;
+	int recent_loss_to = 0;
+
+	bool sample_initialized = false;
+	double last_sample_time = 0.0;
+	std::array<int, 10> ping_samples = {};
+	int ping_sample_count = 0;
+	int ping_sample_index = 0;
+	int ping_p20 = 0;
+	int ping_median = 0;
+	int ping_jitter = 0;
+
+	ConnectionHealth displayed = ConnectionHealth::Excellent;
+	ConnectionHealth pending = ConnectionHealth::Excellent;
+	double pending_since = 0.0;
+	double next_recovery_at = 0.0;
+};
+
+ConnectionHealth worse(ConnectionHealth lhs, ConnectionHealth rhs) {
+	return static_cast<int>(lhs) >= static_cast<int>(rhs) ? lhs : rhs;
+}
+
+ConnectionHealth better(ConnectionHealth lhs, ConnectionHealth rhs) {
+	return static_cast<int>(lhs) <= static_cast<int>(rhs) ? lhs : rhs;
+}
+
+ConnectionHealth lossHealth(int loss) {
+	if (loss == 0) return ConnectionHealth::Excellent;
+	if (loss <= 2) return ConnectionHealth::Good;
+	if (loss <= 4) return ConnectionHealth::Medium;
+	if (loss <= 7) return ConnectionHealth::Fair;
+	return ConnectionHealth::Poor;
+}
+
+ConnectionHealth queueHealth(int queue_excess) {
+	if (queue_excess <= 1) return ConnectionHealth::Excellent;
+	if (queue_excess == 2) return ConnectionHealth::Good;
+	if (queue_excess <= 4) return ConnectionHealth::Medium;
+	if (queue_excess <= 7) return ConnectionHealth::Fair;
+	return ConnectionHealth::Poor;
+}
+
+ConnectionHealth stableLatencyHealth(int ping) {
+	// Stable RTT still adds input delay, but must never look as severe as a
+	// connection that is actively losing packets or stalling.
+	if (ping <= 60) return ConnectionHealth::Excellent;
+	if (ping <= 180) return ConnectionHealth::Good;
+	return ConnectionHealth::Medium;
+}
+
+ConnectionHealth jitterHealth(int jitter) {
+	if (jitter <= 5) return ConnectionHealth::Excellent;
+	if (jitter <= 10) return ConnectionHealth::Good;
+	if (jitter <= 15) return ConnectionHealth::Medium;
+	if (jitter <= 20) return ConnectionHealth::Fair;
+	return ConnectionHealth::Poor;
+}
+
+ConnectionHealth latencySpikeHealth(int spike) {
+	if (spike <= 10) return ConnectionHealth::Excellent;
+	if (spike <= 15) return ConnectionHealth::Good;
+	if (spike <= 20) return ConnectionHealth::Medium;
+	if (spike <= 35) return ConnectionHealth::Fair;
+	return ConnectionHealth::Poor;
+}
+
+ConnectionHealth pacingHealth(int frame_skew) {
+	const int skew = std::abs(frame_skew);
+	if (skew <= 2) return ConnectionHealth::Excellent;
+	if (skew <= 4) return ConnectionHealth::Good;
+	if (skew <= 6) return ConnectionHealth::Medium;
+	if (skew <= 8) return ConnectionHealth::Fair;
+	return ConnectionHealth::Poor;
+}
+
+template <size_t N>
+void addSample(std::array<int, N>& samples, int& count, int& index, int value) {
+	samples[index] = value;
+	index = (index + 1) % N;
+	count = std::min(count + 1, static_cast<int>(N));
+}
+
+template <size_t N>
+std::array<int, N> sortedSamples(const std::array<int, N>& samples, int count) {
+	auto sorted = samples;
+	std::sort(sorted.begin(), sorted.begin() + count);
+	return sorted;
+}
+
+ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
+										const ggpo::NetworkStats& stats) {
+	const double now = ImGui::GetTime();
+	const int loss_from = stats.network.recv_packet_loss;
+	const int loss_to = stats.network.send_packet_loss;
+	if (!tracker.loss_initialized || loss_from < tracker.previous_loss_from || loss_to < tracker.previous_loss_to) {
+		tracker = {};
+		tracker.loss_initialized = true;
+		tracker.previous_loss_from = loss_from;
+		tracker.previous_loss_to = loss_to;
+	} else {
+		if (loss_from > tracker.previous_loss_from) {
+			const int loss = loss_from - tracker.previous_loss_from;
+			tracker.loss_from_events.push_back({now, loss});
+			tracker.recent_loss_from += loss;
+		}
+		if (loss_to > tracker.previous_loss_to) {
+			const int loss = loss_to - tracker.previous_loss_to;
+			tracker.loss_to_events.push_back({now, loss});
+			tracker.recent_loss_to += loss;
+		}
+		tracker.previous_loss_from = loss_from;
+		tracker.previous_loss_to = loss_to;
+	}
+	while (!tracker.loss_from_events.empty() && now - tracker.loss_from_events.front().time > 2.0) {
+		tracker.recent_loss_from -= tracker.loss_from_events.front().count;
+		tracker.loss_from_events.pop_front();
+	}
+	while (!tracker.loss_to_events.empty() && now - tracker.loss_to_events.front().time > 2.0) {
+		tracker.recent_loss_to -= tracker.loss_to_events.front().count;
+		tracker.loss_to_events.pop_front();
+	}
+	const int recent_loss = std::max(tracker.recent_loss_from, tracker.recent_loss_to);
+
+	if (!tracker.sample_initialized || now - tracker.last_sample_time >= 1.0) {
+		tracker.sample_initialized = true;
+		tracker.last_sample_time = now;
+		if (stats.network.ping > 0) {
+			addSample(tracker.ping_samples, tracker.ping_sample_count, tracker.ping_sample_index,
+					  stats.network.ping);
+			if (tracker.ping_sample_count >= 4) {
+				const auto pings = sortedSamples(tracker.ping_samples, tracker.ping_sample_count);
+				tracker.ping_p20 = pings[(tracker.ping_sample_count - 1) / 5];
+				tracker.ping_median = pings[(tracker.ping_sample_count - 1) / 2];
+				tracker.ping_jitter = pings[(tracker.ping_sample_count - 1) * 9 / 10] -
+									  pings[(tracker.ping_sample_count - 1) / 10];
+			}
+		}
+	}
+
+	int latency_spike = 0;
+	if (tracker.ping_sample_count >= 4)
+		latency_spike = std::max(stats.network.ping - tracker.ping_p20, 0);
+	const int stable_ping = tracker.ping_sample_count >= 4 ? tracker.ping_median : stats.network.ping;
+	ConnectionHealth latency_health = stableLatencyHealth(stable_ping);
+	latency_health = worse(latency_health, jitterHealth(tracker.ping_jitter));
+	latency_health = worse(latency_health, latencySpikeHealth(latency_spike));
+
+	const int frame_skew = stats.timesync.local_frames_behind;
+	constexpr double frame_time_ms = 1000.0 / 59.94;
+	// One pending input per elapsed game frame is normal while waiting for an
+	// acknowledgement. Only count queue growth beyond the RTT-sized window.
+	const int expected_queue = stats.network.ping > 0
+		? static_cast<int>(std::ceil(stats.network.ping / frame_time_ms))
+		: 0;
+	const int queue_excess = std::max(stats.network.send_queue_len - expected_queue, 0);
+	const ConnectionHealth loss_health = lossHealth(recent_loss);
+	const ConnectionHealth queue_health = queueHealth(queue_excess);
+	const ConnectionHealth pacing_health = pacingHealth(frame_skew);
+
+	ConnectionHealth observed = ConnectionHealth::Excellent;
+	observed = worse(observed, loss_health);
+	observed = worse(observed, queue_health);
+	observed = worse(observed, latency_health);
+	observed = worse(observed, pacing_health);
+
+	// Loss is actionable immediately. Other problems must persist for one
+	// second; severe pacing alone must persist for two seconds.
+	tracker.displayed = worse(tracker.displayed, loss_health);
+	if (static_cast<int>(observed) > static_cast<int>(tracker.displayed)) {
+		// Keep one timer across bad-bucket changes. Equal samples do not erase
+		// degradation evidence already accumulated at a worse level.
+		if (tracker.pending_since == 0.0) {
+			tracker.pending = observed;
+			tracker.pending_since = now;
+		} else
+			tracker.pending = better(tracker.pending, observed);
+		const bool poor_only_from_pacing =
+			pacing_health == ConnectionHealth::Poor &&
+			loss_health != ConnectionHealth::Poor &&
+			queue_health != ConnectionHealth::Poor &&
+			latency_health != ConnectionHealth::Poor;
+		const double degradation_delay =
+			tracker.pending == ConnectionHealth::Poor && poor_only_from_pacing ? 2.0 : 1.0;
+		if (now - tracker.pending_since >= degradation_delay) {
+			tracker.displayed = tracker.pending;
+			tracker.pending_since = 0.0;
+		}
+		tracker.next_recovery_at = 0.0;
+	} else if (static_cast<int>(observed) < static_cast<int>(tracker.displayed)) {
+		tracker.pending_since = 0.0;
+		if (tracker.next_recovery_at == 0.0)
+			tracker.next_recovery_at = now + 3.0;
+		else if (now >= tracker.next_recovery_at) {
+			tracker.displayed = static_cast<ConnectionHealth>(static_cast<int>(tracker.displayed) - 1);
+			tracker.next_recovery_at = now + 2.0;
+		}
+	} else {
+		tracker.next_recovery_at = 0.0;
+	}
+
+	return tracker.displayed;
+}
+
+void drawSegmentedMeter(int segment_count, int fill_count, const ImVec4& fill_color) {
+	const float line_height = ImGui::GetTextLineHeight();
+	const ImVec2 pos = ImGui::GetCursorScreenPos();
+	const float width = std::max(ImGui::GetContentRegionAvail().x, line_height * 2.f);
+	const float gap = std::max(1.f, line_height * 0.1f);
+	const float segment_width = (width - gap * (segment_count - 1)) / segment_count;
+	const float segment_height = std::max(3.f, line_height * 0.5f);
+	const float y = pos.y + (line_height - segment_height) * 0.5f + 1.f;
+
+	ImDrawList *draw_list = ImGui::GetWindowDrawList();
+	ImVec4 empty = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+	empty.w *= 0.4f;
+	const ImU32 empty_color = ImGui::GetColorU32(empty);
+	const ImU32 active_color = ImGui::GetColorU32(fill_color);
+	for (int i = 0; i < segment_count; ++i) {
+		const float left = pos.x + i * (segment_width + gap);
+		const ImVec2 min(left, y);
+		const ImVec2 max(left + segment_width, y + segment_height);
+		draw_list->AddRectFilled(min, max, i < fill_count ? active_color : empty_color, segment_height * 0.2f);
+	}
+	ImGui::Dummy(ImVec2(width, line_height));
+}
+
+void drawLagMeter(ConnectionHealth health) {
+	ImGui::TextUnformatted("Lag");
+	ImGui::SameLine();
+	const int fill_count = health == ConnectionHealth::Poor ? 5 : static_cast<int>(health);
+	ImVec4 fill_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+	fill_color.w = 0.75f;
+	if (health == ConnectionHealth::Medium)
+		fill_color = ImVec4(1.f, 0.85f, 0.f, 1.f);
+	else if (health == ConnectionHealth::Fair)
+		fill_color = ImVec4(1.f, 0.5f, 0.f, 1.f);
+	else if (health == ConnectionHealth::Poor)
+		fill_color = ImVec4(1.f, 0.15f, 0.12f, 1.f);
+	drawSegmentedMeter(5, fill_count, fill_color);
+}
+
+void drawFramePacingMeter(int local_frames_behind, float requested_width = -1.f) {
+	const ImVec2 pos = ImGui::GetCursorScreenPos();
+	const float available_width = ImGui::GetContentRegionAvail().x;
+	const float width = requested_width > 0.f ? std::min(requested_width, available_width) : available_width;
+	const float height = ImGui::GetTextLineHeight();
+	const float meter_left = pos.x;
+	const float meter_right = pos.x + width;
+	const float track_padding = height * 0.2f;
+	const float track_left = meter_left + track_padding;
+	const float track_right = meter_right - track_padding;
+	const float center = (track_left + track_right) * 0.5f;
+	const float y = pos.y + height * 0.5f;
+	const int frame_offset = std::clamp(local_frames_behind, -8, 8);
+	const float marker = center - (track_right - track_left) * frame_offset / 16.f;
+	const float warning = std::clamp((std::abs(frame_offset) - 3.f) / 5.f, 0.f, 1.f);
+	const ImVec4 pacing_color(
+		kNetworkStatBarColor.x + (kNetworkStatWarningColor.x - kNetworkStatBarColor.x) * warning,
+		kNetworkStatBarColor.y + (kNetworkStatWarningColor.y - kNetworkStatBarColor.y) * warning,
+		kNetworkStatBarColor.z + (kNetworkStatWarningColor.z - kNetworkStatBarColor.z) * warning,
+		1.f);
+	ImDrawList *draw_list = ImGui::GetWindowDrawList();
+	const ImU32 text_color = ImGui::GetColorU32(ImGuiCol_Text);
+	const ImU32 track_color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+	const ImU32 frame_color = ImGui::GetColorU32(ImGuiCol_FrameBg);
+	const ImU32 pacing_color_u32 = ImGui::GetColorU32(pacing_color);
+
+	draw_list->AddRectFilled(ImVec2(meter_left, pos.y), ImVec2(meter_right, pos.y + height), frame_color,
+						 std::min(ImGui::GetStyle().FrameRounding, height * 0.5f));
+	draw_list->AddLine(ImVec2(track_left, y), ImVec2(track_right, y), track_color,
+					   std::max(1.f, height * 0.075f));
+	draw_list->AddLine(ImVec2(center, y), ImVec2(marker, y), pacing_color_u32,
+					   std::max(1.f, height * 0.85f));
+	draw_list->AddLine(ImVec2(center, y - height * 0.45f), ImVec2(center, y + height * 0.45f), text_color,
+					   std::max(1.5f, height * 0.14f));
+	const char *slow_subject = frame_offset >= 5 ? "You" : frame_offset <= -5 ? "Peer" : nullptr;
+	if (slow_subject != nullptr) {
+		const float half_space_width = ImGui::CalcTextSize("  ").x * 0.5f;
+		const float subject_width = ImGui::CalcTextSize(slow_subject).x;
+		draw_list->AddText(ImVec2(center - half_space_width - subject_width, pos.y), text_color, slow_subject);
+		draw_list->AddText(ImVec2(center + half_space_width, pos.y), text_color, "Slow");
+	}
+	ImGui::Dummy(ImVec2(width, height));
+}
+
+void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool connected) {
+	static bool loss_initialized[4] = {};
+	static int previous_loss_from[4] = {};
+	static int previous_loss_to[4] = {};
+	static double loss_from_highlight_until[4] = {};
+	static double loss_to_highlight_until[4] = {};
+	static int loss_from_highlight_grade[4] = {};
+	static int loss_to_highlight_grade[4] = {};
+
+	const int loss_from = stats.network.recv_packet_loss;
+	const int loss_to = stats.network.send_packet_loss;
+	const double now = ImGui::GetTime();
+	if (!loss_initialized[player] || loss_from < previous_loss_from[player] || loss_to < previous_loss_to[player]) {
+		loss_initialized[player] = true;
+		previous_loss_from[player] = loss_from;
+		previous_loss_to[player] = loss_to;
+		loss_from_highlight_until[player] = 0.0;
+		loss_to_highlight_until[player] = 0.0;
+		loss_from_highlight_grade[player] = 0;
+		loss_to_highlight_grade[player] = 0;
+	} else {
+		const auto update_loss_highlight = [&](int loss, int& previous, double& highlight_until,
+											 int& highlight_grade) {
+			if (loss < previous) {
+				previous = loss;
+				highlight_until = 0.0;
+				highlight_grade = 0;
+			} else if (loss > previous) {
+				const int new_losses = loss - previous;
+				highlight_grade = now < highlight_until
+					? std::min(highlight_grade + new_losses, 5)
+					: std::min(new_losses, 5);
+				previous = loss;
+				highlight_until = now + 0.3;
+			} else if (now >= highlight_until) {
+				highlight_grade = 0;
+			}
+		};
+		update_loss_highlight(loss_from, previous_loss_from[player], loss_from_highlight_until[player],
+								  loss_from_highlight_grade[player]);
+		update_loss_highlight(loss_to, previous_loss_to[player], loss_to_highlight_until[player],
+								  loss_to_highlight_grade[player]);
+	}
+
+	const ImVec2 pos = ImGui::GetCursorScreenPos();
+	const float width = ImGui::GetContentRegionAvail().x;
+	const float height = ImGui::GetTextLineHeight();
+	const ImVec4 orange(1.f, 0.55f, 0.1f, 1.f);
+	const auto draw_pacing_row = [&]() {
+		constexpr float icon_scale = 0.8f;
+		const float icon_size = ImGui::GetFontSize() * icon_scale;
+		const float icon_width = ImGui::CalcTextSize(ICON_FA_CLOCK).x * icon_scale;
+		const float icon_spacing = ImGui::CalcTextSize(" ").x * 0.5f;
+		const ImVec2 icon_pos = ImGui::GetCursorScreenPos();
+		ImGui::GetWindowDrawList()->AddText(
+			ImGui::GetFont(), icon_size,
+			ImVec2(icon_pos.x, icon_pos.y + (height - icon_size) * 0.5f),
+			ImGui::GetColorU32(ImGuiCol_Text), ICON_FA_CLOCK);
+		ImGui::Dummy(ImVec2(icon_width, height));
+		ImGui::SameLine(0.f, icon_spacing);
+		drawFramePacingMeter(stats.timesync.local_frames_behind,
+			width - icon_width - icon_spacing);
+	};
+	if (!connected) {
+		ImGui::Dummy(ImVec2(width, height));
+		ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
+		textCentered("Disconnected");
+		ImGui::PopStyleColor();
+		return;
+	}
+
+	const ImVec4 text_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+	const ImVec4 red(1.f, 0.2f, 0.2f, 1.f);
+	const auto loss_highlight_color = [&](int grade) {
+		const float blend = (std::clamp(grade, 1, 5) - 1.f) / 4.f;
+		return ImVec4(1.f, 0.65f * (1.f - blend), 0.15f * (1.f - blend), 1.f);
+	};
+	const int queue = stats.network.send_queue_len;
+	ImVec4 queue_color = text_color;
+	if (queue >= 5 && queue <= 7) {
+		const float blend = (queue - 4.f) / 3.f;
+		queue_color = ImVec4(text_color.x + (orange.x - text_color.x) * blend,
+							 text_color.y + (orange.y - text_color.y) * blend,
+							 text_color.z + (orange.z - text_color.z) * blend, 1.f);
+	} else if (queue >= 8) {
+		const float blend = std::min((queue - 7.f) / 3.f, 1.f);
+		queue_color = ImVec4(orange.x + (red.x - orange.x) * blend,
+							 orange.y + (red.y - orange.y) * blend,
+							 orange.z + (red.z - orange.z) * blend, 1.f);
+	}
+
+	ImDrawList *draw_list = ImGui::GetWindowDrawList();
+	float x = pos.x;
+	const auto draw_text = [&](const std::string& text, const ImVec4& color) {
+		draw_list->AddText(ImVec2(x, pos.y), ImGui::GetColorU32(color), text.c_str());
+		x += ImGui::CalcTextSize(text.c_str()).x;
+	};
+	draw_text("L: ", text_color);
+	const std::string loss_from_text = "↓ " + std::to_string(loss_from);
+	const std::string loss_to_text = "↑ " + std::to_string(loss_to);
+	draw_text(loss_from_text,
+			  now < loss_from_highlight_until[player]
+				  ? loss_highlight_color(loss_from_highlight_grade[player]) : text_color);
+	draw_text(" ", text_color);
+	draw_text(loss_to_text,
+			  now < loss_to_highlight_until[player]
+				  ? loss_highlight_color(loss_to_highlight_grade[player]) : text_color);
+	const char *queue_label = "Q:";
+	const std::string queue_value = std::to_string(queue);
+	const float queue_width = ImGui::CalcTextSize("Q:99").x;
+	const float queue_left = pos.x + width - queue_width;
+	draw_list->AddText(ImVec2(queue_left, pos.y), ImGui::GetColorU32(text_color), queue_label);
+	draw_list->AddText(ImVec2(pos.x + width - ImGui::CalcTextSize(queue_value.c_str()).x, pos.y),
+					   ImGui::GetColorU32(queue_color), queue_value.c_str());
+	ImGui::Dummy(ImVec2(width, height));
+	draw_pacing_row();
+}
+
+void drawDetailedPlayerNetworkStats(int player, const proto::P2PMatching& matching,
+									const ggpo::NetworkStats& stats, bool connected) {
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::Text("%dP:%s", player + 1, matching.users(player).user_id().c_str());
+	std::string ping = connected
+		? std::to_string(stats.network.ping) + (stats.network.is_relay ? "(R)" : "") : "--";
+	ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(ping.c_str()).x);
+	ImGui::PushStyleColor(ImGuiCol_Text, msColor(connected ? stats.network.ping : 999).Value);
+	ImGui::Text("%s", ping.c_str());
+	ImGui::PopStyleColor();
+	textCentered(matching.users(player).pilot_name());
+	drawNetworkDiagnostics(player, stats, connected);
+}
+
 void drawNetworkStat(const proto::P2PMatching& matching) {
 	auto me = matching.peer_id();
 	static ggpo::NetworkStats stats[4] = {};
@@ -1129,82 +1586,150 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 		}
 	}
 
+	const int remote_players = std::max(matching.users_size() - 1, 0);
+	static std::array<ConnectionHealthTracker, 4> health_trackers;
+	static std::array<std::string, 4> tracked_user_ids;
+	std::array<ConnectionHealth, 4> health;
+	for (int i = 0; i < matching.users_size(); ++i) {
+		if (i == me) continue;
+		if (tracked_user_ids[i] != matching.users(i).user_id()) {
+			health_trackers[i] = {};
+			tracked_user_ids[i] = matching.users(i).user_id();
+		}
+		if (is_connected[i])
+			health[i] = updateConnectionHealth(health_trackers[i], stats[i]);
+		else
+			health_trackers[i] = {};
+	}
+
+	static bool panel_bounds_valid = false;
+	static ImVec2 panel_min;
+	static ImVec2 panel_max;
+	const ImVec2 mouse = ImGui::GetIO().MousePos;
+	const ImVec2 display_size = ImGui::GetIO().DisplaySize;
+	const bool mouse_in_window = ImGui::IsMousePosValid(&mouse) && mouse.x >= 0.f && mouse.x < display_size.x &&
+											 mouse.y >= 0.f && mouse.y < display_size.y;
+	const bool show_details = mouse_in_window && panel_bounds_valid && mouse.x >= panel_min.x &&
+											 mouse.x <= panel_max.x && mouse.y >= panel_min.y && mouse.y <= panel_max.y;
+	const float battle_hud_scale = display_size.y / 960.f;
+	const float panel_top = (192.f + 21.f) * battle_hud_scale;
+	const float panel_bottom = display_size.y - (205.f + 21.f) * battle_hud_scale;
+	const float max_height = panel_bottom - panel_top;
+	const float left_margin = 30.f * battle_hud_scale;
+	const float title_height = 20.f * battle_hud_scale;
+	const float title_body_spacing = 4.f * battle_hud_scale;
+	const ImGuiStyle& style = ImGui::GetStyle();
+	// Keep both views at the refined diagnostic layout's scale and width so
+	// hovering changes only the content, not the panel geometry or typography.
+	const int content_rows = 3 + remote_players * 4;
+	const float natural_item_spacing_y = std::max(style.ItemSpacing.y, ImGui::GetTextLineHeight() * 0.7f);
+	const float scalable_height = style.WindowPadding.y * 2.f +
+									  content_rows * (ImGui::GetTextLineHeight() + natural_item_spacing_y) +
+									  remote_players * (1.f + natural_item_spacing_y * 3.f);
+	const float panel_scale = std::min(1.f, (max_height - title_height - title_body_spacing) / scalable_height);
+	const float window_width = 160.f * settings.display.uiScale * panel_scale;
+	ImGui::PushFont(nullptr, style.FontSizeBase * panel_scale);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-	ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetIO().DisplaySize.y / 2.f), ImGuiCond_Always, ImVec2(0.0f, 0.5f));
-	ImGui::SetNextWindowSize(ImVec2(160 * settings.display.uiScale, 0));
-	ImGui::SetNextWindowBgAlpha(0.3f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, style.WindowPadding * panel_scale);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+						ImVec2(style.ItemSpacing.x * panel_scale, natural_item_spacing_y * panel_scale));
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, style.FramePadding * panel_scale);
+	ImGui::SetNextWindowPos(ImVec2(left_margin, panel_top), ImGuiCond_Always);
+	ImGui::SetNextWindowSizeConstraints(ImVec2(window_width, 0), ImVec2(window_width, max_height));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.122f, 0.122f, 0.122f, 0.055f));
 	ImGui::Begin("##gdxsv_osd_network_stats", NULL,
 				 ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-	textCentered("Network Stats");
+	const ImVec2 content_pos = ImGui::GetCursorScreenPos();
+	const ImVec2 panel_pos = ImGui::GetWindowPos();
+	const ImVec2 title_size = ImGui::CalcTextSize("NETWORK STATS");
+	ImGui::GetWindowDrawList()->AddRectFilled(
+		panel_pos, panel_pos + ImVec2(window_width, title_height),
+		ImGui::GetColorU32(ImVec4(0.122f, 0.122f, 0.122f, 0.16f)));
+	ImGui::GetWindowDrawList()->AddText(
+		ImVec2(panel_pos.x + (window_width - title_size.x) * 0.5f,
+			   panel_pos.y + std::max(0.f, (title_height - title_size.y) * 0.5f)),
+		ImGui::GetColorU32(ImVec4(0.925f, 0.941f, 1.f, 0.24f)), "NETWORK STATS");
+	ImGui::SetCursorScreenPos(
+		ImVec2(content_pos.x, panel_pos.y + title_height + title_body_spacing + ImGui::GetStyle().WindowPadding.y));
 
 	// Frame Delay
 	ImGui::Text("Delay");
-	std::string delay = std::to_string(config::GGPODelay.get());
-	ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(delay.c_str()).x);
+	const int delay_frames = config::GGPODelay.get();
+	std::string delay = std::to_string(delay_frames) + "fr";
+	ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(delay.c_str()).x);
+	ImVec4 delay_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+	if (delay_frames >= 13)
+		delay_color = ImVec4(1.f, 0.15f, 0.12f, 1.f);
+	else if (delay_frames >= 10)
+		delay_color = ImVec4(1.f, 0.5f, 0.f, 1.f);
+	else if (delay_frames >= 5)
+		delay_color = ImVec4(1.f, 0.85f, 0.f, 1.f);
+	ImGui::PushStyleColor(ImGuiCol_Text, delay_color);
 	ImGui::Text("%s", delay.c_str());
+	ImGui::PopStyleColor();
 
-	ImGui::Text("Rollback");
-	ImGui::SameLine(ImGui::GetContentRegionAvail().x -
-					ImGui::CalcTextSize(std::to_string(stats[me].extra.total_rollbacked_frames).c_str()).x);
-	ImGui::Text("%d", stats[me].extra.total_rollbacked_frames);
-
-	const auto ts = std::to_string(stats[me].extra.current_timesync) + " / " + std::to_string(stats[me].extra.total_timesync);
-	ImGui::Text("Timesync");
-	ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ts.c_str()).x);
-	ImGui::Text(ts.c_str());
+	ImGui::Text("Roll: %d", stats[me].extra.total_rollbacked_frames);
+	const auto wait = "Wait:" + std::to_string(stats[me].extra.total_timesync);
+	ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(wait.c_str()).x);
+	ImGui::Text("%s", wait.c_str());
 
 	// Predicted Frames
-	if (stats[me].sync.predicted_frames < 0)
-		stats[me].sync.predicted_frames = 0;
-	if (stats[me].sync.predicted_frames >= 5)
-		// red
-		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.6f, .2f, .2f, 1));
-	ImGui::Text("Predicted");
-	ImGui::ProgressBar(stats[me].sync.predicted_frames / 5.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
-	if (stats[me].sync.predicted_frames >= 5) ImGui::PopStyleColor();
+	const int predicted_frames = std::clamp(stats[me].sync.predicted_frames, 0, 6);
+	ImVec4 predicted_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+	predicted_color.w = 0.75f;
+	if (predicted_frames == 4)
+		predicted_color = ImVec4(1.f, 0.85f, 0.f, 1.f);
+	else if (predicted_frames == 5)
+		predicted_color = ImVec4(1.f, 0.5f, 0.f, 1.f);
+	else if (predicted_frames == 6)
+		predicted_color = ImVec4(1.f, 0.15f, 0.12f, 1.f);
+	ImGui::Text("P:");
+	ImGui::SameLine();
+	drawSegmentedMeter(6, predicted_frames, predicted_color);
 
-	for (int i = 0; i < matching.users_size(); i++) {
-		if (i == matching.peer_id()) continue;
-		ImGui::Separator();
-		textCentered(std::to_string(i + 1) + "P: " + matching.users(i).user_id());
-		textCentered(matching.users(i).user_name());
-		textCentered(matching.users(i).pilot_name());
-
-		if (is_connected[i]) {
-			// Ping
+	if (show_details) {
+		for (int i = 0; i < matching.users_size(); ++i) {
+			if (i == me) continue;
+			drawDetailedPlayerNetworkStats(i, matching, stats[i], is_connected[i]);
+		}
+	} else {
+		for (int i = 0; i < matching.users_size(); ++i) {
+			if (i == me) continue;
+			ImGui::Spacing();
+			ImGui::Separator();
+			ImGui::Spacing();
+			textCentered(std::to_string(i + 1) + "P:" + matching.users(i).user_id());
+			textCentered(matching.users(i).user_name());
 			ImGui::Text("Ping");
-			if (stats[i].network.is_relay) {
+			if (is_connected[i] && stats[i].network.is_relay) {
 				ImGui::SameLine();
 				ImGui::Text("(Relay)");
 			}
-			ImGui::PushStyleColor(ImGuiCol_Text, msColor(stats[i].network.ping).Value);
-			std::string ping = std::to_string(stats[i].network.ping);
-			ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ping.c_str()).x);
+			std::string ping = is_connected[i] ? std::to_string(stats[i].network.ping) : "--";
+			ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(ping.c_str()).x);
+			ImGui::PushStyleColor(ImGuiCol_Text, msColor(is_connected[i] ? stats[i].network.ping : 999).Value);
 			ImGui::Text("%s", ping.c_str());
 			ImGui::PopStyleColor();
-		} else {
-			ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
-			textCentered("Disconnected");
-			ImGui::PopStyleColor();
+			if (is_connected[i]) {
+				drawLagMeter(health[i]);
+			} else {
+				ImGui::PushStyleColor(ImGuiCol_Text, msColor(999).Value);
+				textCentered("Disconnected");
+				ImGui::PopStyleColor();
+			}
 		}
-
-		ImGui::Text("Loss i/o");
-		std::string loss = std::to_string(stats[i].network.recv_packet_loss) + " / " + std::to_string(stats[i].network.send_packet_loss);
-		ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(loss.c_str()).x);
-		ImGui::Text("%s", loss.c_str());
-
-		// Send Queue
-		ImGui::Text("Send Q");
-		ImGui::ProgressBar(stats[i].network.send_queue_len / 10.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
-
-		ImGui::Text("Behind");
-		ImGui::ProgressBar(0.5f + stats[i].timesync.local_frames_behind / 16.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
 	}
+	ImGui::Spacing();
 
+	panel_min = ImGui::GetWindowPos();
+	panel_max = panel_min + ImGui::GetWindowSize();
+	panel_bounds_valid = true;
 	ImGui::PopStyleColor();
 	ImGui::End();
-	ImGui::PopStyleVar(2);
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar(5);
+	ImGui::PopFont();
 }
 }  // namespace

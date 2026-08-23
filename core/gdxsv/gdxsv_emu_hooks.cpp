@@ -122,7 +122,7 @@ bool gdxsv_emu_menu_open() {
 	return true;
 }
 
-bool gdxsv_widescreen_hack_enabled() { return gdxsv.Enabled() && config::WidescreenGameHacks; }
+bool gdxsv_widescreen_hack_enabled() { return gdxsv.Disk() == 1 && gdxsv.WidescreenPatchEnabled(); }
 
 static void gui_header(const char* title) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ScaledVec2(0.f, 0.5f));	// Left
@@ -256,25 +256,46 @@ static void gdxsv_update_popup() {
 		ImGui::PopTextWrapPos();
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
 		float currentwidth = ImGui::GetContentRegionAvail().x;
-		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
-		if (GdxsvUpdate::IsSupportSelfUpdate()) {
-			if (ImGui::Button("Update", ScaledVec2(100.f, 0.f))) {
-				self_update_result = gdxsv_update.StartSelfUpdate();
-				update_popup_shown = true;
-				ImGui::CloseCurrentPopup();
-			}
-		} else {
+		const bool app_translocated = GdxsvUpdate::IsAppTranslocated();
+		if (app_translocated) {
+			ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
+			ImGui::TextWrapped("Please move Flycast-gdxsv.app to the /Applications folder, then reopen it to use the auto updater. Or download it and update manually.");
+			ImGui::PopTextWrapPos();
+			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
 			if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
 				os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
 				update_popup_shown = true;
 				ImGui::CloseCurrentPopup();
 			}
-		}
-		ImGui::SameLine();
-		ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
-		if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
-			update_popup_shown = true;
-			ImGui::CloseCurrentPopup();
+
+			ImGui::SameLine();
+			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
+			if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
+				update_popup_shown = true;
+				ImGui::CloseCurrentPopup();
+			}
+		} else {
+			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
+			if (GdxsvUpdate::IsSupportSelfUpdate()) {
+				if (ImGui::Button("Update", ScaledVec2(100.f, 0.f))) {
+					self_update_result = gdxsv_update.StartSelfUpdate();
+					update_popup_shown = true;
+					ImGui::CloseCurrentPopup();
+				}
+			} else {
+				if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
+					os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
+					update_popup_shown = true;
+					ImGui::CloseCurrentPopup();
+				}
+			}
+
+			ImGui::SameLine();
+			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
+			if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
+				update_popup_shown = true;
+				ImGui::CloseCurrentPopup();
+			}
 		}
 		ImGui::SetItemDefaultFocus();
 		ImGui::PopStyleVar();
