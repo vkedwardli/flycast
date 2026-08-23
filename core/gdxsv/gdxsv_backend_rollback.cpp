@@ -21,6 +21,7 @@
 #include "network/ggpo.h"
 #include "network/net_platform.h"
 #include "oslib/http_client.h"
+#include "ui/IconsFontAwesome6.h"
 #include "ui/gui_util.h"
 #include "rend/transform_matrix.h"
 
@@ -1489,11 +1490,19 @@ void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool co
 	const float height = ImGui::GetTextLineHeight();
 	const ImVec4 orange(1.f, 0.55f, 0.1f, 1.f);
 	const auto draw_pacing_row = [&]() {
-		const char *sync_label = "S:";
-		ImGui::TextUnformatted(sync_label);
-		ImGui::SameLine(0.f, 0.f);
+		constexpr float icon_scale = 0.8f;
+		const float icon_size = ImGui::GetFontSize() * icon_scale;
+		const float icon_width = ImGui::CalcTextSize(ICON_FA_CLOCK).x * icon_scale;
+		const float icon_spacing = ImGui::CalcTextSize(" ").x * 0.5f;
+		const ImVec2 icon_pos = ImGui::GetCursorScreenPos();
+		ImGui::GetWindowDrawList()->AddText(
+			ImGui::GetFont(), icon_size,
+			ImVec2(icon_pos.x, icon_pos.y + (height - icon_size) * 0.5f),
+			ImGui::GetColorU32(ImGuiCol_Text), ICON_FA_CLOCK);
+		ImGui::Dummy(ImVec2(icon_width, height));
+		ImGui::SameLine(0.f, icon_spacing);
 		drawFramePacingMeter(stats.timesync.local_frames_behind,
-			width - ImGui::CalcTextSize(sync_label).x);
+			width - icon_width - icon_spacing);
 	};
 	if (!connected) {
 		ImGui::Dummy(ImVec2(width, height));
@@ -1647,9 +1656,19 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 
 	// Frame Delay
 	ImGui::Text("Delay");
-	std::string delay = std::to_string(config::GGPODelay.get()) + "fr";
+	const int delay_frames = config::GGPODelay.get();
+	std::string delay = std::to_string(delay_frames) + "fr";
 	ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(delay.c_str()).x);
+	ImVec4 delay_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+	if (delay_frames >= 13)
+		delay_color = ImVec4(1.f, 0.15f, 0.12f, 1.f);
+	else if (delay_frames >= 10)
+		delay_color = ImVec4(1.f, 0.5f, 0.f, 1.f);
+	else if (delay_frames >= 5)
+		delay_color = ImVec4(1.f, 0.85f, 0.f, 1.f);
+	ImGui::PushStyleColor(ImGuiCol_Text, delay_color);
 	ImGui::Text("%s", delay.c_str());
+	ImGui::PopStyleColor();
 
 	ImGui::Text("Roll: %d", stats[me].extra.total_rollbacked_frames);
 	const auto wait = "Wait:" + std::to_string(stats[me].extra.total_timesync);
@@ -1657,18 +1676,18 @@ void drawNetworkStat(const proto::P2PMatching& matching) {
 	ImGui::Text("%s", wait.c_str());
 
 	// Predicted Frames
-	const int predicted_frames = std::clamp(stats[me].sync.predicted_frames, 0, 8);
+	const int predicted_frames = std::clamp(stats[me].sync.predicted_frames, 0, 6);
 	ImVec4 predicted_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
 	predicted_color.w = 0.75f;
-	if (predicted_frames == 6)
+	if (predicted_frames == 4)
 		predicted_color = ImVec4(1.f, 0.85f, 0.f, 1.f);
-	else if (predicted_frames == 7)
+	else if (predicted_frames == 5)
 		predicted_color = ImVec4(1.f, 0.5f, 0.f, 1.f);
-	else if (predicted_frames == 8)
+	else if (predicted_frames == 6)
 		predicted_color = ImVec4(1.f, 0.15f, 0.12f, 1.f);
 	ImGui::Text("P:");
 	ImGui::SameLine();
-	drawSegmentedMeter(8, predicted_frames, predicted_color);
+	drawSegmentedMeter(6, predicted_frames, predicted_color);
 
 	if (show_details) {
 		for (int i = 0; i < matching.users_size(); ++i) {
