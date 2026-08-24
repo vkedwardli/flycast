@@ -3,6 +3,7 @@
 #include <xxhash.h>
 #include <zlib.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <random>
@@ -89,13 +90,14 @@ void Gdxsv::ResetWidescreenPatch() {
 	widescreen_hud_aspect_ = kDisk2SafeHudAspect;
 	widescreen_patch_enabled_ = config::Widescreen.get() && config::WidescreenGameHacks.get();
 	const bool super_widescreen = config::SuperWidescreen.get();
+	const float viewport_aspect = settings.display.width > 0 && settings.display.height > 0
+								  ? static_cast<float>(settings.display.width) / settings.display.height
+								  : kDisk2SafeHudAspect;
 	if (disk_ == 2 && widescreen_patch_enabled_) {
 		if (!super_widescreen) {
 			widescreen_patch_aspect_ = 16.f / 9.f;
-		} else if (settings.display.width > 0 && settings.display.height > 0) {
-			const float aspect = static_cast<float>(settings.display.width) / settings.display.height;
-			if (std::isfinite(aspect) && aspect > 0.f)
-				widescreen_patch_aspect_ = aspect;
+		} else {
+			widescreen_patch_aspect_ = viewport_aspect;
 		}
 		switch (config::GdxWidescreenHudLayout.get()) {
 		case 0:
@@ -105,7 +107,7 @@ void Gdxsv::ResetWidescreenPatch() {
 			widescreen_hud_aspect_ = widescreen_patch_aspect_;
 			break;
 		default:
-			widescreen_hud_aspect_ = kDisk2SafeHudAspect;
+			widescreen_hud_aspect_ = std::min(viewport_aspect, kDisk2SafeHudAspect);
 			break;
 		}
 	}

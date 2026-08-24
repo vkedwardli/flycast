@@ -257,14 +257,14 @@ void gdxsv_gui_settings_tab()
 		ImGui::SameLine();
 		OptionRadioButton("4:3 (Original)", config::GdxWidescreenHudLayout, 0);
 		ImGui::SameLine();
-		OptionRadioButton("16:9", config::GdxWidescreenHudLayout, 1);
+		OptionRadioButton("Up to 16:9", config::GdxWidescreenHudLayout, 1);
 		ImGui::SameLine();
 		OptionRadioButton("Full Width", config::GdxWidescreenHudLayout, 2);
 	}
 	ImGui::SameLine();
 	ShowHelpMarker(T("Choose the horizontal boundary used for the battle HUD:\n"
 		"    4:3 (Original): Keep the stock positions\n"
-		"    16:9: Keep the HUD inside a 16:9 safe area\n"
+		"    Up to 16:9: Use the viewport width, capped at a 16:9 safe area\n"
 		"    Full Width: Move the HUD to the current viewport edges"));
 	ImGui::Unindent();
 
