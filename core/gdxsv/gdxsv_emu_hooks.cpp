@@ -29,6 +29,8 @@ static void wireless_warning_popup(const std::string& connection_medium);
 static void vpn_warning_toast(const std::string& connection_medium);
 static void p2p_connection_toast();
 
+std::atomic<int> gdxsv_frame_period_trim_us{0};
+
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }

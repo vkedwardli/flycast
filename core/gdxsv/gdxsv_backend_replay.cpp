@@ -2,6 +2,7 @@
 
 #include <nowide/cstdio.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -15,6 +16,7 @@
 #include "ui/mainui.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
+#include "gdxsv_emu_hooks.h"
 #include "gdxsv_translation.h"
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
@@ -460,6 +462,37 @@ static void gdxsv_patch_map_selector(u16 round_seed, int player_count) {
 			   selector, mask);
 }
 
+// Playback pacing. The match itself runs at 59.94Hz, so replay and Live
+// Spectate lock to the same period and correct the residual by trimming it
+// rather than by stalling whole frames: a stall is a visible 16.7ms step,
+// while a percent of trim is not. See gdxsv_frame_period_trim_us.
+namespace {
+constexpr int kLiveDefaultBuffer = 30;	  // ~0.5s at 60fps
+constexpr int kLiveMinBuffer = 1;		  // no cushion at all; stutters, but allowed
+constexpr int kLiveMaxBuffer = 3600;	  // 60s
+constexpr int kPacingDeadbandFrames = 2;  // below this, corrections are noise
+constexpr int kPacingTrimUsPerFrame = 40;
+constexpr int kPacingMaxTrimUs = 334;  // ~2% of 16683us, ~1.2 frames/sec
+}  // namespace
+
+void GdxsvBackendReplay::UpdateFramePacing() {
+	if (!live_mode_ || takeover_ || ctrl_pause_ || pause_menu_opend_ || 0 < ctrl_play_speed_) {
+		gdxsv_frame_period_trim_us = 0;
+		return;
+	}
+
+	// Positive error means we are further behind the edge than we want to be,
+	// so we need to run fast, which is a shorter period, which is a negative
+	// trim. Getting that sign backwards makes the loop diverge.
+	const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+	const int64_t error = gap - live_buffer_frames_;
+	int trim = 0;
+	if (kPacingDeadbandFrames < std::abs(error)) {
+		trim = static_cast<int>(std::clamp<int64_t>(-error * kPacingTrimUsPerFrame, -kPacingMaxTrimUs, kPacingMaxTrimUs));
+	}
+	gdxsv_frame_period_trim_us = trim;
+}
+
 void GdxsvBackendReplay::OnNextFrame() {
 	// Must run here, on the emulation thread, before the early-returns below.
 	//
@@ -471,6 +504,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 	// mainui_loop. Draining here lets each one pick up newly arrived frames,
 	// so a catch-up seek can chase an edge that is still moving.
 	CheckLiveUpdate();
+	UpdateFramePacing();
 
 	if (!end_of_frame_) return;
 	if (seeking_) return;
@@ -521,9 +555,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 	// kLiveTargetBufferFrames is that cushion - catch-up stops there, not at
 	// the live edge. The thresholds sit well outside the jitter band so
 	// ordinary delivery noise and scene-transition hitches don't re-trigger it.
-	constexpr int kLiveTargetBufferFrames = 30;	 // ~0.5s at 60fps: where catch-up stops
-	constexpr int kLiveCatchUpThreshold = 60;	 // ~1.0s at 60fps: where catch-up (re-)engages
-	constexpr int kLiveCatchUpFastSeekThreshold = 300;
+	// Derived from the configured buffer rather than fixed, so an unusual
+	// buffer still behaves: the hysteresis band and the seek hand-off are a
+	// constant number of frames outside the target, not a multiple of it.
+	// At the default 30 these come out at the values they were hardcoded to.
+	const int kLiveTargetBufferFrames = live_buffer_frames_;
+	const int kLiveCatchUpThreshold = live_buffer_frames_ + 30;
+	const int kLiveCatchUpFastSeekThreshold = live_buffer_frames_ + 270;
 	constexpr int kMaxLiveFastSeeks = 8;
 	// start_msg_count_ > 0 rather than IsInGame()/IsInBriefing(): it must be
 	// false during the pre-round-1 lobby boot (where inputs_size() is already
@@ -1122,6 +1160,8 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 }
 
 void GdxsvBackendReplay::Stop() {
+	config::FixedFrequency.load();
+	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();
 	settings.gdxsv.replayModeActive = false;
 	settings.gdxsv.skipRenderingAddr = 0;
@@ -1280,6 +1320,18 @@ u32 GdxsvBackendReplay::OnSockPoll() {
 
 bool GdxsvBackendReplay::Start() {
 	NOTICE_LOG(COMMON, "game_disk = %s", log_file_.game_disk().c_str());
+
+	// The match was played at 59.94Hz - the online battle path pins
+	// FixedFrequency to it - so play it back on the same clock. Without this
+	// the default is 0, meaning no pacing at all: playback then runs at
+	// whatever the renderer manages, and in Live Spectate the only thing
+	// holding it back is running out of input, which makes arrival jitter the
+	// clock. Restored in Stop().
+	config::FixedFrequency.override(2);
+	gdxsv_frame_period_trim_us = 0;
+
+	live_buffer_frames_ = std::clamp(config::loadInt("gdxsv", "LiveBufferFrames", kLiveDefaultBuffer), kLiveMinBuffer, kLiveMaxBuffer);
+	NOTICE_LOG(COMMON, "replay pacing: 59.94Hz, live buffer %d frames (%.2fs)", live_buffer_frames_, live_buffer_frames_ / 59.94);
 
 	if (log_file_.log_file_version() < 20210802) {
 		// Parse old replay file

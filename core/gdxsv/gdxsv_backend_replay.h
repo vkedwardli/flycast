@@ -223,6 +223,18 @@ class GdxsvBackendReplay {
 	// run during that window - see the catch-up gate in OnNextFrame.
 	bool live_round_jump_pending_ = false;
 
+	// How far behind the newest available frame playback aims to sit, in
+	// frames. Loaded from gdxsv:LiveBufferFrames, default kLiveDefaultBuffer.
+	// 1 leaves no cushion at all and will stutter on every arrival clump;
+	// 180 holds three seconds back, which is enough that a spectator stream
+	// cannot be used to call out an opponent's position in real time.
+	int live_buffer_frames_ = 30;
+
+	// Steers the main loop's frame period so playback holds live_buffer_frames_
+	// behind the edge. Small, continuous corrections instead of whole-frame
+	// stalls - see gdxsv_frame_period_trim_us.
+	void UpdateFramePacing();
+
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
 	int takeover_countdown_ = 0;
