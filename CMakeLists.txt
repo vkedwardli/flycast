@@ -1963,6 +1963,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_replay_util.h
 		core/gdxsv/gdxsv_save_state.cpp
 		core/gdxsv/gdxsv_save_state.h
+		core/gdxsv/gdxsv_spectator_downlink.cpp
+		core/gdxsv/gdxsv_spectator_downlink.h
 		core/gdxsv/gdxsv_spectator_uplink.cpp
 		core/gdxsv/gdxsv_spectator_uplink.h
 		core/gdxsv/gdxsv_translation.cpp

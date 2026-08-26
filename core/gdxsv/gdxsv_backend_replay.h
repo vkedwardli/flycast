@@ -2,9 +2,17 @@
 
 #include "gdxsv.pb.h"
 #include "gdxsv_save_state.h"
+#include "gdxsv_spectator_downlink.h"
 #include "lbs_message.h"
 #include "mcs_message.h"
 #include "types.h"
+
+// LBS's lobby port, shared by TCP lobby traffic and the spectator UDP
+// channel (see serveUDP in lbs.go). A normal client never needs it spelled
+// out: the game itself supplies the port via gdx_rpc's SOCK_OPEN request
+// (see Gdxsv::HandleRPC), and only the host comes from config. A spectator
+// never runs that lobby-connect flow, so it has nothing to read it from.
+constexpr int kGdxsvLbsPort = 9876;
 
 // Mock network implementation to replay local battle log
 class GdxsvBackendReplay {
@@ -29,6 +37,11 @@ class GdxsvBackendReplay {
 
 	bool StartFile(const char* path, int pov);
 	bool StartBuffer(const std::vector<u8>& buf, int pov);
+	// Starts Live Spectate: subscribes to LBS's spectator UDP channel,
+	// bootstraps from the header it sends, and then plays back like a normal
+	// buffer replay - except it holds at the live edge for more data instead
+	// of stopping when it catches up.
+	bool StartLive(const std::string& host, const std::string& battle_code, int pov);
 	void Stop();
 	bool ChangeRoundAvailable() const;
 
@@ -46,6 +59,7 @@ class GdxsvBackendReplay {
 	void PrintDisconnectionSummary() const;
 	void ProcessLbsMessage();
 	void ProcessMcsMessage(const McsMessage& msg);
+	void DeliverKeyMsgBatch();
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void BeginSilentSeek();
@@ -67,6 +81,13 @@ class GdxsvBackendReplay {
 	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
 	void GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const;
 	const char* SpeedText() const;
+
+	// Live Spectate: live_downlink_ (its own background thread) receives
+	// pushed deltas from LBS; CheckLiveUpdate (called from OnMainUiLoop,
+	// main thread) folds them into log_file_ - the same "background thread
+	// stages, main thread mutates" split GdxsvSpectatorUplink uses, so
+	// log_file_ itself never needs a lock.
+	void CheckLiveUpdate();
 
 	struct ReplayCtrlCommand {
 		enum Command {
@@ -188,6 +209,19 @@ class GdxsvBackendReplay {
 	bool ctrl_bar_dragging_ = false;
 	int ctrl_bar_drag_target_frame_ = -1;
 	bool ctrl_input_release_pending_ = false;
+
+	// Live Spectate state (see StartLive/CheckLiveUpdate).
+	bool live_mode_ = false;
+	GdxsvSpectatorDownlink live_downlink_;
+	// Latches true once the initial no-render catch-up has closed the gap
+	// (see OnNextFrame), after which drift is handled only by the smooth
+	// path - so scene transitions never fast-forward.
+	bool live_fast_seek_done_ = false;
+	int live_fast_seek_count_ = 0;
+	// True while the initial jump to the live match's current round is still
+	// in flight (queued SeekToBriefing -> SetRound). Live catch-up must not
+	// run during that window - see the catch-up gate in OnNextFrame.
+	bool live_round_jump_pending_ = false;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;

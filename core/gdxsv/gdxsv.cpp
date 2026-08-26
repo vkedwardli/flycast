@@ -1005,6 +1005,18 @@ bool Gdxsv::StartReplayFile(const char *path, int pov) {
 	return false;
 }
 
+bool Gdxsv::StartLiveSpectate(const char *battle_code, int pov) {
+	replay_net_.Reset();
+
+	const auto host = config::GdxLobbyServer.get();
+	if (replay_net_.StartLive(host, battle_code, pov)) {
+		netmode_ = NetMode::Replay;
+		return true;
+	}
+
+	return false;
+}
+
 void Gdxsv::StopReplay() { replay_net_.Stop(); }
 
 bool Gdxsv::StartRollbackTest(const char *param) {

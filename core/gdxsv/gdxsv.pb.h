@@ -48,7 +48,7 @@ struct TableStruct_gdxsv_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[20]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[21]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -116,6 +116,9 @@ extern SpectatorRoundEventDefaultTypeInternal _SpectatorRoundEvent_default_insta
 class SpectatorRoundResult;
 class SpectatorRoundResultDefaultTypeInternal;
 extern SpectatorRoundResultDefaultTypeInternal _SpectatorRoundResult_default_instance_;
+class SpectatorSubscribeRequest;
+class SpectatorSubscribeRequestDefaultTypeInternal;
+extern SpectatorSubscribeRequestDefaultTypeInternal _SpectatorSubscribeRequest_default_instance_;
 }  // namespace proto
 PROTOBUF_NAMESPACE_OPEN
 template<> ::proto::BattleLogFile* Arena::CreateMaybeMessage<::proto::BattleLogFile>(Arena*);
@@ -138,6 +141,7 @@ template<> ::proto::SpectatorInputAck* Arena::CreateMaybeMessage<::proto::Specta
 template<> ::proto::SpectatorInputPush* Arena::CreateMaybeMessage<::proto::SpectatorInputPush>(Arena*);
 template<> ::proto::SpectatorRoundEvent* Arena::CreateMaybeMessage<::proto::SpectatorRoundEvent>(Arena*);
 template<> ::proto::SpectatorRoundResult* Arena::CreateMaybeMessage<::proto::SpectatorRoundResult>(Arena*);
+template<> ::proto::SpectatorSubscribeRequest* Arena::CreateMaybeMessage<::proto::SpectatorSubscribeRequest>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
 namespace proto {
 
@@ -153,12 +157,13 @@ enum MessageType : int {
   SpectatorInputAckType = 21,
   SpectatorRoundEventType = 22,
   SpectatorRoundResultType = 23,
+  SpectatorSubscribeType = 24,
   MessageType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::min(),
   MessageType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::max()
 };
 bool MessageType_IsValid(int value);
 constexpr MessageType MessageType_MIN = None;
-constexpr MessageType MessageType_MAX = SpectatorRoundResultType;
+constexpr MessageType MessageType_MAX = SpectatorSubscribeType;
 constexpr int MessageType_ARRAYSIZE = MessageType_MAX + 1;
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* MessageType_descriptor();
@@ -2056,10 +2061,19 @@ class SpectatorInputPush PROTOBUF_FINAL :
 
   enum : int {
     kInputsFieldNumber = 5,
+    kStartMsgIndexesFieldNumber = 6,
+    kStartMsgRandomsFieldNumber = 7,
+    kRoundDataFieldNumber = 8,
+    kPatchesFieldNumber = 12,
     kBattleCodeFieldNumber = 1,
+    kCloseReasonFieldNumber = 9,
+    kHeaderFieldNumber = 11,
     kSessionIdFieldNumber = 2,
     kPeerIdFieldNumber = 3,
     kStartFrameFieldNumber = 4,
+    kDisconnectUserIndexFieldNumber = 10,
+    kPatchStartFieldNumber = 13,
+    kPatchTotalFieldNumber = 14,
   };
   // repeated fixed64 inputs = 5;
   int inputs_size() const;
@@ -2083,6 +2097,86 @@ class SpectatorInputPush PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
       mutable_inputs();
 
+  // repeated int32 start_msg_indexes = 6;
+  int start_msg_indexes_size() const;
+  private:
+  int _internal_start_msg_indexes_size() const;
+  public:
+  void clear_start_msg_indexes();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_start_msg_indexes(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_start_msg_indexes() const;
+  void _internal_add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_start_msg_indexes();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 start_msg_indexes(int index) const;
+  void set_start_msg_indexes(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      start_msg_indexes() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_start_msg_indexes();
+
+  // repeated uint64 start_msg_randoms = 7;
+  int start_msg_randoms_size() const;
+  private:
+  int _internal_start_msg_randoms_size() const;
+  public:
+  void clear_start_msg_randoms();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint64 _internal_start_msg_randoms(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+      _internal_start_msg_randoms() const;
+  void _internal_add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+      _internal_mutable_start_msg_randoms();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::uint64 start_msg_randoms(int index) const;
+  void set_start_msg_randoms(int index, ::PROTOBUF_NAMESPACE_ID::uint64 value);
+  void add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+      start_msg_randoms() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+      mutable_start_msg_randoms();
+
+  // repeated .proto.BattleLogRound round_data = 8;
+  int round_data_size() const;
+  private:
+  int _internal_round_data_size() const;
+  public:
+  void clear_round_data();
+  ::proto::BattleLogRound* mutable_round_data(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >*
+      mutable_round_data();
+  private:
+  const ::proto::BattleLogRound& _internal_round_data(int index) const;
+  ::proto::BattleLogRound* _internal_add_round_data();
+  public:
+  const ::proto::BattleLogRound& round_data(int index) const;
+  ::proto::BattleLogRound* add_round_data();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
+      round_data() const;
+
+  // repeated .proto.GamePatch patches = 12;
+  int patches_size() const;
+  private:
+  int _internal_patches_size() const;
+  public:
+  void clear_patches();
+  ::proto::GamePatch* mutable_patches(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::GamePatch >*
+      mutable_patches();
+  private:
+  const ::proto::GamePatch& _internal_patches(int index) const;
+  ::proto::GamePatch* _internal_add_patches();
+  public:
+  const ::proto::GamePatch& patches(int index) const;
+  ::proto::GamePatch* add_patches();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::GamePatch >&
+      patches() const;
+
   // string battle_code = 1;
   void clear_battle_code();
   const std::string& battle_code() const;
@@ -2098,6 +2192,40 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_battle_code(const std::string& value);
   std::string* _internal_mutable_battle_code();
   public:
+
+  // string close_reason = 9;
+  void clear_close_reason();
+  const std::string& close_reason() const;
+  void set_close_reason(const std::string& value);
+  void set_close_reason(std::string&& value);
+  void set_close_reason(const char* value);
+  void set_close_reason(const char* value, size_t size);
+  std::string* mutable_close_reason();
+  std::string* release_close_reason();
+  void set_allocated_close_reason(std::string* close_reason);
+  private:
+  const std::string& _internal_close_reason() const;
+  void _internal_set_close_reason(const std::string& value);
+  std::string* _internal_mutable_close_reason();
+  public:
+
+  // .proto.BattleLogFile header = 11;
+  bool has_header() const;
+  private:
+  bool _internal_has_header() const;
+  public:
+  void clear_header();
+  const ::proto::BattleLogFile& header() const;
+  ::proto::BattleLogFile* release_header();
+  ::proto::BattleLogFile* mutable_header();
+  void set_allocated_header(::proto::BattleLogFile* header);
+  private:
+  const ::proto::BattleLogFile& _internal_header() const;
+  ::proto::BattleLogFile* _internal_mutable_header();
+  public:
+  void unsafe_arena_set_allocated_header(
+      ::proto::BattleLogFile* header);
+  ::proto::BattleLogFile* unsafe_arena_release_header();
 
   // int32 session_id = 2;
   void clear_session_id();
@@ -2126,6 +2254,33 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_start_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 disconnect_user_index = 10;
+  void clear_disconnect_user_index();
+  ::PROTOBUF_NAMESPACE_ID::int32 disconnect_user_index() const;
+  void set_disconnect_user_index(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_disconnect_user_index() const;
+  void _internal_set_disconnect_user_index(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 patch_start = 13;
+  void clear_patch_start();
+  ::PROTOBUF_NAMESPACE_ID::int32 patch_start() const;
+  void set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_patch_start() const;
+  void _internal_set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 patch_total = 14;
+  void clear_patch_total();
+  ::PROTOBUF_NAMESPACE_ID::int32 patch_total() const;
+  void set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_patch_total() const;
+  void _internal_set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.SpectatorInputPush)
  private:
   class _Internal;
@@ -2135,10 +2290,21 @@ class SpectatorInputPush PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 > inputs_;
   mutable std::atomic<int> _inputs_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > start_msg_indexes_;
+  mutable std::atomic<int> _start_msg_indexes_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 > start_msg_randoms_;
+  mutable std::atomic<int> _start_msg_randoms_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound > round_data_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::GamePatch > patches_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
+  ::proto::BattleLogFile* header_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 start_frame_;
+  ::PROTOBUF_NAMESPACE_ID::int32 disconnect_user_index_;
+  ::PROTOBUF_NAMESPACE_ID::int32 patch_start_;
+  ::PROTOBUF_NAMESPACE_ID::int32 patch_total_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -2259,6 +2425,7 @@ class SpectatorInputAck PROTOBUF_FINAL :
   enum : int {
     kBattleCodeFieldNumber = 1,
     kAckFrameFieldNumber = 2,
+    kPatchAckFieldNumber = 3,
   };
   // string battle_code = 1;
   void clear_battle_code();
@@ -2285,6 +2452,15 @@ class SpectatorInputAck PROTOBUF_FINAL :
   void _internal_set_ack_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 patch_ack = 3;
+  void clear_patch_ack();
+  ::PROTOBUF_NAMESPACE_ID::int32 patch_ack() const;
+  void set_patch_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_patch_ack() const;
+  void _internal_set_patch_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.SpectatorInputAck)
  private:
   class _Internal;
@@ -2294,6 +2470,162 @@ class SpectatorInputAck PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::int32 ack_frame_;
+  ::PROTOBUF_NAMESPACE_ID::int32 patch_ack_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_gdxsv_2eproto;
+};
+// -------------------------------------------------------------------
+
+class SpectatorSubscribeRequest PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:proto.SpectatorSubscribeRequest) */ {
+ public:
+  inline SpectatorSubscribeRequest() : SpectatorSubscribeRequest(nullptr) {}
+  virtual ~SpectatorSubscribeRequest();
+
+  SpectatorSubscribeRequest(const SpectatorSubscribeRequest& from);
+  SpectatorSubscribeRequest(SpectatorSubscribeRequest&& from) noexcept
+    : SpectatorSubscribeRequest() {
+    *this = ::std::move(from);
+  }
+
+  inline SpectatorSubscribeRequest& operator=(const SpectatorSubscribeRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline SpectatorSubscribeRequest& operator=(SpectatorSubscribeRequest&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const SpectatorSubscribeRequest& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const SpectatorSubscribeRequest* internal_default_instance() {
+    return reinterpret_cast<const SpectatorSubscribeRequest*>(
+               &_SpectatorSubscribeRequest_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    10;
+
+  friend void swap(SpectatorSubscribeRequest& a, SpectatorSubscribeRequest& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(SpectatorSubscribeRequest* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(SpectatorSubscribeRequest* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline SpectatorSubscribeRequest* New() const final {
+    return CreateMaybeMessage<SpectatorSubscribeRequest>(nullptr);
+  }
+
+  SpectatorSubscribeRequest* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<SpectatorSubscribeRequest>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const SpectatorSubscribeRequest& from);
+  void MergeFrom(const SpectatorSubscribeRequest& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(SpectatorSubscribeRequest* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "proto.SpectatorSubscribeRequest";
+  }
+  protected:
+  explicit SpectatorSubscribeRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_gdxsv_2eproto);
+    return ::descriptor_table_gdxsv_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kBattleCodeFieldNumber = 1,
+    kFromFrameFieldNumber = 3,
+  };
+  // string battle_code = 1;
+  void clear_battle_code();
+  const std::string& battle_code() const;
+  void set_battle_code(const std::string& value);
+  void set_battle_code(std::string&& value);
+  void set_battle_code(const char* value);
+  void set_battle_code(const char* value, size_t size);
+  std::string* mutable_battle_code();
+  std::string* release_battle_code();
+  void set_allocated_battle_code(std::string* battle_code);
+  private:
+  const std::string& _internal_battle_code() const;
+  void _internal_set_battle_code(const std::string& value);
+  std::string* _internal_mutable_battle_code();
+  public:
+
+  // int32 from_frame = 3;
+  void clear_from_frame();
+  ::PROTOBUF_NAMESPACE_ID::int32 from_frame() const;
+  void set_from_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_from_frame() const;
+  void _internal_set_from_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:proto.SpectatorSubscribeRequest)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
+  ::PROTOBUF_NAMESPACE_ID::int32 from_frame_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -2341,7 +2673,7 @@ class SpectatorRoundEvent PROTOBUF_FINAL :
                &_SpectatorRoundEvent_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    10;
+    11;
 
   friend void swap(SpectatorRoundEvent& a, SpectatorRoundEvent& b) {
     a.Swap(&b);
@@ -2529,7 +2861,7 @@ class SpectatorRoundResult PROTOBUF_FINAL :
                &_SpectatorRoundResult_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    12;
 
   friend void swap(SpectatorRoundResult& a, SpectatorRoundResult& b) {
     a.Swap(&b);
@@ -2726,7 +3058,7 @@ class BattleLogFile PROTOBUF_FINAL :
                &_BattleLogFile_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    12;
+    13;
 
   friend void swap(BattleLogFile& a, BattleLogFile& b) {
     a.Swap(&b);
@@ -3141,7 +3473,7 @@ class BattleMessage PROTOBUF_FINAL :
                &_BattleMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    14;
 
   friend void swap(BattleMessage& a, BattleMessage& b) {
     a.Swap(&b);
@@ -3314,7 +3646,7 @@ class PingMessage PROTOBUF_FINAL :
                &_PingMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    15;
 
   friend void swap(PingMessage& a, PingMessage& b) {
     a.Swap(&b);
@@ -3469,7 +3801,7 @@ class PongMessage PROTOBUF_FINAL :
                &_PongMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    16;
 
   friend void swap(PongMessage& a, PongMessage& b) {
     a.Swap(&b);
@@ -3642,7 +3974,7 @@ class HelloServerMessage PROTOBUF_FINAL :
                &_HelloServerMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    17;
 
   friend void swap(HelloServerMessage& a, HelloServerMessage& b) {
     a.Swap(&b);
@@ -3815,7 +4147,7 @@ class FinMessage PROTOBUF_FINAL :
                &_FinMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    17;
+    18;
 
   friend void swap(FinMessage& a, FinMessage& b) {
     a.Swap(&b);
@@ -3959,7 +4291,7 @@ class HelloLbsMessage PROTOBUF_FINAL :
                &_HelloLbsMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    18;
+    19;
 
   friend void swap(HelloLbsMessage& a, HelloLbsMessage& b) {
     a.Swap(&b);
@@ -4103,7 +4435,7 @@ class Packet PROTOBUF_FINAL :
                &_Packet_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    20;
 
   friend void swap(Packet& a, Packet& b) {
     a.Swap(&b);
@@ -4185,6 +4517,7 @@ class Packet PROTOBUF_FINAL :
     kSpectatorInputAckDataFieldNumber = 21,
     kSpectatorRoundEventDataFieldNumber = 22,
     kSpectatorRoundResultDataFieldNumber = 23,
+    kSpectatorSubscribeDataFieldNumber = 24,
     kTypeFieldNumber = 1,
     kSeqFieldNumber = 2,
     kAckFieldNumber = 3,
@@ -4385,6 +4718,24 @@ class Packet PROTOBUF_FINAL :
       ::proto::SpectatorRoundResult* spectator_round_result_data);
   ::proto::SpectatorRoundResult* unsafe_arena_release_spectator_round_result_data();
 
+  // .proto.SpectatorSubscribeRequest spectator_subscribe_data = 24;
+  bool has_spectator_subscribe_data() const;
+  private:
+  bool _internal_has_spectator_subscribe_data() const;
+  public:
+  void clear_spectator_subscribe_data();
+  const ::proto::SpectatorSubscribeRequest& spectator_subscribe_data() const;
+  ::proto::SpectatorSubscribeRequest* release_spectator_subscribe_data();
+  ::proto::SpectatorSubscribeRequest* mutable_spectator_subscribe_data();
+  void set_allocated_spectator_subscribe_data(::proto::SpectatorSubscribeRequest* spectator_subscribe_data);
+  private:
+  const ::proto::SpectatorSubscribeRequest& _internal_spectator_subscribe_data() const;
+  ::proto::SpectatorSubscribeRequest* _internal_mutable_spectator_subscribe_data();
+  public:
+  void unsafe_arena_set_allocated_spectator_subscribe_data(
+      ::proto::SpectatorSubscribeRequest* spectator_subscribe_data);
+  ::proto::SpectatorSubscribeRequest* unsafe_arena_release_spectator_subscribe_data();
+
   // .proto.MessageType type = 1;
   void clear_type();
   ::proto::MessageType type() const;
@@ -4430,6 +4781,7 @@ class Packet PROTOBUF_FINAL :
   ::proto::SpectatorInputAck* spectator_input_ack_data_;
   ::proto::SpectatorRoundEvent* spectator_round_event_data_;
   ::proto::SpectatorRoundResult* spectator_round_result_data_;
+  ::proto::SpectatorSubscribeRequest* spectator_subscribe_data_;
   int type_;
   ::PROTOBUF_NAMESPACE_ID::uint32 seq_;
   ::PROTOBUF_NAMESPACE_ID::uint32 ack_;
@@ -6509,6 +6861,383 @@ SpectatorInputPush::mutable_inputs() {
   return _internal_mutable_inputs();
 }
 
+// repeated int32 start_msg_indexes = 6;
+inline int SpectatorInputPush::_internal_start_msg_indexes_size() const {
+  return start_msg_indexes_.size();
+}
+inline int SpectatorInputPush::start_msg_indexes_size() const {
+  return _internal_start_msg_indexes_size();
+}
+inline void SpectatorInputPush::clear_start_msg_indexes() {
+  start_msg_indexes_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::_internal_start_msg_indexes(int index) const {
+  return start_msg_indexes_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::start_msg_indexes(int index) const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.start_msg_indexes)
+  return _internal_start_msg_indexes(index);
+}
+inline void SpectatorInputPush::set_start_msg_indexes(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  start_msg_indexes_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.start_msg_indexes)
+}
+inline void SpectatorInputPush::_internal_add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  start_msg_indexes_.Add(value);
+}
+inline void SpectatorInputPush::add_start_msg_indexes(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_start_msg_indexes(value);
+  // @@protoc_insertion_point(field_add:proto.SpectatorInputPush.start_msg_indexes)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+SpectatorInputPush::_internal_start_msg_indexes() const {
+  return start_msg_indexes_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+SpectatorInputPush::start_msg_indexes() const {
+  // @@protoc_insertion_point(field_list:proto.SpectatorInputPush.start_msg_indexes)
+  return _internal_start_msg_indexes();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+SpectatorInputPush::_internal_mutable_start_msg_indexes() {
+  return &start_msg_indexes_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+SpectatorInputPush::mutable_start_msg_indexes() {
+  // @@protoc_insertion_point(field_mutable_list:proto.SpectatorInputPush.start_msg_indexes)
+  return _internal_mutable_start_msg_indexes();
+}
+
+// repeated uint64 start_msg_randoms = 7;
+inline int SpectatorInputPush::_internal_start_msg_randoms_size() const {
+  return start_msg_randoms_.size();
+}
+inline int SpectatorInputPush::start_msg_randoms_size() const {
+  return _internal_start_msg_randoms_size();
+}
+inline void SpectatorInputPush::clear_start_msg_randoms() {
+  start_msg_randoms_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint64 SpectatorInputPush::_internal_start_msg_randoms(int index) const {
+  return start_msg_randoms_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint64 SpectatorInputPush::start_msg_randoms(int index) const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.start_msg_randoms)
+  return _internal_start_msg_randoms(index);
+}
+inline void SpectatorInputPush::set_start_msg_randoms(int index, ::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  start_msg_randoms_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.start_msg_randoms)
+}
+inline void SpectatorInputPush::_internal_add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  start_msg_randoms_.Add(value);
+}
+inline void SpectatorInputPush::add_start_msg_randoms(::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  _internal_add_start_msg_randoms(value);
+  // @@protoc_insertion_point(field_add:proto.SpectatorInputPush.start_msg_randoms)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+SpectatorInputPush::_internal_start_msg_randoms() const {
+  return start_msg_randoms_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >&
+SpectatorInputPush::start_msg_randoms() const {
+  // @@protoc_insertion_point(field_list:proto.SpectatorInputPush.start_msg_randoms)
+  return _internal_start_msg_randoms();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+SpectatorInputPush::_internal_mutable_start_msg_randoms() {
+  return &start_msg_randoms_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
+SpectatorInputPush::mutable_start_msg_randoms() {
+  // @@protoc_insertion_point(field_mutable_list:proto.SpectatorInputPush.start_msg_randoms)
+  return _internal_mutable_start_msg_randoms();
+}
+
+// repeated .proto.BattleLogRound round_data = 8;
+inline int SpectatorInputPush::_internal_round_data_size() const {
+  return round_data_.size();
+}
+inline int SpectatorInputPush::round_data_size() const {
+  return _internal_round_data_size();
+}
+inline void SpectatorInputPush::clear_round_data() {
+  round_data_.Clear();
+}
+inline ::proto::BattleLogRound* SpectatorInputPush::mutable_round_data(int index) {
+  // @@protoc_insertion_point(field_mutable:proto.SpectatorInputPush.round_data)
+  return round_data_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >*
+SpectatorInputPush::mutable_round_data() {
+  // @@protoc_insertion_point(field_mutable_list:proto.SpectatorInputPush.round_data)
+  return &round_data_;
+}
+inline const ::proto::BattleLogRound& SpectatorInputPush::_internal_round_data(int index) const {
+  return round_data_.Get(index);
+}
+inline const ::proto::BattleLogRound& SpectatorInputPush::round_data(int index) const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.round_data)
+  return _internal_round_data(index);
+}
+inline ::proto::BattleLogRound* SpectatorInputPush::_internal_add_round_data() {
+  return round_data_.Add();
+}
+inline ::proto::BattleLogRound* SpectatorInputPush::add_round_data() {
+  // @@protoc_insertion_point(field_add:proto.SpectatorInputPush.round_data)
+  return _internal_add_round_data();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
+SpectatorInputPush::round_data() const {
+  // @@protoc_insertion_point(field_list:proto.SpectatorInputPush.round_data)
+  return round_data_;
+}
+
+// string close_reason = 9;
+inline void SpectatorInputPush::clear_close_reason() {
+  close_reason_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& SpectatorInputPush::close_reason() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.close_reason)
+  return _internal_close_reason();
+}
+inline void SpectatorInputPush::set_close_reason(const std::string& value) {
+  _internal_set_close_reason(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.close_reason)
+}
+inline std::string* SpectatorInputPush::mutable_close_reason() {
+  // @@protoc_insertion_point(field_mutable:proto.SpectatorInputPush.close_reason)
+  return _internal_mutable_close_reason();
+}
+inline const std::string& SpectatorInputPush::_internal_close_reason() const {
+  return close_reason_.Get();
+}
+inline void SpectatorInputPush::_internal_set_close_reason(const std::string& value) {
+  
+  close_reason_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void SpectatorInputPush::set_close_reason(std::string&& value) {
+  
+  close_reason_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:proto.SpectatorInputPush.close_reason)
+}
+inline void SpectatorInputPush::set_close_reason(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  close_reason_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:proto.SpectatorInputPush.close_reason)
+}
+inline void SpectatorInputPush::set_close_reason(const char* value,
+    size_t size) {
+  
+  close_reason_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:proto.SpectatorInputPush.close_reason)
+}
+inline std::string* SpectatorInputPush::_internal_mutable_close_reason() {
+  
+  return close_reason_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* SpectatorInputPush::release_close_reason() {
+  // @@protoc_insertion_point(field_release:proto.SpectatorInputPush.close_reason)
+  return close_reason_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void SpectatorInputPush::set_allocated_close_reason(std::string* close_reason) {
+  if (close_reason != nullptr) {
+    
+  } else {
+    
+  }
+  close_reason_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), close_reason,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:proto.SpectatorInputPush.close_reason)
+}
+
+// int32 disconnect_user_index = 10;
+inline void SpectatorInputPush::clear_disconnect_user_index() {
+  disconnect_user_index_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::_internal_disconnect_user_index() const {
+  return disconnect_user_index_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::disconnect_user_index() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.disconnect_user_index)
+  return _internal_disconnect_user_index();
+}
+inline void SpectatorInputPush::_internal_set_disconnect_user_index(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  disconnect_user_index_ = value;
+}
+inline void SpectatorInputPush::set_disconnect_user_index(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_disconnect_user_index(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.disconnect_user_index)
+}
+
+// .proto.BattleLogFile header = 11;
+inline bool SpectatorInputPush::_internal_has_header() const {
+  return this != internal_default_instance() && header_ != nullptr;
+}
+inline bool SpectatorInputPush::has_header() const {
+  return _internal_has_header();
+}
+inline void SpectatorInputPush::clear_header() {
+  if (GetArena() == nullptr && header_ != nullptr) {
+    delete header_;
+  }
+  header_ = nullptr;
+}
+inline const ::proto::BattleLogFile& SpectatorInputPush::_internal_header() const {
+  const ::proto::BattleLogFile* p = header_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::BattleLogFile*>(
+      &::proto::_BattleLogFile_default_instance_);
+}
+inline const ::proto::BattleLogFile& SpectatorInputPush::header() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.header)
+  return _internal_header();
+}
+inline void SpectatorInputPush::unsafe_arena_set_allocated_header(
+    ::proto::BattleLogFile* header) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(header_);
+  }
+  header_ = header;
+  if (header) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.SpectatorInputPush.header)
+}
+inline ::proto::BattleLogFile* SpectatorInputPush::release_header() {
+  
+  ::proto::BattleLogFile* temp = header_;
+  header_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::BattleLogFile* SpectatorInputPush::unsafe_arena_release_header() {
+  // @@protoc_insertion_point(field_release:proto.SpectatorInputPush.header)
+  
+  ::proto::BattleLogFile* temp = header_;
+  header_ = nullptr;
+  return temp;
+}
+inline ::proto::BattleLogFile* SpectatorInputPush::_internal_mutable_header() {
+  
+  if (header_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::BattleLogFile>(GetArena());
+    header_ = p;
+  }
+  return header_;
+}
+inline ::proto::BattleLogFile* SpectatorInputPush::mutable_header() {
+  // @@protoc_insertion_point(field_mutable:proto.SpectatorInputPush.header)
+  return _internal_mutable_header();
+}
+inline void SpectatorInputPush::set_allocated_header(::proto::BattleLogFile* header) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete header_;
+  }
+  if (header) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(header);
+    if (message_arena != submessage_arena) {
+      header = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, header, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  header_ = header;
+  // @@protoc_insertion_point(field_set_allocated:proto.SpectatorInputPush.header)
+}
+
+// repeated .proto.GamePatch patches = 12;
+inline int SpectatorInputPush::_internal_patches_size() const {
+  return patches_.size();
+}
+inline int SpectatorInputPush::patches_size() const {
+  return _internal_patches_size();
+}
+inline void SpectatorInputPush::clear_patches() {
+  patches_.Clear();
+}
+inline ::proto::GamePatch* SpectatorInputPush::mutable_patches(int index) {
+  // @@protoc_insertion_point(field_mutable:proto.SpectatorInputPush.patches)
+  return patches_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::GamePatch >*
+SpectatorInputPush::mutable_patches() {
+  // @@protoc_insertion_point(field_mutable_list:proto.SpectatorInputPush.patches)
+  return &patches_;
+}
+inline const ::proto::GamePatch& SpectatorInputPush::_internal_patches(int index) const {
+  return patches_.Get(index);
+}
+inline const ::proto::GamePatch& SpectatorInputPush::patches(int index) const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.patches)
+  return _internal_patches(index);
+}
+inline ::proto::GamePatch* SpectatorInputPush::_internal_add_patches() {
+  return patches_.Add();
+}
+inline ::proto::GamePatch* SpectatorInputPush::add_patches() {
+  // @@protoc_insertion_point(field_add:proto.SpectatorInputPush.patches)
+  return _internal_add_patches();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::GamePatch >&
+SpectatorInputPush::patches() const {
+  // @@protoc_insertion_point(field_list:proto.SpectatorInputPush.patches)
+  return patches_;
+}
+
+// int32 patch_start = 13;
+inline void SpectatorInputPush::clear_patch_start() {
+  patch_start_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::_internal_patch_start() const {
+  return patch_start_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::patch_start() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.patch_start)
+  return _internal_patch_start();
+}
+inline void SpectatorInputPush::_internal_set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  patch_start_ = value;
+}
+inline void SpectatorInputPush::set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_patch_start(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.patch_start)
+}
+
+// int32 patch_total = 14;
+inline void SpectatorInputPush::clear_patch_total() {
+  patch_total_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::_internal_patch_total() const {
+  return patch_total_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::patch_total() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.patch_total)
+  return _internal_patch_total();
+}
+inline void SpectatorInputPush::_internal_set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  patch_total_ = value;
+}
+inline void SpectatorInputPush::set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_patch_total(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.patch_total)
+}
+
 // -------------------------------------------------------------------
 
 // SpectatorInputAck
@@ -6593,6 +7322,112 @@ inline void SpectatorInputAck::_internal_set_ack_frame(::PROTOBUF_NAMESPACE_ID::
 inline void SpectatorInputAck::set_ack_frame(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_ack_frame(value);
   // @@protoc_insertion_point(field_set:proto.SpectatorInputAck.ack_frame)
+}
+
+// int32 patch_ack = 3;
+inline void SpectatorInputAck::clear_patch_ack() {
+  patch_ack_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::_internal_patch_ack() const {
+  return patch_ack_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::patch_ack() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputAck.patch_ack)
+  return _internal_patch_ack();
+}
+inline void SpectatorInputAck::_internal_set_patch_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  patch_ack_ = value;
+}
+inline void SpectatorInputAck::set_patch_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_patch_ack(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputAck.patch_ack)
+}
+
+// -------------------------------------------------------------------
+
+// SpectatorSubscribeRequest
+
+// string battle_code = 1;
+inline void SpectatorSubscribeRequest::clear_battle_code() {
+  battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& SpectatorSubscribeRequest::battle_code() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorSubscribeRequest.battle_code)
+  return _internal_battle_code();
+}
+inline void SpectatorSubscribeRequest::set_battle_code(const std::string& value) {
+  _internal_set_battle_code(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorSubscribeRequest.battle_code)
+}
+inline std::string* SpectatorSubscribeRequest::mutable_battle_code() {
+  // @@protoc_insertion_point(field_mutable:proto.SpectatorSubscribeRequest.battle_code)
+  return _internal_mutable_battle_code();
+}
+inline const std::string& SpectatorSubscribeRequest::_internal_battle_code() const {
+  return battle_code_.Get();
+}
+inline void SpectatorSubscribeRequest::_internal_set_battle_code(const std::string& value) {
+  
+  battle_code_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void SpectatorSubscribeRequest::set_battle_code(std::string&& value) {
+  
+  battle_code_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:proto.SpectatorSubscribeRequest.battle_code)
+}
+inline void SpectatorSubscribeRequest::set_battle_code(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  battle_code_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:proto.SpectatorSubscribeRequest.battle_code)
+}
+inline void SpectatorSubscribeRequest::set_battle_code(const char* value,
+    size_t size) {
+  
+  battle_code_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:proto.SpectatorSubscribeRequest.battle_code)
+}
+inline std::string* SpectatorSubscribeRequest::_internal_mutable_battle_code() {
+  
+  return battle_code_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* SpectatorSubscribeRequest::release_battle_code() {
+  // @@protoc_insertion_point(field_release:proto.SpectatorSubscribeRequest.battle_code)
+  return battle_code_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void SpectatorSubscribeRequest::set_allocated_battle_code(std::string* battle_code) {
+  if (battle_code != nullptr) {
+    
+  } else {
+    
+  }
+  battle_code_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), battle_code,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:proto.SpectatorSubscribeRequest.battle_code)
+}
+
+// int32 from_frame = 3;
+inline void SpectatorSubscribeRequest::clear_from_frame() {
+  from_frame_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorSubscribeRequest::_internal_from_frame() const {
+  return from_frame_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorSubscribeRequest::from_frame() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorSubscribeRequest.from_frame)
+  return _internal_from_frame();
+}
+inline void SpectatorSubscribeRequest::_internal_set_from_frame(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  from_frame_ = value;
+}
+inline void SpectatorSubscribeRequest::set_from_frame(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_from_frame(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorSubscribeRequest.from_frame)
 }
 
 // -------------------------------------------------------------------
@@ -9215,9 +10050,94 @@ inline void Packet::set_allocated_spectator_round_result_data(::proto::Spectator
   // @@protoc_insertion_point(field_set_allocated:proto.Packet.spectator_round_result_data)
 }
 
+// .proto.SpectatorSubscribeRequest spectator_subscribe_data = 24;
+inline bool Packet::_internal_has_spectator_subscribe_data() const {
+  return this != internal_default_instance() && spectator_subscribe_data_ != nullptr;
+}
+inline bool Packet::has_spectator_subscribe_data() const {
+  return _internal_has_spectator_subscribe_data();
+}
+inline void Packet::clear_spectator_subscribe_data() {
+  if (GetArena() == nullptr && spectator_subscribe_data_ != nullptr) {
+    delete spectator_subscribe_data_;
+  }
+  spectator_subscribe_data_ = nullptr;
+}
+inline const ::proto::SpectatorSubscribeRequest& Packet::_internal_spectator_subscribe_data() const {
+  const ::proto::SpectatorSubscribeRequest* p = spectator_subscribe_data_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::SpectatorSubscribeRequest*>(
+      &::proto::_SpectatorSubscribeRequest_default_instance_);
+}
+inline const ::proto::SpectatorSubscribeRequest& Packet::spectator_subscribe_data() const {
+  // @@protoc_insertion_point(field_get:proto.Packet.spectator_subscribe_data)
+  return _internal_spectator_subscribe_data();
+}
+inline void Packet::unsafe_arena_set_allocated_spectator_subscribe_data(
+    ::proto::SpectatorSubscribeRequest* spectator_subscribe_data) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(spectator_subscribe_data_);
+  }
+  spectator_subscribe_data_ = spectator_subscribe_data;
+  if (spectator_subscribe_data) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.Packet.spectator_subscribe_data)
+}
+inline ::proto::SpectatorSubscribeRequest* Packet::release_spectator_subscribe_data() {
+  
+  ::proto::SpectatorSubscribeRequest* temp = spectator_subscribe_data_;
+  spectator_subscribe_data_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::SpectatorSubscribeRequest* Packet::unsafe_arena_release_spectator_subscribe_data() {
+  // @@protoc_insertion_point(field_release:proto.Packet.spectator_subscribe_data)
+  
+  ::proto::SpectatorSubscribeRequest* temp = spectator_subscribe_data_;
+  spectator_subscribe_data_ = nullptr;
+  return temp;
+}
+inline ::proto::SpectatorSubscribeRequest* Packet::_internal_mutable_spectator_subscribe_data() {
+  
+  if (spectator_subscribe_data_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::SpectatorSubscribeRequest>(GetArena());
+    spectator_subscribe_data_ = p;
+  }
+  return spectator_subscribe_data_;
+}
+inline ::proto::SpectatorSubscribeRequest* Packet::mutable_spectator_subscribe_data() {
+  // @@protoc_insertion_point(field_mutable:proto.Packet.spectator_subscribe_data)
+  return _internal_mutable_spectator_subscribe_data();
+}
+inline void Packet::set_allocated_spectator_subscribe_data(::proto::SpectatorSubscribeRequest* spectator_subscribe_data) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete spectator_subscribe_data_;
+  }
+  if (spectator_subscribe_data) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(spectator_subscribe_data);
+    if (message_arena != submessage_arena) {
+      spectator_subscribe_data = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, spectator_subscribe_data, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  spectator_subscribe_data_ = spectator_subscribe_data;
+  // @@protoc_insertion_point(field_set_allocated:proto.Packet.spectator_subscribe_data)
+}
+
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
