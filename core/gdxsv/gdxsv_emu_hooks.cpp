@@ -29,41 +29,6 @@ static void wireless_warning_popup(const std::string& connection_medium);
 static void vpn_warning_toast(const std::string& connection_medium);
 static void p2p_connection_toast();
 
-// dc_loadstate(99) (used to bootstrap both file replay and Live Spectate) is
-// intercepted by gdxsv_emu_loadstate below, but it still needs a real
-// savestate file to exist at that slot first - a canned "game is sitting at
-// the network-ready lobby screen" snapshot, shared across all replays and
-// battles for a given disk. gdxsv_replay_util.cpp already downloads this
-// on demand for the in-game "Watch Replay" UI (download_replay_savestate);
-// mirrored here since Live Spectate can also be the very first thing a
-// fresh instance ever does, before that UI path has ever run once.
-static bool EnsureSpectateBootstrapSavestate(int disk) {
-	const auto save_path = hostfs::getSavestatePath(99, false);
-	if (file_exists(save_path)) {
-		return true;
-	}
-
-	http::init();
-	std::vector<u8> downloaded;
-	std::string content_type;
-	std::string url = disk == 1 ? "https://storage.googleapis.com/gdxsv/misc/gdx-disc1_99.state"
-								 : "https://storage.googleapis.com/gdxsv/misc/gdx-disc2_99.state";
-	int rc = http::get(url, downloaded, content_type);
-	if (rc != 200) {
-		ERROR_LOG(COMMON, "EnsureSpectateBootstrapSavestate: download failed rc=%d url=%s", rc, url.c_str());
-		return false;
-	}
-
-	FILE* fp = nowide::fopen(save_path.c_str(), "wb");
-	if (fp == nullptr) {
-		ERROR_LOG(COMMON, "EnsureSpectateBootstrapSavestate: fopen failed path=%s", save_path.c_str());
-		return false;
-	}
-	auto written = fwrite(downloaded.data(), 1, downloaded.size(), fp);
-	std::fclose(fp);
-	return written == downloaded.size();
-}
-
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
@@ -80,17 +45,24 @@ void gdxsv_emu_start() {
 	gdxsv.Reset();
 
 	if (gdxsv.Enabled()) {
-		auto replay = config::loadStr("gdxsv", "replay", "");
-		if (!replay.empty()) {
-			dc_savestate(90);
-			dc_loadstate(99);
-		} else if (!config::loadStr("gdxsv", "spectate", "").empty()) {
-			if (EnsureSpectateBootstrapSavestate(gdxsv.Disk())) {
-				dc_savestate(90);
+		const auto replay = config::loadStr("gdxsv", "replay", "");
+		const auto spectate = config::loadStr("gdxsv", "spectate", "");
+		const auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
+
+		if (!replay.empty() || !spectate.empty()) {
+			// Both resume from the shared slot-99 bootstrap savestate;
+			// gdxsv_emu_loadstate picks which of the two to start from the
+			// same config once the state is loaded.
+			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+				if (gdxsv.IsSaveStateAllowed()) {
+					dc_savestate(90);
+				}
 				dc_loadstate(99);
 			}
-		} else if (!config::loadStr("gdxsv", "rbk_test", "").empty()) {
-			dc_loadstate(99);
+		} else if (!rbk_test.empty()) {
+			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+				dc_loadstate(99);
+			}
 		} else {
 			gdxsv.StartPingTest();
 			gui_setState(GuiState::GdxsvLatencyCheck);

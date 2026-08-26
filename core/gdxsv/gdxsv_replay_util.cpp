@@ -118,31 +118,6 @@ int pov_index = -1;
 ImVec2 normal_padding;
 float scaling;
 
-bool download_replay_savestate(int disk, const std::string& save_path) {
-	std::string content_type;
-	http::init();
-	std::vector<u8> downloaded;
-	std::string url = "https://storage.googleapis.com/gdxsv/misc/gdx-disc2_99.state";
-	if (disk == 1) {
-		std::string url = "https://storage.googleapis.com/gdxsv/misc/gdx-disc1_99.state";
-	}
-	int rc = http::get(url, downloaded, content_type);
-	if (rc != 200) {
-		ERROR_LOG(COMMON, "replay savestate download failure: %s", url.c_str());
-		return false;
-	}
-
-	FILE* fp = nowide::fopen(save_path.c_str(), "wb");
-	if (fp == nullptr) {
-		ERROR_LOG(COMMON, "replay savestate save failure: %s", url.c_str());
-		return false;
-	}
-
-	auto written = fwrite(downloaded.data(), 1, downloaded.size(), fp);
-	std::fclose(fp);
-	return written == downloaded.size();
-}
-
 void textCentered(const std::string& text) {
 	auto windowWidth = ImGui::GetWindowSize().x;
 	auto textWidth = ImGui::CalcTextSize(text.c_str()).x;
@@ -1041,21 +1016,40 @@ void gdxsv_replay_server_tab() {
 
 }  // namespace
 
+bool gdxsv_ensure_replay_savestate(int disk) {
+	const auto save_path = hostfs::getSavestatePath(99, false);
+	if (file_exists(save_path)) {
+		return true;
+	}
+
+	http::init();
+	std::vector<u8> downloaded;
+	std::string content_type;
+	const std::string url = disk == 1 ? "https://storage.googleapis.com/gdxsv/misc/gdx-disc1_99.state"
+									  : "https://storage.googleapis.com/gdxsv/misc/gdx-disc2_99.state";
+	int rc = http::get(url, downloaded, content_type);
+	if (rc != 200) {
+		ERROR_LOG(COMMON, "replay savestate download failure rc=%d url=%s", rc, url.c_str());
+		return false;
+	}
+
+	FILE* fp = nowide::fopen(save_path.c_str(), "wb");
+	if (fp == nullptr) {
+		ERROR_LOG(COMMON, "replay savestate save failure: %s", save_path.c_str());
+		return false;
+	}
+
+	const auto written = fwrite(downloaded.data(), 1, downloaded.size(), fp);
+	std::fclose(fp);
+	return written == downloaded.size();
+}
+
 void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	if (gdxsv.IsSaveStateAllowed()) {
 		dc_savestate(90);
 	}
 
-	bool ok = true;
-	const auto savestate_path = hostfs::getSavestatePath(99, false);
-	if (!file_exists(savestate_path)) {
-		ok = false;
-		if (download_replay_savestate(gdxsv.Disk(), savestate_path)) {
-			ok = true;
-		}
-	}
-
-	if (ok) {
+	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
 		dc_loadstate(99);
 		if (gdxsv.StartReplayFile(replay_file.c_str(), pov)) {
 			gui_state = GuiState::Closed;
