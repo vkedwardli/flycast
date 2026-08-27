@@ -425,6 +425,28 @@ void GdxsvBackendReplay::BeginLoadingHud() {
 	ctrl_loading_wait_frames_ = 0;
 }
 
+// Restore disc-2 MS-selection roles after loading another round's savestate.
+// start_msg_randoms contains the post-draw RNG state; its high byte is the
+// random value used by 0x0c04816c to choose the map selector.
+static void gdxsv_patch_map_selector(u16 round_seed, int player_count) {
+	if (gdxsv.Disk() != 2)
+		return;
+	if (gdxsv_ReadMem8(0x0c3913c7) == 0) // stage_flag 0: side7, no map selection
+		return;
+	constexpr u32 kSelWork = 0x0c3d0724u;
+	constexpr u32 kSelMask = kSelWork + 0x1c;	// one-hot map-selector mask
+	constexpr u32 kSelRoles = kSelWork + 0x10;	// per-player role, 0 = map selector
+
+	const int selector = static_cast<u8>(round_seed >> 8) % player_count;
+	const u8 mask = static_cast<u8>(1u << selector);
+	gdxsv_WriteMem8(kSelMask, mask);
+	for (int p = 0; p < 4; ++p) {
+		gdxsv_WriteMem8(kSelRoles + p, (mask & (1u << p)) ? 0 : 1);
+	}
+	NOTICE_LOG(COMMON, "map selector recomputed: seed=%04x players=%d -> index=%d mask=%02x", round_seed, player_count,
+			   selector, mask);
+}
+
 void GdxsvBackendReplay::OnNextFrame() {
 	if (!end_of_frame_) return;
 	if (seeking_) return;
@@ -758,6 +780,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				gdxsv_WriteMem8(net_battle_count_copy, round - 1);
 				NOTICE_LOG(COMMON, "ctrl_change_round_:%d key_msg_count_:%d", round, key_msg_count_);
 				NOTICE_LOG(COMMON, "start_msg_randoms_size:%d", log_file_.start_msg_randoms_size());
+				gdxsv_patch_map_selector(random_data, log_file_.users_size());
 
 				recv_buf_.clear();
 				gdxsv.key_display_.Clear();
