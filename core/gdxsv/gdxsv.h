@@ -54,10 +54,12 @@ class Gdxsv {
 	std::shared_future<std::pair<bool, std::string>> PublicIPv6() const { return public_ipv6_; }
 	void NotifyWanPort() const;
 	bool StartReplayFile(const char* path, int pov);
+	bool StartLiveSpectate(const char* battle_code, int pov);
 	void StopReplay();
 	bool StartRollbackTest(const char* param);
 	void WritePatch();
 	int Disk() const { return disk_; }
+	bool WidescreenPatchEnabled() const { return enabled_ && widescreen_patch_enabled_; }
 	std::string UserId() const { return user_id_; }
 	MiniUPnP& UPnP() { return upnp_; }
 
@@ -66,8 +68,10 @@ class Gdxsv {
 	std::vector<u8> GeneratePlatformInfoPacket();
 	std::vector<u8> GenerateP2PMatchReportPacket();
 	void ApplyOnlinePatch(bool first_time);
+	void ResetWidescreenPatch();
 	void WritePatchDisk1();
 	void WritePatchDisk2();
+	void WriteWidescreenPatchDisk2();
 
 	NetMode netmode_ = NetMode::Offline;
 	std::atomic<bool> enabled_;
@@ -80,6 +84,10 @@ class Gdxsv {
 	std::map<std::string, u32> symbols_;
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;
+	// Snapshotted once in Reset(). Widescreen changes require a game restart.
+	bool widescreen_patch_enabled_ = false;
+	float widescreen_patch_aspect_ = 4.f / 3.f;
+	float widescreen_hud_aspect_ = 16.f / 9.f;
 
 	std::shared_future<std::map<std::string, int>> gcp_ping_test_result_;
 	std::shared_future<std::pair<bool, std::string>> public_ipv4_, public_ipv6_;

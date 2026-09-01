@@ -1949,6 +1949,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_emu_hooks.h
 		core/gdxsv/gdxsv_gui_settings.cpp
 		core/gdxsv/gdxsv_gui_settings.h
+		core/gdxsv/gdxsv_https_latency.h
 		core/gdxsv/gdxsv_key_display.cpp
 		core/gdxsv/gdxsv_key_display.h
 		core/gdxsv/gdxsv_network.cpp
@@ -1962,6 +1963,12 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_replay_util.h
 		core/gdxsv/gdxsv_save_state.cpp
 		core/gdxsv/gdxsv_save_state.h
+		core/gdxsv/gdxsv_spectate_sync.cpp
+		core/gdxsv/gdxsv_spectate_sync.h
+		core/gdxsv/gdxsv_spectator_downlink.cpp
+		core/gdxsv/gdxsv_spectator_downlink.h
+		core/gdxsv/gdxsv_spectator_uplink.cpp
+		core/gdxsv/gdxsv_spectator_uplink.h
 		core/gdxsv/gdxsv_translation.cpp
 		core/gdxsv/gdxsv_translation.h
 		core/gdxsv/gdxsv_translation_patch.inc
@@ -1976,10 +1983,18 @@ set_source_files_properties(core/gdxsv/juice_helper.c PROPERTIES INCLUDE_DIRECTO
 if(WIN32)
 	set(CMAKE_VS_SDK_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES})
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/textures.rc)
+	if(NOT WINDOWS_STORE)
+		target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_https_latency_win.cpp)
+	endif()
+endif()
+if(UNIX AND NOT APPLE AND NOT ANDROID AND NOT NINTENDO_SWITCH)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_https_latency_curl.cpp)
 endif()
 if(APPLE)
 	set(ASSETS core/gdxsv/Textures)
-	target_sources(${PROJECT_NAME} PRIVATE ${ASSETS})
+	target_sources(${PROJECT_NAME} PRIVATE
+			core/gdxsv/gdxsv_https_latency_apple.mm
+			${ASSETS})
 	source_group("Resources" FILES ${ASSETS})
 	set_source_files_properties(${ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()

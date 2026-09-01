@@ -117,6 +117,14 @@ bool GdxsvUpdate::IsSupportSelfUpdate() {
 #endif
 }
 
+bool GdxsvUpdate::IsAppTranslocated() {
+#if defined(__APPLE__) && !defined(TARGET_IPHONE)
+	return GetExecutablePath().find("/AppTranslocation/") != std::string::npos;
+#else
+	return false;
+#endif
+}
+
 void GdxsvUpdate::HandleReleaseJSON(const std::string& json_string, LatestVersionInfo& out) {
 	const std::regex tag_name_regex(R"|#|("tag_name":"(.*?)")|#|");
 	const std::string version_prefix = "gdxsv-";
