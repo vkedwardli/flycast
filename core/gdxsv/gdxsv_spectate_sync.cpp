@@ -1,7 +1,10 @@
 #include "gdxsv_spectate_sync.h"
 
 #ifdef _WIN32
+// MinGW's libstdc++ defines this already, so guard it.
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #else
 #include <fcntl.h>

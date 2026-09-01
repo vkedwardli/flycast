@@ -183,7 +183,12 @@ time_t parse_iso8601(const std::string& v) {
 	}
 	tm.tm_year -= 1900;
 	tm.tm_mon -= 1;
+	// timegm is POSIX. Windows spells it _mkgmtime, in both MinGW and MSVC.
+#ifdef _WIN32
+	const time_t utc = _mkgmtime(&tm);
+#else
 	const time_t utc = timegm(&tm);
+#endif
 	const time_t offset = (off_h * 3600 + off_m * 60) * (sign == '-' ? -1 : 1);
 	return utc - offset;
 }
