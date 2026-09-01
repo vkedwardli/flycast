@@ -830,21 +830,18 @@ void gdxsv_replay_live_tab() {
 				ImGui::PushID(i);
 				const auto& entry = live_entries_[i];
 
-				char buf[512] = {};
 				const char* row_lobby = lobby_name_by_id(entry.lobby_id);
-				char lobby_label[128] = {};
-				if (row_lobby != nullptr) {
-					snprintf(lobby_label, sizeof(lobby_label), "%s", row_lobby);
-				} else {
-					snprintf(lobby_label, sizeof(lobby_label), "Lobby %d", entry.lobby_id);
-				}
-				snprintf(buf, sizeof(buf), u8"  %s  %s\n\n", entry.live_spectate ? ICON_FA_TOWER_BROADCAST : ICON_FA_CIRCLE_DOT,
-						 lobby_label);
+				std::string row = "  ";
+				row += entry.live_spectate ? ICON_FA_TOWER_BROADCAST : ICON_FA_CIRCLE_DOT;
+				row += "  ";
+				row += row_lobby != nullptr ? std::string(row_lobby) : ("Lobby " + std::to_string(entry.lobby_id));
+				row += "\n\n";
 				for (int u = 0; u < (int)entry.users.size(); u++) {
 					const auto& user = entry.users[u];
-					const bool last = (u + 1 == (int)entry.users.size());
-					snprintf(buf, sizeof(buf), "%s%s%s", buf, user.user_name().c_str(),
-							 last ? "" : (entry.users[u + 1].team() != user.team() ? " vs " : ", "));
+					row += user.user_name();
+					if (u + 1 < (int)entry.users.size()) {
+						row += entry.users[u + 1].team() != user.team() ? " vs " : ", ";
+					}
 				}
 
 				const ImVec2 row_pos = ImGui::GetCursorScreenPos();
@@ -853,9 +850,9 @@ void gdxsv_replay_live_tab() {
 				// without the uplink, so there is nothing to receive.
 				if (!entry.live_spectate) {
 					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-					ImGui::Selectable(buf, false, ImGuiSelectableFlags_Disabled, ImVec2(0, 0));
+					ImGui::Selectable(row.c_str(), false, ImGuiSelectableFlags_Disabled, ImVec2(0, 0));
 					ImGui::PopStyleColor();
-				} else if (ImGui::Selectable(buf, entry.battle_code == selected_live_battle_code, 0, ImVec2(0, 0))) {
+				} else if (ImGui::Selectable(row.c_str(), entry.battle_code == selected_live_battle_code, 0, ImVec2(0, 0))) {
 					selected_live_battle_code = entry.battle_code;
 					pov_index = -1;
 				}
@@ -1230,17 +1227,16 @@ void gdxsv_replay_server_tab() {
 						char timebuf[128] = {};
 						std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
 
-						char buf[256] = {};
-						snprintf(buf, sizeof(buf), u8"  %s  %s ― Result: %d：%d\n\n", ICON_FA_FILM, timebuf, entry.renpo_win, entry.zeon_win);
+						char head[256] = {};
+						snprintf(head, sizeof(head), u8"  %s  %s ― Result: %d：%d\n\n", ICON_FA_FILM, timebuf, entry.renpo_win,
+								 entry.zeon_win);
+						std::string row = head;
 
 						for (int i = 0; i < entry.users.size(); i++) {
 							const auto& user = entry.users[i];
-
-							if (i + 1 == entry.users.size()) {
-								snprintf(buf, sizeof(buf), "%s%s", buf, user.user_name().c_str());
-							} else {
-								snprintf(buf, sizeof(buf), "%s%s%s ", buf, user.user_name().c_str(),
-										 (entry.users[i + 1].team() != user.team() ? " vs" : ","));
+							row += user.user_name();
+							if (i + 1 < entry.users.size()) {
+								row += entry.users[i + 1].team() != user.team() ? " vs " : ", ";
 							}
 						}
 
@@ -1255,7 +1251,7 @@ void gdxsv_replay_server_tab() {
 						drawlist->ChannelsSplit(2);
 						drawlist->ChannelsSetCurrent(1);
 
-						if (ImGui::Selectable(buf, i == selected_replay_entry_index, 0, ImVec2(0, 0))) {
+						if (ImGui::Selectable(row.c_str(), i == selected_replay_entry_index, 0, ImVec2(0, 0))) {
 							selected_replay_entry_index = i;
 							pov_index = -1;
 						}
