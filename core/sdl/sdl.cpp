@@ -743,6 +743,12 @@ bool sdl_recreate_window(u32 flags)
 	flags |= SDL_WINDOW_FULLSCREEN;
 #endif
 
+	// gdxsv: a capture rig tiles instances edge to edge, so it wants no border.
+	// Set at creation, not after: removing the decoration later moves the frame
+	// and the grid comes out overlapping.
+	if (config::loadBool("gdxsv", "borderless", false))
+		flags |= SDL_WINDOW_BORDERLESS;
+
 	window = SDL_CreateWindow("Flycast", windowPos.x, windowPos.y,
 			windowPos.w * hdpiScaling, windowPos.h * hdpiScaling, flags);
 	if (window == nullptr)
