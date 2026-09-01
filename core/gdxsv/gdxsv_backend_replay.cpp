@@ -509,7 +509,38 @@ constexpr int kPacingStallFrames = 5;
 // input frame per rendered frame to claw back.
 constexpr int kPacingRecoverMargin = 5;
 
+// Longest a sync may stall the emulation thread, per frame. Not a
+// timeout on an operation that has to finish: healthy peers meet in
+// microseconds, and this only bounds the case that cannot succeed at all - a
+// peer stalled on data, or gone. It spends the 16.7ms frame budget, so keep it
+// small. Giving up early costs a frame of sync and nobody sees it; waiting too
+// long drops the frame rate and everybody hears it.
+constexpr int kSyncMaxWaitPerFrameMs = 2;
+
+// Sync position = key_msg_count_ * kSyncSubFrames + frames run since that input.
+//
+// key_msg_count_ is comparable across instances but freezes outside battle,
+// leaving nothing to sync on through the scenes where drift is most
+// visible. The sub-frame term keeps the position advancing there while staying
+// a function of game state rather than execution history.
+// Lengthen the frame period when this instance is ahead of the group, instead
+// of only spinning inside the frame.
+//
+// Spinning cannot slow a paced loop that has headroom: replay runs at a fixed
+// 59.94Hz, so a frame that finishes early sleeps out the rest of its 16.7ms,
+// and a wait inside the frame just eats idle time the instance was going to
+// spend sleeping anyway. Measured, that left a 12 frame offset closing at
+// 0.04 frames a second. Stretching the period is a real slowdown.
+//
+// Per frame of lead, so a small lead is corrected gently. At 200us a 12 frame
+// lead runs the period ~14% long and closes in about 1.5s.
+constexpr int kSyncTrimUsPerFrame = 200;
+constexpr int kSyncTrimMaxUs = 4000;
+
+constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
+
 }  // namespace
+
 
 void GdxsvBackendReplay::UpdateFramePacing() {
 	if (!live_mode_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
@@ -633,7 +664,46 @@ void GdxsvBackendReplay::OnNextFrame() {
 	// so a catch-up seek can chase an edge that is still moving.
 	CheckLiveUpdate();
 
+	// One sync point for every scene, here rather than in the delivery path
+	// because outside battle no input is delivered - which is exactly where the
+	// group used to drift apart.
+	//
+	// Offline replay syncs too. It is the only repeatable harness: the same
+	// recorded file, the same deterministic simulation, no join-time skew and
+	// no network variance - so a measured change is caused by the change,
+	// which live battles cannot tell us.
+	if (spectate_sync_.Active()) {
+		// Advances while key_msg_count_ is frozen, so there is still something
+		// to sync on outside battle.
+		if (sync_subframe_ < kSyncSubFrames - 1) ++sync_subframe_;
+
+		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+
+		// Heartbeat unconditionally, sync only when eligible. Publishing
+		// only from inside WaitForPeers lets a catching-up instance go stale
+		// and lose its slot.
+		spectate_sync_.Publish(static_cast<int32_t>(pos));
+
+		// Runs in every scene. This never speeds anything up - it only holds
+		// back an instance that is ahead, which while production is stalled is
+		// indistinguishable from waiting for data.
+		if (!takeover_ && !seeking_ && (!live_mode_ || !live_catching_up_)) {
+			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), sync_max_wait_ms_);
+		}
+	}
 	UpdateFramePacing();
+
+	// After UpdateFramePacing, not before: its offline branch clears the trim
+	// every frame, so setting it earlier had no effect at all.
+	//
+	// Offline replay only. In live mode the pacing controller owns the trim -
+	// the buffer target has to win over group alignment, or playback starves.
+	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_) {
+		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+		const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
+		gdxsv_frame_period_trim_us =
+			lead_frames <= 0 ? 0 : std::min(lead_frames * kSyncTrimUsPerFrame, kSyncTrimMaxUs);
+	}
 
 	if (!end_of_frame_) return;
 	if (seeking_) return;
@@ -1215,6 +1285,7 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	fclose(fp);
 
 	if (log_file_.users_size() <= pov) {
+		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
 
@@ -1234,6 +1305,7 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 	}
 
 	if (log_file_.users_size() <= pov) {
+		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
 
@@ -1257,6 +1329,7 @@ bool GdxsvBackendReplay::StartLive(const std::string& host, const std::string& b
 	}
 
 	if (log_file_.users_size() <= pov) {
+		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		live_downlink_.Stop();
 		return false;
 	}
@@ -1462,6 +1535,12 @@ bool GdxsvBackendReplay::Start() {
 	gdxsv_frame_period_trim_us = 0;
 
 	live_buffer_frames_ = std::clamp(config::loadInt("gdxsv", "LiveBufferFrames", kLiveDefaultBuffer), kLiveMinBuffer, kLiveMaxBuffer);
+	spectate_sync_.Join(config::loadStr("gdxsv", "SpectateSyncGroup", ""));
+
+	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
+	// waiting entirely, which is the A/B for "is the barrier costing frames?".
+	sync_max_wait_ms_ = std::clamp(config::loadInt("gdxsv", "SyncMaxWaitMs", kSyncMaxWaitPerFrameMs), 0, 200);
+	NOTICE_LOG(COMMON, "spectate sync max wait %d ms/frame", sync_max_wait_ms_);
 	NOTICE_LOG(COMMON, "replay pacing: 59.94Hz, live buffer %d frames (%.2fs)", live_buffer_frames_, live_buffer_frames_ / 59.94);
 
 	if (log_file_.log_file_version() < 20210802) {
@@ -1805,6 +1884,7 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 
 	if (key_msg_count_ < log_file_.inputs_size()) {
 		++key_msg_count_;
+		sync_subframe_ = 0;
 
 		if (key_msg_count_ == log_file_.inputs_size() && !takeover_) {
 			// Live Spectate: hold at the live edge instead of stopping -

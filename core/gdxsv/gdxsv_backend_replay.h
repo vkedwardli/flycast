@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 
+#include "gdxsv_spectate_sync.h"
 
 #include "gdxsv.pb.h"
 #include "gdxsv_save_state.h"
@@ -253,6 +254,12 @@ class GdxsvBackendReplay {
 	// Intake cap, which keeps consumption on the frame clock.
 	u32 deliver_last_mainui_ = 0xffffffffu;
 	int deliver_this_frame_ = 0;
+
+	// Local multi-instance sync, which holds several spectators on one machine
+	// to the same frame. Inactive unless gdxsv:SpectateSyncGroup is set.
+	GdxsvSpectateSync spectate_sync_;
+	int sync_subframe_ = 0;
+	int sync_max_wait_ms_ = 2;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
