@@ -32,7 +32,9 @@
 
 #include <sstream>
 #include <thread>
+#include <algorithm>
 #include <chrono>
+#include <map>
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
@@ -110,6 +112,38 @@ int fetch_user_entry_http_status;
 
 std::shared_future<std::vector<ReplayEntry>> fetch_replay_entry_future_;
 int fetch_replay_entry_http_status;
+
+// One in-progress battle from /lbs/status, joining active_games with the
+// battle_users that belong to it.
+struct LiveEntry {
+	std::string battle_code;
+	std::string disk;
+	std::string state;
+	int lobby_id = 0;
+	bool live_spectate = false;
+	int spectators = 0;
+	time_t updated_unix = 0;
+	std::vector<proto::BattleLogUser> users;
+};
+
+std::shared_future<std::vector<LiveEntry>> fetch_live_entry_future_;
+int fetch_live_entry_http_status;
+std::chrono::steady_clock::time_point live_last_fetch_;
+
+// The last good result stays on screen while the next fetch is in flight -
+// otherwise the list blinks out every refresh. Only the very first load has
+// nothing to show.
+std::vector<LiveEntry> live_entries_;
+bool live_first_load_ = true;
+
+// By battle_code, not by index: battles come and go between refreshes, so an
+// index would silently end up pointing at a different battle.
+std::string selected_live_battle_code;
+
+// Battles start and end while the tab is open, so the list refreshes itself.
+// /lbs/status collapses concurrent requests with singleflight, so this is
+// cheap on the server; polling only runs while the tab is actually visible.
+constexpr int kLiveRefreshSeconds = 10;
 int selected_replay_entry_index = -1;
 
 int entry_paging = 0;
@@ -117,6 +151,59 @@ char page_buf[4] = "1";
 int pov_index = -1;
 ImVec2 normal_padding;
 float scaling;
+
+const std::array<std::array<const char*, 2>, 17> lobby_data{{{"Taklamakan Desert", "2"},
+															 {"Black Sea Forest", "4"},
+															 {"Odessa", "5"},
+															 {"Belfast", "6"},
+															 {"New York", "9"},
+															 {"Grand Canyon", "10"},
+															 {"Jaburo", "11"},
+															 {"UG Complex", "12"},
+															 {"Solomon", "13"},
+															 {"Solomon (Space)", "14"},
+															 {"A Baoa Qu (Space)", "15"},
+															 {"A Baoa Qu (Outter)", "16"},
+															 {"A Baoa Qu (Inner)", "17"},
+															 {"Sat.Orbit 1", "19"},
+															 {"Sat.Orbit 2", "20"},
+															 {"SIDE 6 (Space)", "21"},
+															 {"SIDE 7 (Inner)", "22"}}};
+
+// active_games carries no start time, only when the record was last touched -
+// which for a battle still in progress is when it started.
+time_t parse_iso8601(const std::string& v) {
+	std::tm tm{};
+	int frac = 0;
+	char sign = '+';
+	int off_h = 0, off_m = 0;
+	if (sscanf(v.c_str(), "%d-%d-%dT%d:%d:%d.%d%c%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour, &tm.tm_min, &tm.tm_sec, &frac,
+			   &sign, &off_h, &off_m) < 6) {
+		return 0;
+	}
+	tm.tm_year -= 1900;
+	tm.tm_mon -= 1;
+	const time_t utc = timegm(&tm);
+	const time_t offset = (off_h * 3600 + off_m * 60) * (sign == '-' ? -1 : 1);
+	return utc - offset;
+}
+
+// "dc1"/"dc2" are internal names. Players call the two discs MUJI and DX, which
+// is what the Server tab's own disk filter buttons already say.
+const char* disk_display_name(const std::string& disk) {
+	if (disk == "dc1") return "MUJI";
+	if (disk == "dc2") return "DX";
+	return disk.c_str();
+}
+
+// Translated, so the Live list reads the same as the Server tab's filter.
+const char* lobby_name_by_id(int lobby_id) {
+	const auto id = std::to_string(lobby_id);
+	for (const auto& row : lobby_data) {
+		if (id == row[1]) return GdxsvLanguage::gdxT(row[0]);
+	}
+	return nullptr;
+}
 
 void textCentered(const std::string& text) {
 	auto windowWidth = ImGui::GetWindowSize().x;
@@ -209,7 +296,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 		ImGui::SetClipboardText(battle_code.c_str());
 	}
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
-	ImGui::Text("Game: %s", game_disk.c_str());
+	ImGui::Text("Game: %s", disk_display_name(game_disk));
 	if (play_count >= 0) {
 		ImGui::Text("Views: %d", play_count);
 	}
@@ -523,6 +610,93 @@ void fetch_replay_json() {
 	fetch_replay_entry_future_ = std::async(std::launch::async, future_fn).share();
 }
 
+void parse_live_json(const std::vector<u8>& json_string, std::vector<LiveEntry>& out) {
+	try {
+		nlohmann::json j = nlohmann::json::parse(json_string);
+
+		std::map<std::string, LiveEntry> by_code;
+		for (const auto& g : j.value("active_games", nlohmann::json::array())) {
+			LiveEntry e;
+			e.battle_code = g.value("battle_code", "");
+			if (e.battle_code.empty()) continue;
+			e.disk = g.value("disk", "");
+			e.state = g.value("state", "");
+			e.lobby_id = g.value("lobby_id", 0);
+			e.live_spectate = g.value("live_spectate", false);
+			e.spectators = g.value("spectators", 0);
+			e.updated_unix = parse_iso8601(g.value("updated_at", ""));
+			by_code[e.battle_code] = e;
+		}
+
+		// battle_users is a flat list across every battle, and the server
+		// dedups it by user_id - so a player in two battles appears once and
+		// one of those battles comes up a man short. Render what arrived.
+		for (const auto& u : j.value("battle_users", nlohmann::json::array())) {
+			auto it = by_code.find(u.value("battle_code", ""));
+			if (it == by_code.end()) continue;
+			auto user = proto::BattleLogUser();
+			user.set_user_id(u.value("user_id", ""));
+			user.set_user_name(u.value("name", ""));
+			user.set_pilot_name(u.value("pilot_name", ""));
+			user.set_pos(u.value("battle_pos", 0));
+			user.set_team(u.value("team", "") == "renpo" ? 1 : 2);
+			it->second.users.push_back(user);
+		}
+
+		for (auto& kv : by_code) {
+			std::sort(kv.second.users.begin(), kv.second.users.end(),
+					  [](const proto::BattleLogUser& a, const proto::BattleLogUser& b) { return a.pos() < b.pos(); });
+			out.push_back(kv.second);
+		}
+	} catch (const nlohmann::json::exception& e) {
+		ERROR_LOG(COMMON, "live status json parse failure: %s", e.what());
+	}
+}
+
+void fetch_live_json() {
+	if (fetch_live_entry_future_.valid()) {
+		return;
+	}
+	live_last_fetch_ = std::chrono::steady_clock::now();
+
+	const auto future_fn = []() -> std::vector<LiveEntry> {
+		std::vector<LiveEntry> entries{};
+		std::vector<u8> dl;
+		std::string content_type;
+		http::init();
+		const std::string url = config::loadStr("gdxsv", "LiveApiUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi") + "/status";
+
+		fetch_live_entry_http_status = http::get(url, dl, content_type);
+		if (fetch_live_entry_http_status != 200) {
+			ERROR_LOG(COMMON, "live status fetch failure %d: %s", fetch_live_entry_http_status, url.c_str());
+			return entries;
+		}
+
+		parse_live_json(dl, entries);
+		return entries;
+	};
+
+	fetch_live_entry_future_ = std::async(std::launch::async, future_fn).share();
+}
+
+void fetch_live_refresh() {
+	fetch_live_entry_future_ = std::shared_future<std::vector<LiveEntry>>();
+	fetch_live_json();
+}
+
+// Moves a finished fetch into live_entries_ and frees the future for the next
+// poll. A failed fetch leaves the previous list up rather than emptying it.
+void live_harvest_fetch() {
+	if (!fetch_live_entry_future_.valid() || !future_is_ready(fetch_live_entry_future_)) {
+		return;
+	}
+	if (fetch_live_entry_http_status == 200) {
+		live_entries_ = fetch_live_entry_future_.get();
+	}
+	live_first_load_ = false;
+	fetch_live_entry_future_ = std::shared_future<std::vector<LiveEntry>>();
+}
+
 void fetch_user_json() {
 	if (fetch_user_entry_future_.valid()) {
 		return;
@@ -607,6 +781,157 @@ void draw_filter_label_bool(const std::string& label, bool& value) {
 		draw_filter_label(label, "Yes", [&value]() { value = false; });
 	}
 };
+
+void gdxsv_replay_live_tab() {
+	live_harvest_fetch();
+
+	const bool due = kLiveRefreshSeconds <= std::chrono::duration_cast<std::chrono::seconds>(
+											   std::chrono::steady_clock::now() - live_last_fetch_)
+											   .count();
+	if (!fetch_live_entry_future_.valid() && (live_first_load_ || due)) {
+		fetch_live_json();
+	}
+
+	const bool refreshing = fetch_live_entry_future_.valid();
+	{
+		DisabledScope scope(refreshing);
+		// Default size, like every other button in these tabs - so the status
+		// line beside it lands on the same baseline without nudging.
+		if (ImGui::Button(ICON_FA_ARROW_ROTATE_RIGHT "  Refresh") && !scope.isDisabled()) {
+			fetch_live_refresh();
+		}
+	}
+	ImGui::SameLine();
+	ImGui::AlignTextToFramePadding();
+	if (refreshing && !live_first_load_) {
+		ImGui::TextDisabled("Battles in progress. Updating...");
+	} else if (fetch_live_entry_http_status != 200 && !live_first_load_) {
+		ImGui::TextDisabled("Battles in progress. Last update failed (HTTP %d).", fetch_live_entry_http_status);
+	} else {
+		ImGui::TextDisabled("Battles in progress. Updates every %ds.", kLiveRefreshSeconds);
+	}
+
+	ImGui::BeginChild(ImGui::GetID("gdxsv_live_list"), ScaledVec2(450, 0), true, ImGuiWindowFlags_DragScrolling);
+	{
+		if (live_first_load_) {
+			ImGui::Text("Loading...");
+		} else if (live_entries_.empty()) {
+			ImGui::Text("No battle in progress.");
+		} else {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30.0f));
+			for (int i = 0; i < (int)live_entries_.size(); ++i) {
+				ImGui::PushID(i);
+				const auto& entry = live_entries_[i];
+
+				char buf[512] = {};
+				const char* row_lobby = lobby_name_by_id(entry.lobby_id);
+				char lobby_label[128] = {};
+				if (row_lobby != nullptr) {
+					snprintf(lobby_label, sizeof(lobby_label), "%s", row_lobby);
+				} else {
+					snprintf(lobby_label, sizeof(lobby_label), "Lobby %d", entry.lobby_id);
+				}
+				snprintf(buf, sizeof(buf), u8"  %s  %s\n\n", entry.live_spectate ? ICON_FA_TOWER_BROADCAST : ICON_FA_CIRCLE_DOT,
+						 lobby_label);
+				for (int u = 0; u < (int)entry.users.size(); u++) {
+					const auto& user = entry.users[u];
+					const bool last = (u + 1 == (int)entry.users.size());
+					snprintf(buf, sizeof(buf), "%s%s%s", buf, user.user_name().c_str(),
+							 last ? "" : (entry.users[u + 1].team() != user.team() ? " vs " : ", "));
+				}
+
+				const ImVec2 row_pos = ImGui::GetCursorScreenPos();
+
+				// Listed but not selectable: everyone in it is on a build
+				// without the uplink, so there is nothing to receive.
+				if (!entry.live_spectate) {
+					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+					ImGui::Selectable(buf, false, ImGuiSelectableFlags_Disabled, ImVec2(0, 0));
+					ImGui::PopStyleColor();
+				} else if (ImGui::Selectable(buf, entry.battle_code == selected_live_battle_code, 0, ImVec2(0, 0))) {
+					selected_live_battle_code = entry.battle_code;
+					pov_index = -1;
+				}
+
+				// Viewer count, right-aligned on the lobby line. Drawn straight
+				// to the draw list so it does not become a second item and eat
+				// clicks meant for the row.
+				if (entry.live_spectate) {
+					char watchers[64] = {};
+					snprintf(watchers, sizeof(watchers), ICON_FA_EYE " %d", entry.spectators);
+					const ImVec2 text_size = ImGui::CalcTextSize(watchers);
+					const float right = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+					const float right_margin = 8.0f * scaling;
+					ImGui::GetWindowDrawList()->AddText(ImVec2(right - text_size.x - right_margin, row_pos.y),
+														ImGui::GetColorU32(ImGuiCol_TextDisabled), watchers);
+				}
+
+				ImGui::PopID();
+			}
+			ImGui::PopStyleVar();
+		}
+		scrollWhenDraggingOnVoid();
+		windowDragScroll();
+	}
+	ImGui::EndChild();
+
+	ImGui::SameLine();
+	ImGui::BeginChild(ImGui::GetID("gdxsv_live_detail"), ImVec2(0, 0), true, ImGuiWindowFlags_DragScrolling);
+	{
+		const LiveEntry* selected = nullptr;
+		for (const auto& e : live_entries_) {
+			if (e.battle_code == selected_live_battle_code) {
+				selected = &e;
+				break;
+			}
+		}
+
+		if (selected == nullptr) {
+			ImGui::Text(selected_live_battle_code.empty() ? "Select a battle to watch." : "That battle has ended.");
+		} else {
+			// Same blue-renpo / red-zeon cards the replay detail uses, and the
+			// same pov_index, so picking a view works identically in both.
+			gdxsv_replay_draw_players(selected->users);
+
+			ImGui::NewLine();
+			{
+				const bool playable = ("dc" + std::to_string(gdxsv.Disk())) == selected->disk;
+				ImGui::BeginDisabled(pov_index == -1 || !playable);
+				if (ImGui::ButtonEx(pov_index == -1 ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_TOWER_BROADCAST "  Watch Live",
+									ScaledVec2(240, 50))) {
+					gdxsv_start_live_spectate(selected->battle_code, pov_index);
+				}
+				ImGui::EndDisabled();
+				if (!playable) {
+					ImGui::SameLine();
+					ImGui::AlignTextToFramePadding();
+					ImGui::TextDisabled("This battle is on %s.", disk_display_name(selected->disk));
+				}
+			}
+
+			// Same fields the replay detail lists, so the two read alike.
+			ImGui::NewLine();
+			const char* sel_lobby = lobby_name_by_id(selected->lobby_id);
+			if (sel_lobby != nullptr) {
+				ImGui::Text("Lobby: %s", sel_lobby);
+			} else {
+				ImGui::Text("Lobby: %d", selected->lobby_id);
+			}
+			ImGui::Text("BattleCode: %s", selected->battle_code.c_str());
+			ImGui::Text("Game: %s", disk_display_name(selected->disk));
+			ImGui::Text("Current Viewers: %d", selected->spectators);
+			if (selected->updated_unix != 0) {
+				char timebuf[128] = {};
+				std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&selected->updated_unix));
+				ImGui::Text("StartAt: %s", timebuf);
+			}
+		}
+		scrollWhenDraggingOnVoid();
+		windowDragScroll();
+	}
+	ImGui::EndChild();
+}
+
 
 void gdxsv_replay_server_tab() {
 	struct TextFilters {
@@ -732,26 +1057,6 @@ void gdxsv_replay_server_tab() {
 			}
 			case 3:	 // Lobby ID
 			{
-				const static std::array<std::array<const char*, 2>, 17> lobby_data{{
-					{ "Taklamakan Desert", "2" },
-					{ "Black Sea Forest", "4" },
-					{ "Odessa", "5" },
-					{ "Belfast", "6" },
-					{ "New York", "9" },
-					{ "Grand Canyon", "10" },
-					{ "Jaburo", "11" },
-					{ "UG Complex", "12" },
-					{ "Solomon", "13" },
-					{ "Solomon (Space)", "14" },
-					{ "A Baoa Qu (Space)", "15" },
-					{ "A Baoa Qu (Outter)", "16" },
-					{ "A Baoa Qu (Inner)", "17" },
-					{ "Sat.Orbit 1", "19" },
-					{ "Sat.Orbit 2", "20" },
-					{ "SIDE 6 (Space)", "21" },
-					{ "SIDE 7 (Inner)", "22" }
-				}};
-
 				static unsigned int lobby_selected = 0;
 
 				auto get_lobby_name = [&](size_t i) {
@@ -883,7 +1188,9 @@ void gdxsv_replay_server_tab() {
 		draw_filter_label_int("Players", search_no_of_players);
 		draw_filter_label_string("Battle Code", search_battle_code);
 		draw_filter_label_yesno("Ranking", search_ranking);
-		draw_filter_label_string("Disk", search_disk);
+		if (!search_disk.empty()) {
+			draw_filter_label("Disk", disk_display_name(search_disk), [&]() { search_disk = ""; });
+		}
 		draw_filter_label_bool("Reverse", search_reverse);
 		if (search_used_ms != -1) {
 			draw_filter_label("Used MS", std::to_string(search_used_ms), []() { search_used_ms = -1; });
@@ -1044,6 +1351,19 @@ bool gdxsv_ensure_replay_savestate(int disk) {
 	return written == downloaded.size();
 }
 
+void gdxsv_start_live_spectate(const std::string& battle_code, int pov) {
+	if (gdxsv.IsSaveStateAllowed()) {
+		dc_savestate(90);
+	}
+
+	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+		dc_loadstate(99);
+		if (gdxsv.StartLiveSpectate(battle_code.c_str(), pov)) {
+			gui_state = GuiState::Closed;
+		}
+	}
+}
+
 void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	if (gdxsv.IsSaveStateAllowed()) {
 		dc_savestate(90);
@@ -1102,7 +1422,7 @@ void gdxsv_replay_select_dialog() {
 	normal_padding = ImGui::GetStyle().FramePadding;
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
-	ImGui::Begin("Replays##gdxsv_emu_replay_menu", nullptr,
+	ImGui::Begin("Live & Replays##gdxsv_emu_replay_menu", nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
 
 	if (ImGui::Button(ICON_FA_XMARK  "  Close", ScaledVec2(100, 40))) {
@@ -1111,6 +1431,11 @@ void gdxsv_replay_select_dialog() {
 
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16, 6));
 	if (ImGui::BeginTabBar("replays", ImGuiTabBarFlags_NoTooltip)) {
+		if (ImGui::BeginTabItem(ICON_FA_TOWER_BROADCAST "  Live")) {
+			gdxsv_replay_live_tab();
+			ImGui::EndTabItem();
+		}
+
 		if (ImGui::BeginTabItem(ICON_FA_FOLDER "  Local")) {
 			gdxsv_replay_local_tab();
 			ImGui::EndTabItem();
