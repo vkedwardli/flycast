@@ -2,6 +2,8 @@
 
 #include <nowide/cstdio.hpp>
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -24,6 +26,7 @@
 #include "oslib/oslib.h"
 #include "ui/gui.h"
 #include "ui/gui_util.h"
+#include "ui/settings.h"
 #include "ui/IconsFontAwesome6.h"
 #include "sdl/sdl.h"
 
@@ -147,8 +150,7 @@ std::string formatMcsInput(u16 input) {
 void GdxsvBackendReplay::Reset() {
 	live_downlink_.Stop();
 	live_mode_ = false;
-	live_fast_seek_done_ = false;
-	live_fast_seek_count_ = 0;
+	live_catching_up_ = true;
 	live_round_jump_pending_ = false;
 	state_ = State::None;
 	ctrl_commands_.clear();
@@ -468,29 +470,155 @@ static void gdxsv_patch_map_selector(u16 round_seed, int player_count) {
 // while a percent of trim is not. See gdxsv_frame_period_trim_us.
 namespace {
 constexpr int kLiveDefaultBuffer = 30;	  // ~0.5s at 60fps
-constexpr int kLiveMinBuffer = 1;		  // no cushion at all; stutters, but allowed
+constexpr int kLiveMinBuffer = 10;		  // below this the buffer is thinner than one arrival clump
 constexpr int kLiveMaxBuffer = 3600;	  // 60s
-constexpr int kPacingDeadbandFrames = 2;  // below this, corrections are noise
+
+// Corrections smaller than this are chasing arrival noise. Scales with the
+// buffer, so a small buffer still gets a proportionate deadband.
+constexpr int kPacingMaxDeadbandFrames = 2;
 constexpr int kPacingTrimUsPerFrame = 40;
-constexpr int kPacingMaxTrimUs = 334;  // ~2% of 16683us, ~1.2 frames/sec
+
+// Integral gain. Proportional control alone settles at a standing offset,
+// because its output is zero exactly at zero error; the integrator nulls it.
+constexpr double kPacingIntegralGain = 0.25;
+constexpr double kPacingIntegralLimit = 600.0;	 // us; conditional integration does the real anti-windup
+
+// Overall trim bounds, wide enough for the feedforward term. The live match
+// runs well below nominal because the players carry GGPO's rollback cost while
+// a spectator only replays inputs, so the standing correction is large.
+constexpr double kPacingTrimFloorUs = -4000.0;
+constexpr double kPacingTrimCeilUs = 8000.0;
+
+// Source-rate estimate: window, smoothing, and a sane band.
+constexpr double kPacingRateWindowSec = 1.0;
+constexpr double kPacingRateAlpha = 0.25;
+constexpr double kPacingRateMinHz = 30.0;
+constexpr double kPacingRateMaxHz = 65.0;
+constexpr double kPacingNominalPeriodUs = 16683.0;	// what get_period returns for 59.94Hz
+
+// Unpaces the loop while catching up. get_trimmed_period floors the period at
+// 1000us, so any large negative trim lets the main loop run flat out.
+constexpr int kPacingCatchUpTrimUs = -100000;
+
+// How many frames without a new input before we treat production as stalled.
+// A frame or two of no arrival is ordinary jitter at 59.94Hz; a scene
+// transition is hundreds.
+constexpr int kPacingStallFrames = 5;
+
+// How far past the target playback must fall before it is allowed a second
+// input frame per rendered frame to claw back.
+constexpr int kPacingRecoverMargin = 5;
+
 }  // namespace
 
 void GdxsvBackendReplay::UpdateFramePacing() {
-	if (!live_mode_ || takeover_ || ctrl_pause_ || pause_menu_opend_ || 0 < ctrl_play_speed_) {
+	if (!live_mode_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
 		gdxsv_frame_period_trim_us = 0;
+		return;
+	}
+
+	const auto now = std::chrono::steady_clock::now();
+	const int recv = log_file_.inputs_size();
+	if (pacing_rate_time_ == std::chrono::steady_clock::time_point{}) {
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+	}
+
+	// Still closing a gap: run flat out rather than at playback speed. Hold the
+	// integrator and restart the rate window so neither carries catch-up into
+	// steady state.
+	if (0 < ctrl_play_speed_ || live_catching_up_) {
+		gdxsv_frame_period_trim_us = kPacingCatchUpTrimUs;
+		pacing_integral_ = 0.0;
+
+		// Reset the estimate too. A catch-up burst is not the match's speed,
+		// and leaving it pinned at the clamp poisons the feedforward for the
+		// first seconds of steady state.
+		pacing_rate_hz_ = 59.94;
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+		return;
+	}
+
+	// Track whether inputs are still flowing. Outside battle the game exchanges
+	// no inputs, so the gap collapses to zero while we are just as far behind in
+	// wall clock. Braking against that phantom deficit leaves the brake on when
+	// battle resumes.
+	if (recv != pacing_last_recv_) {
+		pacing_last_recv_ = recv;
+		pacing_stall_frames_ = 0;
+	} else if (pacing_stall_frames_ < kPacingStallFrames) {
+		++pacing_stall_frames_;
+	}
+	const int64_t live_gap = static_cast<int64_t>(recv) - key_msg_count_;
+	const bool stalled = kPacingStallFrames <= pacing_stall_frames_;
+
+
+	// Outside battle, run at nominal speed. The trim corrects the input buffer,
+	// which only means anything while the battle consumes inputs. MS selection,
+	// briefing and the result screen are timed scenes, and the trim bounds are
+	// wide enough (40-79Hz) that warping them is obvious.
+	if (!IsInGame()) {
+		gdxsv_frame_period_trim_us = 0;
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+		return;
+	}
+
+	if (stalled) {
+		// Nothing is flowing, so run the scene at nominal speed. A leftover
+		// trim corrects an input-buffer error that no longer exists, and each
+		// instance carries a different one - so they walk the same scene at
+		// different speeds.
+		gdxsv_frame_period_trim_us = 0;
+
+		// Restart the rate window too, so the silence is not averaged in as if
+		// the match itself had slowed down.
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
 		return;
 	}
 
 	// Positive error means we are further behind the edge than we want to be,
 	// so we need to run fast, which is a shorter period, which is a negative
 	// trim. Getting that sign backwards makes the loop diverge.
-	const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+	const int64_t gap = live_gap;
 	const int64_t error = gap - live_buffer_frames_;
-	int trim = 0;
-	if (kPacingDeadbandFrames < std::abs(error)) {
-		trim = static_cast<int>(std::clamp<int64_t>(-error * kPacingTrimUsPerFrame, -kPacingMaxTrimUs, kPacingMaxTrimUs));
+
+	// Feedforward: play at the speed the match is actually being played at, not
+	// at nominal. Anchored on nominal, a constant surplus remains that no clamp
+	// centred there can cancel.
+	const double win = std::chrono::duration<double>(now - pacing_rate_time_).count();
+	if (kPacingRateWindowSec <= win) {
+		const double observed = (recv - pacing_rate_recv_) / win;
+		if (1.0 < observed) {
+			pacing_rate_hz_ = std::clamp((1.0 - kPacingRateAlpha) * pacing_rate_hz_ + kPacingRateAlpha * observed,
+										 kPacingRateMinHz, kPacingRateMaxHz);
+		}
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
 	}
-	gdxsv_frame_period_trim_us = trim;
+	const double feedforward = 1.0e6 / pacing_rate_hz_ - kPacingNominalPeriodUs;
+
+	const int64_t deadband = std::clamp<int64_t>(live_buffer_frames_ / 4, 1, kPacingMaxDeadbandFrames);
+	double p = 0.0;
+	if (deadband < std::abs(error)) {
+		p = static_cast<double>(-error * kPacingTrimUsPerFrame);
+	}
+
+	// Conditional integration. A clamp alone is not anti-windup - it saturates
+	// and stays there. Integrate only while the output is inside its bounds, or
+	// while the new term would move it back toward the middle.
+	const double unsaturated = feedforward + p + pacing_integral_;
+	const double step = -error * kPacingIntegralGain;
+	const bool at_ceiling = kPacingTrimCeilUs <= unsaturated && 0.0 < step;
+	const bool at_floor = unsaturated <= kPacingTrimFloorUs && step < 0.0;
+	if (deadband < std::abs(error) && !at_ceiling && !at_floor) {
+		pacing_integral_ = std::clamp(pacing_integral_ + step, -kPacingIntegralLimit, kPacingIntegralLimit);
+	}
+
+	gdxsv_frame_period_trim_us =
+		static_cast<int>(std::clamp(feedforward + p + pacing_integral_, kPacingTrimFloorUs, kPacingTrimCeilUs));
 }
 
 void GdxsvBackendReplay::OnNextFrame() {
@@ -504,6 +632,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 	// mainui_loop. Draining here lets each one pick up newly arrived frames,
 	// so a catch-up seek can chase an edge that is still moving.
 	CheckLiveUpdate();
+
 	UpdateFramePacing();
 
 	if (!end_of_frame_) return;
@@ -541,60 +670,36 @@ void GdxsvBackendReplay::OnNextFrame() {
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame());
 	regular_save_state();
 
-	// Catch-up in three stages, coarsest first, each closing a gap the next
-	// one cannot. A round jump crosses whole rounds instantly, since each
-	// round's RNG seed is self-contained. A no-render seek closes the gap
-	// inside the round, which has to be simulated from that round's start.
-	// ctrl_play_speed_ then handles the small residual and ongoing drift
-	// smoothly, because by now someone is watching.
-	//
-	// Frames arrive in clumps, not one per tick. The transport is prompt, but
-	// the uplink only sends GGPO-confirmed frames and GGPO confirms in clumps.
-	// So playback sits a little behind the newest frame, like a jitter buffer.
-	//
-	// kLiveTargetBufferFrames is that cushion - catch-up stops there, not at
-	// the live edge. The thresholds sit well outside the jitter band so
-	// ordinary delivery noise and scene-transition hitches don't re-trigger it.
-	// Derived from the configured buffer rather than fixed, so an unusual
-	// buffer still behaves: the hysteresis band and the seek hand-off are a
-	// constant number of frames outside the target, not a multiple of it.
-	// At the default 30 these come out at the values they were hardcoded to.
+	// Catch-up runs coarsest first: a round jump crosses whole rounds, one
+	// skip-render seek closes the gap within the round, and 300% playback takes
+	// the residual. All three stop a buffer behind the live edge, not at it,
+	// because frames arrive in clumps.
 	const int kLiveTargetBufferFrames = live_buffer_frames_;
-	const int kLiveCatchUpThreshold = live_buffer_frames_ + 30;
+
+	// 300% recovery only runs in battle. The result, briefing and MS-selection
+	// screens have animation and music, so speeding through them is just as
+	// visible as speeding through a fight. A skip-render seek is different: it
+	// is a jump, not fast playback, so it may run in any scene.
+	const int kLiveCatchUpThreshold = live_buffer_frames_ + 240;
 	const int kLiveCatchUpFastSeekThreshold = live_buffer_frames_ + 270;
-	constexpr int kMaxLiveFastSeeks = 8;
-	// start_msg_count_ > 0 rather than IsInGame()/IsInBriefing(): it must be
-	// false during the pre-round-1 lobby boot (where inputs_size() is already
-	// the full bootstrap value but key_msg_count_ has not started moving, so
-	// the gap looks enormous and would waste the one-shot seek), and true for
-	// everything after - including MS-selection, which sits between StartMsg
-	// and briefing and should be caught up through like any other scene.
+
+	// start_msg_count_ > 0, not IsInGame(): during the pre-round-1 boot
+	// inputs_size() is already full while key_msg_count_ has not started
+	// moving, so the gap reads enormous.
 	if (live_mode_ && 0 < start_msg_count_ && !live_round_jump_pending_ && !ctrl_pause_ && !pause_menu_opend_ &&
 		!need_cancel() && !takeover_) {
 		const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
-		if (!live_fast_seek_done_) {
-			// Repeat the no-render seek until the gap is small, then latch off
-			// and leave everything to the smooth path.
-			//
-			// It has to repeat because the match keeps moving while we seek. A
-			// seek over N frames costs about N * 1.7ms, and live adds 60 frames
-			// a second of that, so one pass always lands short. It converges
-			// fast - each pass leaves about a tenth of the previous residual -
-			// so two or three passes get there. Handing a big residual to the
-			// 2x path instead is slow: 900 frames is 7s at 2x versus well under
-			// a second for another seek.
-			//
-			// Latching is what keeps this to the initial catch-up, so ordinary
-			// scene-transition hitches never fast-forward.
-			if (gap < kLiveCatchUpFastSeekThreshold) {
-				live_fast_seek_done_ = true;
-			} else if (kMaxLiveFastSeeks <= live_fast_seek_count_) {
-				// Only fails to converge if the host can't emulate faster than
-				// realtime, and then seeking forever wouldn't help either.
-				NOTICE_LOG(COMMON, "live catch-up gave up seeking after %d passes, gap=%lld", live_fast_seek_count_,
-						   (long long)gap);
-				live_fast_seek_done_ = true;
-			} else if (!ctrl_commands_.contains(ReplayCtrlCommand::SeekForward)) {
+
+		// Measured every frame, never latched. Right after a round jump
+		// playback sits at the round's start while the log is still streaming,
+		// so the gap reads negative - a latch set from that never reopens.
+		live_catching_up_ = kLiveCatchUpFastSeekThreshold <= gap;
+		if (live_catching_up_) {
+			// One seek closes it. The seek re-reads the live edge every
+			// iteration, and CheckLiveUpdate keeps delivering inside the
+			// nested emu.run, so it chases an edge that is still moving.
+			// Seeking runs about 10x realtime, so it converges in one pass.
+			if (!ctrl_commands_.contains(ReplayCtrlCommand::SeekForward)) {
 				// BeginLoadingHud() resets the counter that lets a queued
 				// SeekForward run, so re-queueing every frame would stall it.
 				BeginLoadingHud();
@@ -603,13 +708,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 				// itself; this is only a safety cap.
 				const int64_t bound = std::min<int64_t>(gap * 3 + 1200, 1 << 20);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, static_cast<int>(bound), /*live=*/1);
-				++live_fast_seek_count_;
 			}
-		} else if (kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
-			// No BeginLoadingHud() here - ctrl_loading_ is only cleared by the
-			// queued command handlers, and this path queues nothing, so the HUD
-			// would stay stuck on.
-			ctrl_play_speed_ = 2;
+		} else if (IsInGame() && kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
+			// Graduated: 200% for a small excess, 300% for a real fall-behind.
+			// Normal playback cannot close a gap here at all, because the host
+			// renders below the production rate.
+			ctrl_play_speed_ = (gap < live_buffer_frames_ + 90) ? 1 : 2;
 		}
 	}
 
@@ -623,15 +727,12 @@ void GdxsvBackendReplay::OnNextFrame() {
 		}
 		EndSilentSeek();
 
-		// Live Spectate: stop catching up once back down to the target
-		// buffer - not at the live edge, and not merely because this one
-		// burst ran out of data before finishing its step count. Together
-		// with kLiveCatchUpThreshold this forms the hysteresis band
-		// (engage at 60 behind, disengage at 30 behind) that keeps
-		// ordinary burst jitter from flipping the speed back and forth.
+		// Stop at the target buffer, not at the live edge, and not merely
+		// because this burst ran out of data. With kLiveCatchUpThreshold this
+		// is the hysteresis band that stops the speed flapping.
 		if (live_mode_ && !need_cancel()) {
 			const int64_t gap_after = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
-			if (gap_after <= kLiveTargetBufferFrames) {
+			if (gap_after <= kLiveTargetBufferFrames + 10) {
 				ctrl_play_speed_ = 0;
 			}
 		}
@@ -1060,7 +1161,37 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 	return false;
 }
 
+// Live Spectate buffer readout, drawn next to the FPS counter (bottom left).
+// Shows the buffer we aim to hold and how far behind the live match we
+// actually are, in frames and milliseconds.
+void GdxsvBackendReplay::DisplayLivePacingOSD() {
+	if (!live_mode_) return;
+
+	const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+	const double ms = gap * 1000.0 / 59.94;
+
+	char text[64];
+	snprintf(text, sizeof(text), "buf %d | behind %lldf (%.0fms)", live_buffer_frames_, (long long)gap, ms);
+
+	ImDrawList* dl = ImGui::GetForegroundDrawList();
+	ImFont* font = ImGui::GetFont();
+	const float fontSize = ImGui::GetFontSize();
+	const ImVec2 padding = ScaledVec2(5.f, 5.f);
+	const ImVec2 size = font->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text) + padding * 2.f;
+
+	// Sit to the right of the FPS box when it is up, otherwise take its place.
+	const float x = insetLeft + (config::ShowFPS ? uiScaled(150.f) : 0.f);
+	const ImVec2 pos(x, ImGui::GetIO().DisplaySize.y - size.y);
+
+	dl->AddRectFilled(pos, pos + size, IM_COL32(32, 32, 32, 90), 0.f);
+
+	// Green when inside the deadband, amber when the controller is correcting.
+	const bool holding = std::abs(gap - live_buffer_frames_) <= 2;
+	dl->AddText(font, fontSize, pos + padding, holding ? IM_COL32(0, 255, 128, 200) : IM_COL32(255, 200, 0, 200), text);
+}
+
 void GdxsvBackendReplay::DisplayOSD() {
+	DisplayLivePacingOSD();
 	if (!seeking_ && pause_menu_opend_) {
 		RenderPauseMenu();
 	}
@@ -1614,12 +1745,33 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 
 // Enqueues the KeyMsg1 batch for the current key_msg_count_ and advances it.
 // Sends every player including pov_, because the replay patch disables the
-// client's own self-push.
-//
-// Called from both the KeyMsg1 and ForceMsg branches. Both mean the same
-// thing to us: the client wants the next frame. Only whether the data is
-// ready matters, not which message asked.
+// client's own self-push. Called from both the KeyMsg1 and ForceMsg branches -
+// both mean the client wants the next frame.
 void GdxsvBackendReplay::DeliverKeyMsgBatch() {
+	// Live Spectate: cap intake at one input frame per rendered frame, so the
+	// frame period governs consumption. The game polls for input more often
+	// than it renders once it is behind, and answering every poll decouples
+	// intake from the frame clock entirely.
+	//
+	// Steady state only: a skip-render seek runs hundreds of emulator frames
+	// inside one UI frame, so capping during catch-up would stall it.
+	if (live_mode_ && !takeover_ && !seeking_ && !live_catching_up_ && ctrl_play_speed_ == 0) {
+		if (deliver_last_mainui_ != MainFrameCount) {
+			deliver_last_mainui_ = MainFrameCount;
+			deliver_this_frame_ = 0;
+		}
+
+		// Allow a second frame while genuinely behind. A strict one-per-frame
+		// cap can never regain a lost buffer when the host renders slower than
+		// the match produces, leaving the 300% path to oscillate.
+		const int64_t behind = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+		const int allowance = (live_buffer_frames_ + kPacingRecoverMargin < behind) ? 2 : 1;
+		if (allowance <= deliver_this_frame_) {
+			return;
+		}
+
+		++deliver_this_frame_;
+	}
 	if (!recv_buf_.empty()) {
 		// The previous reply hasn't drained yet. One emu.run() can trigger
 		// several OnSockRead polls, so a second poll can arrive before the
@@ -1653,6 +1805,7 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 
 	if (key_msg_count_ < log_file_.inputs_size()) {
 		++key_msg_count_;
+
 		if (key_msg_count_ == log_file_.inputs_size() && !takeover_) {
 			// Live Spectate: hold at the live edge instead of stopping -
 			// CheckLiveUpdate() will grow log_file_ as more data arrives,
@@ -1733,12 +1886,9 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 		} else if (live_mode_ && start_msg_count_ == 1 && start_msg_count_ < log_file_.start_msg_indexes_size()) {
 			// Connected mid-match and live is already past this round, so jump
-			// straight to the current one instead of simulating the ones in
-			// between.
-			//
-			// == 1 keeps this to the first round after connecting. Otherwise it
-			// fires at every round boundary, since live's round N+1 always
-			// starts before we finish round N. That's normal lag.
+			// straight to the current one. The == 1 keeps this to the first
+			// round after connecting: live's round N+1 always starts before we
+			// finish round N, so it would otherwise fire at every boundary.
 			target_round_ = log_file_.start_msg_indexes_size();
 			// Catch-up must not run until the jump lands: it would fast-seek
 			// through the intervening rounds' StartMsgs, whose queued

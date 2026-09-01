@@ -1,4 +1,6 @@
 #pragma once
+#include <chrono>
+
 
 #include "gdxsv.pb.h"
 #include "gdxsv_save_state.h"
@@ -37,6 +39,7 @@ class GdxsvBackendReplay {
 
 	bool StartFile(const char* path, int pov);
 	bool StartBuffer(const std::vector<u8>& buf, int pov);
+
 	// Starts Live Spectate: subscribes to LBS's spectator UDP channel,
 	// bootstraps from the header it sends, and then plays back like a normal
 	// buffer replay - except it holds at the live edge for more data instead
@@ -88,6 +91,14 @@ class GdxsvBackendReplay {
 	// stages, main thread mutates" split GdxsvSpectatorUplink uses, so
 	// log_file_ itself never needs a lock.
 	void CheckLiveUpdate();
+
+	// Steers the main loop's frame period so playback holds live_buffer_frames_
+	// behind the edge. Small, continuous corrections instead of whole-frame
+	// stalls - see gdxsv_frame_period_trim_us.
+	void UpdateFramePacing();
+
+	// Live Spectate buffer readout, drawn next to the FPS counter.
+	void DisplayLivePacingOSD();
 
 	struct ReplayCtrlCommand {
 		enum Command {
@@ -210,14 +221,16 @@ class GdxsvBackendReplay {
 	int ctrl_bar_drag_target_frame_ = -1;
 	bool ctrl_input_release_pending_ = false;
 
-	// Live Spectate state (see StartLive/CheckLiveUpdate).
+	// ---- Live Spectate ----
+	// Replays a match that is still being played: live_downlink_ feeds log_file_
+	// as frames arrive, instead of it being read whole from a file up front.
 	bool live_mode_ = false;
 	GdxsvSpectatorDownlink live_downlink_;
-	// Latches true once the initial no-render catch-up has closed the gap
-	// (see OnNextFrame), after which drift is handled only by the smooth
-	// path - so scene transitions never fast-forward.
-	bool live_fast_seek_done_ = false;
-	int live_fast_seek_count_ = 0;
+
+	// True while playback is far enough behind live to warrant a skip-render
+	// seek. Measured from the gap each frame, not latched.
+	bool live_catching_up_ = true;
+
 	// True while the initial jump to the live match's current round is still
 	// in flight (queued SeekToBriefing -> SetRound). Live catch-up must not
 	// run during that window - see the catch-up gate in OnNextFrame.
@@ -225,15 +238,21 @@ class GdxsvBackendReplay {
 
 	// How far behind the newest available frame playback aims to sit, in
 	// frames. Loaded from gdxsv:LiveBufferFrames, default kLiveDefaultBuffer.
-	// 1 leaves no cushion at all and will stutter on every arrival clump;
-	// 180 holds three seconds back, which is enough that a spectator stream
-	// cannot be used to call out an opponent's position in real time.
+	// Sized purely for smoothness: frames arrive in clumps, so 1 leaves no
+	// cushion and stutters on every gap.
 	int live_buffer_frames_ = 30;
 
-	// Steers the main loop's frame period so playback holds live_buffer_frames_
-	// behind the edge. Small, continuous corrections instead of whole-frame
-	// stalls - see gdxsv_frame_period_trim_us.
-	void UpdateFramePacing();
+	// Frame-period pacing, which holds the buffer at live_buffer_frames_.
+	int pacing_last_recv_ = -1;
+	int pacing_stall_frames_ = 0;
+	double pacing_rate_hz_ = 59.94;
+	int pacing_rate_recv_ = 0;
+	std::chrono::steady_clock::time_point pacing_rate_time_{};
+	double pacing_integral_ = 0.0;
+
+	// Intake cap, which keeps consumption on the frame clock.
+	u32 deliver_last_mainui_ = 0xffffffffu;
+	int deliver_this_frame_ = 0;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
