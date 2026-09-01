@@ -697,6 +697,13 @@ void live_harvest_fetch() {
 	fetch_live_entry_future_ = std::shared_future<std::vector<LiveEntry>>();
 }
 
+// Viewer count for a battle being watched right now. Polled over HTTP, and
+// only while the control bar is on screen.
+std::shared_future<int> fetch_viewers_future_;
+std::chrono::steady_clock::time_point viewers_last_fetch_;
+int live_viewer_count_ = 0;
+constexpr int kViewerRefreshSeconds = 5;
+
 void fetch_user_json() {
 	if (fetch_user_entry_future_.valid()) {
 		return;
@@ -1349,6 +1356,41 @@ bool gdxsv_ensure_replay_savestate(int disk) {
 	const auto written = fwrite(downloaded.data(), 1, downloaded.size(), fp);
 	std::fclose(fp);
 	return written == downloaded.size();
+}
+
+int gdxsv_live_viewer_count(const std::string& battle_code, bool force_refresh) {
+	if (battle_code.empty()) return 0;
+
+	if (fetch_viewers_future_.valid() && future_is_ready(fetch_viewers_future_)) {
+		live_viewer_count_ = fetch_viewers_future_.get();
+		fetch_viewers_future_ = std::shared_future<int>();
+	}
+
+	const auto now = std::chrono::steady_clock::now();
+	const bool due = kViewerRefreshSeconds <= std::chrono::duration_cast<std::chrono::seconds>(now - viewers_last_fetch_).count();
+	if (!fetch_viewers_future_.valid() && (due || force_refresh)) {
+		viewers_last_fetch_ = now;
+		// Capture the current count rather than reading the global from the
+		// worker: the main thread writes it when a fetch lands.
+		const int last_known = live_viewer_count_;
+		fetch_viewers_future_ = std::async(std::launch::async, [battle_code, last_known]() -> int {
+			std::vector<u8> dl;
+			std::string content_type;
+			http::init();
+			const std::string url =
+				config::loadStr("gdxsv", "LiveApiUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi") +
+				"/spectators?battle_code=" + http::urlEncode(battle_code);
+			if (http::get(url, dl, content_type) != 200) return last_known;
+			try {
+				nlohmann::json j = nlohmann::json::parse(dl);
+				return j.value("spectators", 0);
+			} catch (const nlohmann::json::exception&) {
+			}
+			return last_known;
+		}).share();
+	}
+
+	return live_viewer_count_;
 }
 
 void gdxsv_start_live_spectate(const std::string& battle_code, int pov) {

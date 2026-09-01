@@ -10,5 +10,9 @@ bool gdxsv_ensure_replay_savestate(int disk);
 
 void gdxsv_start_replay(const std::string& replay_path, int pov);
 void gdxsv_start_live_spectate(const std::string& battle_code, int pov);
+
+// Viewers watching battle_code right now. Never blocks: returns the last known
+// value and refreshes in the background. force_refresh skips the interval.
+int gdxsv_live_viewer_count(const std::string& battle_code, bool force_refresh = false);
 void gdxsv_end_replay();
 void gdxsv_replay_select_dialog();

@@ -176,7 +176,8 @@ def conf_capture(idx: int):
     leaving it at whatever emu.cfg says makes four emulators on one GPU drift
     apart for reasons that have nothing to do with the sync.
     """
-    return "--config config:rend.Resolution=480 --config config:rend.SuperWideScreen=no"
+    # ShowFPS off: the counter would be baked into the recording.
+    return "--config config:rend.Resolution=480 --config config:rend.SuperWideScreen=no --config config:rend.ShowFPS=no"
 
 
 def conf_sync(idx: int):

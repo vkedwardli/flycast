@@ -232,6 +232,24 @@ class GdxsvBackendReplay {
 	// seek. Measured from the gap each frame, not latched.
 	bool live_catching_up_ = true;
 
+	// Whether playback is chasing the live edge. Cleared when the viewer moves
+	// somewhere deliberately, so the catch-up does not drag them straight back;
+	// the Live button sets it again. Same idea as YouTube's live indicator.
+	bool live_following_ = true;
+
+	// Whether playback is actually at the live edge, however it got there. The
+	// Live indicator reads this rather than live_following_, so it reports
+	// position instead of intent.
+	bool live_at_edge_ = false;
+
+	// Last known viewer count, refreshed by gdxsv_live_viewer_count.
+	int live_viewers_ = 0;
+
+	// Set when the control bar appears, so the count is fetched fresh for the
+	// few seconds it is on screen rather than shown stale from last time.
+	bool live_viewers_stale_ = true;
+	bool ctrl_bar_was_visible_ = false;
+
 	// True while the initial jump to the live match's current round is still
 	// in flight (queued SeekToBriefing -> SetRound). Live catch-up must not
 	// run during that window - see the catch-up gate in OnNextFrame.

@@ -151,6 +151,8 @@ void GdxsvBackendReplay::Reset() {
 	live_downlink_.Stop();
 	live_mode_ = false;
 	live_catching_up_ = true;
+	live_following_ = true;
+	live_at_edge_ = false;
 	live_round_jump_pending_ = false;
 	state_ = State::None;
 	ctrl_commands_.clear();
@@ -537,6 +539,9 @@ constexpr int kSyncMaxWaitPerFrameMs = 2;
 constexpr int kSyncTrimUsPerFrame = 200;
 constexpr int kSyncTrimMaxUs = 4000;
 
+// How far past the buffer target still counts as live, in frames.
+constexpr int kLiveAtEdgeMargin = 60;
+
 constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 
 }  // namespace
@@ -737,8 +742,26 @@ void GdxsvBackendReplay::OnNextFrame() {
 		ctrl_pause_ = false;
 	}
 
-	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame());
+	// Never in Live Spectate: it is an analysis overlay, and it shows the
+	// players' inputs while they are still playing.
+	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame() && !live_mode_);
 	regular_save_state();
+
+	// Reaching the live edge resumes following, however it got there. Outside
+	// the catch-up gate below so it stays right while paused.
+	if (live_mode_) {
+		const int64_t gap_now = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+		live_at_edge_ = gap_now <= live_buffer_frames_ + kLiveAtEdgeMargin;
+
+		// Not while a requested jump is queued: key_msg_count_ is still at the
+		// live edge until it lands, so this would undo the request.
+		const bool reposition_pending = ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) ||
+										ctrl_commands_.contains(ReplayCtrlCommand::SetRound) ||
+										ctrl_commands_.contains(ReplayCtrlCommand::SeekToBriefing);
+		if (live_at_edge_ && !ctrl_loading_ && !reposition_pending) {
+			live_following_ = true;
+		}
+	}
 
 	// Catch-up runs coarsest first: a round jump crosses whole rounds, one
 	// skip-render seek closes the gap within the round, and 300% playback takes
@@ -763,7 +786,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 		// Measured every frame, never latched. Right after a round jump
 		// playback sits at the round's start while the log is still streaming,
 		// so the gap reads negative - a latch set from that never reopens.
-		live_catching_up_ = kLiveCatchUpFastSeekThreshold <= gap;
+		// Never catching up while not following, so the intake cap and the sync
+		// barrier do not treat a deliberate rewind as a catch-up burst.
+		live_catching_up_ = live_following_ && kLiveCatchUpFastSeekThreshold <= gap;
 		if (live_catching_up_) {
 			// One seek closes it. The seek re-reads the live edge every
 			// iteration, and CheckLiveUpdate keeps delivering inside the
@@ -779,7 +804,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				const int64_t bound = std::min<int64_t>(gap * 3 + 1200, 1 << 20);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, static_cast<int>(bound), /*live=*/1);
 			}
-		} else if (IsInGame() && kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
+		} else if (live_following_ && IsInGame() && kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
 			// Graduated: 200% for a small excess, 300% for a real fall-behind.
 			// Normal playback cannot close a gap here at all, because the host
 			// renders below the production rate.
@@ -1024,7 +1049,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 			EndSilentSeekWithAudioReset();
 
-			if (config::GdxReplaySkipMsSelection) {
+			if (config::GdxReplaySkipMsSelection && !live_mode_) {
 				briefing_start_frame_ = key_msg_count_;
 				briefing_start_frame_round_ = start_msg_count_;
 			}
@@ -1261,7 +1286,8 @@ void GdxsvBackendReplay::DisplayLivePacingOSD() {
 }
 
 void GdxsvBackendReplay::DisplayOSD() {
-	DisplayLivePacingOSD();
+	// Kept for measuring the buffer during pacing work; not shown by default.
+	// DisplayLivePacingOSD();
 	if (!seeking_ && pause_menu_opend_) {
 		RenderPauseMenu();
 	}
@@ -2148,12 +2174,15 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
 		}
 	} else {
-		bool canTakeOver = IsInGame();
-		ImGui::BeginDisabled(!canTakeOver);
-		if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+		// Not in live: takeover_ disables the pacing trim, the sync barrier, the
+		// intake cap and the starve guard.
+		if (!live_mode_) {
+			ImGui::BeginDisabled(!IsInGame());
+			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+			}
+			ImGui::EndDisabled();
 		}
-		ImGui::EndDisabled();
 
 		// Round control: buttons
 		if (ChangeRoundAvailable()) {
@@ -2182,6 +2211,9 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 				}
 
 				if (ImGui::Button(label, ScaledVec2(40, 40))) {
+					// A round the viewer picked, unlike the automatic jump on
+					// connect, which must keep following.
+					live_following_ = false;
 					BeginLoadingHud();
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, i);
 					pause_menu_opend_ = false;
@@ -2255,8 +2287,14 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		ImGui::Separator();
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
-		OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
-		OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
+
+		// Key Display and Skip MS Selection do nothing during Live Spectate, so
+		// they are not offered there rather than sitting inert.
+		if (!live_mode_) {
+			OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
+			OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection,
+						   "Fast-forward through the mobile suit selection screen");
+		}
 
 		ImGui::Separator();
 
@@ -2348,7 +2386,10 @@ void GdxsvBackendReplay::GetRoundReplayBounds(int& roundStart, int& roundEnd, in
 
 void GdxsvBackendReplay::GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const {
 	GetRoundReplayBounds(timelineStart, timelineEnd, totalRounds);
-	if (config::GdxReplaySkipMsSelection && briefing_start_frame_ > timelineStart &&
+
+	// Live never skips MS selection, so trimming the timeline to the briefing
+	// would leave the scrubber disagreeing with what is on screen.
+	if (config::GdxReplaySkipMsSelection && !live_mode_ && briefing_start_frame_ > timelineStart &&
 		briefing_start_frame_ < timelineEnd && briefing_start_frame_round_ == start_msg_count_) {
 		timelineStart = briefing_start_frame_;
 	}
@@ -2399,6 +2440,14 @@ void GdxsvBackendReplay::UpdateControlBarVisibility() {
 	float dt = io.DeltaTime;
 	ctrl_bar_idle_timer_ = std::max(0.0f, ctrl_bar_idle_timer_ - dt);
 
+	// The bar only shows for a few seconds, so refresh the viewer count as it
+	// appears rather than whenever the interval happens to come round.
+	const bool visible_now = 0.001f < ctrl_bar_visibility_;
+	if (visible_now && !ctrl_bar_was_visible_) {
+		live_viewers_stale_ = true;
+	}
+	ctrl_bar_was_visible_ = visible_now;
+
 	constexpr float fadeSpeed = 4.0f;
 	if (ctrl_bar_idle_timer_ > 0.0f) {
 		ctrl_bar_visibility_ = std::min(1.0f, ctrl_bar_visibility_ + dt * fadeSpeed);
@@ -2418,18 +2467,38 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 	// Bar dimensions
 	const float barH = uiScaled(36.0f);
-	const float barW = displaySize.x * 0.85f;
-	const float barX = (displaySize.x - barW) * 0.5f;
-	const float barY = displaySize.y - barH - uiScaled(20.0f);
 	const float rounding = uiScaled(8.0f);
 	const float pad = uiScaled(8.0f);
+
+	// Live Spectate puts a Live pill to the left of the bar, as its own rounded
+	// rect, so the two read as separate controls.
+	const float liveGap = uiScaled(8.0f);
+	const float liveDotR = uiScaled(4.0f);
+	const float liveW = live_mode_ ? (pad + liveDotR * 2.0f + pad * 0.75f + ImGui::CalcTextSize("Live").x + pad) : 0.0f;
+
+	// Viewer count on the right, so the bar sits centred between two pills
+	// rather than being pushed off-centre by the Live one.
+	live_viewers_ = live_mode_ ? gdxsv_live_viewer_count(log_file_.battle_code(), live_viewers_stale_) : 0;
+	live_viewers_stale_ = false;
+	char viewersProbe[32] = {};
+	snprintf(viewersProbe, sizeof(viewersProbe), ICON_FA_EYE " %d", live_viewers_);
+	const float viewersW = live_mode_ ? (pad + ImGui::CalcTextSize(viewersProbe).x + pad) : 0.0f;
+
+	const float sideW = live_mode_ ? (liveW + liveGap + viewersW + liveGap) : 0.0f;
+	const float barW = displaySize.x * 0.85f - sideW;
+	const float totalW = barW + sideW;
+	const float totalX = (displaySize.x - totalW) * 0.5f;
+	const float liveX = totalX;
+	const float barX = totalX + (live_mode_ ? liveW + liveGap : 0.0f);
+	const float viewersX = barX + barW + liveGap;
+	const float barY = displaySize.y - barH - uiScaled(20.0f);
 
 	// Create a transparent overlay window. The drawn progress track has an invisible hit target for dragging.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	ImGui::SetNextWindowPos(ImVec2(barX, barY));
-	ImGui::SetNextWindowSize(ImVec2(barW, barH));
+	ImGui::SetNextWindowPos(ImVec2(totalX, barY));
+	ImGui::SetNextWindowSize(ImVec2(totalW, barH));
 	ImGui::SetNextWindowBgAlpha(0.0f);
 	ImGui::Begin("##gdxsv-replay-ctrlbar", nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
@@ -2457,6 +2526,51 @@ void GdxsvBackendReplay::RenderControlBar() {
 		return IM_COL32(255, 255, 255, (int)(brightness * alpha));
 	};
 	const ImU32 disabledCol = IM_COL32(120, 120, 120, (int)(120 * alpha));
+
+	// Live pill: a dot and the word Live, red while chasing the live edge and
+	// grey once the viewer has moved somewhere else. Clicking it resumes the
+	// chase - the catch-up seek does the actual travelling.
+	if (live_mode_) {
+		dl->AddRectFilled(ImVec2(liveX, barY), ImVec2(liveX + liveW, barY + barH), bgCol, rounding);
+
+		const ImU32 liveOn = IM_COL32(255, 60, 60, (int)(255 * alpha));
+		const ImU32 liveOff = IM_COL32(150, 150, 150, (int)(200 * alpha));
+		const ImU32 dotCol = live_at_edge_ ? liveOn : liveOff;
+
+		const float dotX = liveX + pad + liveDotR;
+		dl->AddCircleFilled(ImVec2(dotX, barY + barH * 0.5f), liveDotR, dotCol);
+
+		const ImVec2 liveTextSize = ImGui::CalcTextSize("Live");
+		dl->AddText(ImVec2(dotX + liveDotR + pad * 0.75f, barY + (barH - liveTextSize.y) * 0.5f),
+					live_at_edge_ ? textCol : liveOff, "Live");
+
+		ImGui::SetCursorScreenPos(ImVec2(liveX, barY));
+		ImGui::InvisibleButton("##gdxsv-live", ImVec2(liveW, barH));
+		if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !live_at_edge_) {
+			live_following_ = true;
+			ctrl_pause_ = false;
+			ctrl_play_speed_ = 0;
+
+			// Cross whole rounds with a jump; the seek below only closes the
+			// remainder. A seek alone would simulate every frame in between.
+			const int live_round = log_file_.start_msg_indexes_size();
+			if (start_msg_count_ < live_round && live_round - 1 < log_file_.start_msg_randoms_size() &&
+				gdxsv_save_state.FirstSavedFrame() != -1) {
+				BeginLoadingHud();
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, live_round);
+			}
+		}
+	}
+
+	// Viewer count on the right, balancing the Live pill on the left.
+	if (live_mode_ && 0 < viewersW) {
+		dl->AddRectFilled(ImVec2(viewersX, barY), ImVec2(viewersX + viewersW, barY + barH), bgCol, rounding);
+		char viewersTxt[32] = {};
+		snprintf(viewersTxt, sizeof(viewersTxt), ICON_FA_EYE " %d", live_viewers_);
+		const ImVec2 vSize = ImGui::CalcTextSize(viewersTxt);
+		dl->AddText(ImVec2(viewersX + (viewersW - vSize.x) * 0.5f, barY + (barH - vSize.y) * 0.5f), textCol, viewersTxt);
+	}
+
 	auto iconButton = [&](const char* id, ImVec2 center, ImVec2 size, bool enabled) -> bool {
 		const float hitW = std::max(size.x + uiScaled(8.0f), uiScaled(20.0f));
 		const float hitH = std::max(size.y + uiScaled(6.0f), uiScaled(18.0f));
@@ -2513,6 +2627,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 	const ImVec2 leftPos(cx, cy - lrSize.y * 0.5f);
 	dl->AddText(leftPos, flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
 	if (iconButton("##gdxsv-prev", ImVec2(leftPos.x + lrSize.x * 0.5f, leftPos.y + lrSize.y * 0.5f), lrSize, true)) {
+		live_following_ = false;
 		ctrl_commands_.emplace_back(ctrl_pause_ ? ReplayCtrlCommand::StepFrameBackward : ReplayCtrlCommand::SeekBackward);
 		flash_left_ = 0.3f;
 	}
@@ -2578,6 +2693,9 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 		if (ctrl_bar_dragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
 			if (ctrl_bar_drag_target_frame_ >= 0 && ctrl_bar_drag_target_frame_ != key_msg_count_) {
+				// Going somewhere on purpose stops the chase, or the catch-up
+				// would drag the viewer straight back to the live edge.
+				live_following_ = false;
 				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, ctrl_bar_drag_target_frame_);
 			} else {
