@@ -52,11 +52,17 @@ struct GdxsvReplayUiState {
 	bool loading = false;
 	bool takeover = false;
 	bool takeoverAligning = false;
+	bool takeoverSkipInputMatching = false;
 	int takeoverCountdown = 0;
 	uint16_t takeoverTargetInput = 0;
 	bool liveMode = false;
 	bool liveAtEdge = false;
 	int liveBufferFrames = 30;
+
+	bool NeedsTakeoverAlignment(uint16_t currentInput) const {
+		return takeoverAligning || (takeoverCountdown > 0 && !takeoverSkipInputMatching &&
+			currentInput != takeoverTargetInput);
+	}
 
 	// Called only by the recording's owner. Work is bounded by ten rounds and
 	// four players, regardless of the number of recorded input frames.
