@@ -12,6 +12,7 @@ namespace {
 // refresh - must stay comfortably under LBS's spectatorSubscriberTimeout
 // (10s, see lbs_spectator.go) so a brief delay never drops the subscription.
 constexpr int kSubscribeIntervalMs = 2000;
+constexpr size_t kSubscribeCookieBytes = 16;
 }  // namespace
 
 void GdxsvSpectatorDownlink::Start(const std::string &lbs_host, int lbs_port, const std::string &battle_code,
@@ -127,12 +128,16 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 		return;
 	}
 
+	// The first request reserves enough bytes for the stateless challenge.
+	// Keep the echoed cookie local to this battle's socket/thread.
+	std::string cookie(kSubscribeCookieBytes, '\0');
 	auto send_subscribe = [&](int32_t from) {
 		proto::Packet pkt;
 		pkt.set_type(proto::MessageType::SpectatorSubscribeType);
 		auto *sub = pkt.mutable_spectator_subscribe_data();
 		sub->set_battle_code(battle_code);
 		sub->set_from_frame(from);
+		sub->set_cookie(cookie);
 
 		char buf[256];
 		if (pkt.SerializePartialToArray(buf, sizeof(buf))) {
@@ -156,9 +161,25 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 			socklen_t addrlen = sizeof(sender);
 			int n = client.RecvFrom(buf, sizeof(buf), &sender, &addrlen);
 			if (n <= 0) break;
+			if (!is_same_addr(reinterpret_cast<const sockaddr *>(&sender), remote.net_addr())) continue;
 
 			proto::Packet pkt;
 			if (!pkt.ParseFromArray(buf, n)) continue;
+			if (pkt.type() == proto::MessageType::SpectatorSubscribeChallengeType) {
+				const auto &challenge = pkt.spectator_subscribe_challenge_data();
+				if (challenge.battle_code() != battle_code || challenge.cookie().size() != kSubscribeCookieBytes) continue;
+				cookie = challenge.cookie();
+				int32_t from;
+				{
+					std::lock_guard<std::mutex> lock(mtx_);
+					from = acked_frame_;
+				}
+				send_subscribe(from);
+				last_subscribe_ms =
+					std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+						.count();
+				continue;
+			}
 			if (pkt.type() != proto::MessageType::SpectatorInputPushType) continue;
 			if (pkt.spectator_input_push_data().battle_code() != battle_code) continue;
 
@@ -180,12 +201,9 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 				}
 			}
 			pending_.push_back(push);
-			// Ack again on any receipt, even with nothing new folded in. The
-			// value never moves backwards, so this claims no data. It just
-			// proves to LBS that this address really receives, which is what
-			// clears the unverified state and earns the header. Without it
-			// bootstrap deadlocks: StartLive blocks waiting for the header, so
-			// ReportAcked never runs, so we never ack.
+			// Repeat receipt feedback even during bootstrap, when playback
+			// cannot advance its frame ACK yet. This keeps patch delivery and
+			// the server's silent-subscriber recovery moving.
 			acked_dirty_ = true;
 		}
 

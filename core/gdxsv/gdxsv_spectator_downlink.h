@@ -12,8 +12,9 @@
 // Receives this spectator's live updates from LBS over UDP.
 //
 // Same port and proto messages as the uplink: sends SpectatorSubscribeRequest
-// to register and keep alive, receives SpectatorInputPush, acks the highest
-// contiguous frame with SpectatorInputAck.
+// to register and keep alive, echoes SpectatorSubscribeChallenge cookies,
+// receives SpectatorInputPush, and acks the highest contiguous frame with
+// SpectatorInputAck.
 //
 // Owns a background thread and its own socket. That thread only queues what it
 // receives. DrainInto and ReportAcked run on the main thread and do the actual

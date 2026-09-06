@@ -30,6 +30,7 @@ extern PROTOBUF_INTERNAL_EXPORT_gdxsv_2eproto ::PROTOBUF_NAMESPACE_ID::internal:
 extern PROTOBUF_INTERNAL_EXPORT_gdxsv_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<3> scc_info_SpectatorInputPush_gdxsv_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_gdxsv_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_SpectatorRoundEvent_gdxsv_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_gdxsv_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_SpectatorRoundResult_gdxsv_2eproto;
+extern PROTOBUF_INTERNAL_EXPORT_gdxsv_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_SpectatorSubscribeChallenge_gdxsv_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_gdxsv_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_SpectatorSubscribeRequest_gdxsv_2eproto;
 namespace proto {
 class P2PMatchingReportDefaultTypeInternal {
@@ -76,6 +77,10 @@ class SpectatorSubscribeRequestDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<SpectatorSubscribeRequest> _instance;
 } _SpectatorSubscribeRequest_default_instance_;
+class SpectatorSubscribeChallengeDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<SpectatorSubscribeChallenge> _instance;
+} _SpectatorSubscribeChallenge_default_instance_;
 class SpectatorRoundEventDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<SpectatorRoundEvent> _instance;
@@ -305,8 +310,8 @@ static void InitDefaultsscc_info_Packet_gdxsv_2eproto() {
   ::proto::Packet::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<11> scc_info_Packet_gdxsv_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 11, 0, InitDefaultsscc_info_Packet_gdxsv_2eproto}, {
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<12> scc_info_Packet_gdxsv_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 12, 0, InitDefaultsscc_info_Packet_gdxsv_2eproto}, {
       &scc_info_HelloServerMessage_gdxsv_2eproto.base,
       &scc_info_PingMessage_gdxsv_2eproto.base,
       &scc_info_PongMessage_gdxsv_2eproto.base,
@@ -317,7 +322,8 @@ static void InitDefaultsscc_info_Packet_gdxsv_2eproto() {
       &scc_info_SpectatorInputAck_gdxsv_2eproto.base,
       &scc_info_SpectatorRoundEvent_gdxsv_2eproto.base,
       &scc_info_SpectatorRoundResult_gdxsv_2eproto.base,
-      &scc_info_SpectatorSubscribeRequest_gdxsv_2eproto.base,}};
+      &scc_info_SpectatorSubscribeRequest_gdxsv_2eproto.base,
+      &scc_info_SpectatorSubscribeChallenge_gdxsv_2eproto.base,}};
 
 static void InitDefaultsscc_info_PingMessage_gdxsv_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -421,6 +427,20 @@ static void InitDefaultsscc_info_SpectatorRoundResult_gdxsv_2eproto() {
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_SpectatorRoundResult_gdxsv_2eproto}, {
       &scc_info_BattleLogRound_gdxsv_2eproto.base,}};
 
+static void InitDefaultsscc_info_SpectatorSubscribeChallenge_gdxsv_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::proto::_SpectatorSubscribeChallenge_default_instance_;
+    new (ptr) ::proto::SpectatorSubscribeChallenge();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::proto::SpectatorSubscribeChallenge::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_SpectatorSubscribeChallenge_gdxsv_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_SpectatorSubscribeChallenge_gdxsv_2eproto}, {}};
+
 static void InitDefaultsscc_info_SpectatorSubscribeRequest_gdxsv_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -435,7 +455,7 @@ static void InitDefaultsscc_info_SpectatorSubscribeRequest_gdxsv_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_SpectatorSubscribeRequest_gdxsv_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_SpectatorSubscribeRequest_gdxsv_2eproto}, {}};
 
-static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_gdxsv_2eproto[21];
+static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_gdxsv_2eproto[22];
 static const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* file_level_enum_descriptors_gdxsv_2eproto[1];
 static constexpr ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor const** file_level_service_descriptors_gdxsv_2eproto = nullptr;
 
@@ -566,6 +586,14 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeRequest, battle_code_),
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeRequest, from_frame_),
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeRequest, cookie_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeChallenge, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeChallenge, battle_code_),
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeChallenge, cookie_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorRoundEvent, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -670,6 +698,7 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::Packet, spectator_round_event_data_),
   PROTOBUF_FIELD_OFFSET(::proto::Packet, spectator_round_result_data_),
   PROTOBUF_FIELD_OFFSET(::proto::Packet, spectator_subscribe_data_),
+  PROTOBUF_FIELD_OFFSET(::proto::Packet, spectator_subscribe_challenge_data_),
 };
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, sizeof(::proto::P2PMatchingReport)},
@@ -683,16 +712,17 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 92, -1, sizeof(::proto::SpectatorInputPush)},
   { 111, -1, sizeof(::proto::SpectatorInputAck)},
   { 119, -1, sizeof(::proto::SpectatorSubscribeRequest)},
-  { 126, -1, sizeof(::proto::SpectatorRoundEvent)},
-  { 136, -1, sizeof(::proto::SpectatorRoundResult)},
-  { 146, -1, sizeof(::proto::BattleLogFile)},
-  { 167, -1, sizeof(::proto::BattleMessage)},
-  { 175, -1, sizeof(::proto::PingMessage)},
-  { 182, -1, sizeof(::proto::PongMessage)},
-  { 190, -1, sizeof(::proto::HelloServerMessage)},
-  { 198, -1, sizeof(::proto::FinMessage)},
-  { 204, -1, sizeof(::proto::HelloLbsMessage)},
-  { 210, -1, sizeof(::proto::Packet)},
+  { 127, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
+  { 134, -1, sizeof(::proto::SpectatorRoundEvent)},
+  { 144, -1, sizeof(::proto::SpectatorRoundResult)},
+  { 154, -1, sizeof(::proto::BattleLogFile)},
+  { 175, -1, sizeof(::proto::BattleMessage)},
+  { 183, -1, sizeof(::proto::PingMessage)},
+  { 190, -1, sizeof(::proto::PongMessage)},
+  { 198, -1, sizeof(::proto::HelloServerMessage)},
+  { 206, -1, sizeof(::proto::FinMessage)},
+  { 212, -1, sizeof(::proto::HelloLbsMessage)},
+  { 218, -1, sizeof(::proto::Packet)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -707,6 +737,7 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_SpectatorInputPush_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_SpectatorInputAck_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_SpectatorSubscribeRequest_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_SpectatorSubscribeChallenge_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_SpectatorRoundEvent_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_SpectatorRoundResult_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::proto::_BattleLogFile_default_instance_),
@@ -763,62 +794,67 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "2\020.proto.GamePatch\022\023\n\013patch_start\030\r \001(\005\022"
   "\023\n\013patch_total\030\016 \001(\005\"N\n\021SpectatorInputAc"
   "k\022\023\n\013battle_code\030\001 \001(\t\022\021\n\tack_frame\030\002 \001("
-  "\005\022\021\n\tpatch_ack\030\003 \001(\005\"J\n\031SpectatorSubscri"
+  "\005\022\021\n\tpatch_ack\030\003 \001(\005\"Z\n\031SpectatorSubscri"
   "beRequest\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nfrom_f"
-  "rame\030\003 \001(\005J\004\010\002\020\003\"t\n\023SpectatorRoundEvent\022"
-  "\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005"
-  "\022\017\n\007peer_id\030\003 \001(\005\022\r\n\005frame\030\004 \001(\005\022\024\n\014rand"
-  "om_value\030\005 \001(\004\"\213\001\n\024SpectatorRoundResult\022"
-  "\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005"
-  "\022\017\n\007peer_id\030\003 \001(\005\022\023\n\013round_index\030\004 \001(\005\022$"
-  "\n\005round\030\005 \001(\0132\025.proto.BattleLogRound\"\300\003\n"
-  "\rBattleLogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n\030gdx"
-  "sv_version_deprecated\030\002 \001(\t\022\023\n\013battle_co"
-  "de\030\003 \001(\t\022\030\n\020log_file_version\030\004 \001(\005\022!\n\007pa"
-  "tches\030\007 \003(\0132\020.proto.GamePatch\022\020\n\010rule_bi"
-  "n\030\n \001(\014\022#\n\005users\030\013 \003(\0132\024.proto.BattleLog"
-  "User\022)\n\013battle_data\030\014 \003(\0132\024.proto.Battle"
-  "Message\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg_ind"
-  "exes\030\020 \003(\005\022\031\n\021start_msg_randoms\030\021 \003(\004\022)\n"
-  "\nround_data\030\022 \003(\0132\025.proto.BattleLogRound"
-  "\022\020\n\010start_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n\014cl"
-  "ose_reason\030\030 \001(\t\022\035\n\025disconnect_user_inde"
-  "x\030\031 \001(\005\";\n\rBattleMessage\022\017\n\007user_id\030\001 \001("
-  "\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013PingMess"
-  "age\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\""
-  "F\n\013PongMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007use"
-  "r_id\030\002 \001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022Hello"
-  "ServerMessage\022\035\n\025session_id_deprecated\030\001"
-  " \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n\nFin"
-  "Message\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsMessa"
-  "ge\022\017\n\007user_id\030\001 \001(\t\"\234\005\n\006Packet\022 \n\004type\030\001"
-  " \001(\0162\022.proto.MessageType\022\013\n\003seq\030\002 \001(\r\022\013\n"
-  "\003ack\030\003 \001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021hello_"
-  "server_data\030\n \001(\0132\031.proto.HelloServerMes"
-  "sage\022%\n\tping_data\030\013 \001(\0132\022.proto.PingMess"
-  "age\022%\n\tpong_data\030\014 \001(\0132\022.proto.PongMessa"
-  "ge\022)\n\013battle_data\030\r \003(\0132\024.proto.BattleMe"
-  "ssage\022#\n\010fin_data\030\016 \001(\0132\021.proto.FinMessa"
-  "ge\022.\n\016hello_lbs_data\030\017 \001(\0132\026.proto.Hello"
-  "LbsMessage\022<\n\031spectator_input_push_data\030"
-  "\024 \001(\0132\031.proto.SpectatorInputPush\022:\n\030spec"
-  "tator_input_ack_data\030\025 \001(\0132\030.proto.Spect"
-  "atorInputAck\022>\n\032spectator_round_event_da"
-  "ta\030\026 \001(\0132\032.proto.SpectatorRoundEvent\022@\n\033"
-  "spectator_round_result_data\030\027 \001(\0132\033.prot"
-  "o.SpectatorRoundResult\022B\n\030spectator_subs"
-  "cribe_data\030\030 \001(\0132 .proto.SpectatorSubscr"
-  "ibeRequest*\355\001\n\013MessageType\022\010\n\004None\020\000\022\017\n\013"
-  "HelloServer\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006Bat"
-  "tle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLbs\020\n\022\032\n\026Spectato"
-  "rInputPushType\020\024\022\031\n\025SpectatorInputAckTyp"
-  "e\020\025\022\033\n\027SpectatorRoundEventType\020\026\022\034\n\030Spec"
-  "tatorRoundResultType\020\027\022\032\n\026SpectatorSubsc"
-  "ribeType\020\030B\rZ\013gdxsv/protob\006proto3"
+  "rame\030\003 \001(\005\022\016\n\006cookie\030\004 \001(\014J\004\010\002\020\003\"B\n\033Spec"
+  "tatorSubscribeChallenge\022\023\n\013battle_code\030\001"
+  " \001(\t\022\016\n\006cookie\030\002 \001(\014\"t\n\023SpectatorRoundEv"
+  "ent\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002"
+  " \001(\005\022\017\n\007peer_id\030\003 \001(\005\022\r\n\005frame\030\004 \001(\005\022\024\n\014"
+  "random_value\030\005 \001(\004\"\213\001\n\024SpectatorRoundRes"
+  "ult\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002"
+  " \001(\005\022\017\n\007peer_id\030\003 \001(\005\022\023\n\013round_index\030\004 \001"
+  "(\005\022$\n\005round\030\005 \001(\0132\025.proto.BattleLogRound"
+  "\"\300\003\n\rBattleLogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n"
+  "\030gdxsv_version_deprecated\030\002 \001(\t\022\023\n\013battl"
+  "e_code\030\003 \001(\t\022\030\n\020log_file_version\030\004 \001(\005\022!"
+  "\n\007patches\030\007 \003(\0132\020.proto.GamePatch\022\020\n\010rul"
+  "e_bin\030\n \001(\014\022#\n\005users\030\013 \003(\0132\024.proto.Battl"
+  "eLogUser\022)\n\013battle_data\030\014 \003(\0132\024.proto.Ba"
+  "ttleMessage\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg"
+  "_indexes\030\020 \003(\005\022\031\n\021start_msg_randoms\030\021 \003("
+  "\004\022)\n\nround_data\030\022 \003(\0132\025.proto.BattleLogR"
+  "ound\022\020\n\010start_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024"
+  "\n\014close_reason\030\030 \001(\t\022\035\n\025disconnect_user_"
+  "index\030\031 \001(\005\";\n\rBattleMessage\022\017\n\007user_id\030"
+  "\001 \001(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013Ping"
+  "Message\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 "
+  "\001(\t\"F\n\013PongMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n"
+  "\007user_id\030\002 \001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022H"
+  "elloServerMessage\022\035\n\025session_id_deprecat"
+  "ed\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n"
+  "\nFinMessage\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsM"
+  "essage\022\017\n\007user_id\030\001 \001(\t\"\354\005\n\006Packet\022 \n\004ty"
+  "pe\030\001 \001(\0162\022.proto.MessageType\022\013\n\003seq\030\002 \001("
+  "\r\022\013\n\003ack\030\003 \001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021he"
+  "llo_server_data\030\n \001(\0132\031.proto.HelloServe"
+  "rMessage\022%\n\tping_data\030\013 \001(\0132\022.proto.Ping"
+  "Message\022%\n\tpong_data\030\014 \001(\0132\022.proto.PongM"
+  "essage\022)\n\013battle_data\030\r \003(\0132\024.proto.Batt"
+  "leMessage\022#\n\010fin_data\030\016 \001(\0132\021.proto.FinM"
+  "essage\022.\n\016hello_lbs_data\030\017 \001(\0132\026.proto.H"
+  "elloLbsMessage\022<\n\031spectator_input_push_d"
+  "ata\030\024 \001(\0132\031.proto.SpectatorInputPush\022:\n\030"
+  "spectator_input_ack_data\030\025 \001(\0132\030.proto.S"
+  "pectatorInputAck\022>\n\032spectator_round_even"
+  "t_data\030\026 \001(\0132\032.proto.SpectatorRoundEvent"
+  "\022@\n\033spectator_round_result_data\030\027 \001(\0132\033."
+  "proto.SpectatorRoundResult\022B\n\030spectator_"
+  "subscribe_data\030\030 \001(\0132 .proto.SpectatorSu"
+  "bscribeRequest\022N\n\"spectator_subscribe_ch"
+  "allenge_data\030\031 \001(\0132\".proto.SpectatorSubs"
+  "cribeChallenge*\222\002\n\013MessageType\022\010\n\004None\020\000"
+  "\022\017\n\013HelloServer\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n"
+  "\006Battle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLbs\020\n\022\032\n\026Spec"
+  "tatorInputPushType\020\024\022\031\n\025SpectatorInputAc"
+  "kType\020\025\022\033\n\027SpectatorRoundEventType\020\026\022\034\n\030"
+  "SpectatorRoundResultType\020\027\022\032\n\026SpectatorS"
+  "ubscribeType\020\030\022#\n\037SpectatorSubscribeChal"
+  "lengeType\020\031B\rZ\013gdxsv/protob\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_gdxsv_2eproto_deps[1] = {
 };
-static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdxsv_2eproto_sccs[21] = {
+static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdxsv_2eproto_sccs[22] = {
   &scc_info_BattleLogFile_gdxsv_2eproto.base,
   &scc_info_BattleLogRound_gdxsv_2eproto.base,
   &scc_info_BattleLogUser_gdxsv_2eproto.base,
@@ -839,14 +875,15 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdx
   &scc_info_SpectatorInputPush_gdxsv_2eproto.base,
   &scc_info_SpectatorRoundEvent_gdxsv_2eproto.base,
   &scc_info_SpectatorRoundResult_gdxsv_2eproto.base,
+  &scc_info_SpectatorSubscribeChallenge_gdxsv_2eproto.base,
   &scc_info_SpectatorSubscribeRequest_gdxsv_2eproto.base,
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_gdxsv_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_gdxsv_2eproto = {
-  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 3793,
-  &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 21, 0,
+  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 3994,
+  &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 22, 0,
   schemas, file_default_instances, TableStruct_gdxsv_2eproto::offsets,
-  file_level_metadata_gdxsv_2eproto, 21, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
+  file_level_metadata_gdxsv_2eproto, 22, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
 };
 
 // Force running AddDescriptors() at dynamic initialization time.
@@ -870,6 +907,7 @@ bool MessageType_IsValid(int value) {
     case 22:
     case 23:
     case 24:
+    case 25:
       return true;
     default:
       return false;
@@ -4727,6 +4765,11 @@ SpectatorSubscribeRequest::SpectatorSubscribeRequest(const SpectatorSubscribeReq
     battle_code_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_battle_code(),
       GetArena());
   }
+  cookie_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_cookie().empty()) {
+    cookie_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_cookie(),
+      GetArena());
+  }
   from_frame_ = from.from_frame_;
   // @@protoc_insertion_point(copy_constructor:proto.SpectatorSubscribeRequest)
 }
@@ -4734,6 +4777,7 @@ SpectatorSubscribeRequest::SpectatorSubscribeRequest(const SpectatorSubscribeReq
 void SpectatorSubscribeRequest::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_SpectatorSubscribeRequest_gdxsv_2eproto.base);
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  cookie_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   from_frame_ = 0;
 }
 
@@ -4746,6 +4790,7 @@ SpectatorSubscribeRequest::~SpectatorSubscribeRequest() {
 void SpectatorSubscribeRequest::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
   battle_code_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  cookie_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
 void SpectatorSubscribeRequest::ArenaDtor(void* object) {
@@ -4770,6 +4815,7 @@ void SpectatorSubscribeRequest::Clear() {
   (void) cached_has_bits;
 
   battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  cookie_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   from_frame_ = 0;
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
@@ -4795,6 +4841,14 @@ const char* SpectatorSubscribeRequest::_InternalParse(const char* ptr, ::PROTOBU
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 24)) {
           from_frame_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // bytes cookie = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 34)) {
+          auto str = _internal_mutable_cookie();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -4842,6 +4896,12 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(3, this->_internal_from_frame(), target);
   }
 
+  // bytes cookie = 4;
+  if (this->cookie().size() > 0) {
+    target = stream->WriteBytesMaybeAliased(
+        4, this->_internal_cookie(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -4863,6 +4923,13 @@ size_t SpectatorSubscribeRequest::ByteSizeLong() const {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_battle_code());
+  }
+
+  // bytes cookie = 4;
+  if (this->cookie().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
+        this->_internal_cookie());
   }
 
   // int32 from_frame = 3;
@@ -4906,6 +4973,9 @@ void SpectatorSubscribeRequest::MergeFrom(const SpectatorSubscribeRequest& from)
   if (from.battle_code().size() > 0) {
     _internal_set_battle_code(from._internal_battle_code());
   }
+  if (from.cookie().size() > 0) {
+    _internal_set_cookie(from._internal_cookie());
+  }
   if (from.from_frame() != 0) {
     _internal_set_from_frame(from._internal_from_frame());
   }
@@ -4933,10 +5003,253 @@ void SpectatorSubscribeRequest::InternalSwap(SpectatorSubscribeRequest* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  cookie_.Swap(&other->cookie_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   swap(from_frame_, other->from_frame_);
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata SpectatorSubscribeRequest::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
+
+// ===================================================================
+
+void SpectatorSubscribeChallenge::InitAsDefaultInstance() {
+}
+class SpectatorSubscribeChallenge::_Internal {
+ public:
+};
+
+SpectatorSubscribeChallenge::SpectatorSubscribeChallenge(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:proto.SpectatorSubscribeChallenge)
+}
+SpectatorSubscribeChallenge::SpectatorSubscribeChallenge(const SpectatorSubscribeChallenge& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_battle_code().empty()) {
+    battle_code_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_battle_code(),
+      GetArena());
+  }
+  cookie_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_cookie().empty()) {
+    cookie_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_cookie(),
+      GetArena());
+  }
+  // @@protoc_insertion_point(copy_constructor:proto.SpectatorSubscribeChallenge)
+}
+
+void SpectatorSubscribeChallenge::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_SpectatorSubscribeChallenge_gdxsv_2eproto.base);
+  battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  cookie_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+}
+
+SpectatorSubscribeChallenge::~SpectatorSubscribeChallenge() {
+  // @@protoc_insertion_point(destructor:proto.SpectatorSubscribeChallenge)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void SpectatorSubscribeChallenge::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+  battle_code_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  cookie_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+}
+
+void SpectatorSubscribeChallenge::ArenaDtor(void* object) {
+  SpectatorSubscribeChallenge* _this = reinterpret_cast< SpectatorSubscribeChallenge* >(object);
+  (void)_this;
+}
+void SpectatorSubscribeChallenge::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void SpectatorSubscribeChallenge::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const SpectatorSubscribeChallenge& SpectatorSubscribeChallenge::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_SpectatorSubscribeChallenge_gdxsv_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void SpectatorSubscribeChallenge::Clear() {
+// @@protoc_insertion_point(message_clear_start:proto.SpectatorSubscribeChallenge)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  cookie_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* SpectatorSubscribeChallenge::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // string battle_code = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
+          auto str = _internal_mutable_battle_code();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "proto.SpectatorSubscribeChallenge.battle_code"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // bytes cookie = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
+          auto str = _internal_mutable_cookie();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* SpectatorSubscribeChallenge::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:proto.SpectatorSubscribeChallenge)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string battle_code = 1;
+  if (this->battle_code().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_battle_code().data(), static_cast<int>(this->_internal_battle_code().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "proto.SpectatorSubscribeChallenge.battle_code");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_battle_code(), target);
+  }
+
+  // bytes cookie = 2;
+  if (this->cookie().size() > 0) {
+    target = stream->WriteBytesMaybeAliased(
+        2, this->_internal_cookie(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:proto.SpectatorSubscribeChallenge)
+  return target;
+}
+
+size_t SpectatorSubscribeChallenge::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:proto.SpectatorSubscribeChallenge)
+  size_t total_size = 0;
+
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string battle_code = 1;
+  if (this->battle_code().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_battle_code());
+  }
+
+  // bytes cookie = 2;
+  if (this->cookie().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
+        this->_internal_cookie());
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void SpectatorSubscribeChallenge::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:proto.SpectatorSubscribeChallenge)
+  GOOGLE_DCHECK_NE(&from, this);
+  const SpectatorSubscribeChallenge* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<SpectatorSubscribeChallenge>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:proto.SpectatorSubscribeChallenge)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:proto.SpectatorSubscribeChallenge)
+    MergeFrom(*source);
+  }
+}
+
+void SpectatorSubscribeChallenge::MergeFrom(const SpectatorSubscribeChallenge& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:proto.SpectatorSubscribeChallenge)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from.battle_code().size() > 0) {
+    _internal_set_battle_code(from._internal_battle_code());
+  }
+  if (from.cookie().size() > 0) {
+    _internal_set_cookie(from._internal_cookie());
+  }
+}
+
+void SpectatorSubscribeChallenge::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:proto.SpectatorSubscribeChallenge)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void SpectatorSubscribeChallenge::CopyFrom(const SpectatorSubscribeChallenge& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:proto.SpectatorSubscribeChallenge)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool SpectatorSubscribeChallenge::IsInitialized() const {
+  return true;
+}
+
+void SpectatorSubscribeChallenge::InternalSwap(SpectatorSubscribeChallenge* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  cookie_.Swap(&other->cookie_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata SpectatorSubscribeChallenge::GetMetadata() const {
   return GetMetadataStatic();
 }
 
@@ -7788,6 +8101,8 @@ void Packet::InitAsDefaultInstance() {
       ::proto::SpectatorRoundResult::internal_default_instance());
   ::proto::_Packet_default_instance_._instance.get_mutable()->spectator_subscribe_data_ = const_cast< ::proto::SpectatorSubscribeRequest*>(
       ::proto::SpectatorSubscribeRequest::internal_default_instance());
+  ::proto::_Packet_default_instance_._instance.get_mutable()->spectator_subscribe_challenge_data_ = const_cast< ::proto::SpectatorSubscribeChallenge*>(
+      ::proto::SpectatorSubscribeChallenge::internal_default_instance());
 }
 class Packet::_Internal {
  public:
@@ -7801,6 +8116,7 @@ class Packet::_Internal {
   static const ::proto::SpectatorRoundEvent& spectator_round_event_data(const Packet* msg);
   static const ::proto::SpectatorRoundResult& spectator_round_result_data(const Packet* msg);
   static const ::proto::SpectatorSubscribeRequest& spectator_subscribe_data(const Packet* msg);
+  static const ::proto::SpectatorSubscribeChallenge& spectator_subscribe_challenge_data(const Packet* msg);
 };
 
 const ::proto::HelloServerMessage&
@@ -7842,6 +8158,10 @@ Packet::_Internal::spectator_round_result_data(const Packet* msg) {
 const ::proto::SpectatorSubscribeRequest&
 Packet::_Internal::spectator_subscribe_data(const Packet* msg) {
   return *msg->spectator_subscribe_data_;
+}
+const ::proto::SpectatorSubscribeChallenge&
+Packet::_Internal::spectator_subscribe_challenge_data(const Packet* msg) {
+  return *msg->spectator_subscribe_challenge_data_;
 }
 Packet::Packet(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena),
@@ -7909,6 +8229,11 @@ Packet::Packet(const Packet& from)
   } else {
     spectator_subscribe_data_ = nullptr;
   }
+  if (from._internal_has_spectator_subscribe_challenge_data()) {
+    spectator_subscribe_challenge_data_ = new ::proto::SpectatorSubscribeChallenge(*from.spectator_subscribe_challenge_data_);
+  } else {
+    spectator_subscribe_challenge_data_ = nullptr;
+  }
   ::memcpy(&type_, &from.type_,
     static_cast<size_t>(reinterpret_cast<char*>(&ack_) -
     reinterpret_cast<char*>(&type_)) + sizeof(ack_));
@@ -7942,6 +8267,7 @@ void Packet::SharedDtor() {
   if (this != internal_default_instance()) delete spectator_round_event_data_;
   if (this != internal_default_instance()) delete spectator_round_result_data_;
   if (this != internal_default_instance()) delete spectator_subscribe_data_;
+  if (this != internal_default_instance()) delete spectator_subscribe_challenge_data_;
 }
 
 void Packet::ArenaDtor(void* object) {
@@ -8007,6 +8333,10 @@ void Packet::Clear() {
     delete spectator_subscribe_data_;
   }
   spectator_subscribe_data_ = nullptr;
+  if (GetArena() == nullptr && spectator_subscribe_challenge_data_ != nullptr) {
+    delete spectator_subscribe_challenge_data_;
+  }
+  spectator_subscribe_challenge_data_ = nullptr;
   ::memset(&type_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&ack_) -
       reinterpret_cast<char*>(&type_)) + sizeof(ack_));
@@ -8131,6 +8461,13 @@ const char* Packet::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::int
       case 24:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 194)) {
           ptr = ctx->ParseMessage(_internal_mutable_spectator_subscribe_data(), ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // .proto.SpectatorSubscribeChallenge spectator_subscribe_challenge_data = 25;
+      case 25:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 202)) {
+          ptr = ctx->ParseMessage(_internal_mutable_spectator_subscribe_challenge_data(), ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -8279,6 +8616,14 @@ failure:
         24, _Internal::spectator_subscribe_data(this), target, stream);
   }
 
+  // .proto.SpectatorSubscribeChallenge spectator_subscribe_challenge_data = 25;
+  if (this->has_spectator_subscribe_challenge_data()) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(
+        25, _Internal::spectator_subscribe_challenge_data(this), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -8379,6 +8724,13 @@ size_t Packet::ByteSizeLong() const {
         *spectator_subscribe_data_);
   }
 
+  // .proto.SpectatorSubscribeChallenge spectator_subscribe_challenge_data = 25;
+  if (this->has_spectator_subscribe_challenge_data()) {
+    total_size += 2 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+        *spectator_subscribe_challenge_data_);
+  }
+
   // .proto.MessageType type = 1;
   if (this->type() != 0) {
     total_size += 1 +
@@ -8464,6 +8816,9 @@ void Packet::MergeFrom(const Packet& from) {
   if (from.has_spectator_subscribe_data()) {
     _internal_mutable_spectator_subscribe_data()->::proto::SpectatorSubscribeRequest::MergeFrom(from._internal_spectator_subscribe_data());
   }
+  if (from.has_spectator_subscribe_challenge_data()) {
+    _internal_mutable_spectator_subscribe_challenge_data()->::proto::SpectatorSubscribeChallenge::MergeFrom(from._internal_spectator_subscribe_challenge_data());
+  }
   if (from.type() != 0) {
     _internal_set_type(from._internal_type());
   }
@@ -8546,6 +8901,9 @@ template<> PROTOBUF_NOINLINE ::proto::SpectatorInputAck* Arena::CreateMaybeMessa
 }
 template<> PROTOBUF_NOINLINE ::proto::SpectatorSubscribeRequest* Arena::CreateMaybeMessage< ::proto::SpectatorSubscribeRequest >(Arena* arena) {
   return Arena::CreateMessageInternal< ::proto::SpectatorSubscribeRequest >(arena);
+}
+template<> PROTOBUF_NOINLINE ::proto::SpectatorSubscribeChallenge* Arena::CreateMaybeMessage< ::proto::SpectatorSubscribeChallenge >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::proto::SpectatorSubscribeChallenge >(arena);
 }
 template<> PROTOBUF_NOINLINE ::proto::SpectatorRoundEvent* Arena::CreateMaybeMessage< ::proto::SpectatorRoundEvent >(Arena* arena) {
   return Arena::CreateMessageInternal< ::proto::SpectatorRoundEvent >(arena);
