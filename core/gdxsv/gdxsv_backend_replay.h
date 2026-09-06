@@ -20,6 +20,8 @@ constexpr int kGdxsvLbsPort = 9876;
 
 // Mock network implementation to replay local battle log
 class GdxsvBackendReplay {
+   friend class GdxsvReplayInputTest;
+
    public:
 	using State = GdxsvReplayUiState::State;
 

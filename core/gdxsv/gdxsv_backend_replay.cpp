@@ -1971,9 +1971,14 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 
 // Enqueues the KeyMsg1 batch for the current key_msg_count_ and advances it.
 // Sends every player including pov_, because the replay patch disables the
-// client's own self-push. Called from both the KeyMsg1 and ForceMsg branches -
-// both mean the client wants the next frame.
+// client's own self-push.
 void GdxsvBackendReplay::DeliverKeyMsgBatch() {
+	// At the live edge, wait for confirmed input. A neutral batch would make
+	// the game simulate an unrecorded frame and permanently desync playback.
+	if (live_mode_ && !takeover_ && log_file_.inputs_size() <= key_msg_count_) {
+		return;
+	}
+
 	// Live Spectate: cap intake at one input frame per rendered frame, so the
 	// frame period governs consumption. The game polls for input more often
 	// than it renders once it is behind, and answering every poll decouples
@@ -2125,26 +2130,12 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 			BeginLoadingHud();
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 		}
-	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
-		// ForceMsg is a keepalive the client sends every 60 network passes when
-		// its own send queue stalls. It wants no special reply, and reflect_key()
-		// only cares whether the next frame's inputs arrived, not which message
-		// asked. So answer it exactly like a KeyMsg1 poll: the next frame if
-		// ready, silence if not.
-		if (!(live_mode_ && !takeover_ && log_file_.inputs_size() <= key_msg_count_)) {
-			DeliverKeyMsgBatch();
-		}
+	} else if (msg_type == McsMessage::MsgType::KeyMsg1 || msg_type == McsMessage::MsgType::ForceMsg) {
+		// The game sends ForceMsg when SendKeyMsg() sends nothing.
+		// Supplying the next all-player input batch lets a stalled game resume.
+		DeliverKeyMsgBatch();
 	} else if (msg_type == McsMessage::MsgType::LagControlTestMsg) {
 		// do nothing
-	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
-		// Live Spectate: nothing confirmed for the next frame yet. Stay
-		// silent rather than sending a neutral input, which the game would
-		// simulate as a real, uncounted frame and slip by one permanently.
-		// The client handles the stall itself (see the ForceMsg branch).
-		if (live_mode_ && !takeover_ && log_file_.inputs_size() <= key_msg_count_) {
-			return;
-		}
-		DeliverKeyMsgBatch();
 	} else if (msg_type == McsMessage::MsgType::KeyMsg2) {
 		verify(false);
 	} else if (msg_type == McsMessage::MsgType::LoadEndMsg) {
