@@ -2065,23 +2065,22 @@ class SpectatorInputPush PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kInputsFieldNumber = 5,
-    kStartMsgIndexesFieldNumber = 6,
-    kStartMsgRandomsFieldNumber = 7,
-    kRoundDataFieldNumber = 8,
-    kPatchesFieldNumber = 12,
+    kInputsFieldNumber = 4,
+    kStartMsgIndexesFieldNumber = 5,
+    kStartMsgRandomsFieldNumber = 6,
+    kRoundDataFieldNumber = 7,
+    kPatchesFieldNumber = 11,
     kBattleCodeFieldNumber = 1,
-    kCloseReasonFieldNumber = 9,
-    kHeaderFieldNumber = 11,
+    kCloseReasonFieldNumber = 8,
+    kHeaderFieldNumber = 10,
     kSessionIdFieldNumber = 2,
-    kPeerIdFieldNumber = 3,
-    kStartFrameFieldNumber = 4,
-    kDisconnectUserIndexFieldNumber = 10,
-    kPatchStartFieldNumber = 13,
-    kPatchTotalFieldNumber = 14,
-    kRoundStateVersionFieldNumber = 15,
+    kStartFrameFieldNumber = 3,
+    kDisconnectUserIndexFieldNumber = 9,
+    kPatchStartFieldNumber = 12,
+    kPatchTotalFieldNumber = 13,
+    kRoundStateVersionFieldNumber = 14,
   };
-  // repeated fixed64 inputs = 5;
+  // repeated fixed64 inputs = 4;
   int inputs_size() const;
   private:
   int _internal_inputs_size() const;
@@ -2103,7 +2102,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
       mutable_inputs();
 
-  // repeated int32 start_msg_indexes = 6;
+  // repeated int32 start_msg_indexes = 5;
   int start_msg_indexes_size() const;
   private:
   int _internal_start_msg_indexes_size() const;
@@ -2125,7 +2124,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
       mutable_start_msg_indexes();
 
-  // repeated uint64 start_msg_randoms = 7;
+  // repeated uint64 start_msg_randoms = 6;
   int start_msg_randoms_size() const;
   private:
   int _internal_start_msg_randoms_size() const;
@@ -2147,7 +2146,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::uint64 >*
       mutable_start_msg_randoms();
 
-  // repeated .proto.BattleLogRound round_data = 8;
+  // repeated .proto.BattleLogRound round_data = 7;
   int round_data_size() const;
   private:
   int _internal_round_data_size() const;
@@ -2165,7 +2164,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::BattleLogRound >&
       round_data() const;
 
-  // repeated .proto.GamePatch patches = 12;
+  // repeated .proto.GamePatch patches = 11;
   int patches_size() const;
   private:
   int _internal_patches_size() const;
@@ -2199,7 +2198,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   std::string* _internal_mutable_battle_code();
   public:
 
-  // string close_reason = 9;
+  // string close_reason = 8;
   void clear_close_reason();
   const std::string& close_reason() const;
   void set_close_reason(const std::string& value);
@@ -2215,7 +2214,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   std::string* _internal_mutable_close_reason();
   public:
 
-  // .proto.BattleLogFile header = 11;
+  // .proto.BattleLogFile header = 10;
   bool has_header() const;
   private:
   bool _internal_has_header() const;
@@ -2242,16 +2241,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_session_id(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 peer_id = 3;
-  void clear_peer_id();
-  ::PROTOBUF_NAMESPACE_ID::int32 peer_id() const;
-  void set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_peer_id() const;
-  void _internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
-  // int32 start_frame = 4;
+  // int32 start_frame = 3;
   void clear_start_frame();
   ::PROTOBUF_NAMESPACE_ID::int32 start_frame() const;
   void set_start_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
@@ -2260,7 +2250,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_start_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 disconnect_user_index = 10;
+  // int32 disconnect_user_index = 9;
   void clear_disconnect_user_index();
   ::PROTOBUF_NAMESPACE_ID::int32 disconnect_user_index() const;
   void set_disconnect_user_index(::PROTOBUF_NAMESPACE_ID::int32 value);
@@ -2269,7 +2259,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_disconnect_user_index(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 patch_start = 13;
+  // int32 patch_start = 12;
   void clear_patch_start();
   ::PROTOBUF_NAMESPACE_ID::int32 patch_start() const;
   void set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 value);
@@ -2278,7 +2268,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 patch_total = 14;
+  // int32 patch_total = 13;
   void clear_patch_total();
   ::PROTOBUF_NAMESPACE_ID::int32 patch_total() const;
   void set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value);
@@ -2287,7 +2277,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 round_state_version = 15;
+  // int32 round_state_version = 14;
   void clear_round_state_version();
   ::PROTOBUF_NAMESPACE_ID::int32 round_state_version() const;
   void set_round_state_version(::PROTOBUF_NAMESPACE_ID::int32 value);
@@ -2315,7 +2305,6 @@ class SpectatorInputPush PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
   ::proto::BattleLogFile* header_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
-  ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 start_frame_;
   ::PROTOBUF_NAMESPACE_ID::int32 disconnect_user_index_;
   ::PROTOBUF_NAMESPACE_ID::int32 patch_start_;
@@ -3003,9 +2992,8 @@ class SpectatorRoundEvent PROTOBUF_FINAL :
   enum : int {
     kBattleCodeFieldNumber = 1,
     kSessionIdFieldNumber = 2,
-    kPeerIdFieldNumber = 3,
-    kRandomValueFieldNumber = 5,
-    kFrameFieldNumber = 4,
+    kFrameFieldNumber = 3,
+    kRandomValueFieldNumber = 4,
   };
   // string battle_code = 1;
   void clear_battle_code();
@@ -3032,31 +3020,22 @@ class SpectatorRoundEvent PROTOBUF_FINAL :
   void _internal_set_session_id(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 peer_id = 3;
-  void clear_peer_id();
-  ::PROTOBUF_NAMESPACE_ID::int32 peer_id() const;
-  void set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_peer_id() const;
-  void _internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
-  // uint64 random_value = 5;
-  void clear_random_value();
-  ::PROTOBUF_NAMESPACE_ID::uint64 random_value() const;
-  void set_random_value(::PROTOBUF_NAMESPACE_ID::uint64 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::uint64 _internal_random_value() const;
-  void _internal_set_random_value(::PROTOBUF_NAMESPACE_ID::uint64 value);
-  public:
-
-  // int32 frame = 4;
+  // int32 frame = 3;
   void clear_frame();
   ::PROTOBUF_NAMESPACE_ID::int32 frame() const;
   void set_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
   private:
   ::PROTOBUF_NAMESPACE_ID::int32 _internal_frame() const;
   void _internal_set_frame(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // uint64 random_value = 4;
+  void clear_random_value();
+  ::PROTOBUF_NAMESPACE_ID::uint64 random_value() const;
+  void set_random_value(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint64 _internal_random_value() const;
+  void _internal_set_random_value(::PROTOBUF_NAMESPACE_ID::uint64 value);
   public:
 
   // @@protoc_insertion_point(class_scope:proto.SpectatorRoundEvent)
@@ -3068,9 +3047,8 @@ class SpectatorRoundEvent PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
-  ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
-  ::PROTOBUF_NAMESPACE_ID::uint64 random_value_;
   ::PROTOBUF_NAMESPACE_ID::int32 frame_;
+  ::PROTOBUF_NAMESPACE_ID::uint64 random_value_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -3190,10 +3168,9 @@ class SpectatorRoundResult PROTOBUF_FINAL :
 
   enum : int {
     kBattleCodeFieldNumber = 1,
-    kRoundFieldNumber = 5,
+    kRoundFieldNumber = 4,
     kSessionIdFieldNumber = 2,
-    kPeerIdFieldNumber = 3,
-    kRoundIndexFieldNumber = 4,
+    kRoundIndexFieldNumber = 3,
   };
   // string battle_code = 1;
   void clear_battle_code();
@@ -3211,7 +3188,7 @@ class SpectatorRoundResult PROTOBUF_FINAL :
   std::string* _internal_mutable_battle_code();
   public:
 
-  // .proto.BattleLogRound round = 5;
+  // .proto.BattleLogRound round = 4;
   bool has_round() const;
   private:
   bool _internal_has_round() const;
@@ -3238,16 +3215,7 @@ class SpectatorRoundResult PROTOBUF_FINAL :
   void _internal_set_session_id(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 peer_id = 3;
-  void clear_peer_id();
-  ::PROTOBUF_NAMESPACE_ID::int32 peer_id() const;
-  void set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_peer_id() const;
-  void _internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
-  // int32 round_index = 4;
+  // int32 round_index = 3;
   void clear_round_index();
   ::PROTOBUF_NAMESPACE_ID::int32 round_index() const;
   void set_round_index(::PROTOBUF_NAMESPACE_ID::int32 value);
@@ -3266,7 +3234,6 @@ class SpectatorRoundResult PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::proto::BattleLogRound* round_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
-  ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 round_index_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
@@ -7051,27 +7018,7 @@ inline void SpectatorInputPush::set_session_id(::PROTOBUF_NAMESPACE_ID::int32 va
   // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.session_id)
 }
 
-// int32 peer_id = 3;
-inline void SpectatorInputPush::clear_peer_id() {
-  peer_id_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::_internal_peer_id() const {
-  return peer_id_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::peer_id() const {
-  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.peer_id)
-  return _internal_peer_id();
-}
-inline void SpectatorInputPush::_internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  peer_id_ = value;
-}
-inline void SpectatorInputPush::set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_peer_id(value);
-  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.peer_id)
-}
-
-// int32 start_frame = 4;
+// int32 start_frame = 3;
 inline void SpectatorInputPush::clear_start_frame() {
   start_frame_ = 0;
 }
@@ -7091,7 +7038,7 @@ inline void SpectatorInputPush::set_start_frame(::PROTOBUF_NAMESPACE_ID::int32 v
   // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.start_frame)
 }
 
-// repeated fixed64 inputs = 5;
+// repeated fixed64 inputs = 4;
 inline int SpectatorInputPush::_internal_inputs_size() const {
   return inputs_.size();
 }
@@ -7138,7 +7085,7 @@ SpectatorInputPush::mutable_inputs() {
   return _internal_mutable_inputs();
 }
 
-// repeated int32 start_msg_indexes = 6;
+// repeated int32 start_msg_indexes = 5;
 inline int SpectatorInputPush::_internal_start_msg_indexes_size() const {
   return start_msg_indexes_.size();
 }
@@ -7185,7 +7132,7 @@ SpectatorInputPush::mutable_start_msg_indexes() {
   return _internal_mutable_start_msg_indexes();
 }
 
-// repeated uint64 start_msg_randoms = 7;
+// repeated uint64 start_msg_randoms = 6;
 inline int SpectatorInputPush::_internal_start_msg_randoms_size() const {
   return start_msg_randoms_.size();
 }
@@ -7232,7 +7179,7 @@ SpectatorInputPush::mutable_start_msg_randoms() {
   return _internal_mutable_start_msg_randoms();
 }
 
-// repeated .proto.BattleLogRound round_data = 8;
+// repeated .proto.BattleLogRound round_data = 7;
 inline int SpectatorInputPush::_internal_round_data_size() const {
   return round_data_.size();
 }
@@ -7271,7 +7218,7 @@ SpectatorInputPush::round_data() const {
   return round_data_;
 }
 
-// string close_reason = 9;
+// string close_reason = 8;
 inline void SpectatorInputPush::clear_close_reason() {
   close_reason_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
@@ -7333,7 +7280,7 @@ inline void SpectatorInputPush::set_allocated_close_reason(std::string* close_re
   // @@protoc_insertion_point(field_set_allocated:proto.SpectatorInputPush.close_reason)
 }
 
-// int32 disconnect_user_index = 10;
+// int32 disconnect_user_index = 9;
 inline void SpectatorInputPush::clear_disconnect_user_index() {
   disconnect_user_index_ = 0;
 }
@@ -7353,7 +7300,7 @@ inline void SpectatorInputPush::set_disconnect_user_index(::PROTOBUF_NAMESPACE_I
   // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.disconnect_user_index)
 }
 
-// .proto.BattleLogFile header = 11;
+// .proto.BattleLogFile header = 10;
 inline bool SpectatorInputPush::_internal_has_header() const {
   return this != internal_default_instance() && header_ != nullptr;
 }
@@ -7436,7 +7383,7 @@ inline void SpectatorInputPush::set_allocated_header(::proto::BattleLogFile* hea
   // @@protoc_insertion_point(field_set_allocated:proto.SpectatorInputPush.header)
 }
 
-// repeated .proto.GamePatch patches = 12;
+// repeated .proto.GamePatch patches = 11;
 inline int SpectatorInputPush::_internal_patches_size() const {
   return patches_.size();
 }
@@ -7475,7 +7422,7 @@ SpectatorInputPush::patches() const {
   return patches_;
 }
 
-// int32 patch_start = 13;
+// int32 patch_start = 12;
 inline void SpectatorInputPush::clear_patch_start() {
   patch_start_ = 0;
 }
@@ -7495,7 +7442,7 @@ inline void SpectatorInputPush::set_patch_start(::PROTOBUF_NAMESPACE_ID::int32 v
   // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.patch_start)
 }
 
-// int32 patch_total = 14;
+// int32 patch_total = 13;
 inline void SpectatorInputPush::clear_patch_total() {
   patch_total_ = 0;
 }
@@ -7515,7 +7462,7 @@ inline void SpectatorInputPush::set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 v
   // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.patch_total)
 }
 
-// int32 round_state_version = 15;
+// int32 round_state_version = 14;
 inline void SpectatorInputPush::clear_round_state_version() {
   round_state_version_ = 0;
 }
@@ -8117,27 +8064,7 @@ inline void SpectatorRoundEvent::set_session_id(::PROTOBUF_NAMESPACE_ID::int32 v
   // @@protoc_insertion_point(field_set:proto.SpectatorRoundEvent.session_id)
 }
 
-// int32 peer_id = 3;
-inline void SpectatorRoundEvent::clear_peer_id() {
-  peer_id_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorRoundEvent::_internal_peer_id() const {
-  return peer_id_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorRoundEvent::peer_id() const {
-  // @@protoc_insertion_point(field_get:proto.SpectatorRoundEvent.peer_id)
-  return _internal_peer_id();
-}
-inline void SpectatorRoundEvent::_internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  peer_id_ = value;
-}
-inline void SpectatorRoundEvent::set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_peer_id(value);
-  // @@protoc_insertion_point(field_set:proto.SpectatorRoundEvent.peer_id)
-}
-
-// int32 frame = 4;
+// int32 frame = 3;
 inline void SpectatorRoundEvent::clear_frame() {
   frame_ = 0;
 }
@@ -8157,7 +8084,7 @@ inline void SpectatorRoundEvent::set_frame(::PROTOBUF_NAMESPACE_ID::int32 value)
   // @@protoc_insertion_point(field_set:proto.SpectatorRoundEvent.frame)
 }
 
-// uint64 random_value = 5;
+// uint64 random_value = 4;
 inline void SpectatorRoundEvent::clear_random_value() {
   random_value_ = PROTOBUF_ULONGLONG(0);
 }
@@ -8263,27 +8190,7 @@ inline void SpectatorRoundResult::set_session_id(::PROTOBUF_NAMESPACE_ID::int32 
   // @@protoc_insertion_point(field_set:proto.SpectatorRoundResult.session_id)
 }
 
-// int32 peer_id = 3;
-inline void SpectatorRoundResult::clear_peer_id() {
-  peer_id_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorRoundResult::_internal_peer_id() const {
-  return peer_id_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorRoundResult::peer_id() const {
-  // @@protoc_insertion_point(field_get:proto.SpectatorRoundResult.peer_id)
-  return _internal_peer_id();
-}
-inline void SpectatorRoundResult::_internal_set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  peer_id_ = value;
-}
-inline void SpectatorRoundResult::set_peer_id(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_peer_id(value);
-  // @@protoc_insertion_point(field_set:proto.SpectatorRoundResult.peer_id)
-}
-
-// int32 round_index = 4;
+// int32 round_index = 3;
 inline void SpectatorRoundResult::clear_round_index() {
   round_index_ = 0;
 }
@@ -8303,7 +8210,7 @@ inline void SpectatorRoundResult::set_round_index(::PROTOBUF_NAMESPACE_ID::int32
   // @@protoc_insertion_point(field_set:proto.SpectatorRoundResult.round_index)
 }
 
-// .proto.BattleLogRound round = 5;
+// .proto.BattleLogRound round = 4;
 inline bool SpectatorRoundResult::_internal_has_round() const {
   return this != internal_default_instance() && round_ != nullptr;
 }
