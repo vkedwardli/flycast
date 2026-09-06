@@ -452,7 +452,9 @@ void GdxsvBackendRollback::Close() {
 	osd_network_stat_ = false;
 	error_fast_return_ = false;
 	SaveReplay();
-	spectator_uplink_.Stop();
+	// Finish ACK-tracked round/input retries before returning to the lobby,
+	// where P2PMatchingReport tells LBS to close the spectator recording.
+	spectator_uplink_.Stop(true);
 	gdxsv.key_display_.enabled(false);
 	state_ = State::Closed;
 	EventManager::event(Event::GGPOGameEnd);

@@ -5,6 +5,7 @@
 #include <deque>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "gdxsv.pb.h"
@@ -28,7 +29,7 @@ class GdxsvSpectatorDownlink {
 	// what came after it.
 	void Start(const std::string &lbs_host, int lbs_port, const std::string &battle_code, int32_t from_frame);
 
-	// Stops the background thread. Asynchronous, same as the uplink's Stop.
+	// Stops and joins the worker before its state can be reused by Start.
 	void Stop();
 
 	// Blocks until the header and every patch have arrived, or timeout_ms
@@ -50,13 +51,16 @@ class GdxsvSpectatorDownlink {
 	void ThreadMain(std::string lbs_host, int lbs_port, std::string battle_code, int32_t from_frame);
 
 	std::atomic<bool> running_{false};
+	std::thread thread_;
+	int32_t applied_round_state_version_ = 0; // main thread only
 
 	std::mutex mtx_;
 	std::deque<proto::SpectatorInputPush> pending_;	// raw received pushes, main thread folds them in
 	proto::BattleLogFile header_;					// bootstrap header, once received
 	bool have_header_ = false;
 	std::vector<proto::GamePatch> patches_;			// bootstrap patches, assembled in order
-	int32_t patch_total_ = -1;						// -1 until a chunk tells us how many there are
+	int32_t patch_total_ = -1;						// -1 until the header or a chunk supplies the total
 	int32_t acked_frame_ = 0;							// highest frame the main thread has folded in
-	bool acked_dirty_ = false;							// true if acked_frame_ changed since the last ack sent
+	int32_t acked_round_state_version_ = 0;			// published only after DrainInto applies it
+	bool acked_dirty_ = false;							// progress changed or receipt feedback needs repeating
 };

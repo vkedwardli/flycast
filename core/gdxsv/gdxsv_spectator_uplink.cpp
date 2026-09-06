@@ -1,5 +1,6 @@
 #include "gdxsv_spectator_uplink.h"
 
+#include <chrono>
 #include <thread>
 #include <utility>
 
@@ -13,6 +14,8 @@ namespace {
 // gdxsv server repo): keeps a maximally-backed-up push well under a safe
 // single-UDP-datagram size, and keeps it within what LBS will accept.
 constexpr size_t kMaxBacklogFrames = 128;
+constexpr auto kRetryInterval = std::chrono::milliseconds(100);
+constexpr auto kFinalDrainTimeout = std::chrono::seconds(2);
 }  // namespace
 
 void GdxsvSpectatorUplink::Start(const std::string &lbs_host, int lbs_port, const std::string &battle_code,
@@ -20,6 +23,7 @@ void GdxsvSpectatorUplink::Start(const std::string &lbs_host, int lbs_port, cons
 	if (running_ || is_training_game || lbs_host.empty() || lbs_port == 0 || battle_code.empty()) {
 		return;
 	}
+	Stop(); // Join any previous worker before reusing its queues.
 
 	{
 		std::lock_guard<std::mutex> lock(mtx_);
@@ -31,12 +35,17 @@ void GdxsvSpectatorUplink::Start(const std::string &lbs_host, int lbs_port, cons
 	}
 
 	running_ = true;
-	std::thread([this, lbs_host, lbs_port, battle_code, session_id]() {
+	thread_ = std::thread([this, lbs_host, lbs_port, battle_code, session_id]() {
 		ThreadMain(lbs_host, lbs_port, battle_code, session_id);
-	}).detach();
+	});
 }
 
-void GdxsvSpectatorUplink::Stop() { running_ = false; }
+void GdxsvSpectatorUplink::Stop(bool drain_pending) {
+	drain_pending_ = drain_pending;
+	running_ = false;
+	if (thread_.joinable()) thread_.join();
+	drain_pending_ = false;
+}
 
 void GdxsvSpectatorUplink::PushInput(int32_t frame, uint64_t packed_input) {
 	if (!running_) return;
@@ -105,14 +114,31 @@ void GdxsvSpectatorUplink::ThreadMain(std::string lbs_host, int lbs_port, std::s
 		return;
 	}
 
-	while (running_) {
+	auto next_input_send = std::chrono::steady_clock::now();
+	auto next_round_send = std::chrono::steady_clock::now();
+	auto drain_deadline = std::chrono::steady_clock::time_point::max();
+	while (running_ || drain_pending_) {
+		const auto now = std::chrono::steady_clock::now();
+		if (!running_) {
+			if (drain_deadline == std::chrono::steady_clock::time_point::max()) {
+				drain_deadline = now + kFinalDrainTimeout;
+			}
+			std::lock_guard<std::mutex> lock(mtx_);
+			if (backlog_.empty() && pending_round_events_.empty() && pending_round_results_.empty()) break;
+			if (now >= drain_deadline) {
+				WARN_LOG(COMMON, "spectator uplink final drain timed out: inputs=%zu starts=%zu results=%zu",
+					backlog_.size(), pending_round_events_.size(), pending_round_results_.size());
+				break;
+			}
+		}
 		// Drain any pending acks (non-blocking - see UdpClient::Bind).
-		while (true) {
+		for (int received = 0; received < 64; ++received) {
 			char buf[256];
 			sockaddr_storage sender{};
 			socklen_t addrlen = sizeof(sender);
 			int n = client.RecvFrom(buf, sizeof(buf), &sender, &addrlen);
 			if (n <= 0) break;
+			if (!is_same_addr(reinterpret_cast<const sockaddr *>(&sender), remote.net_addr())) continue;
 
 			proto::Packet pkt;
 			if (!pkt.ParseFromArray(buf, n)) continue;
@@ -120,10 +146,25 @@ void GdxsvSpectatorUplink::ThreadMain(std::string lbs_host, int lbs_port, std::s
 			if (pkt.spectator_input_ack_data().battle_code() != battle_code) continue;
 
 			std::lock_guard<std::mutex> lock(mtx_);
-			const int32_t ack_frame = pkt.spectator_input_ack_data().ack_frame();
+			const auto &ack = pkt.spectator_input_ack_data();
+			const int32_t ack_frame = ack.ack_frame();
+			// LBS can be ahead of our queue because another participant
+			// already supplied these inputs. Evict only what we actually hold.
 			while (backlog_start_frame_ < ack_frame && !backlog_.empty()) {
 				backlog_.pop_front();
 				backlog_start_frame_++;
+			}
+			for (int32_t frame : ack.round_event_ack()) {
+				if (!pending_round_events_.empty() && pending_round_events_.front().frame == frame) {
+					pending_round_events_.pop_front();
+					next_round_send = now;
+				}
+			}
+			for (int32_t index : ack.round_result_ack()) {
+				if (!pending_round_results_.empty() && pending_round_results_.front().round_index == index) {
+					pending_round_results_.pop_front();
+					next_round_send = now;
+				}
 			}
 		}
 
@@ -134,14 +175,20 @@ void GdxsvSpectatorUplink::ThreadMain(std::string lbs_host, int lbs_port, std::s
 		std::vector<RoundResult> round_results;
 		{
 			std::lock_guard<std::mutex> lock(mtx_);
-			if (dirty_ && !backlog_.empty()) {
+			if (!backlog_.empty() && (dirty_ || now >= next_input_send)) {
 				should_send_inputs = true;
 				start_frame = backlog_start_frame_;
 				inputs.assign(backlog_.begin(), backlog_.end());
 				dirty_ = false;
+				next_input_send = now + kRetryInterval;
 			}
-			round_events.swap(pending_round_events_);
-			round_results.swap(pending_round_results_);
+			if (now >= next_round_send) {
+				// Only the oldest unacknowledged start is sent. UDP reordering
+				// cannot put a later round before a missing RNG seed on LBS.
+				if (!pending_round_events_.empty()) round_events.push_back(pending_round_events_.front());
+				if (!pending_round_results_.empty()) round_results.push_back(pending_round_results_.front());
+				next_round_send = now + kRetryInterval;
+			}
 		}
 
 		if (should_send_inputs) {

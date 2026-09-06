@@ -20,6 +20,8 @@ void GdxsvSpectatorDownlink::Start(const std::string &lbs_host, int lbs_port, co
 	if (running_ || lbs_host.empty() || lbs_port == 0 || battle_code.empty()) {
 		return;
 	}
+	Stop(); // Join an old worker, including one that failed during startup.
+	applied_round_state_version_ = 0;
 
 	{
 		std::lock_guard<std::mutex> lock(mtx_);
@@ -28,15 +30,19 @@ void GdxsvSpectatorDownlink::Start(const std::string &lbs_host, int lbs_port, co
 		patches_.clear();
 		patch_total_ = -1;
 		acked_frame_ = from_frame;
+		acked_round_state_version_ = 0;
 		acked_dirty_ = false;
 	}
 	running_ = true;
-	std::thread([this, lbs_host, lbs_port, battle_code, from_frame]() {
+	thread_ = std::thread([this, lbs_host, lbs_port, battle_code, from_frame]() {
 		ThreadMain(lbs_host, lbs_port, battle_code, from_frame);
-	}).detach();
+	});
 }
 
-void GdxsvSpectatorDownlink::Stop() { running_ = false; }
+void GdxsvSpectatorDownlink::Stop() {
+	running_ = false;
+	if (thread_.joinable()) thread_.join();
+}
 
 bool GdxsvSpectatorDownlink::WaitForBootstrap(proto::BattleLogFile *out, int timeout_ms) {
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
@@ -82,17 +88,24 @@ bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file) {
 			if (offset < push.inputs_size()) applied = true;
 		}
 
-		// Round state / close fields never shrink what's already held -
-		// same defensive rule the old snapshot-diff CheckLiveUpdate used
-		// for inputs_size(), extended per-field here since a delta can
-		// arrive out of order over UDP.
-		if (push.start_msg_indexes_size() > log_file->start_msg_indexes_size()) {
+		// Results change without another round start. A version also keeps a
+		// delayed older snapshot from overwriting a result already applied.
+		// Close-only pushes carry the required version, but no snapshot.
+		if (push.close_reason().empty() && push.round_state_version() > applied_round_state_version_) {
 			log_file->mutable_start_msg_indexes()->CopyFrom(push.start_msg_indexes());
 			log_file->mutable_start_msg_randoms()->CopyFrom(push.start_msg_randoms());
 			log_file->mutable_round_data()->CopyFrom(push.round_data());
+			applied_round_state_version_ = push.round_state_version();
+			{
+				std::lock_guard<std::mutex> lock(mtx_);
+				acked_round_state_version_ = applied_round_state_version_;
+				acked_dirty_ = true;
+			}
 			applied = true;
 		}
-		if (!push.close_reason().empty() && log_file->close_reason().empty()) {
+		if (!push.close_reason().empty() && log_file->close_reason().empty() &&
+			log_file->inputs_size() >= push.start_frame() &&
+			applied_round_state_version_ >= push.round_state_version()) {
 			log_file->set_close_reason(push.close_reason());
 			log_file->set_disconnect_user_index(push.disconnect_user_index());
 			applied = true;
@@ -151,7 +164,7 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 			.count();
 
 	while (running_) {
-		while (true) {
+		for (int received = 0; running_ && received < 64; ++received) {
 			// Must fit the largest datagram LBS sends. Input pushes are ~1KB,
 			// but the bootstrap header measured ~1.8KB for 2 players and grows
 			// with player count. Too small and recvfrom truncates silently,
@@ -187,7 +200,12 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 			std::lock_guard<std::mutex> lock(mtx_);
 			if (push.has_header()) {
 				header_ = push.header();
+				// Completion belongs to the final, ACK-gated push, never the
+				// bootstrap metadata of an already-finished battle.
+				header_.clear_close_reason();
+				header_.clear_disconnect_user_index();
 				have_header_ = true;
+				patch_total_ = push.patch_total(); // Includes the zero-patch case.
 			}
 			if (0 < push.patches_size() || 0 < push.patch_total()) {
 				patch_total_ = push.patch_total();
@@ -209,12 +227,14 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 
 		int32_t ack_frame = 0;
 		int32_t patch_ack = 0;
+		int32_t round_ack = 0;
 		bool should_ack = false;
 		{
 			std::lock_guard<std::mutex> lock(mtx_);
 			patch_ack = static_cast<int32_t>(patches_.size());
 			if (acked_dirty_) {
 				ack_frame = acked_frame_;
+				round_ack = acked_round_state_version_;
 				should_ack = true;
 				acked_dirty_ = false;
 			}
@@ -226,6 +246,7 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 			ack->set_battle_code(battle_code);
 			ack->set_ack_frame(ack_frame);
 			ack->set_patch_ack(patch_ack);
+			ack->set_round_ack(round_ack);
 
 			char buf[256];
 			if (pkt.SerializePartialToArray(buf, sizeof(buf))) {

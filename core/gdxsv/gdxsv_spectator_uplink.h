@@ -5,15 +5,15 @@
 #include <deque>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Streams this client's confirmed inputs to LBS so the match can be watched
 // live. All 4 participants stream the same frames redundantly; LBS dedups by
 // frame index.
 //
-// Confirmed frames sit in a backlog and are resent on every push until LBS
-// acks them, so a dropped packet delays a frame instead of losing it. Same
-// idea as GGPO's UdpProtocol::SendPendingOutput.
+// Confirmed frames sit in a bounded backlog and are resent until LBS acks
+// them. Round starts/results have separate ACK-tracked retry queues.
 //
 // Owns a background thread and its own UDP socket on an ephemeral port. This
 // is client-to-server, not P2P, so no port forwarding is needed. The Push*
@@ -29,8 +29,9 @@ class GdxsvSpectatorUplink {
 	void Start(const std::string &lbs_host, int lbs_port, const std::string &battle_code, int32_t session_id,
 			   bool is_training_game);
 
-	// Stops the background thread (asynchronously - see Stop()'s doc).
-	void Stop();
+	// Stops and joins the worker. At battle end, drain_pending allows up to
+	// two seconds of retries before the lobby's close report is sent.
+	void Stop(bool drain_pending = false);
 
 	// Once per confirmed frame, with the same packed 4-player input that goes
 	// into input_logs_.
@@ -56,10 +57,9 @@ class GdxsvSpectatorUplink {
 
 	void ThreadMain(std::string lbs_host, int lbs_port, std::string battle_code, int32_t session_id);
 
-	// Stop() clears this; the thread notices next loop, closes its socket and
-	// exits. Not joined - this only ever lives in the global Gdxsv singleton,
-	// which outlives any battle. Same pattern as UdpPingPong.
 	std::atomic<bool> running_{false};
+	std::atomic<bool> drain_pending_{false};
+	std::thread thread_;
 
 	std::mutex mtx_;
 	// backlog holds confirmed frames LBS has not yet acked, in frame
@@ -68,6 +68,6 @@ class GdxsvSpectatorUplink {
 	int32_t backlog_start_frame_ = 0;
 	std::deque<uint64_t> backlog_;
 	bool dirty_ = false;
-	std::vector<RoundEvent> pending_round_events_;
-	std::vector<RoundResult> pending_round_results_;
+	std::deque<RoundEvent> pending_round_events_;
+	std::deque<RoundResult> pending_round_results_;
 };

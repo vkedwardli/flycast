@@ -571,6 +571,7 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputPush, patches_),
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputPush, patch_start_),
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputPush, patch_total_),
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputPush, round_state_version_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -579,6 +580,9 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, battle_code_),
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, ack_frame_),
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, patch_ack_),
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, round_ack_),
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, round_event_ack_),
+  PROTOBUF_FIELD_OFFSET(::proto::SpectatorInputAck, round_result_ack_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::SpectatorSubscribeRequest, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -710,19 +714,19 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 68, -1, sizeof(::proto::BattleLogUser)},
   { 85, -1, sizeof(::proto::BattleLogRound)},
   { 92, -1, sizeof(::proto::SpectatorInputPush)},
-  { 111, -1, sizeof(::proto::SpectatorInputAck)},
-  { 119, -1, sizeof(::proto::SpectatorSubscribeRequest)},
-  { 127, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
-  { 134, -1, sizeof(::proto::SpectatorRoundEvent)},
-  { 144, -1, sizeof(::proto::SpectatorRoundResult)},
-  { 154, -1, sizeof(::proto::BattleLogFile)},
-  { 175, -1, sizeof(::proto::BattleMessage)},
-  { 183, -1, sizeof(::proto::PingMessage)},
-  { 190, -1, sizeof(::proto::PongMessage)},
-  { 198, -1, sizeof(::proto::HelloServerMessage)},
-  { 206, -1, sizeof(::proto::FinMessage)},
-  { 212, -1, sizeof(::proto::HelloLbsMessage)},
-  { 218, -1, sizeof(::proto::Packet)},
+  { 112, -1, sizeof(::proto::SpectatorInputAck)},
+  { 123, -1, sizeof(::proto::SpectatorSubscribeRequest)},
+  { 131, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
+  { 138, -1, sizeof(::proto::SpectatorRoundEvent)},
+  { 148, -1, sizeof(::proto::SpectatorRoundResult)},
+  { 158, -1, sizeof(::proto::BattleLogFile)},
+  { 179, -1, sizeof(::proto::BattleMessage)},
+  { 187, -1, sizeof(::proto::PingMessage)},
+  { 194, -1, sizeof(::proto::PongMessage)},
+  { 202, -1, sizeof(::proto::HelloServerMessage)},
+  { 210, -1, sizeof(::proto::FinMessage)},
+  { 216, -1, sizeof(::proto::HelloLbsMessage)},
+  { 222, -1, sizeof(::proto::Packet)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -782,7 +786,7 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "\022\022\n\nlose_count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004t"
   "eam\030\t \001(\005\022\020\n\010platform\030\n \001(\t\022\026\n\016user_name"
   "_sjis\030\013 \001(\014\022\013\n\003pos\030\014 \001(\005\"3\n\016BattleLogRou"
-  "nd\022\020\n\010win_team\030\001 \001(\005\022\017\n\007used_ms\030\002 \003(\005\"\374\002"
+  "nd\022\020\n\010win_team\030\001 \001(\005\022\017\n\007used_ms\030\002 \003(\005\"\231\003"
   "\n\022SpectatorInputPush\022\023\n\013battle_code\030\001 \001("
   "\t\022\022\n\nsession_id\030\002 \001(\005\022\017\n\007peer_id\030\003 \001(\005\022\023"
   "\n\013start_frame\030\004 \001(\005\022\016\n\006inputs\030\005 \003(\006\022\031\n\021s"
@@ -792,65 +796,68 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "sconnect_user_index\030\n \001(\005\022$\n\006header\030\013 \001("
   "\0132\024.proto.BattleLogFile\022!\n\007patches\030\014 \003(\013"
   "2\020.proto.GamePatch\022\023\n\013patch_start\030\r \001(\005\022"
-  "\023\n\013patch_total\030\016 \001(\005\"N\n\021SpectatorInputAc"
-  "k\022\023\n\013battle_code\030\001 \001(\t\022\021\n\tack_frame\030\002 \001("
-  "\005\022\021\n\tpatch_ack\030\003 \001(\005\"Z\n\031SpectatorSubscri"
-  "beRequest\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nfrom_f"
-  "rame\030\003 \001(\005\022\016\n\006cookie\030\004 \001(\014J\004\010\002\020\003\"B\n\033Spec"
-  "tatorSubscribeChallenge\022\023\n\013battle_code\030\001"
-  " \001(\t\022\016\n\006cookie\030\002 \001(\014\"t\n\023SpectatorRoundEv"
-  "ent\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002"
-  " \001(\005\022\017\n\007peer_id\030\003 \001(\005\022\r\n\005frame\030\004 \001(\005\022\024\n\014"
-  "random_value\030\005 \001(\004\"\213\001\n\024SpectatorRoundRes"
-  "ult\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002"
-  " \001(\005\022\017\n\007peer_id\030\003 \001(\005\022\023\n\013round_index\030\004 \001"
-  "(\005\022$\n\005round\030\005 \001(\0132\025.proto.BattleLogRound"
-  "\"\300\003\n\rBattleLogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n"
-  "\030gdxsv_version_deprecated\030\002 \001(\t\022\023\n\013battl"
-  "e_code\030\003 \001(\t\022\030\n\020log_file_version\030\004 \001(\005\022!"
-  "\n\007patches\030\007 \003(\0132\020.proto.GamePatch\022\020\n\010rul"
-  "e_bin\030\n \001(\014\022#\n\005users\030\013 \003(\0132\024.proto.Battl"
-  "eLogUser\022)\n\013battle_data\030\014 \003(\0132\024.proto.Ba"
-  "ttleMessage\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg"
-  "_indexes\030\020 \003(\005\022\031\n\021start_msg_randoms\030\021 \003("
-  "\004\022)\n\nround_data\030\022 \003(\0132\025.proto.BattleLogR"
-  "ound\022\020\n\010start_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024"
-  "\n\014close_reason\030\030 \001(\t\022\035\n\025disconnect_user_"
-  "index\030\031 \001(\005\";\n\rBattleMessage\022\017\n\007user_id\030"
-  "\001 \001(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013Ping"
-  "Message\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 "
-  "\001(\t\"F\n\013PongMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n"
-  "\007user_id\030\002 \001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022H"
-  "elloServerMessage\022\035\n\025session_id_deprecat"
-  "ed\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n"
-  "\nFinMessage\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsM"
-  "essage\022\017\n\007user_id\030\001 \001(\t\"\354\005\n\006Packet\022 \n\004ty"
-  "pe\030\001 \001(\0162\022.proto.MessageType\022\013\n\003seq\030\002 \001("
-  "\r\022\013\n\003ack\030\003 \001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021he"
-  "llo_server_data\030\n \001(\0132\031.proto.HelloServe"
-  "rMessage\022%\n\tping_data\030\013 \001(\0132\022.proto.Ping"
-  "Message\022%\n\tpong_data\030\014 \001(\0132\022.proto.PongM"
-  "essage\022)\n\013battle_data\030\r \003(\0132\024.proto.Batt"
-  "leMessage\022#\n\010fin_data\030\016 \001(\0132\021.proto.FinM"
-  "essage\022.\n\016hello_lbs_data\030\017 \001(\0132\026.proto.H"
-  "elloLbsMessage\022<\n\031spectator_input_push_d"
-  "ata\030\024 \001(\0132\031.proto.SpectatorInputPush\022:\n\030"
-  "spectator_input_ack_data\030\025 \001(\0132\030.proto.S"
-  "pectatorInputAck\022>\n\032spectator_round_even"
-  "t_data\030\026 \001(\0132\032.proto.SpectatorRoundEvent"
-  "\022@\n\033spectator_round_result_data\030\027 \001(\0132\033."
-  "proto.SpectatorRoundResult\022B\n\030spectator_"
-  "subscribe_data\030\030 \001(\0132 .proto.SpectatorSu"
-  "bscribeRequest\022N\n\"spectator_subscribe_ch"
-  "allenge_data\030\031 \001(\0132\".proto.SpectatorSubs"
-  "cribeChallenge*\222\002\n\013MessageType\022\010\n\004None\020\000"
-  "\022\017\n\013HelloServer\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n"
-  "\006Battle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLbs\020\n\022\032\n\026Spec"
-  "tatorInputPushType\020\024\022\031\n\025SpectatorInputAc"
-  "kType\020\025\022\033\n\027SpectatorRoundEventType\020\026\022\034\n\030"
-  "SpectatorRoundResultType\020\027\022\032\n\026SpectatorS"
-  "ubscribeType\020\030\022#\n\037SpectatorSubscribeChal"
-  "lengeType\020\031B\rZ\013gdxsv/protob\006proto3"
+  "\023\n\013patch_total\030\016 \001(\005\022\033\n\023round_state_vers"
+  "ion\030\017 \001(\005\"\224\001\n\021SpectatorInputAck\022\023\n\013battl"
+  "e_code\030\001 \001(\t\022\021\n\tack_frame\030\002 \001(\005\022\021\n\tpatch"
+  "_ack\030\003 \001(\005\022\021\n\tround_ack\030\004 \001(\005\022\027\n\017round_e"
+  "vent_ack\030\005 \003(\005\022\030\n\020round_result_ack\030\006 \003(\005"
+  "\"Z\n\031SpectatorSubscribeRequest\022\023\n\013battle_"
+  "code\030\001 \001(\t\022\022\n\nfrom_frame\030\003 \001(\005\022\016\n\006cookie"
+  "\030\004 \001(\014J\004\010\002\020\003\"B\n\033SpectatorSubscribeChalle"
+  "nge\022\023\n\013battle_code\030\001 \001(\t\022\016\n\006cookie\030\002 \001(\014"
+  "\"t\n\023SpectatorRoundEvent\022\023\n\013battle_code\030\001"
+  " \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\017\n\007peer_id\030\003 \001("
+  "\005\022\r\n\005frame\030\004 \001(\005\022\024\n\014random_value\030\005 \001(\004\"\213"
+  "\001\n\024SpectatorRoundResult\022\023\n\013battle_code\030\001"
+  " \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\017\n\007peer_id\030\003 \001("
+  "\005\022\023\n\013round_index\030\004 \001(\005\022$\n\005round\030\005 \001(\0132\025."
+  "proto.BattleLogRound\"\300\003\n\rBattleLogFile\022\021"
+  "\n\tgame_disk\030\005 \001(\t\022 \n\030gdxsv_version_depre"
+  "cated\030\002 \001(\t\022\023\n\013battle_code\030\003 \001(\t\022\030\n\020log_"
+  "file_version\030\004 \001(\005\022!\n\007patches\030\007 \003(\0132\020.pr"
+  "oto.GamePatch\022\020\n\010rule_bin\030\n \001(\014\022#\n\005users"
+  "\030\013 \003(\0132\024.proto.BattleLogUser\022)\n\013battle_d"
+  "ata\030\014 \003(\0132\024.proto.BattleMessage\022\016\n\006input"
+  "s\030\017 \003(\006\022\031\n\021start_msg_indexes\030\020 \003(\005\022\031\n\021st"
+  "art_msg_randoms\030\021 \003(\004\022)\n\nround_data\030\022 \003("
+  "\0132\025.proto.BattleLogRound\022\020\n\010start_at\030\024 \001"
+  "(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n\014close_reason\030\030 \001(\t"
+  "\022\035\n\025disconnect_user_index\030\031 \001(\005\";\n\rBattl"
+  "eMessage\022\017\n\007user_id\030\001 \001(\t\022\013\n\003seq\030\002 \001(\r\022\014"
+  "\n\004body\030\003 \001(\014\"1\n\013PingMessage\022\021\n\ttimestamp"
+  "\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\"F\n\013PongMessage\022\021"
+  "\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\022\023\n\013pu"
+  "blic_addr\030\003 \001(\t\"P\n\022HelloServerMessage\022\035\n"
+  "\025session_id_deprecated\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010"
+  "\022\017\n\007user_id\030\003 \001(\t\"\034\n\nFinMessage\022\016\n\006detai"
+  "l\030\001 \001(\t\"\"\n\017HelloLbsMessage\022\017\n\007user_id\030\001 "
+  "\001(\t\"\354\005\n\006Packet\022 \n\004type\030\001 \001(\0162\022.proto.Mes"
+  "sageType\022\013\n\003seq\030\002 \001(\r\022\013\n\003ack\030\003 \001(\r\022\022\n\nse"
+  "ssion_id\030\005 \001(\t\0224\n\021hello_server_data\030\n \001("
+  "\0132\031.proto.HelloServerMessage\022%\n\tping_dat"
+  "a\030\013 \001(\0132\022.proto.PingMessage\022%\n\tpong_data"
+  "\030\014 \001(\0132\022.proto.PongMessage\022)\n\013battle_dat"
+  "a\030\r \003(\0132\024.proto.BattleMessage\022#\n\010fin_dat"
+  "a\030\016 \001(\0132\021.proto.FinMessage\022.\n\016hello_lbs_"
+  "data\030\017 \001(\0132\026.proto.HelloLbsMessage\022<\n\031sp"
+  "ectator_input_push_data\030\024 \001(\0132\031.proto.Sp"
+  "ectatorInputPush\022:\n\030spectator_input_ack_"
+  "data\030\025 \001(\0132\030.proto.SpectatorInputAck\022>\n\032"
+  "spectator_round_event_data\030\026 \001(\0132\032.proto"
+  ".SpectatorRoundEvent\022@\n\033spectator_round_"
+  "result_data\030\027 \001(\0132\033.proto.SpectatorRound"
+  "Result\022B\n\030spectator_subscribe_data\030\030 \001(\013"
+  "2 .proto.SpectatorSubscribeRequest\022N\n\"sp"
+  "ectator_subscribe_challenge_data\030\031 \001(\0132\""
+  ".proto.SpectatorSubscribeChallenge*\222\002\n\013M"
+  "essageType\022\010\n\004None\020\000\022\017\n\013HelloServer\020\001\022\010\n"
+  "\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006Battle\020\004\022\007\n\003Fin\020\005\022\014"
+  "\n\010HelloLbs\020\n\022\032\n\026SpectatorInputPushType\020\024"
+  "\022\031\n\025SpectatorInputAckType\020\025\022\033\n\027Spectator"
+  "RoundEventType\020\026\022\034\n\030SpectatorRoundResult"
+  "Type\020\027\022\032\n\026SpectatorSubscribeType\020\030\022#\n\037Sp"
+  "ectatorSubscribeChallengeType\020\031B\rZ\013gdxsv"
+  "/protob\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_gdxsv_2eproto_deps[1] = {
 };
@@ -880,7 +887,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_gdxsv_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_gdxsv_2eproto = {
-  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 3994,
+  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 4094,
   &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 22, 0,
   schemas, file_default_instances, TableStruct_gdxsv_2eproto::offsets,
   file_level_metadata_gdxsv_2eproto, 22, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
@@ -3904,8 +3911,8 @@ SpectatorInputPush::SpectatorInputPush(const SpectatorInputPush& from)
     header_ = nullptr;
   }
   ::memcpy(&session_id_, &from.session_id_,
-    static_cast<size_t>(reinterpret_cast<char*>(&patch_total_) -
-    reinterpret_cast<char*>(&session_id_)) + sizeof(patch_total_));
+    static_cast<size_t>(reinterpret_cast<char*>(&round_state_version_) -
+    reinterpret_cast<char*>(&session_id_)) + sizeof(round_state_version_));
   // @@protoc_insertion_point(copy_constructor:proto.SpectatorInputPush)
 }
 
@@ -3914,8 +3921,8 @@ void SpectatorInputPush::SharedCtor() {
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   close_reason_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   ::memset(&header_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&patch_total_) -
-      reinterpret_cast<char*>(&header_)) + sizeof(patch_total_));
+      reinterpret_cast<char*>(&round_state_version_) -
+      reinterpret_cast<char*>(&header_)) + sizeof(round_state_version_));
 }
 
 SpectatorInputPush::~SpectatorInputPush() {
@@ -3964,8 +3971,8 @@ void SpectatorInputPush::Clear() {
   }
   header_ = nullptr;
   ::memset(&session_id_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&patch_total_) -
-      reinterpret_cast<char*>(&session_id_)) + sizeof(patch_total_));
+      reinterpret_cast<char*>(&round_state_version_) -
+      reinterpret_cast<char*>(&session_id_)) + sizeof(round_state_version_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -4098,6 +4105,13 @@ const char* SpectatorInputPush::_InternalParse(const char* ptr, ::PROTOBUF_NAMES
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
+      // int32 round_state_version = 15;
+      case 15:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 120)) {
+          round_state_version_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
       default: {
       handle_unusual:
         if ((tag & 7) == 4 || tag == 0) {
@@ -4227,6 +4241,12 @@ failure:
   if (this->patch_total() != 0) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(14, this->_internal_patch_total(), target);
+  }
+
+  // int32 round_state_version = 15;
+  if (this->round_state_version() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(15, this->_internal_round_state_version(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -4367,6 +4387,13 @@ size_t SpectatorInputPush::ByteSizeLong() const {
         this->_internal_patch_total());
   }
 
+  // int32 round_state_version = 15;
+  if (this->round_state_version() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+        this->_internal_round_state_version());
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
         _internal_metadata_, total_size, &_cached_size_);
@@ -4430,6 +4457,9 @@ void SpectatorInputPush::MergeFrom(const SpectatorInputPush& from) {
   if (from.patch_total() != 0) {
     _internal_set_patch_total(from._internal_patch_total());
   }
+  if (from.round_state_version() != 0) {
+    _internal_set_round_state_version(from._internal_round_state_version());
+  }
 }
 
 void SpectatorInputPush::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
@@ -4461,8 +4491,8 @@ void SpectatorInputPush::InternalSwap(SpectatorInputPush* other) {
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.Swap(&other->close_reason_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(SpectatorInputPush, patch_total_)
-      + sizeof(SpectatorInputPush::patch_total_)
+      PROTOBUF_FIELD_OFFSET(SpectatorInputPush, round_state_version_)
+      + sizeof(SpectatorInputPush::round_state_version_)
       - PROTOBUF_FIELD_OFFSET(SpectatorInputPush, header_)>(
           reinterpret_cast<char*>(&header_),
           reinterpret_cast<char*>(&other->header_));
@@ -4482,13 +4512,17 @@ class SpectatorInputAck::_Internal {
 };
 
 SpectatorInputAck::SpectatorInputAck(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  round_event_ack_(arena),
+  round_result_ack_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
   // @@protoc_insertion_point(arena_constructor:proto.SpectatorInputAck)
 }
 SpectatorInputAck::SpectatorInputAck(const SpectatorInputAck& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      round_event_ack_(from.round_event_ack_),
+      round_result_ack_(from.round_result_ack_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_battle_code().empty()) {
@@ -4496,8 +4530,8 @@ SpectatorInputAck::SpectatorInputAck(const SpectatorInputAck& from)
       GetArena());
   }
   ::memcpy(&ack_frame_, &from.ack_frame_,
-    static_cast<size_t>(reinterpret_cast<char*>(&patch_ack_) -
-    reinterpret_cast<char*>(&ack_frame_)) + sizeof(patch_ack_));
+    static_cast<size_t>(reinterpret_cast<char*>(&round_ack_) -
+    reinterpret_cast<char*>(&ack_frame_)) + sizeof(round_ack_));
   // @@protoc_insertion_point(copy_constructor:proto.SpectatorInputAck)
 }
 
@@ -4505,8 +4539,8 @@ void SpectatorInputAck::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_SpectatorInputAck_gdxsv_2eproto.base);
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   ::memset(&ack_frame_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&patch_ack_) -
-      reinterpret_cast<char*>(&ack_frame_)) + sizeof(patch_ack_));
+      reinterpret_cast<char*>(&round_ack_) -
+      reinterpret_cast<char*>(&ack_frame_)) + sizeof(round_ack_));
 }
 
 SpectatorInputAck::~SpectatorInputAck() {
@@ -4541,10 +4575,12 @@ void SpectatorInputAck::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  round_event_ack_.Clear();
+  round_result_ack_.Clear();
   battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::memset(&ack_frame_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&patch_ack_) -
-      reinterpret_cast<char*>(&ack_frame_)) + sizeof(patch_ack_));
+      reinterpret_cast<char*>(&round_ack_) -
+      reinterpret_cast<char*>(&ack_frame_)) + sizeof(round_ack_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -4576,6 +4612,33 @@ const char* SpectatorInputAck::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 24)) {
           patch_ack_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // int32 round_ack = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 32)) {
+          round_ack_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated int32 round_event_ack = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 42)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_round_event_ack(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 40) {
+          _internal_add_round_event_ack(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated int32 round_result_ack = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 50)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_round_result_ack(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 48) {
+          _internal_add_round_result_ack(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -4629,6 +4692,30 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(3, this->_internal_patch_ack(), target);
   }
 
+  // int32 round_ack = 4;
+  if (this->round_ack() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(4, this->_internal_round_ack(), target);
+  }
+
+  // repeated int32 round_event_ack = 5;
+  {
+    int byte_size = _round_event_ack_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteInt32Packed(
+          5, _internal_round_event_ack(), byte_size, target);
+    }
+  }
+
+  // repeated int32 round_result_ack = 6;
+  {
+    int byte_size = _round_result_ack_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteInt32Packed(
+          6, _internal_round_result_ack(), byte_size, target);
+    }
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -4644,6 +4731,36 @@ size_t SpectatorInputAck::ByteSizeLong() const {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
+
+  // repeated int32 round_event_ack = 5;
+  {
+    size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      Int32Size(this->round_event_ack_);
+    if (data_size > 0) {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+            static_cast<::PROTOBUF_NAMESPACE_ID::int32>(data_size));
+    }
+    int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
+    _round_event_ack_cached_byte_size_.store(cached_size,
+                                    std::memory_order_relaxed);
+    total_size += data_size;
+  }
+
+  // repeated int32 round_result_ack = 6;
+  {
+    size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      Int32Size(this->round_result_ack_);
+    if (data_size > 0) {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+            static_cast<::PROTOBUF_NAMESPACE_ID::int32>(data_size));
+    }
+    int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
+    _round_result_ack_cached_byte_size_.store(cached_size,
+                                    std::memory_order_relaxed);
+    total_size += data_size;
+  }
 
   // string battle_code = 1;
   if (this->battle_code().size() > 0) {
@@ -4664,6 +4781,13 @@ size_t SpectatorInputAck::ByteSizeLong() const {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
         this->_internal_patch_ack());
+  }
+
+  // int32 round_ack = 4;
+  if (this->round_ack() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+        this->_internal_round_ack());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -4697,6 +4821,8 @@ void SpectatorInputAck::MergeFrom(const SpectatorInputAck& from) {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  round_event_ack_.MergeFrom(from.round_event_ack_);
+  round_result_ack_.MergeFrom(from.round_result_ack_);
   if (from.battle_code().size() > 0) {
     _internal_set_battle_code(from._internal_battle_code());
   }
@@ -4705,6 +4831,9 @@ void SpectatorInputAck::MergeFrom(const SpectatorInputAck& from) {
   }
   if (from.patch_ack() != 0) {
     _internal_set_patch_ack(from._internal_patch_ack());
+  }
+  if (from.round_ack() != 0) {
+    _internal_set_round_ack(from._internal_round_ack());
   }
 }
 
@@ -4729,10 +4858,12 @@ bool SpectatorInputAck::IsInitialized() const {
 void SpectatorInputAck::InternalSwap(SpectatorInputAck* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  round_event_ack_.InternalSwap(&other->round_event_ack_);
+  round_result_ack_.InternalSwap(&other->round_result_ack_);
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(SpectatorInputAck, patch_ack_)
-      + sizeof(SpectatorInputAck::patch_ack_)
+      PROTOBUF_FIELD_OFFSET(SpectatorInputAck, round_ack_)
+      + sizeof(SpectatorInputAck::round_ack_)
       - PROTOBUF_FIELD_OFFSET(SpectatorInputAck, ack_frame_)>(
           reinterpret_cast<char*>(&ack_frame_),
           reinterpret_cast<char*>(&other->ack_frame_));

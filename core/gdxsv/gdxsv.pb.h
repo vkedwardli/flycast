@@ -2079,6 +2079,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
     kDisconnectUserIndexFieldNumber = 10,
     kPatchStartFieldNumber = 13,
     kPatchTotalFieldNumber = 14,
+    kRoundStateVersionFieldNumber = 15,
   };
   // repeated fixed64 inputs = 5;
   int inputs_size() const;
@@ -2286,6 +2287,15 @@ class SpectatorInputPush PROTOBUF_FINAL :
   void _internal_set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 round_state_version = 15;
+  void clear_round_state_version();
+  ::PROTOBUF_NAMESPACE_ID::int32 round_state_version() const;
+  void set_round_state_version(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_round_state_version() const;
+  void _internal_set_round_state_version(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.SpectatorInputPush)
  private:
   class _Internal;
@@ -2310,6 +2320,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 disconnect_user_index_;
   ::PROTOBUF_NAMESPACE_ID::int32 patch_start_;
   ::PROTOBUF_NAMESPACE_ID::int32 patch_total_;
+  ::PROTOBUF_NAMESPACE_ID::int32 round_state_version_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -2428,10 +2439,57 @@ class SpectatorInputAck PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kRoundEventAckFieldNumber = 5,
+    kRoundResultAckFieldNumber = 6,
     kBattleCodeFieldNumber = 1,
     kAckFrameFieldNumber = 2,
     kPatchAckFieldNumber = 3,
+    kRoundAckFieldNumber = 4,
   };
+  // repeated int32 round_event_ack = 5;
+  int round_event_ack_size() const;
+  private:
+  int _internal_round_event_ack_size() const;
+  public:
+  void clear_round_event_ack();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_round_event_ack(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_round_event_ack() const;
+  void _internal_add_round_event_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_round_event_ack();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 round_event_ack(int index) const;
+  void set_round_event_ack(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_round_event_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      round_event_ack() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_round_event_ack();
+
+  // repeated int32 round_result_ack = 6;
+  int round_result_ack_size() const;
+  private:
+  int _internal_round_result_ack_size() const;
+  public:
+  void clear_round_result_ack();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_round_result_ack(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_round_result_ack() const;
+  void _internal_add_round_result_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_round_result_ack();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 round_result_ack(int index) const;
+  void set_round_result_ack(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_round_result_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      round_result_ack() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_round_result_ack();
+
   // string battle_code = 1;
   void clear_battle_code();
   const std::string& battle_code() const;
@@ -2466,6 +2524,15 @@ class SpectatorInputAck PROTOBUF_FINAL :
   void _internal_set_patch_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 round_ack = 4;
+  void clear_round_ack();
+  ::PROTOBUF_NAMESPACE_ID::int32 round_ack() const;
+  void set_round_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_round_ack() const;
+  void _internal_set_round_ack(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.SpectatorInputAck)
  private:
   class _Internal;
@@ -2473,9 +2540,14 @@ class SpectatorInputAck PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > round_event_ack_;
+  mutable std::atomic<int> _round_event_ack_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > round_result_ack_;
+  mutable std::atomic<int> _round_result_ack_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::int32 ack_frame_;
   ::PROTOBUF_NAMESPACE_ID::int32 patch_ack_;
+  ::PROTOBUF_NAMESPACE_ID::int32 round_ack_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -7443,6 +7515,26 @@ inline void SpectatorInputPush::set_patch_total(::PROTOBUF_NAMESPACE_ID::int32 v
   // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.patch_total)
 }
 
+// int32 round_state_version = 15;
+inline void SpectatorInputPush::clear_round_state_version() {
+  round_state_version_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::_internal_round_state_version() const {
+  return round_state_version_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputPush::round_state_version() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputPush.round_state_version)
+  return _internal_round_state_version();
+}
+inline void SpectatorInputPush::_internal_set_round_state_version(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  round_state_version_ = value;
+}
+inline void SpectatorInputPush::set_round_state_version(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_round_state_version(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputPush.round_state_version)
+}
+
 // -------------------------------------------------------------------
 
 // SpectatorInputAck
@@ -7547,6 +7639,120 @@ inline void SpectatorInputAck::_internal_set_patch_ack(::PROTOBUF_NAMESPACE_ID::
 inline void SpectatorInputAck::set_patch_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_patch_ack(value);
   // @@protoc_insertion_point(field_set:proto.SpectatorInputAck.patch_ack)
+}
+
+// int32 round_ack = 4;
+inline void SpectatorInputAck::clear_round_ack() {
+  round_ack_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::_internal_round_ack() const {
+  return round_ack_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::round_ack() const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputAck.round_ack)
+  return _internal_round_ack();
+}
+inline void SpectatorInputAck::_internal_set_round_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  round_ack_ = value;
+}
+inline void SpectatorInputAck::set_round_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_round_ack(value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputAck.round_ack)
+}
+
+// repeated int32 round_event_ack = 5;
+inline int SpectatorInputAck::_internal_round_event_ack_size() const {
+  return round_event_ack_.size();
+}
+inline int SpectatorInputAck::round_event_ack_size() const {
+  return _internal_round_event_ack_size();
+}
+inline void SpectatorInputAck::clear_round_event_ack() {
+  round_event_ack_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::_internal_round_event_ack(int index) const {
+  return round_event_ack_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::round_event_ack(int index) const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputAck.round_event_ack)
+  return _internal_round_event_ack(index);
+}
+inline void SpectatorInputAck::set_round_event_ack(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  round_event_ack_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputAck.round_event_ack)
+}
+inline void SpectatorInputAck::_internal_add_round_event_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  round_event_ack_.Add(value);
+}
+inline void SpectatorInputAck::add_round_event_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_round_event_ack(value);
+  // @@protoc_insertion_point(field_add:proto.SpectatorInputAck.round_event_ack)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+SpectatorInputAck::_internal_round_event_ack() const {
+  return round_event_ack_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+SpectatorInputAck::round_event_ack() const {
+  // @@protoc_insertion_point(field_list:proto.SpectatorInputAck.round_event_ack)
+  return _internal_round_event_ack();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+SpectatorInputAck::_internal_mutable_round_event_ack() {
+  return &round_event_ack_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+SpectatorInputAck::mutable_round_event_ack() {
+  // @@protoc_insertion_point(field_mutable_list:proto.SpectatorInputAck.round_event_ack)
+  return _internal_mutable_round_event_ack();
+}
+
+// repeated int32 round_result_ack = 6;
+inline int SpectatorInputAck::_internal_round_result_ack_size() const {
+  return round_result_ack_.size();
+}
+inline int SpectatorInputAck::round_result_ack_size() const {
+  return _internal_round_result_ack_size();
+}
+inline void SpectatorInputAck::clear_round_result_ack() {
+  round_result_ack_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::_internal_round_result_ack(int index) const {
+  return round_result_ack_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 SpectatorInputAck::round_result_ack(int index) const {
+  // @@protoc_insertion_point(field_get:proto.SpectatorInputAck.round_result_ack)
+  return _internal_round_result_ack(index);
+}
+inline void SpectatorInputAck::set_round_result_ack(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  round_result_ack_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.SpectatorInputAck.round_result_ack)
+}
+inline void SpectatorInputAck::_internal_add_round_result_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  round_result_ack_.Add(value);
+}
+inline void SpectatorInputAck::add_round_result_ack(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_round_result_ack(value);
+  // @@protoc_insertion_point(field_add:proto.SpectatorInputAck.round_result_ack)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+SpectatorInputAck::_internal_round_result_ack() const {
+  return round_result_ack_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+SpectatorInputAck::round_result_ack() const {
+  // @@protoc_insertion_point(field_list:proto.SpectatorInputAck.round_result_ack)
+  return _internal_round_result_ack();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+SpectatorInputAck::_internal_mutable_round_result_ack() {
+  return &round_result_ack_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+SpectatorInputAck::mutable_round_result_ack() {
+  // @@protoc_insertion_point(field_mutable_list:proto.SpectatorInputAck.round_result_ack)
+  return _internal_mutable_round_result_ack();
 }
 
 // -------------------------------------------------------------------
