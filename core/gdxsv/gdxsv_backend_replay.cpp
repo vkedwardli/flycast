@@ -816,10 +816,8 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, static_cast<int>(bound), /*live=*/1);
 			}
 		} else if (live_following_ && IsInGame() && kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
-			// Graduated: 200% for a small excess, 300% for a real fall-behind.
-			// Normal playback cannot close a gap here at all, because the host
-			// renders below the production rate.
-			ctrl_play_speed_ = (gap < live_buffer_frames_ + 90) ? 1 : 2;
+			// Use 300% recovery below the fast-seek threshold.
+			ctrl_play_speed_ = 2;
 		}
 	}
 
