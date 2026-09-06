@@ -40,6 +40,34 @@ class GdxsvReplayInputTest : public ::testing::Test {
 #endif
 	}
 
+	void PrepareTakeoverAlignment(bool retry, u16 target) {
+		SetOffline();
+		// Model the states left by TakeOver and RetryTakeover without loading
+		// emulator save states. Retry deliberately keeps takeover_ true.
+		replay_.takeover_ = retry;
+		replay_.pause_menu_opend_ = true;
+		replay_.takeover_aligning_ = true;
+		replay_.takeover_countdown_ = 0;
+		replay_.takeover_target_input_ = target;
+		replay_.takeover_input_buf_.clear();
+		replay_.ctrl_commands_.clear();
+	}
+
+	void SendTakeoverInput(u16 input) {
+		replay_.ui_commands_.emplace_back(GdxsvBackendReplay::ReplayCtrlCommand::TakeoverInput, input);
+		replay_.ProcessUiCommands();
+	}
+
+	void CloseTakeoverMenu() { replay_.pause_menu_opend_ = false; }
+	bool IsTakingOver() const { return replay_.takeover_; }
+	bool IsAligningTakeover() const { return replay_.takeover_aligning_; }
+	int TakeoverCountdown() const { return replay_.takeover_countdown_; }
+	const std::deque<u16>& TakeoverInputs() const { return replay_.takeover_input_buf_; }
+	size_t PendingControlCommands() { return replay_.ctrl_commands_.size(); }
+	bool StartTakeoverQueued() {
+		return replay_.ctrl_commands_.contains(GdxsvBackendReplay::ReplayCtrlCommand::StartTakeover);
+	}
+
 	void Send(McsMessage::MsgType type) {
 		replay_.ProcessMcsMessage(McsMessage::Create(type, 0));
 	}
@@ -185,4 +213,84 @@ TEST_F(GdxsvReplayInputTest, TakeoverForceUsesControllerInputOnlyForThePovPlayer
 	Send(McsMessage::KeyMsg1);
 	EXPECT_EQ(1, InputIndex());
 	ExpectBatch(expected);
+}
+
+TEST_F(GdxsvReplayInputTest, TakeoverAlignmentStartsAndCompletesOnFirstAndRepeatedAttempts) {
+	const u16 target = McsKeyCode::A;
+	for (int attempt = 0; attempt < 3; ++attempt) {
+		SCOPED_TRACE(attempt);
+		PrepareTakeoverAlignment(attempt > 0, target);
+
+		SendTakeoverInput(0);
+		EXPECT_TRUE(IsAligningTakeover());
+		EXPECT_EQ(0, TakeoverCountdown());
+		EXPECT_TRUE(TakeoverInputs().empty());
+		EXPECT_EQ(0u, PendingControlCommands());
+
+		SendTakeoverInput(target);
+		ASSERT_FALSE(IsAligningTakeover());
+		ASSERT_EQ(60, TakeoverCountdown());
+		EXPECT_EQ(attempt > 0, IsTakingOver());
+		EXPECT_TRUE(TakeoverInputs().empty());
+
+		for (int frame = 1; frame < 60; ++frame) {
+			SendTakeoverInput(target);
+			EXPECT_EQ(60 - frame, TakeoverCountdown());
+			EXPECT_EQ(static_cast<size_t>(frame), TakeoverInputs().size());
+			EXPECT_EQ(0u, PendingControlCommands());
+		}
+		SendTakeoverInput(target);
+		EXPECT_EQ(0, TakeoverCountdown());
+		EXPECT_FALSE(IsAligningTakeover());
+		EXPECT_EQ(std::deque<u16>(60, target), TakeoverInputs());
+		EXPECT_TRUE(StartTakeoverQueued());
+		EXPECT_EQ(1u, PendingControlCommands());
+
+		// Late UI samples must not add inputs or queue another start after
+		// the countdown has finished, even before the start command executes.
+		SendTakeoverInput(target);
+		SendTakeoverInput(0);
+		EXPECT_FALSE(IsAligningTakeover());
+		EXPECT_EQ(0, TakeoverCountdown());
+		EXPECT_EQ(std::deque<u16>(60, target), TakeoverInputs());
+		EXPECT_EQ(1u, PendingControlCommands());
+		EXPECT_EQ(attempt > 0, IsTakingOver());
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, TakeoverCountdownMismatchRequiresMatchingAgainOnFirstAndRetry) {
+	for (bool retry : {false, true}) {
+		SCOPED_TRACE(retry);
+		PrepareTakeoverAlignment(retry, McsKeyCode::A);
+		SendTakeoverInput(McsKeyCode::A);
+		ASSERT_EQ(60, TakeoverCountdown());
+		SendTakeoverInput(McsKeyCode::A);
+		ASSERT_EQ(59, TakeoverCountdown());
+		ASSERT_EQ(1u, TakeoverInputs().size());
+
+		SendTakeoverInput(0);
+		EXPECT_TRUE(IsAligningTakeover());
+		EXPECT_EQ(0, TakeoverCountdown());
+		EXPECT_TRUE(TakeoverInputs().empty());
+		EXPECT_EQ(0u, PendingControlCommands());
+
+		SendTakeoverInput(McsKeyCode::A);
+		EXPECT_FALSE(IsAligningTakeover());
+		EXPECT_EQ(60, TakeoverCountdown());
+		EXPECT_TRUE(TakeoverInputs().empty());
+		EXPECT_EQ(retry, IsTakingOver());
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, TakeoverInputIsIgnoredAfterTheMenuCloses) {
+	for (bool retry : {false, true}) {
+		SCOPED_TRACE(retry);
+		PrepareTakeoverAlignment(retry, McsKeyCode::A);
+		CloseTakeoverMenu();
+		SendTakeoverInput(McsKeyCode::A);
+		EXPECT_TRUE(IsAligningTakeover());
+		EXPECT_EQ(0, TakeoverCountdown());
+		EXPECT_TRUE(TakeoverInputs().empty());
+		EXPECT_EQ(0u, PendingControlCommands());
+	}
 }

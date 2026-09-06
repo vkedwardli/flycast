@@ -1447,7 +1447,8 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			CancelPendingTakeover();
 			break;
 		case ReplayCtrlCommand::TakeoverInput: {
-			if (!pause_menu_opend_ || takeover_) break;
+			// RetryTakeover keeps takeover_ true while waiting for matching input.
+			if (!pause_menu_opend_) break;
 			const u16 input = static_cast<u16>(cmd.arg1);
 			if (takeover_aligning_) {
 				if (input == takeover_target_input_) {
