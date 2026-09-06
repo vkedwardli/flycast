@@ -18,8 +18,8 @@
 // SpectatorInputAck.
 //
 // Owns a background thread and its own socket. That thread only queues what it
-// receives. DrainInto and ReportAcked run on the main thread and do the actual
-// folding into the BattleLogFile.
+// receives. DrainInto and ReportAcked fold updates into the BattleLogFile on
+// the emulation thread.
 class GdxsvSpectatorDownlink {
    public:
 	~GdxsvSpectatorDownlink() { Stop(); }

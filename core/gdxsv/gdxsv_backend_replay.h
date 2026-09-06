@@ -4,6 +4,7 @@
 #include "gdxsv_spectate_sync.h"
 
 #include "gdxsv.pb.h"
+#include "gdxsv_replay_ui.h"
 #include "gdxsv_save_state.h"
 #include "gdxsv_spectator_downlink.h"
 #include "lbs_message.h"
@@ -20,16 +21,7 @@ constexpr int kGdxsvLbsPort = 9876;
 // Mock network implementation to replay local battle log
 class GdxsvBackendReplay {
    public:
-	enum class State {
-		None,
-		Start,
-		LbsStartBattleFlow,
-		McsWaitJoin,
-		McsSessionExchange,
-		McsInBattle,
-		McsWaitStartMsg,
-		End,
-	};
+	using State = GdxsvReplayUiState::State;
 
 	void Reset();
 	void OnMainUiLoop();
@@ -47,7 +39,6 @@ class GdxsvBackendReplay {
 	// of stopping when it catches up.
 	bool StartLive(const std::string& host, const std::string& battle_code, int pov);
 	void Stop();
-	bool ChangeRoundAvailable() const;
 
 	// Network Backend Interface
 	void Open();
@@ -57,6 +48,11 @@ class GdxsvBackendReplay {
 	u32 OnSockPoll();
 
    private:
+	using UiState = GdxsvReplayUiState;
+	void PublishUiState();
+	void ProcessUiCommands();
+	void UpdateReplayFlow();
+	void OnNextFrameInternal();
 	bool Start();
 	bool IsInBriefing() const;
 	bool IsInGame() const;
@@ -76,21 +72,18 @@ class GdxsvBackendReplay {
 	void RebuildKeyDisplay() const;
 	void BeginLoadingHud();
 	void CancelPendingTakeover();
-	void RenderPauseMenu();
-	void RenderTakeoverAlignment(u16 current_input);
-	void RenderTakeoverCountdown();
-	void UpdateControlBarVisibility();
-	void RenderControlBar();
-	void RenderLoadingHud();
+	void RenderPauseMenu(const UiState& ui);
+	void RenderTakeoverAlignment(const UiState& ui, u16 current_input);
+	void RenderTakeoverCountdown(const UiState& ui);
+	void UpdateControlBarVisibility(const UiState& ui);
+	void RenderControlBar(const UiState& ui);
+	void RenderLoadingHud(const UiState& ui);
 	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
 	void GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const;
-	const char* SpeedText() const;
+	static const char* SpeedText(int speed);
 
-	// Live Spectate: live_downlink_ (its own background thread) receives
-	// pushed deltas from LBS; CheckLiveUpdate (called from OnMainUiLoop,
-	// main thread) folds them into log_file_ - the same "background thread
-	// stages, main thread mutates" split GdxsvSpectatorUplink uses, so
-	// log_file_ itself never needs a lock.
+	// The UDP worker stages deltas. OnNextFrame folds them into log_file_ on
+	// the emulation thread; the UI reads only the published display snapshot.
 	void CheckLiveUpdate();
 
 	// Steers the main loop's frame period so playback holds live_buffer_frames_
@@ -99,7 +92,7 @@ class GdxsvBackendReplay {
 	void UpdateFramePacing();
 
 	// Live Spectate buffer readout, drawn next to the FPS counter.
-	void DisplayLivePacingOSD();
+	void DisplayLivePacingOSD(const UiState& ui);
 
 	struct ReplayCtrlCommand {
 		enum Command {
@@ -125,6 +118,11 @@ class GdxsvBackendReplay {
 			StartTakeover,
 			RetryTakeover,
 			ReturnToReplay,
+			FollowLive,
+			ResumePlayback,
+			ExitReplay,
+			CancelTakeover,
+			TakeoverInput,
 		};
 
 		ReplayCtrlCommand() = default;
@@ -184,8 +182,14 @@ class GdxsvBackendReplay {
 	};
 
 	State state_ = State::None;
+	GdxsvReplayUiSnapshot ui_snapshot_;
+	// UI requests are applied on the emulation thread before catch-up decides
+	// what to queue. ctrl_commands_ also holds internal seek/start work.
+	CommandQueue ui_commands_;
 	CommandQueue ctrl_commands_;
 	LbsMessageReader lbs_tx_reader_;
+	// Emulation-thread owned after Start; initialization/reset require a
+	// stopped emulator. No UI function may read the protobuf directly.
 	proto::BattleLogFile log_file_;
 	std::deque<u8> recv_buf_;
 	int pov_ = 0;
@@ -199,18 +203,21 @@ class GdxsvBackendReplay {
 	int target_round_ = 0;
 	int target_frame_ = 0;
 	bool pause_menu_opend_ = false;
-	bool lbs_first_skip_ = false;
 	int ctrl_play_speed_ = 0;
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
 	bool ctrl_loading_ = false;
 	int ctrl_loading_wait_frames_ = 0;
 	bool save_converted_log_ = false;
+	uint64_t timeline_revision_ = 0;
+	int audio_fade_frames_ = 0;
 
+	// UI-thread owned presentation/input state, reset before playback starts.
+	bool lbs_first_skip_ = false;
+	uint64_t displayed_timeline_revision_ = 0;
 	float ctrl_bar_visibility_ = 0.0f;
 	float ctrl_bar_idle_timer_ = 0.0f;
 	u32 ctrl_bar_prev_kcode_ = ~0u;
-	int audio_fade_frames_ = 0;
 	float step_hold_timer_ = 0.0f;
 	float flash_left_ = 0.0f;
 	float flash_right_ = 0.0f;
@@ -242,7 +249,7 @@ class GdxsvBackendReplay {
 	// position instead of intent.
 	bool live_at_edge_ = false;
 
-	// Last known viewer count, refreshed by gdxsv_live_viewer_count.
+	// UI-thread viewer count, refreshed by gdxsv_live_viewer_count.
 	int live_viewers_ = 0;
 
 	// Set when the control bar appears, so the count is fetched fresh for the
