@@ -1,5 +1,11 @@
 #include "gdxsv_backend_replay.h"
 
+#include <nowide/cstdio.hpp>
+
+#include <unistd.h>
+
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <sstream>
@@ -12,6 +18,7 @@
 #include "ui/mainui.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
+#include "gdxsv_emu_hooks.h"
 #include "gdxsv_translation.h"
 #include "gdxsv_replay_util.h"
 #include "input/gamepad_device.h"
@@ -19,15 +26,13 @@
 #include "oslib/oslib.h"
 #include "ui/gui.h"
 #include "ui/gui_util.h"
+#include "ui/settings.h"
 #include "ui/IconsFontAwesome6.h"
 #include "sdl/sdl.h"
-
 
 using namespace std::chrono;
 
 namespace {
-constexpr double kGdxsvReplayFallbackInputSeconds = 0.01668335002;
-
 std::string formatLocalClock(time_t ts) {
 	char buf[16];
 	const std::tm* t = std::localtime(&ts);
@@ -35,16 +40,6 @@ std::string formatLocalClock(time_t ts) {
 		return {};
 	}
 	return buf;
-}
-
-double replayInputSeconds(const proto::BattleLogFile& log_file) {
-	if (log_file.start_at() != 0 && log_file.end_at() > log_file.start_at() && log_file.inputs_size() > 0) {
-		const double seconds = static_cast<double>(log_file.end_at() - log_file.start_at()) / static_cast<double>(log_file.inputs_size());
-		if (0.01 <= seconds && seconds <= 0.2) {
-			return seconds;
-		}
-	}
-	return kGdxsvReplayFallbackInputSeconds;
 }
 
 void refreshLiveInputState() {
@@ -141,7 +136,14 @@ std::string formatMcsInput(u16 input) {
 }  // namespace
 
 void GdxsvBackendReplay::Reset() {
+	live_downlink_.Stop();
+	live_mode_ = false;
+	live_catching_up_ = true;
+	live_following_ = true;
+	live_at_edge_ = false;
+	live_round_jump_pending_ = false;
 	state_ = State::None;
+	ui_commands_.clear();
 	ctrl_commands_.clear();
 	lbs_tx_reader_.Clear();
 	log_file_.Clear();
@@ -162,6 +164,8 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_loading_ = false;
 	ctrl_loading_wait_frames_ = 0;
 	save_converted_log_ = false;
+	timeline_revision_ = 0;
+	displayed_timeline_revision_ = 0;
 	ctrl_bar_visibility_ = 0.0f;
 	ctrl_bar_idle_timer_ = 0.0f;
 	ctrl_bar_prev_kcode_ = ~0u;
@@ -182,69 +186,41 @@ void GdxsvBackendReplay::Reset() {
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
 	takeover_aligning_ = false;
+	takeover_skip_input_matching_ = false;
 	takeover_target_input_ = 0;
 	takeover_input_buf_.clear();
 	gdxsv_save_state.Reset();
 	gdxsv.key_display_.Clear();
+	ui_snapshot_.Publish({});
 }
 
 void GdxsvBackendReplay::OnMainUiLoop() {
-	if (state_ == State::End) {
+	const UiState ui = ui_snapshot_.Read();
+	if (ui.state == State::End) {
+		// Join emulation before resetting its state or restoring the lobby.
+		emu.stop();
 		state_ = State::None;
 		gdxsv_save_state.Reset();
+		ctrl_input_release_pending_ = false;
+		ui_snapshot_.Publish({});
 		gdxsv.netmode_ = Gdxsv::NetMode::Offline;
 		gdxsv_end_replay();
 		return;
 	}
 
-	if (state_ <= State::LbsStartBattleFlow) {
+	if (ui.state <= State::LbsStartBattleFlow) {
 		static int counter = 0;
 		if (++counter % 10 < 5)
 			kcode[0] = ~DC_BTN_A;
 		else
 			kcode[0] = ~0u;
-		if (ctrl_commands_.empty() && !lbs_first_skip_) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, target_frame_ > 0 ? 1000 : 180);
+		if (ctrl_commands_.empty() && ui_commands_.empty() && !lbs_first_skip_) {
+			ui_commands_.emplace_back(ReplayCtrlCommand::SeekForward, ui.bootSeekFrames);
 			lbs_first_skip_ = true;
 		}
 	}
 
-	if (state_ == State::McsWaitJoin) {
-		if (ctrl_commands_.empty()) {
-			if (takeover_) {
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
-			} else if (config::GdxReplaySkipMsSelection) {
-				BeginLoadingHud();
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
-			}
-		}
-	}
-
-	if (state_ == State::McsInBattle) {
-		const int disk = gdxsv.Disk();
-		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
-		if (gdxsv_ReadMem8(COM_R_No0) == 4 && (gdxsv_ReadMem8(COM_R_No0 + 5) == 3 || gdxsv_ReadMem8(COM_R_No0 + 5) == 4)) {
-			if (takeover_) {
-				if (ctrl_commands_.empty()) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
-				}
-			} else {
-				// re-battle end
-				Stop();
-			}
-		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
-			if (ctrl_commands_.empty()) {
-				if (takeover_) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
-				} else if (config::GdxReplaySkipMsSelection) {
-					BeginLoadingHud();
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
-				}
-			}
-		}
-	}
-
-	if (State::LbsStartBattleFlow <= state_ && !pause_menu_opend_) {
+	if (State::LbsStartBattleFlow <= ui.state && !ui.pauseMenuOpen) {
 		auto input = mapleInputState[0];
 		// Map analog stick to d-pad (fullAxes are 16-bit, >> 8 to match convertInput thresholds)
 		if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
@@ -268,40 +244,40 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
 
 		if (input.kcode != prev_kcode) {
-			if (takeover_) {
+			if (ui.takeover) {
 				if (~pressed & DC_BTN_START) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+					ui_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 				}
 			} else {
 				// A: Play/Pause toggle
 				if (~pressed & DC_BTN_A) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
+					ui_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
 				}
 				// Right: Step frame (paused) / Seek forward (playing)
 				else if (~pressed & DC_DPAD_RIGHT) {
-					if (ctrl_pause_) {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+					if (ui.paused) {
+						ui_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
 					} else {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
+						ui_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
 					}
 					flash_right_ = 0.3f;
 				}
 				// Left: Step frame backward (paused) / Seek backward (playing)
 				else if (~pressed & DC_DPAD_LEFT) {
-					if (ctrl_pause_) {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+					if (ui.paused) {
+						ui_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
 					} else {
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
+						ui_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
 					}
 					flash_left_ = 0.3f;
 				}
 				// Up/Down: Speed control (ignored while Left/Right is held)
 				else if ((~pressed & DC_DPAD_UP) && !(~input.kcode & DC_DPAD_LEFT) && !(~input.kcode & DC_DPAD_RIGHT)) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
+					ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
 					flash_up_ = 0.3f;
 				}
 				else if ((~pressed & DC_DPAD_DOWN) && !(~input.kcode & DC_DPAD_LEFT) && !(~input.kcode & DC_DPAD_RIGHT)) {
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
+					ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 					flash_down_ = 0.3f;
 				}
 			}
@@ -309,23 +285,23 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		prev_kcode = input.kcode;
 
 		// Auto-repeat for Left/Right held
-		if (!takeover_) {
+		if (!ui.takeover) {
 			bool holding_lr = (~input.kcode & DC_DPAD_RIGHT) || (~input.kcode & DC_DPAD_LEFT);
 			if (holding_lr) {
 				step_hold_timer_ += ImGui::GetIO().DeltaTime;
-				if (step_hold_timer_ >= 0.5f && ctrl_commands_.empty()) {
+				if (step_hold_timer_ >= 0.5f && ctrl_commands_.empty() && ui_commands_.empty()) {
 					if (~input.kcode & DC_DPAD_RIGHT) {
-						if (ctrl_pause_) {
-							ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+						if (ui.paused) {
+							ui_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
 						} else {
-							ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
+							ui_commands_.emplace_back(ReplayCtrlCommand::SeekForward);
 						}
 						flash_right_ = 0.3f;
 					} else {
-						if (ctrl_pause_) {
-							ctrl_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
+						if (ui.paused) {
+							ui_commands_.emplace_back(ReplayCtrlCommand::StepFrameBackward);
 						} else {
-							ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
+							ui_commands_.emplace_back(ReplayCtrlCommand::SeekBackward);
 						}
 						flash_left_ = 0.3f;
 					}
@@ -339,6 +315,43 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	gui_delayed_keys_up();
+}
+
+void GdxsvBackendReplay::UpdateReplayFlow() {
+	if (state_ == State::McsWaitJoin) {
+		if (ctrl_commands_.empty()) {
+			if (takeover_) {
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+			} else if (config::GdxReplaySkipMsSelection && !live_mode_) {
+				BeginLoadingHud();
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+			}
+		}
+	}
+
+	if (state_ == State::McsInBattle) {
+		const int disk = gdxsv.Disk();
+		const int COM_R_No0 = disk == 1 ? 0x0c2f6639 : 0x0c391d79;
+		if (gdxsv_ReadMem8(COM_R_No0) == 4 && (gdxsv_ReadMem8(COM_R_No0 + 5) == 3 || gdxsv_ReadMem8(COM_R_No0 + 5) == 4)) {
+			if (takeover_) {
+				if (ctrl_commands_.empty()) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+				}
+			} else {
+				// re-battle end
+				Stop();
+			}
+		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
+			if (ctrl_commands_.empty()) {
+				if (takeover_) {
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+				} else if (config::GdxReplaySkipMsSelection && !live_mode_) {
+					BeginLoadingHud();
+					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+				}
+			}
+		}
+	}
 }
 
 bool GdxsvBackendReplay::IsInBriefing() const {
@@ -364,6 +377,12 @@ void GdxsvBackendReplay::BeginSilentSeek() {
 	settings.aica.muteAudio = true;
 	rend_enable_renderer(false);
 	seeking_ = true;
+	// A burst right after normal playback inherits a stale end_of_frame_=true
+	// from the frame that just finished, because RunSilentSeekFrame only
+	// clears it after its own emu.run() returns. Without this the burst's
+	// first emu.run() sees "frame already done" and key_msg_count_ silently
+	// fails to advance.
+	end_of_frame_ = false;
 }
 
 void GdxsvBackendReplay::RunSilentSeekFrame(bool skip_rendering) {
@@ -447,12 +466,267 @@ static void gdxsv_patch_map_selector(u16 round_seed, int player_count) {
 			   selector, mask);
 }
 
+// Playback pacing. The match itself runs at 59.94Hz, so replay and Live
+// Spectate lock to the same period and correct the residual by trimming it
+// rather than by stalling whole frames: a stall is a visible 16.7ms step,
+// while a percent of trim is not. See gdxsv_frame_period_trim_us.
+namespace {
+constexpr int kLiveDefaultBuffer = 30;	  // ~0.5s at 60fps
+constexpr int kLiveMinBuffer = 10;		  // below this the buffer is thinner than one arrival clump
+constexpr int kLiveMaxBuffer = 3600;	  // 60s
+
+// Corrections smaller than this are chasing arrival noise. Scales with the
+// buffer, so a small buffer still gets a proportionate deadband.
+constexpr int kPacingMaxDeadbandFrames = 2;
+constexpr int kPacingTrimUsPerFrame = 40;
+
+// Integral gain. Proportional control alone settles at a standing offset,
+// because its output is zero exactly at zero error; the integrator nulls it.
+constexpr double kPacingIntegralGain = 0.25;
+constexpr double kPacingIntegralLimit = 600.0;	 // us; conditional integration does the real anti-windup
+
+// Overall trim bounds, wide enough for the feedforward term. The live match
+// runs well below nominal because the players carry GGPO's rollback cost while
+// a spectator only replays inputs, so the standing correction is large.
+constexpr double kPacingTrimFloorUs = -4000.0;
+constexpr double kPacingTrimCeilUs = 8000.0;
+
+// Source-rate estimate: window, smoothing, and a sane band.
+constexpr double kPacingRateWindowSec = 1.0;
+constexpr double kPacingRateAlpha = 0.25;
+constexpr double kPacingRateMinHz = 30.0;
+constexpr double kPacingRateMaxHz = 65.0;
+constexpr double kPacingNominalPeriodUs = 16683.0;	// what get_period returns for 59.94Hz
+
+// Unpaces the loop while catching up. get_trimmed_period floors the period at
+// 1000us, so any large negative trim lets the main loop run flat out.
+constexpr int kPacingCatchUpTrimUs = -100000;
+
+// How many frames without a new input before we treat production as stalled.
+// A frame or two of no arrival is ordinary jitter at 59.94Hz; a scene
+// transition is hundreds.
+constexpr int kPacingStallFrames = 5;
+
+// How far past the target playback must fall before it is allowed a second
+// input frame per rendered frame to claw back.
+constexpr int kPacingRecoverMargin = 5;
+
+// Longest a sync may stall the emulation thread, per frame. Not a
+// timeout on an operation that has to finish: healthy peers meet in
+// microseconds, and this only bounds the case that cannot succeed at all - a
+// peer stalled on data, or gone. It spends the 16.7ms frame budget, so keep it
+// small. Giving up early costs a frame of sync and nobody sees it; waiting too
+// long drops the frame rate and everybody hears it.
+constexpr int kSyncMaxWaitPerFrameMs = 2;
+
+// Sync position = key_msg_count_ * kSyncSubFrames + frames run since that input.
+//
+// key_msg_count_ is comparable across instances but freezes outside battle,
+// leaving nothing to sync on through the scenes where drift is most
+// visible. The sub-frame term keeps the position advancing there while staying
+// a function of game state rather than execution history.
+// Lengthen the frame period when this instance is ahead of the group, instead
+// of only spinning inside the frame.
+//
+// Spinning cannot slow a paced loop that has headroom: replay runs at a fixed
+// 59.94Hz, so a frame that finishes early sleeps out the rest of its 16.7ms,
+// and a wait inside the frame just eats idle time the instance was going to
+// spend sleeping anyway. Measured, that left a 12 frame offset closing at
+// 0.04 frames a second. Stretching the period is a real slowdown.
+//
+// Per frame of lead, so a small lead is corrected gently. At 200us a 12 frame
+// lead runs the period ~14% long and closes in about 1.5s.
+constexpr int kSyncTrimUsPerFrame = 200;
+constexpr int kSyncTrimMaxUs = 4000;
+
+// How far past the buffer target still counts as live, in frames.
+constexpr int kLiveAtEdgeMargin = 60;
+
+constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
+
+}  // namespace
+
+
+void GdxsvBackendReplay::UpdateFramePacing() {
+	if (!live_mode_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
+		gdxsv_frame_period_trim_us = 0;
+		return;
+	}
+
+	const auto now = std::chrono::steady_clock::now();
+	const int recv = log_file_.inputs_size();
+	if (pacing_rate_time_ == std::chrono::steady_clock::time_point{}) {
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+	}
+
+	// Still closing a gap: run flat out rather than at playback speed. Hold the
+	// integrator and restart the rate window so neither carries catch-up into
+	// steady state.
+	if (0 < ctrl_play_speed_ || live_catching_up_) {
+		gdxsv_frame_period_trim_us = kPacingCatchUpTrimUs;
+		pacing_integral_ = 0.0;
+
+		// Reset the estimate too. A catch-up burst is not the match's speed,
+		// and leaving it pinned at the clamp poisons the feedforward for the
+		// first seconds of steady state.
+		pacing_rate_hz_ = 59.94;
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+		return;
+	}
+
+	// Track whether inputs are still flowing. Outside battle the game exchanges
+	// no inputs, so the gap collapses to zero while we are just as far behind in
+	// wall clock. Braking against that phantom deficit leaves the brake on when
+	// battle resumes.
+	if (recv != pacing_last_recv_) {
+		pacing_last_recv_ = recv;
+		pacing_stall_frames_ = 0;
+	} else if (pacing_stall_frames_ < kPacingStallFrames) {
+		++pacing_stall_frames_;
+	}
+	const int64_t live_gap = static_cast<int64_t>(recv) - key_msg_count_;
+	const bool stalled = kPacingStallFrames <= pacing_stall_frames_;
+
+
+	// Outside battle, run at nominal speed. The trim corrects the input buffer,
+	// which only means anything while the battle consumes inputs. MS selection,
+	// briefing and the result screen are timed scenes, and the trim bounds are
+	// wide enough (40-79Hz) that warping them is obvious.
+	if (!IsInGame()) {
+		gdxsv_frame_period_trim_us = 0;
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+		return;
+	}
+
+	if (stalled) {
+		// Nothing is flowing, so run the scene at nominal speed. A leftover
+		// trim corrects an input-buffer error that no longer exists, and each
+		// instance carries a different one - so they walk the same scene at
+		// different speeds.
+		gdxsv_frame_period_trim_us = 0;
+
+		// Restart the rate window too, so the silence is not averaged in as if
+		// the match itself had slowed down.
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+		return;
+	}
+
+	// Positive error means we are further behind the edge than we want to be,
+	// so we need to run fast, which is a shorter period, which is a negative
+	// trim. Getting that sign backwards makes the loop diverge.
+	const int64_t gap = live_gap;
+	const int64_t error = gap - live_buffer_frames_;
+
+	// Feedforward: play at the speed the match is actually being played at, not
+	// at nominal. Anchored on nominal, a constant surplus remains that no clamp
+	// centred there can cancel.
+	const double win = std::chrono::duration<double>(now - pacing_rate_time_).count();
+	if (kPacingRateWindowSec <= win) {
+		const double observed = (recv - pacing_rate_recv_) / win;
+		if (1.0 < observed) {
+			pacing_rate_hz_ = std::clamp((1.0 - kPacingRateAlpha) * pacing_rate_hz_ + kPacingRateAlpha * observed,
+										 kPacingRateMinHz, kPacingRateMaxHz);
+		}
+		pacing_rate_time_ = now;
+		pacing_rate_recv_ = recv;
+	}
+	const double feedforward = 1.0e6 / pacing_rate_hz_ - kPacingNominalPeriodUs;
+
+	const int64_t deadband = std::clamp<int64_t>(live_buffer_frames_ / 4, 1, kPacingMaxDeadbandFrames);
+	double p = 0.0;
+	if (deadband < std::abs(error)) {
+		p = static_cast<double>(-error * kPacingTrimUsPerFrame);
+	}
+
+	// Conditional integration. A clamp alone is not anti-windup - it saturates
+	// and stays there. Integrate only while the output is inside its bounds, or
+	// while the new term would move it back toward the middle.
+	const double unsaturated = feedforward + p + pacing_integral_;
+	const double step = -error * kPacingIntegralGain;
+	const bool at_ceiling = kPacingTrimCeilUs <= unsaturated && 0.0 < step;
+	const bool at_floor = unsaturated <= kPacingTrimFloorUs && step < 0.0;
+	if (deadband < std::abs(error) && !at_ceiling && !at_floor) {
+		pacing_integral_ = std::clamp(pacing_integral_ + step, -kPacingIntegralLimit, kPacingIntegralLimit);
+	}
+
+	gdxsv_frame_period_trim_us =
+		static_cast<int>(std::clamp(feedforward + p + pacing_integral_, kPacingTrimFloorUs, kPacingTrimCeilUs));
+}
+
 void GdxsvBackendReplay::OnNextFrame() {
+	// Must run here, on the emulation thread, before the early-returns below.
+	//
+	// Thread: DeliverKeyMsgBatch reads log_file_ on the emulation thread while
+	// this appends to it. Appending to a repeated field can reallocate, so
+	// draining from mainui_loop is a real race under ThreadedRendering.
+	//
+	// Position: a seek burst runs nested emu.run() calls and never returns to
+	// mainui_loop. Draining here lets each one pick up newly arrived frames,
+	// so a catch-up seek can chase an edge that is still moving.
+	CheckLiveUpdate();
+	ProcessUiCommands();
+	if (state_ != State::End) {
+		UpdateReplayFlow();
+		OnNextFrameInternal();
+	}
+	PublishUiState();
+}
+
+void GdxsvBackendReplay::OnNextFrameInternal() {
+	if (state_ == State::End) return;
+
+	// One sync point for every scene, here rather than in the delivery path
+	// because outside battle no input is delivered - which is exactly where the
+	// group used to drift apart.
+	//
+	// Offline replay syncs too. It is the only repeatable harness: the same
+	// recorded file, the same deterministic simulation, no join-time skew and
+	// no network variance - so a measured change is caused by the change,
+	// which live battles cannot tell us.
+	if (spectate_sync_.Active()) {
+		// Advances while key_msg_count_ is frozen, so there is still something
+		// to sync on outside battle.
+		if (sync_subframe_ < kSyncSubFrames - 1) ++sync_subframe_;
+
+		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+
+		// Heartbeat unconditionally, sync only when eligible. Publishing
+		// only from inside WaitForPeers lets a catching-up instance go stale
+		// and lose its slot.
+		spectate_sync_.Publish(static_cast<int32_t>(pos));
+
+		// Runs in every scene. This never speeds anything up - it only holds
+		// back an instance that is ahead, which while production is stalled is
+		// indistinguishable from waiting for data.
+		if (!takeover_ && !seeking_ && (!live_mode_ || !live_catching_up_)) {
+			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), sync_max_wait_ms_);
+		}
+	}
+	UpdateFramePacing();
+
+	// After UpdateFramePacing, not before: its offline branch clears the trim
+	// every frame, so setting it earlier had no effect at all.
+	//
+	// Offline replay only. In live mode the pacing controller owns the trim -
+	// the buffer target has to win over group alignment, or playback starves.
+	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_) {
+		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+		const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
+		gdxsv_frame_period_trim_us =
+			lead_frames <= 0 ? 0 : std::min(lead_frames * kSyncTrimUsPerFrame, kSyncTrimMaxUs);
+	}
+
 	if (!end_of_frame_) return;
 	if (seeking_) return;
 
-	constexpr int save_interval = 60;
-	auto need_cancel = [&]() -> bool { return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End; };
+	constexpr int save_interval = ReplaySeekFrames;
+	auto need_cancel = [&]() -> bool {
+		return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End;
+	};
 	auto regular_save_state = [&]() {
 		if ((IsInGame() || IsInBriefing()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty() && !takeover_) {
 			gdxsv_save_state.SaveState(key_msg_count_);
@@ -478,17 +752,95 @@ void GdxsvBackendReplay::OnNextFrame() {
 		ctrl_pause_ = false;
 	}
 
-	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame());
+	// Never in Live Spectate: it is an analysis overlay, and it shows the
+	// players' inputs while they are still playing.
+	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame() && !live_mode_);
 	regular_save_state();
+
+	// Reaching the live edge resumes following, however it got there. Outside
+	// the catch-up gate below so it stays right while paused.
+	if (live_mode_) {
+		const int64_t gap_now = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+		live_at_edge_ = gap_now <= live_buffer_frames_ + kLiveAtEdgeMargin;
+
+		// Not while a requested jump is queued: key_msg_count_ is still at the
+		// live edge until it lands, so this would undo the request.
+		const bool reposition_pending = ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) ||
+										ctrl_commands_.contains(ReplayCtrlCommand::SetRound) ||
+										ctrl_commands_.contains(ReplayCtrlCommand::SeekBackward) ||
+										ctrl_commands_.contains(ReplayCtrlCommand::StepFrameBackward) ||
+										ctrl_commands_.contains(ReplayCtrlCommand::SeekToBriefing);
+		if (live_at_edge_ && !ctrl_loading_ && !reposition_pending) {
+			live_following_ = true;
+		}
+	}
+
+	// Catch-up runs coarsest first: a round jump crosses whole rounds, one
+	// skip-render seek closes the gap within the round, and 300% playback takes
+	// the residual. All three stop a buffer behind the live edge, not at it,
+	// because frames arrive in clumps.
+	const int kLiveTargetBufferFrames = live_buffer_frames_;
+
+	// 300% recovery only runs in battle. The result, briefing and MS-selection
+	// screens have animation and music, so speeding through them is just as
+	// visible as speeding through a fight. A skip-render seek is different: it
+	// is a jump, not fast playback, so it may run in any scene.
+	const int kLiveCatchUpThreshold = live_buffer_frames_ + 240;
+	const int kLiveCatchUpFastSeekThreshold = live_buffer_frames_ + 270;
+
+	// start_msg_count_ > 0, not IsInGame(): during the pre-round-1 boot
+	// inputs_size() is already full while key_msg_count_ has not started
+	// moving, so the gap reads enormous.
+	if (live_mode_ && 0 < start_msg_count_ && !live_round_jump_pending_ && !ctrl_pause_ && !pause_menu_opend_ &&
+		!need_cancel() && !takeover_) {
+		const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+
+		// Measured every frame, never latched. Right after a round jump
+		// playback sits at the round's start while the log is still streaming,
+		// so the gap reads negative - a latch set from that never reopens.
+		// Never catching up while not following, so the intake cap and the sync
+		// barrier do not treat a deliberate rewind as a catch-up burst.
+		live_catching_up_ = live_following_ && kLiveCatchUpFastSeekThreshold <= gap;
+		if (live_catching_up_) {
+			// One seek closes it. The seek re-reads the live edge every
+			// iteration, and CheckLiveUpdate keeps delivering inside the
+			// nested emu.run, so it chases an edge that is still moving.
+			// Seeking runs about 10x realtime, so it converges in one pass.
+			if (!ctrl_commands_.contains(ReplayCtrlCommand::SeekForward)) {
+				// BeginLoadingHud() resets the counter that lets a queued
+				// SeekForward run, so re-queueing every frame would stall it.
+				BeginLoadingHud();
+				// Bound generously. The seek folds in new frames as it runs, so
+				// it covers more than the gap measured now. It stops on the gap
+				// itself; this is only a safety cap.
+				const int64_t bound = std::min<int64_t>(gap * 3 + 1200, 1 << 20);
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, static_cast<int>(bound), /*live=*/1);
+			}
+		} else if (live_following_ && IsInGame() && kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
+			// Use 300% recovery below the fast-seek threshold.
+			ctrl_play_speed_ = 2;
+		}
+	}
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
 		BeginSilentSeek();
-		for (int skipped_frame = 0; skipped_frame < ctrl_play_speed_ && can_run_silent_replay_frame(); skipped_frame++) {
+		int skipped_frame = 0;
+		for (; skipped_frame < ctrl_play_speed_ && can_run_silent_replay_frame(); skipped_frame++) {
 			RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
 			regular_save_state();
 			if (need_cancel()) break;
 		}
 		EndSilentSeek();
+
+		// Stop at the target buffer, not at the live edge, and not merely
+		// because this burst ran out of data. With kLiveCatchUpThreshold this
+		// is the hysteresis band that stops the speed flapping.
+		if (live_mode_ && !need_cancel()) {
+			const int64_t gap_after = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+			if (gap_after <= kLiveTargetBufferFrames + 10) {
+				ctrl_play_speed_ = 0;
+			}
+		}
 	}
 
 	ReplayCtrlCommand ctrl{};
@@ -523,7 +875,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::SaveFirstFrame) {
 			verify(recv_buf_.empty());
-			NOTICE_LOG(COMMON, "SaveFirstFrame saved");
+			NOTICE_LOG(COMMON, "SaveFirstFrame saved (FirstSavedFrame before clear=%d)", gdxsv_save_state.FirstSavedFrame());
 			gdxsv_save_state.Clear();
 			gdxsv_save_state.SaveState(key_msg_count_);
 			ctrl_commands_.pop_front();
@@ -600,7 +952,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 		if (ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg) {
 			if (log_file_.inputs_size() <= 0) {
 				target_frame_ = 0;
-				ctrl_bar_drag_target_frame_ = -1;
+				++timeline_revision_;
 				ctrl_loading_ = false;
 				ctrl_commands_.pop_front();
 				continue;
@@ -652,18 +1004,33 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 
 			target_frame_ = 0;
-			ctrl_bar_drag_target_frame_ = -1;
+			++timeline_revision_;
 			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekForward) {
 			const int skip_frames = 1 <= ctrl.arg1 ? ctrl.arg1 : save_interval;
+			// arg2 marks a Live Spectate catch-up seek. It differs from a
+			// plain seek in that new frames keep arriving while it runs, so
+			// it folds them in as it goes and keeps seeking until it is
+			// actually at the live edge - see live_seek_target below.
+			const bool live_catch_up = ctrl.arg2 != 0;
 			const int prev_key_msg_count = key_msg_count_;
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
+			// A live catch-up seek is done when it is within the target
+			// buffer of the live edge, not when it has run a fixed number of
+			// frames: folding in new frames as it goes means the edge it is
+			// chasing keeps moving. skip_frames stays as a safety bound in
+			// case the host cannot emulate faster than the match advances.
+			auto live_seek_unfinished = [&]() -> bool {
+				return static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_ > kLiveTargetBufferFrames;
+			};
 			BeginSilentSeekWithAudioReset();
-			for (; skipped_frame < skip_frames && can_run_silent_replay_frame(); skipped_frame++) {
+			for (; skipped_frame < skip_frames && can_run_silent_replay_frame() &&
+				   (!live_catch_up || live_seek_unfinished());
+				 skipped_frame++) {
 				RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
 				regular_save_state();
 				if (need_cancel()) break;
@@ -692,7 +1059,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 			EndSilentSeekWithAudioReset();
 
-			if (config::GdxReplaySkipMsSelection) {
+			if (config::GdxReplaySkipMsSelection && !live_mode_) {
 				briefing_start_frame_ = key_msg_count_;
 				briefing_start_frame_round_ = start_msg_count_;
 			}
@@ -707,6 +1074,13 @@ void GdxsvBackendReplay::OnNextFrame() {
 			} else if (target_frame_ != 0) {
 				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, target_frame_);
+			} else {
+				// Nothing further queued, so a live round jump (if one was
+				// what got us here) ends now rather than chaining into
+				// SetRound - e.g. need_cancel() cut the loop above short.
+				// Must clear here too, or catch-up stays suppressed for the
+				// rest of the connect.
+				live_round_jump_pending_ = false;
 			}
 		}
 
@@ -787,7 +1161,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 				target_round_ = 0;
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
-				if (config::GdxReplaySkipMsSelection) {
+				if (config::GdxReplaySkipMsSelection && !live_mode_) {
 					BeginLoadingHud();
 					ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 				}
@@ -795,6 +1169,10 @@ void GdxsvBackendReplay::OnNextFrame() {
 				EventManager::event(Event::GGPOGameEnd);
 			}
 
+			// The jump has landed (or was rejected by the guard above) -
+			// either way it is no longer in flight, so let live catch-up
+			// resume and close the remaining within-round gap.
+			live_round_jump_pending_ = false;
 			ctrl_loading_ = false;
 			ctrl_commands_.pop_front();
 		}
@@ -805,10 +1183,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			takeover_saved_frame_ = key_msg_count_;
-			takeover_countdown_ = 0;
-			takeover_aligning_ = true;
-			takeover_target_input_ = replayMcsInput(log_file_, takeover_saved_frame_, pov_);
-			takeover_input_buf_.clear();
+			BeginTakeoverAlignment(replayMcsInput(log_file_, takeover_saved_frame_, pov_));
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
 			ctrl_play_speed_ = 0;
@@ -829,6 +1204,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			}
 			takeover_ = true;
 			takeover_aligning_ = false;
+			takeover_skip_input_matching_ = false;
 			takeover_target_input_ = 0;
 			settings.gdxsv.replayModeActive = false;
 			pause_menu_opend_ = false;
@@ -844,10 +1220,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			recv_buf_.clear();
-			takeover_input_buf_.clear();
-			takeover_countdown_ = 0;
-			takeover_aligning_ = true;
-			takeover_target_input_ = replayMcsInput(log_file_, takeover_saved_frame_, pov_);
+			BeginTakeoverAlignment(replayMcsInput(log_file_, takeover_saved_frame_, pov_));
 			settings.gdxsv.replayModeActive = true;
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
@@ -863,6 +1236,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 			recv_buf_.clear();
 			takeover_ = false;
 			takeover_aligning_ = false;
+			takeover_skip_input_matching_ = false;
 			takeover_countdown_ = 0;
 			takeover_target_input_ = 0;
 			takeover_input_buf_.clear();
@@ -879,22 +1253,58 @@ void GdxsvBackendReplay::OnNextFrame() {
 }
 
 bool GdxsvBackendReplay::OnOpenMenu() {
-	if (state_ <= State::LbsStartBattleFlow) {
+	if (ui_snapshot_.Read().state <= State::LbsStartBattleFlow) {
 		return false;
 	}
 
-	ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePauseMenu);
+	ui_commands_.emplace_back(ReplayCtrlCommand::TogglePauseMenu);
 
 	return false;
 }
 
+// Live Spectate buffer readout, drawn next to the FPS counter (bottom left).
+// Shows the buffer we aim to hold and how far behind the live match we
+// actually are, in frames and milliseconds.
+void GdxsvBackendReplay::DisplayLivePacingOSD(const UiState& ui) {
+	if (!ui.liveMode) return;
+
+	const int64_t gap = static_cast<int64_t>(ui.inputCount) - ui.playbackFrame;
+	const double ms = gap * 1000.0 / 59.94;
+
+	char text[64];
+	snprintf(text, sizeof(text), "buf %d | behind %lldf (%.0fms)", ui.liveBufferFrames, (long long)gap, ms);
+
+	ImDrawList* dl = ImGui::GetForegroundDrawList();
+	ImFont* font = ImGui::GetFont();
+	const float fontSize = ImGui::GetFontSize();
+	const ImVec2 padding = ScaledVec2(5.f, 5.f);
+	const ImVec2 size = font->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text) + padding * 2.f;
+
+	// Sit to the right of the FPS box when it is up, otherwise take its place.
+	const float x = insetLeft + (config::ShowFPS ? uiScaled(150.f) : 0.f);
+	const ImVec2 pos(x, ImGui::GetIO().DisplaySize.y - size.y);
+
+	dl->AddRectFilled(pos, pos + size, IM_COL32(32, 32, 32, 90), 0.f);
+
+	// Green when inside the deadband, amber when the controller is correcting.
+	const bool holding = std::abs(gap - ui.liveBufferFrames) <= 2;
+	dl->AddText(font, fontSize, pos + padding, holding ? IM_COL32(0, 255, 128, 200) : IM_COL32(255, 200, 0, 200), text);
+}
+
 void GdxsvBackendReplay::DisplayOSD() {
-	if (!seeking_ && pause_menu_opend_) {
-		RenderPauseMenu();
+	const UiState ui = ui_snapshot_.Read();
+	if (displayed_timeline_revision_ != ui.timelineRevision) {
+		displayed_timeline_revision_ = ui.timelineRevision;
+		ctrl_bar_drag_target_frame_ = -1;
 	}
-	UpdateControlBarVisibility();
-	RenderControlBar();
-	RenderLoadingHud();
+	// Kept for measuring the buffer during pacing work; not shown by default.
+	// DisplayLivePacingOSD(ui);
+	if (!ui.seeking && ui.pauseMenuOpen) {
+		RenderPauseMenu(ui);
+	}
+	UpdateControlBarVisibility(ui);
+	RenderControlBar(ui);
+	RenderLoadingHud(ui);
 }
 
 bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
@@ -912,6 +1322,7 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	fclose(fp);
 
 	if (log_file_.users_size() <= pov) {
+		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
 
@@ -931,6 +1342,7 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 	}
 
 	if (log_file_.users_size() <= pov) {
+		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
 
@@ -939,7 +1351,178 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 	return Start();
 }
 
+bool GdxsvBackendReplay::StartLive(const std::string& host, const std::string& battle_code, int pov) {
+	// Bootstrap over UDP, not HTTP - LBS's HTTP port isn't reachable from
+	// outside the server host. Subscribing from frame 0 makes LBS send the
+	// header first, then stream the whole match through the same
+	// resend-until-acked path that keeps us live afterwards.
+	live_downlink_.Start(host, kGdxsvLbsPort, battle_code, /*from_frame=*/0);
+
+	constexpr int kBootstrapTimeoutMs = 10000;
+	if (!live_downlink_.WaitForBootstrap(&log_file_, kBootstrapTimeoutMs)) {
+		NOTICE_LOG(COMMON, "StartLive: bootstrap from %s did not complete within %dms", host.c_str(), kBootstrapTimeoutMs);
+		live_downlink_.Stop();
+		return false;
+	}
+
+	if (log_file_.users_size() <= pov) {
+		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
+		live_downlink_.Stop();
+		return false;
+	}
+	pov_ = pov;
+	if (!Start()) {
+		live_downlink_.Stop();
+		return false;
+	}
+
+	// Catching up to the live edge (a match may already be thousands of
+	// frames in by the time a spectator connects) is handled by the
+	// continuous live_mode_ check at the top of OnNextFrame.
+	live_mode_ = true;
+	PublishUiState();
+	return true;
+}
+
+
+void GdxsvBackendReplay::PublishUiState() {
+	UiState ui = UiState::FromLog(log_file_);
+	ui.state = state_;
+	ui.playbackFrame = key_msg_count_;
+	ui.currentRound = start_msg_count_;
+	int totalRounds;
+	GetControlTimelineBounds(ui.timelineStart, ui.timelineEnd, totalRounds);
+	ui.timelineRevision = timeline_revision_;
+	ui.bootSeekFrames = target_frame_ > 0 ? 1000 : 180;
+	ui.playSpeed = ctrl_play_speed_;
+	ui.inGame = state_ >= State::McsInBattle && state_ != State::End && IsInGame();
+	ui.seeking = seeking_;
+	ui.paused = ctrl_pause_;
+	ui.pauseMenuOpen = pause_menu_opend_;
+	ui.loading = ctrl_loading_;
+	ui.takeover = takeover_;
+	ui.takeoverAligning = takeover_aligning_;
+	ui.takeoverSkipInputMatching = takeover_skip_input_matching_;
+	ui.takeoverCountdown = takeover_countdown_;
+	ui.takeoverTargetInput = takeover_target_input_;
+	ui.liveMode = live_mode_;
+	ui.liveAtEdge = live_at_edge_;
+	ui.liveBufferFrames = live_buffer_frames_;
+	ui_snapshot_.Publish(std::move(ui));
+}
+
+void GdxsvBackendReplay::ProcessUiCommands() {
+	ReplayCtrlCommand cmd;
+	while (ui_commands_.try_get_front(cmd)) {
+		ui_commands_.pop_front();
+		if (state_ == State::None || state_ == State::End)
+			continue;
+		switch (cmd.cmd) {
+		case ReplayCtrlCommand::FollowLive: {
+			if (!live_mode_) break;
+			live_following_ = true;
+			ctrl_pause_ = false;
+			ctrl_play_speed_ = 0;
+			const int live_round = log_file_.start_msg_indexes_size();
+			if (start_msg_count_ < live_round && live_round - 1 < log_file_.start_msg_randoms_size() &&
+				gdxsv_save_state.FirstSavedFrame() != -1) {
+				// Block automatic catch-up until this round jump has landed.
+				live_round_jump_pending_ = true;
+				BeginLoadingHud();
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, live_round);
+			}
+			break;
+		}
+		case ReplayCtrlCommand::ResumePlayback:
+			ctrl_pause_ = false;
+			ctrl_step_frame_ = false;
+			pause_menu_opend_ = false;
+			break;
+		case ReplayCtrlCommand::ExitReplay:
+			Stop();
+			break;
+		case ReplayCtrlCommand::CancelTakeover:
+			CancelPendingTakeover();
+			break;
+		case ReplayCtrlCommand::SkipTakeoverAlignment:
+			// A queued input sample may have already started the matching countdown.
+			if (live_mode_ || !pause_menu_opend_ || takeover_skip_input_matching_ ||
+				(!takeover_aligning_ && takeover_countdown_ == 0)) break;
+			takeover_skip_input_matching_ = true;
+			takeover_aligning_ = false;
+			takeover_countdown_ = 60;
+			takeover_input_buf_.clear();
+			break;
+		case ReplayCtrlCommand::TakeoverInput: {
+			// RetryTakeover keeps takeover_ true while waiting for matching input.
+			if (!pause_menu_opend_) break;
+			const u16 input = static_cast<u16>(cmd.arg1);
+			if (takeover_aligning_) {
+				if (input == takeover_target_input_) {
+					takeover_aligning_ = false;
+					takeover_countdown_ = 60;
+					takeover_input_buf_.clear();
+				}
+			} else if (takeover_countdown_ > 0) {
+				if (!takeover_skip_input_matching_ && input != takeover_target_input_) {
+					takeover_countdown_ = 0;
+					takeover_aligning_ = true;
+					takeover_input_buf_.clear();
+				} else {
+					takeover_input_buf_.push_back(input);
+					if (--takeover_countdown_ == 0)
+						ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
+				}
+			}
+			break;
+		}
+		case ReplayCtrlCommand::SetRound:
+			live_following_ = false;
+			live_round_jump_pending_ = live_mode_;
+			pause_menu_opend_ = false;
+			BeginLoadingHud();
+			ctrl_commands_.emplace_back(cmd);
+			break;
+		case ReplayCtrlCommand::JumpToKeyMsg:
+			live_following_ = false;
+			BeginLoadingHud();
+			ctrl_commands_.emplace_back(cmd);
+			break;
+		case ReplayCtrlCommand::SeekBackward:
+		case ReplayCtrlCommand::StepFrameBackward:
+			live_following_ = false;
+			ctrl_commands_.emplace_back(cmd);
+			break;
+		case ReplayCtrlCommand::TakeOver:
+			if (!live_mode_ && IsInGame())
+				ctrl_commands_.emplace_back(cmd);
+			break;
+		default:
+			ctrl_commands_.emplace_back(cmd);
+			break;
+		}
+	}
+}
+
+void GdxsvBackendReplay::CheckLiveUpdate() {
+	if (!live_mode_) {
+		return;
+	}
+
+	live_downlink_.DrainInto(&log_file_);
+	live_downlink_.ReportAcked(log_file_.inputs_size());
+
+	if (!log_file_.close_reason().empty()) {
+		// Battle ended - stop the downlink and let the normal exhaustion
+		// path Stop() once playback drains what's left of log_file_.
+		live_mode_ = false;
+		live_downlink_.Stop();
+	}
+}
+
 void GdxsvBackendReplay::Stop() {
+	config::FixedFrequency.load();
+	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();
 	settings.gdxsv.replayModeActive = false;
 	settings.gdxsv.skipRenderingAddr = 0;
@@ -948,9 +1531,9 @@ void GdxsvBackendReplay::Stop() {
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
 	takeover_aligning_ = false;
+	takeover_skip_input_matching_ = false;
 	takeover_target_input_ = 0;
 	takeover_input_buf_.clear();
-	ctrl_input_release_pending_ = false;
 	SDL_ShowCursor(SDL_ENABLE);
 	rend_enable_renderer(true);
 	gdxsv_save_state.EndUsing();
@@ -990,9 +1573,19 @@ void GdxsvBackendReplay::Stop() {
 	}
 }
 
+void GdxsvBackendReplay::BeginTakeoverAlignment(u16 target_input) {
+	takeover_countdown_ = 0;
+	takeover_aligning_ = true;
+	// Each attempt starts with input matching enabled.
+	takeover_skip_input_matching_ = false;
+	takeover_target_input_ = target_input;
+	takeover_input_buf_.clear();
+}
+
 void GdxsvBackendReplay::CancelPendingTakeover() {
 	takeover_ = false;
 	takeover_aligning_ = false;
+	takeover_skip_input_matching_ = false;
 	takeover_countdown_ = 0;
 	takeover_target_input_ = 0;
 	takeover_input_buf_.clear();
@@ -1001,10 +1594,6 @@ void GdxsvBackendReplay::CancelPendingTakeover() {
 	settings.gdxsv.replayModeActive = true;
 	pause_menu_opend_ = true;
 	SDL_ShowCursor(SDL_ENABLE);
-}
-
-bool GdxsvBackendReplay::ChangeRoundAvailable() const {
-	return 0 < log_file_.start_msg_indexes_size() && log_file_.start_msg_indexes_size() == log_file_.start_msg_randoms_size();
 }
 
 void GdxsvBackendReplay::Open() {
@@ -1098,6 +1687,24 @@ u32 GdxsvBackendReplay::OnSockPoll() {
 
 bool GdxsvBackendReplay::Start() {
 	NOTICE_LOG(COMMON, "game_disk = %s", log_file_.game_disk().c_str());
+
+	// The match was played at 59.94Hz - the online battle path pins
+	// FixedFrequency to it - so play it back on the same clock. Without this
+	// the default is 0, meaning no pacing at all: playback then runs at
+	// whatever the renderer manages, and in Live Spectate the only thing
+	// holding it back is running out of input, which makes arrival jitter the
+	// clock. Restored in Stop().
+	config::FixedFrequency.override(2);
+	gdxsv_frame_period_trim_us = 0;
+
+	live_buffer_frames_ = std::clamp(config::loadInt("gdxsv", "LiveBufferFrames", kLiveDefaultBuffer), kLiveMinBuffer, kLiveMaxBuffer);
+	spectate_sync_.Join(config::loadStr("gdxsv", "SpectateSyncGroup", ""));
+
+	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
+	// waiting entirely, which is the A/B for "is the barrier costing frames?".
+	sync_max_wait_ms_ = std::clamp(config::loadInt("gdxsv", "SyncMaxWaitMs", kSyncMaxWaitPerFrameMs), 0, 200);
+	NOTICE_LOG(COMMON, "spectate sync max wait %d ms/frame", sync_max_wait_ms_);
+	NOTICE_LOG(COMMON, "replay pacing: 59.94Hz, live buffer %d frames (%.2fs)", live_buffer_frames_, live_buffer_frames_ / 59.94);
 
 	if (log_file_.log_file_version() < 20210802) {
 		// Parse old replay file
@@ -1232,6 +1839,7 @@ bool GdxsvBackendReplay::Start() {
 	SDL_ShowCursor(SDL_ENABLE);
 
 	NOTICE_LOG(COMMON, "Replay Start");
+	PublishUiState();
 	return true;
 }
 
@@ -1378,6 +1986,92 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 	}
 }
 
+// Enqueues the KeyMsg1 batch for the current key_msg_count_ and advances it.
+// Sends every player including pov_, because the replay patch disables the
+// client's own self-push.
+void GdxsvBackendReplay::DeliverKeyMsgBatch() {
+	// At the live edge, wait for confirmed input. A neutral batch would make
+	// the game simulate an unrecorded frame and permanently desync playback.
+	if (live_mode_ && !takeover_ && log_file_.inputs_size() <= key_msg_count_) {
+		return;
+	}
+
+	// Live Spectate: cap intake at one input frame per rendered frame, so the
+	// frame period governs consumption. The game polls for input more often
+	// than it renders once it is behind, and answering every poll decouples
+	// intake from the frame clock entirely.
+	//
+	// Steady state only: a skip-render seek runs hundreds of emulator frames
+	// inside one UI frame, so capping during catch-up would stall it.
+	if (live_mode_ && !takeover_ && !seeking_ && !live_catching_up_ && ctrl_play_speed_ == 0) {
+		if (deliver_last_mainui_ != MainFrameCount) {
+			deliver_last_mainui_ = MainFrameCount;
+			deliver_this_frame_ = 0;
+		}
+
+		// Allow a second frame while genuinely behind. A strict one-per-frame
+		// cap can never regain a lost buffer when the host renders slower than
+		// the match produces, leaving the 300% path to oscillate.
+		const int64_t behind = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+		const int allowance = (live_buffer_frames_ + kPacingRecoverMargin < behind) ? 2 : 1;
+		if (allowance <= deliver_this_frame_) {
+			return;
+		}
+
+		++deliver_this_frame_;
+	}
+	if (!recv_buf_.empty()) {
+		// The previous reply hasn't drained yet. One emu.run() can trigger
+		// several OnSockRead polls, so a second poll can arrive before the
+		// first reply is fully delivered. Skip instead of stacking a second
+		// batch on top - the next poll after the bytes drain gets a fresh one.
+		return;
+	}
+	gdxsv.maxlag_ = 0;
+
+	for (int i = 0; i < log_file_.users_size(); ++i) {
+		u16 input = 0;
+		if (takeover_ && i == pov_) {
+			const int delay = config::GdxMinDelay.get();
+			takeover_input_buf_.push_back(liveTakeoverMcsInput());
+			if (static_cast<int>(takeover_input_buf_.size()) > delay) {
+				input = takeover_input_buf_.front();
+				takeover_input_buf_.pop_front();
+			}
+		} else if (key_msg_count_ < log_file_.inputs_size()) {
+			const u64 inputs = log_file_.inputs(key_msg_count_);
+			input = u16(inputs >> (i * 16));
+		}
+		auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
+		key_msg.body[2] = input >> 8 & 0xff;
+		key_msg.body[3] = input & 0xff;
+		std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+		if (takeover_countdown_ == 0 && !seeking_) {
+			gdxsv.key_display_.AppendInput(i, input);
+		}
+	}
+
+	if (key_msg_count_ < log_file_.inputs_size()) {
+		++key_msg_count_;
+		sync_subframe_ = 0;
+
+		if (key_msg_count_ == log_file_.inputs_size() && !takeover_) {
+			// Live Spectate: hold at the live edge instead of stopping -
+			// CheckLiveUpdate() will grow log_file_ as more data arrives,
+			// or clear live_mode_ once the battle has ended, at which
+			// point this same check naturally falls through to Stop() on
+			// a later tick.
+			if (!live_mode_) {
+				Stop();
+			}
+		}
+	}
+
+	if (!takeover_ && ctrl_play_speed_ < 0) {
+		recv_delay_ = -ctrl_play_speed_;
+	}
+}
+
 void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	const auto msg_type = msg.Type();
 
@@ -1436,50 +2130,29 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 		ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
-		if (config::GdxReplaySkipMsSelection) {
+		if (config::GdxReplaySkipMsSelection && !live_mode_) {
+			BeginLoadingHud();
+			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
+		} else if (live_mode_ && start_msg_count_ == 1 && start_msg_count_ < log_file_.start_msg_indexes_size()) {
+			// Connected mid-match and live is already past this round, so jump
+			// straight to the current one. The == 1 keeps this to the first
+			// round after connecting: live's round N+1 always starts before we
+			// finish round N, so it would otherwise fire at every boundary.
+			target_round_ = log_file_.start_msg_indexes_size();
+			// Catch-up must not run until the jump lands: it would fast-seek
+			// through the intervening rounds' StartMsgs, whose queued
+			// SaveFirstFrame/SendStartMsg pairs then interleave with
+			// SetRound's and trip verify(recv_buf_.empty()).
+			live_round_jump_pending_ = true;
 			BeginLoadingHud();
 			ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekToBriefing);
 		}
-	} else if (msg_type == McsMessage::MsgType::ForceMsg) {
-		// do nothing
+	} else if (msg_type == McsMessage::MsgType::KeyMsg1 || msg_type == McsMessage::MsgType::ForceMsg) {
+		// The game sends ForceMsg when SendKeyMsg() sends nothing.
+		// Supplying the next all-player input batch lets a stalled game resume.
+		DeliverKeyMsgBatch();
 	} else if (msg_type == McsMessage::MsgType::LagControlTestMsg) {
 		// do nothing
-	} else if (msg_type == McsMessage::MsgType::KeyMsg1) {
-		verify(recv_buf_.empty());
-		gdxsv.maxlag_ = 0;
-
-		for (int i = 0; i < log_file_.users_size(); ++i) {
-			u16 input = 0;
-			if (takeover_ && i == pov_) {
-				const int delay = config::GdxMinDelay.get();
-				takeover_input_buf_.push_back(liveTakeoverMcsInput());
-				if (static_cast<int>(takeover_input_buf_.size()) > delay) {
-					input = takeover_input_buf_.front();
-					takeover_input_buf_.pop_front();
-				}
-			} else if (key_msg_count_ < log_file_.inputs_size()) {
-				const u64 inputs = log_file_.inputs(key_msg_count_);
-				input = u16(inputs >> (i * 16));
-			}
-			auto key_msg = McsMessage::Create(McsMessage::MsgType::KeyMsg1, i);
-			key_msg.body[2] = input >> 8 & 0xff;
-			key_msg.body[3] = input & 0xff;
-			std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
-			if (takeover_countdown_ == 0 && !seeking_) {
-				gdxsv.key_display_.AppendInput(i, input);
-			}
-		}
-
-		if (key_msg_count_ < log_file_.inputs_size()) {
-			++key_msg_count_;
-			if (key_msg_count_ == log_file_.inputs_size() && !takeover_) {
-				Stop();
-			}
-		}
-
-		if (!takeover_ && ctrl_play_speed_ < 0) {
-			recv_delay_ = -ctrl_play_speed_;
-		}
 	} else if (msg_type == McsMessage::MsgType::KeyMsg2) {
 		verify(false);
 	} else if (msg_type == McsMessage::MsgType::LoadEndMsg) {
@@ -1550,8 +2223,8 @@ void GdxsvBackendReplay::RestorePatch() {
 	}
 }
 
-void GdxsvBackendReplay::RenderLoadingHud() {
-	if (!ctrl_loading_ || pause_menu_opend_ || takeover_) {
+void GdxsvBackendReplay::RenderLoadingHud(const UiState& ui) {
+	if (!ui.loading || ui.pauseMenuOpen || ui.takeover) {
 		return;
 	}
 	ImguiStyleVar rounding(ImGuiStyleVar_WindowRounding, uiScaled(8.0f));
@@ -1572,7 +2245,7 @@ void GdxsvBackendReplay::RenderLoadingHud() {
 	ImGui::End();
 }
 
-void GdxsvBackendReplay::RenderPauseMenu() {
+void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	centerNextWindow();
@@ -1582,67 +2255,46 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 	ImGuiWindowFlags window_flags =
 		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
 		ImGuiWindowFlags_NoSavedSettings;
-	if (takeover_countdown_ > 0 || takeover_aligning_) {
+	if (ui.takeoverCountdown > 0 || ui.takeoverAligning) {
 		window_flags |= ImGuiWindowFlags_NoNav;
 	}
 	ImGui::Begin("##gdxsv-replay-pause", NULL, window_flags);
 
-	if (takeover_countdown_ > 0) {
+	if (ui.takeoverCountdown > 0 || ui.takeoverAligning) {
+		ImGui::SetNextFrameWantCaptureKeyboard(false);
 		const u16 current_input = liveTakeoverMcsInput();
-		if (current_input != takeover_target_input_) {
-			takeover_countdown_ = 0;
-			takeover_aligning_ = true;
-			takeover_input_buf_.clear();
-			RenderTakeoverAlignment(current_input);
-			ImGui::End();
-			return;
-		}
-		takeover_countdown_--;
-		takeover_input_buf_.push_back(current_input);
-		if (takeover_countdown_ == 0) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
-		} else {
-			RenderTakeoverCountdown();
-		}
+		ui_commands_.emplace_back(ReplayCtrlCommand::TakeoverInput, current_input);
+		if (ui.NeedsTakeoverAlignment(current_input))
+			RenderTakeoverAlignment(ui, current_input);
+		else
+			RenderTakeoverCountdown(ui);
 		ImGui::End();
 		return;
 	}
 
-	if (takeover_aligning_) {
-		const u16 current_input = liveTakeoverMcsInput();
-		if (current_input == takeover_target_input_) {
-			takeover_aligning_ = false;
-			takeover_countdown_ = 60;
-			takeover_input_buf_.clear();
-			RenderTakeoverCountdown();
-		} else {
-			RenderTakeoverAlignment(current_input);
-		}
-		ImGui::End();
-		return;
-	}
-
-	if (takeover_) {
+	if (ui.takeover) {
 		if (ImGui::Button(ICON_FA_ROTATE_LEFT "  Retry Takeover", ScaledVec2(300, 40))) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
+			ui_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 		}
 		if (ImGui::Button(ICON_FA_BACKWARD "  Back to Pause Menu", ScaledVec2(300, 40))) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
+			ui_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
 		}
 	} else {
-		bool canTakeOver = IsInGame();
-		ImGui::BeginDisabled(!canTakeOver);
-		if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
-			ctrl_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+		// Not in live: takeover disables the pacing trim, the sync barrier, the
+		// intake cap and the starve guard.
+		if (!ui.liveMode) {
+			ImGui::BeginDisabled(!ui.inGame);
+			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
+				ui_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+			}
+			ImGui::EndDisabled();
 		}
-		ImGui::EndDisabled();
 
 		// Round control: buttons
-		if (ChangeRoundAvailable()) {
+		if (ui.canChangeRound) {
 			ImGui::Separator();
 
-			int roundStart, roundEnd, totalRounds;
-			GetRoundReplayBounds(roundStart, roundEnd, totalRounds);
+			const int totalRounds = ui.roundCount;
 
 			ImGui::BeginGroup();
 			float buttonHeight = uiScaled(40.0f);
@@ -1658,55 +2310,55 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 				char label[16];
 				snprintf(label, sizeof(label), "%d", i);
 
-				bool is_current = (i == start_msg_count_);
+				bool is_current = (i == ui.currentRound);
 				if (is_current) {
 					ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
 				}
 
 				if (ImGui::Button(label, ScaledVec2(40, 40))) {
-					BeginLoadingHud();
-					ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, i);
-					pause_menu_opend_ = false;
+					// A round the viewer picked, unlike the automatic jump on
+					// connect, which must keep following.
+					ui_commands_.emplace_back(ReplayCtrlCommand::SetRound, i);
 					SDL_ShowCursor(SDL_ENABLE);
 				}
 
 				if (ImGui::IsItemHovered()) {
 					ImGui::BeginTooltip();
-					if (log_file_.start_at() != 0 && i - 1 < log_file_.start_msg_indexes_size()) {
-						const int roundStart = log_file_.start_msg_indexes(i - 1);
-						const int roundEnd = i < log_file_.start_msg_indexes_size() ? log_file_.start_msg_indexes(i) : log_file_.inputs_size();
-						const double inputSeconds = replayInputSeconds(log_file_);
+					if (ui.startAt != 0 && i - 1 < ui.roundCount) {
+						const int roundStart = ui.rounds[i - 1].startFrame;
+						const int roundEnd = ui.rounds[i - 1].endFrame;
+						const double inputSeconds = ui.inputSeconds;
 						const int startSeconds = static_cast<int>(std::llround(roundStart * inputSeconds));
 						const int endSeconds = static_cast<int>(std::llround(roundEnd * inputSeconds));
-						const std::string startClock = formatLocalClock(static_cast<time_t>(log_file_.start_at() + startSeconds));
-						const std::string endClock = formatLocalClock(static_cast<time_t>(log_file_.start_at() + endSeconds));
+						const std::string startClock = formatLocalClock(static_cast<time_t>(ui.startAt + startSeconds));
+						const std::string endClock = formatLocalClock(static_cast<time_t>(ui.startAt + endSeconds));
 						if (!startClock.empty() && !endClock.empty()) {
 							ImGui::Text("Estimated Time: %s ~ %s", startClock.c_str(), endClock.c_str());
 							ImGui::Separator();
 						}
 					}
-					if (i - 1 < log_file_.round_data_size()) {
-						const auto& rd = log_file_.round_data(i - 1);
-						if (rd.win_team() == 1) {
+					if (ui.rounds[i - 1].hasResult) {
+						const auto& rd = ui.rounds[i - 1];
+						if (rd.winTeam == 1) {
 							ImGui::TextColored(ImVec4(.42f, .79f, .99f, 1), "%s", strprintf(GdxsvLanguage::gdxT("%s Wins"), GdxsvLanguage::gdxT("Federation")).c_str());
-						} else if (rd.win_team() == 2) {
+						} else if (rd.winTeam == 2) {
 							ImGui::TextColored(ImVec4(.97f, .23f, .35f, 1), "%s", strprintf(GdxsvLanguage::gdxT("%s Wins"), GdxsvLanguage::gdxT("Zeon")).c_str());
 						} else {
 							ImGui::TextDisabled("  -  ");
 						}
 
-						if (rd.used_ms_size() > 0) {
+						if (rd.usedMsCount > 0) {
 							std::string renpo_ms, zeon_ms;
-							for (int j = 0; j < rd.used_ms_size(); ++j) {
-								if (j >= log_file_.users_size()) break;
-								int ms_id = rd.used_ms(j);
+							for (int j = 0; j < rd.usedMsCount; ++j) {
+								if (j >= ui.userCount) break;
+								int ms_id = rd.usedMs[j];
 								const char* ms_name = GdxsvLanguage::GetMSName(ms_id - 1);
 								std::string name = (ms_name && strlen(ms_name) > 0 ? ms_name : "Unknown");
 
-								if (log_file_.users(j).team() == 1) {
+								if (ui.userTeams[j] == 1) {
 									if (!renpo_ms.empty()) renpo_ms += " ";
 									renpo_ms += name;
-								} else if (log_file_.users(j).team() == 2) {
+								} else if (ui.userTeams[j] == 2) {
 									if (!zeon_ms.empty()) zeon_ms += " ";
 									zeon_ms += name;
 								}
@@ -1737,41 +2389,50 @@ void GdxsvBackendReplay::RenderPauseMenu() {
 		ImGui::Separator();
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
-		OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
-		OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
+
+		// Key Display and Skip MS Selection do nothing during Live Spectate, so
+		// they are not offered there rather than sitting inert.
+		if (!ui.liveMode) {
+			OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
+			OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection,
+						   "Fast-forward through the mobile suit selection screen");
+		}
 
 		ImGui::Separator();
 
 		if (ImGui::Button(ICON_FA_PLAY "  Resume Playback", ScaledVec2(300, 40))) {
-			ctrl_pause_ = false;
-			ctrl_step_frame_ = false;
+			ui_commands_.emplace_back(ReplayCtrlCommand::ResumePlayback);
 			ctrl_input_release_pending_ = true;
-			pause_menu_opend_ = false;
 			SDL_ShowCursor(SDL_ENABLE);
 		}
 		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit Replay", ScaledVec2(300, 40))) {
-			pause_menu_opend_ = false;
-			Stop();
+			ui_commands_.emplace_back(ReplayCtrlCommand::ExitReplay);
 		}
 	}
 
 	ImGui::End();
 }
 
-void GdxsvBackendReplay::RenderTakeoverAlignment(u16 current_input) {
-	ImGui::SetNextFrameWantCaptureKeyboard(false);
+void GdxsvBackendReplay::RenderTakeoverAlignment(const UiState& ui, u16 current_input) {
 	ImGui::TextUnformatted("Match replay input");
 	ImGui::Separator();
-	ImGui::Text("Replay: %s", formatMcsInput(takeover_target_input_).c_str());
+	ImGui::Text("Replay: %s", formatMcsInput(ui.takeoverTargetInput).c_str());
 	ImGui::Text("Current: %s", formatMcsInput(current_input).c_str());
 	ImGui::Dummy(ScaledVec2(0, 8));
-	if (ImGui::Button(ICON_FA_XMARK "  Cancel", ScaledVec2(300, 40))) {
-		CancelPendingTakeover();
+	if (ImGui::Button(ICON_FA_FORWARD "  Skip Matching", ScaledVec2(300, 40))) {
+		ui_commands_.emplace_back(ReplayCtrlCommand::SkipTakeoverAlignment);
 	}
+	if (ImGui::Button(ICON_FA_XMARK "  Cancel", ScaledVec2(300, 40))) {
+		ui_commands_.emplace_back(ReplayCtrlCommand::CancelTakeover);
+	}
+	ImGui::Dummy(ScaledVec2(0, 8));
+	ImGui::PushTextWrapPos(0.0f);
+	ImGui::TextDisabled("During Takeover, press START to retry, or select \"Retry Takeover\" from the pause menu.");
+	ImGui::PopTextWrapPos();
 }
 
-void GdxsvBackendReplay::RenderTakeoverCountdown() {
-	float progress = 1.0f - (float)takeover_countdown_ / 60.0f;
+void GdxsvBackendReplay::RenderTakeoverCountdown(const UiState& ui) {
+	float progress = 1.0f - (float)ui.takeoverCountdown / 60.0f;
 	float radius = 30.0f * ImGui::GetIO().FontGlobalScale;
 
 	ImGui::Dummy(ScaledVec2(0, 10));
@@ -1830,14 +2491,17 @@ void GdxsvBackendReplay::GetRoundReplayBounds(int& roundStart, int& roundEnd, in
 
 void GdxsvBackendReplay::GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const {
 	GetRoundReplayBounds(timelineStart, timelineEnd, totalRounds);
-	if (config::GdxReplaySkipMsSelection && briefing_start_frame_ > timelineStart &&
+
+	// Live never skips MS selection, so trimming the timeline to the briefing
+	// would leave the scrubber disagreeing with what is on screen.
+	if (config::GdxReplaySkipMsSelection && !live_mode_ && briefing_start_frame_ > timelineStart &&
 		briefing_start_frame_ < timelineEnd && briefing_start_frame_round_ == start_msg_count_) {
 		timelineStart = briefing_start_frame_;
 	}
 }
 
-const char* GdxsvBackendReplay::SpeedText() const {
-	switch (ctrl_play_speed_) {
+const char* GdxsvBackendReplay::SpeedText(int speed) {
+	switch (speed) {
 		case -2: return "33%";
 		case -1: return "50%";
 		case  0: return "100%";
@@ -1847,9 +2511,9 @@ const char* GdxsvBackendReplay::SpeedText() const {
 	}
 }
 
-void GdxsvBackendReplay::UpdateControlBarVisibility() {
-	if (state_ < State::McsInBattle) return;
-	if (takeover_) return;
+void GdxsvBackendReplay::UpdateControlBarVisibility(const UiState& ui) {
+	if (ui.state < State::McsInBattle) return;
+	if (ui.takeover) return;
 
 	ImGuiIO& io = ImGui::GetIO();
 
@@ -1881,6 +2545,14 @@ void GdxsvBackendReplay::UpdateControlBarVisibility() {
 	float dt = io.DeltaTime;
 	ctrl_bar_idle_timer_ = std::max(0.0f, ctrl_bar_idle_timer_ - dt);
 
+	// The bar only shows for a few seconds, so refresh the viewer count as it
+	// appears rather than whenever the interval happens to come round.
+	const bool visible_now = 0.001f < ctrl_bar_visibility_;
+	if (visible_now && !ctrl_bar_was_visible_) {
+		live_viewers_stale_ = true;
+	}
+	ctrl_bar_was_visible_ = visible_now;
+
 	constexpr float fadeSpeed = 4.0f;
 	if (ctrl_bar_idle_timer_ > 0.0f) {
 		ctrl_bar_visibility_ = std::min(1.0f, ctrl_bar_visibility_ + dt * fadeSpeed);
@@ -1889,9 +2561,9 @@ void GdxsvBackendReplay::UpdateControlBarVisibility() {
 	}
 }
 
-void GdxsvBackendReplay::RenderControlBar() {
-	if (state_ < State::McsInBattle) return;
-	if (takeover_) return;
+void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
+	if (ui.state < State::McsInBattle) return;
+	if (ui.takeover) return;
 	if (ctrl_bar_visibility_ <= 0.001f) return;
 
 	const float alpha = ctrl_bar_visibility_;
@@ -1900,18 +2572,38 @@ void GdxsvBackendReplay::RenderControlBar() {
 
 	// Bar dimensions
 	const float barH = uiScaled(36.0f);
-	const float barW = displaySize.x * 0.85f;
-	const float barX = (displaySize.x - barW) * 0.5f;
-	const float barY = displaySize.y - barH - uiScaled(20.0f);
 	const float rounding = uiScaled(8.0f);
 	const float pad = uiScaled(8.0f);
+
+	// Live Spectate puts a Live pill to the left of the bar, as its own rounded
+	// rect, so the two read as separate controls.
+	const float liveGap = uiScaled(8.0f);
+	const float liveDotR = uiScaled(4.0f);
+	const float liveW = ui.liveMode ? (pad + liveDotR * 2.0f + pad * 0.75f + ImGui::CalcTextSize("Live").x + pad) : 0.0f;
+
+	// Viewer count on the right, so the bar sits centred between two pills
+	// rather than being pushed off-centre by the Live one.
+	live_viewers_ = ui.liveMode ? gdxsv_live_viewer_count(ui.battleCode, live_viewers_stale_) : 0;
+	live_viewers_stale_ = false;
+	char viewersProbe[32] = {};
+	snprintf(viewersProbe, sizeof(viewersProbe), ICON_FA_EYE " %d", live_viewers_);
+	const float viewersW = ui.liveMode ? (pad + ImGui::CalcTextSize(viewersProbe).x + pad) : 0.0f;
+
+	const float sideW = ui.liveMode ? (liveW + liveGap + viewersW + liveGap) : 0.0f;
+	const float barW = displaySize.x * 0.85f - sideW;
+	const float totalW = barW + sideW;
+	const float totalX = (displaySize.x - totalW) * 0.5f;
+	const float liveX = totalX;
+	const float barX = totalX + (ui.liveMode ? liveW + liveGap : 0.0f);
+	const float viewersX = barX + barW + liveGap;
+	const float barY = displaySize.y - barH - uiScaled(20.0f);
 
 	// Create a transparent overlay window. The drawn progress track has an invisible hit target for dragging.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	ImGui::SetNextWindowPos(ImVec2(barX, barY));
-	ImGui::SetNextWindowSize(ImVec2(barW, barH));
+	ImGui::SetNextWindowPos(ImVec2(totalX, barY));
+	ImGui::SetNextWindowSize(ImVec2(totalW, barH));
 	ImGui::SetNextWindowBgAlpha(0.0f);
 	ImGui::Begin("##gdxsv-replay-ctrlbar", nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
@@ -1939,87 +2631,167 @@ void GdxsvBackendReplay::RenderControlBar() {
 		return IM_COL32(255, 255, 255, (int)(brightness * alpha));
 	};
 	const ImU32 disabledCol = IM_COL32(120, 120, 120, (int)(120 * alpha));
-	auto iconButton = [&](const char* id, ImVec2 center, ImVec2 size, bool enabled) -> bool {
-		const float hitW = std::max(size.x + uiScaled(8.0f), uiScaled(20.0f));
-		const float hitH = std::max(size.y + uiScaled(6.0f), uiScaled(18.0f));
-		ImGui::SetCursorScreenPos(ImVec2(center.x - hitW * 0.5f, center.y - hitH * 0.5f));
-		ImGui::InvisibleButton(id, ImVec2(hitW, hitH));
+
+	auto iconButton = [&](const char* id, ImVec2 center, ImVec2 hitSize, bool enabled) -> bool {
+		ImGui::SetCursorScreenPos(center - hitSize * 0.5f);
+		ImGui::InvisibleButton(id, hitSize);
 		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
 			ctrl_bar_idle_timer_ = 3.0f;
 		}
 		return enabled && ImGui::IsItemClicked(ImGuiMouseButton_Left);
 	};
 
+	// Draw above the bar without clipping to its window or taking mouse focus.
+	auto hoverOverlay = [&](const std::string& text, float anchorX) {
+		ctrl_bar_idle_timer_ = 3.0f;
+		const ImVec2 padding = ScaledVec2(8.0f, 5.0f);
+		const float wrapWidth = std::max(1.0f, displaySize.x - pad * 2.0f - padding.x * 2.0f);
+		const ImVec2 size = ImGui::CalcTextSize(text.c_str(), nullptr, false, wrapWidth) + padding * 2.0f;
+		const float x = std::clamp(anchorX - size.x * 0.5f, pad, std::max(pad, displaySize.x - pad - size.x));
+		const float y = std::max(pad, barY - uiScaled(8.0f) - size.y);
+		const ImVec2 pos(x, y);
+		ImDrawList* overlay = ImGui::GetForegroundDrawList();
+		overlay->AddRectFilled(pos, pos + size, IM_COL32(20, 20, 20, (int)(235 * alpha)), uiScaled(4.0f));
+		overlay->AddText(ImGui::GetFont(), ImGui::GetFontSize(), pos + padding, textCol, text.c_str(), nullptr, wrapWidth);
+	};
+	auto controlTooltip = [&](const char* label, const char* button = nullptr, const char* detail = nullptr) {
+		if (!ImGui::IsItemHovered() && !ImGui::IsItemActive()) return;
+		std::string text = label;
+		if (button != nullptr) text += std::string(" (") + button + ")";
+		if (detail != nullptr) text += std::string("\n") + detail;
+		hoverOverlay(text, (ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5f);
+	};
+
+	// Live pill: a dot and the word Live, red while chasing the live edge and
+	// grey once the viewer has moved somewhere else. Clicking it resumes the
+	// chase - the catch-up seek does the actual travelling.
+	if (ui.liveMode) {
+		dl->AddRectFilled(ImVec2(liveX, barY), ImVec2(liveX + liveW, barY + barH), bgCol, rounding);
+
+		const ImU32 liveOn = IM_COL32(255, 60, 60, (int)(255 * alpha));
+		const ImU32 liveOff = IM_COL32(150, 150, 150, (int)(200 * alpha));
+		const ImU32 dotCol = ui.liveAtEdge ? liveOn : liveOff;
+
+		const float dotX = liveX + pad + liveDotR;
+		dl->AddCircleFilled(ImVec2(dotX, barY + barH * 0.5f), liveDotR, dotCol);
+
+		const ImVec2 liveTextSize = ImGui::CalcTextSize("Live");
+		dl->AddText(ImVec2(dotX + liveDotR + pad * 0.75f, barY + (barH - liveTextSize.y) * 0.5f),
+					ui.liveAtEdge ? textCol : liveOff, "Live");
+
+		if (iconButton("##gdxsv-live", ImVec2(liveX + liveW * 0.5f, barY + barH * 0.5f), ImVec2(liveW, barH), !ui.liveAtEdge)) {
+			ui_commands_.emplace_back(ReplayCtrlCommand::FollowLive);
+		}
+		if (!ui.liveAtEdge)
+			controlTooltip("Skip ahead to live");
+	}
+
+	// Viewer count on the right, balancing the Live pill on the left.
+	if (ui.liveMode && 0 < viewersW) {
+		dl->AddRectFilled(ImVec2(viewersX, barY), ImVec2(viewersX + viewersW, barY + barH), bgCol, rounding);
+		char viewersTxt[32] = {};
+		snprintf(viewersTxt, sizeof(viewersTxt), ICON_FA_EYE " %d", live_viewers_);
+		const ImVec2 vSize = ImGui::CalcTextSize(viewersTxt);
+		dl->AddText(ImVec2(viewersX + (viewersW - vSize.x) * 0.5f, barY + (barH - vSize.y) * 0.5f), textCol, viewersTxt);
+		iconButton("##gdxsv-viewers", ImVec2(viewersX + viewersW * 0.5f, barY + barH * 0.5f), ImVec2(viewersW, barH), false);
+		char viewersHint[48];
+		snprintf(viewersHint, sizeof(viewersHint), "%d watching now", live_viewers_);
+		controlTooltip(viewersHint);
+	}
+
 	// Layout positions
 	float cx = barX + pad;
 	const float cy = barY + barH * 0.5f;
 
 	// --- Left: Play/Pause icon + Up/Down guide + speed + Left/Right guide ---
-	const char* stateIcon = ctrl_pause_ ? ICON_FA_PAUSE : ICON_FA_PLAY;
+	const char* stateIcon = ui.paused ? ICON_FA_PLAY : ICON_FA_PAUSE;
 	ImVec2 iconSize = ImGui::CalcTextSize(stateIcon);
-	// Fixed-width slot for play/pause icon to prevent layout shift
-	float iconSlotW = std::max(ImGui::CalcTextSize(ICON_FA_PLAY).x, ImGui::CalcTextSize(ICON_FA_PAUSE).x);
+	// Fixed, non-overlapping hit slots keep both the icons and hover targets stable.
+	float iconSlotW = std::max({ImGui::CalcTextSize(ICON_FA_PLAY).x, ImGui::CalcTextSize(ICON_FA_PAUSE).x, uiScaled(20.0f)});
 	float iconOfs = (iconSlotW - iconSize.x) * 0.5f;
 	const ImVec2 stateIconPos(cx + iconOfs, cy - iconSize.y * 0.5f);
 	dl->AddText(stateIconPos, textCol, stateIcon);
-	if (iconButton("##gdxsv-play-pause", ImVec2(cx + iconSlotW * 0.5f, cy), ImVec2(iconSlotW, iconSize.y), true)) {
-		ctrl_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
+	if (iconButton("##gdxsv-play-pause", ImVec2(cx + iconSlotW * 0.5f, cy), ImVec2(iconSlotW, barH), true)) {
+		ui_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
 	}
-	cx += iconSlotW + uiScaled(10.0f);
+	controlTooltip(ui.paused ? "Play" : "Pause", "A");
+	cx += iconSlotW + uiScaled(6.0f);
 
 	// Up/Down guide icons (for speed control)
 	ImVec2 udSize = ImGui::CalcTextSize(ICON_FA_ANGLE_UP);
-	const bool canSpeedUp = ctrl_play_speed_ < 2;
-	const bool canSpeedDown = ctrl_play_speed_ > -2;
-	const ImVec2 upPos(cx, cy - udSize.y - uiScaled(1.0f));
-	const ImVec2 downPos(cx, cy + uiScaled(1.0f));
+	const float udSlotW = std::max(udSize.x, uiScaled(20.0f));
+	const bool canSpeedUp = ui.playSpeed < 2;
+	const bool canSpeedDown = ui.playSpeed > -2;
+	const ImVec2 upCenter(cx + udSlotW * 0.5f, barY + barH * 0.25f);
+	const ImVec2 downCenter(cx + udSlotW * 0.5f, barY + barH * 0.75f);
+	const ImVec2 upPos = upCenter - udSize * 0.5f;
+	const ImVec2 downPos = downCenter - udSize * 0.5f;
 	dl->AddText(upPos, canSpeedUp ? flashCol(flash_up_) : disabledCol, ICON_FA_ANGLE_UP);
 	dl->AddText(downPos, canSpeedDown ? flashCol(flash_down_) : disabledCol, ICON_FA_ANGLE_DOWN);
-	if (iconButton("##gdxsv-speed-up", ImVec2(upPos.x + udSize.x * 0.5f, upPos.y + udSize.y * 0.5f), udSize, canSpeedUp)) {
-		ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
+	if (iconButton("##gdxsv-speed-up", upCenter, ImVec2(udSlotW, barH * 0.5f), canSpeedUp)) {
+		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
 		flash_up_ = 0.3f;
 	}
-	if (iconButton("##gdxsv-speed-down", ImVec2(downPos.x + udSize.x * 0.5f, downPos.y + udSize.y * 0.5f), udSize, canSpeedDown)) {
-		ctrl_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
+	controlTooltip(ICON_FA_ARROW_UP " Speed", "D-pad Up");
+	if (iconButton("##gdxsv-speed-down", downCenter, ImVec2(udSlotW, barH * 0.5f), canSpeedDown)) {
+		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 		flash_down_ = 0.3f;
 	}
-	cx += udSize.x + uiScaled(4.0f);
+	controlTooltip(ICON_FA_ARROW_DOWN " Speed", "D-pad Down");
+	cx += udSlotW + uiScaled(4.0f);
 
-	const char* speedTxt = SpeedText();
+	const char* speedTxt = SpeedText(ui.playSpeed);
 	ImVec2 speedSize = ImGui::CalcTextSize(speedTxt);
 	dl->AddText(ImVec2(cx, cy - speedSize.y * 0.5f), textCol, speedTxt);
+	iconButton("##gdxsv-current-speed", ImVec2(cx + speedSize.x * 0.5f, cy), ImVec2(speedSize.x, barH), false);
+	controlTooltip("Current speed");
 	cx += speedSize.x + uiScaled(10.0f);
 
 	// Left/Right guide icons (for seek/step) - placed next to each other
 	ImVec2 lrSize = ImGui::CalcTextSize(ICON_FA_ANGLE_LEFT);
-	const ImVec2 leftPos(cx, cy - lrSize.y * 0.5f);
+	const float lrSlotW = std::max(lrSize.x, uiScaled(20.0f));
+	const ImVec2 leftCenter(cx + lrSlotW * 0.5f, cy);
+	const ImVec2 leftPos = leftCenter - lrSize * 0.5f;
+	char backwardLabel[32], forwardLabel[32], seekDetail[64];
+	if (ui.paused) {
+		snprintf(backwardLabel, sizeof(backwardLabel), "- 1 frame");
+		snprintf(forwardLabel, sizeof(forwardLabel), "+ 1 frame");
+	} else {
+		snprintf(backwardLabel, sizeof(backwardLabel), "- %.0fs", ReplaySeekFrames / 59.94);
+		snprintf(forwardLabel, sizeof(forwardLabel), "+ %.0fs", ReplaySeekFrames / 59.94);
+	}
+	snprintf(seekDetail, sizeof(seekDetail), "%d frames; hold D-pad to repeat", ReplaySeekFrames);
 	dl->AddText(leftPos, flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
-	if (iconButton("##gdxsv-prev", ImVec2(leftPos.x + lrSize.x * 0.5f, leftPos.y + lrSize.y * 0.5f), lrSize, true)) {
-		ctrl_commands_.emplace_back(ctrl_pause_ ? ReplayCtrlCommand::StepFrameBackward : ReplayCtrlCommand::SeekBackward);
+	if (iconButton("##gdxsv-prev", leftCenter, ImVec2(lrSlotW, barH), true)) {
+		ui_commands_.emplace_back(ui.paused ? ReplayCtrlCommand::StepFrameBackward : ReplayCtrlCommand::SeekBackward);
 		flash_left_ = 0.3f;
 	}
-	cx += lrSize.x + uiScaled(2.0f);
-	const ImVec2 rightPos(cx, cy - lrSize.y * 0.5f);
+	controlTooltip(backwardLabel, "D-pad Left", ui.paused ? "Hold D-pad to repeat" : seekDetail);
+	cx += lrSlotW + uiScaled(2.0f);
+	const ImVec2 rightCenter(cx + lrSlotW * 0.5f, cy);
+	const ImVec2 rightPos = rightCenter - lrSize * 0.5f;
 	dl->AddText(rightPos, flashCol(flash_right_), ICON_FA_ANGLE_RIGHT);
-	if (iconButton("##gdxsv-next", ImVec2(rightPos.x + lrSize.x * 0.5f, rightPos.y + lrSize.y * 0.5f), lrSize, true)) {
-		ctrl_commands_.emplace_back(ctrl_pause_ ? ReplayCtrlCommand::StepFrame : ReplayCtrlCommand::SeekForward);
+	if (iconButton("##gdxsv-next", rightCenter, ImVec2(lrSlotW, barH), true)) {
+		ui_commands_.emplace_back(ui.paused ? ReplayCtrlCommand::StepFrame : ReplayCtrlCommand::SeekForward);
 		flash_right_ = 0.3f;
 	}
-	cx += lrSize.x + uiScaled(6.0f);
+	controlTooltip(forwardLabel, "D-pad Right", ui.paused ? "Hold D-pad to repeat" : seekDetail);
+	cx += lrSlotW + uiScaled(6.0f);
 
 	// --- Right: Round/Frame info ---
-	int timelineStart, timelineEnd, totalRounds;
-	GetControlTimelineBounds(timelineStart, timelineEnd, totalRounds);
+	const int timelineStart = ui.timelineStart;
+	const int timelineEnd = ui.timelineEnd;
+	const int totalRounds = ui.roundCount;
 
 	const int timelineLen = timelineEnd - timelineStart;
-	const int displayFrame = ctrl_bar_drag_target_frame_ >= 0 ? ctrl_bar_drag_target_frame_ : key_msg_count_;
+	const int displayFrame = ctrl_bar_drag_target_frame_ >= 0 ? ctrl_bar_drag_target_frame_ : ui.playbackFrame;
 	const int displayPosInTimeline = displayFrame - timelineStart;
 
 	char rbuf[128];
 	if (totalRounds > 0) {
-		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", start_msg_count_, totalRounds, displayFrame, log_file_.inputs_size());
+		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", ui.currentRound, totalRounds, displayFrame, ui.inputCount);
 	} else {
-		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", displayFrame, log_file_.inputs_size());
+		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", displayFrame, ui.inputCount);
 	}
 
 	ImVec2 rSize = ImGui::CalcTextSize(rbuf);
@@ -2037,9 +2809,7 @@ void GdxsvBackendReplay::RenderControlBar() {
 	if (progX1 > progX0 + uiScaled(20.0f)) {
 		const float progW = progX1 - progX0;
 		auto frameFromProgressX = [&](float x) -> int {
-			const float progress = std::clamp((x - progX0) / progW, 0.0f, 1.0f);
-			const int target = timelineStart + (int)(progress * (float)std::max(timelineLen, 0) + 0.5f);
-			return std::clamp(target, timelineStart, timelineEnd);
+			return ui.FrameAtProgress((x - progX0) / progW);
 		};
 
 		const float hitH = uiScaled(24.0f);
@@ -2047,6 +2817,9 @@ void GdxsvBackendReplay::RenderControlBar() {
 		ImGui::InvisibleButton("##gdxsv-replay-progress-slider", ImVec2(progW, hitH));
 		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
 			ctrl_bar_idle_timer_ = 3.0f;
+			char targetFrame[32];
+			snprintf(targetFrame, sizeof(targetFrame), "Frame %d", frameFromProgressX(ImGui::GetIO().MousePos.x));
+			hoverOverlay(targetFrame, std::clamp(ImGui::GetIO().MousePos.x, progX0, progX1));
 		}
 		if (ImGui::IsItemActivated() || ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
 			ctrl_bar_dragging_ = true;
@@ -2059,9 +2832,10 @@ void GdxsvBackendReplay::RenderControlBar() {
 		}
 
 		if (ctrl_bar_dragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-			if (ctrl_bar_drag_target_frame_ >= 0 && ctrl_bar_drag_target_frame_ != key_msg_count_) {
-				BeginLoadingHud();
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, ctrl_bar_drag_target_frame_);
+			if (ctrl_bar_drag_target_frame_ >= 0 && ctrl_bar_drag_target_frame_ != ui.playbackFrame) {
+				// Going somewhere on purpose stops the chase, or the catch-up
+				// would drag the viewer straight back to the live edge.
+				ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, ctrl_bar_drag_target_frame_);
 			} else {
 				ctrl_bar_drag_target_frame_ = -1;
 			}

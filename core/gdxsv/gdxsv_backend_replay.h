@@ -1,24 +1,29 @@
 #pragma once
+#include <chrono>
+
+#include "gdxsv_spectate_sync.h"
 
 #include "gdxsv.pb.h"
+#include "gdxsv_replay_ui.h"
 #include "gdxsv_save_state.h"
+#include "gdxsv_spectator_downlink.h"
 #include "lbs_message.h"
 #include "mcs_message.h"
 #include "types.h"
 
+// LBS's lobby port, shared by TCP lobby traffic and the spectator UDP
+// channel (see serveUDP in lbs.go). A normal client never needs it spelled
+// out: the game itself supplies the port via gdx_rpc's SOCK_OPEN request
+// (see Gdxsv::HandleRPC), and only the host comes from config. A spectator
+// never runs that lobby-connect flow, so it has nothing to read it from.
+constexpr int kGdxsvLbsPort = 9876;
+
 // Mock network implementation to replay local battle log
 class GdxsvBackendReplay {
+   friend class GdxsvReplayInputTest;
+
    public:
-	enum class State {
-		None,
-		Start,
-		LbsStartBattleFlow,
-		McsWaitJoin,
-		McsSessionExchange,
-		McsInBattle,
-		McsWaitStartMsg,
-		End,
-	};
+	using State = GdxsvReplayUiState::State;
 
 	void Reset();
 	void OnMainUiLoop();
@@ -29,8 +34,13 @@ class GdxsvBackendReplay {
 
 	bool StartFile(const char* path, int pov);
 	bool StartBuffer(const std::vector<u8>& buf, int pov);
+
+	// Starts Live Spectate: subscribes to LBS's spectator UDP channel,
+	// bootstraps from the header it sends, and then plays back like a normal
+	// buffer replay - except it holds at the live edge for more data instead
+	// of stopping when it catches up.
+	bool StartLive(const std::string& host, const std::string& battle_code, int pov);
 	void Stop();
-	bool ChangeRoundAvailable() const;
 
 	// Network Backend Interface
 	void Open();
@@ -40,12 +50,19 @@ class GdxsvBackendReplay {
 	u32 OnSockPoll();
 
    private:
+	using UiState = GdxsvReplayUiState;
+	static constexpr int ReplaySeekFrames = 60;
+	void PublishUiState();
+	void ProcessUiCommands();
+	void UpdateReplayFlow();
+	void OnNextFrameInternal();
 	bool Start();
 	bool IsInBriefing() const;
 	bool IsInGame() const;
 	void PrintDisconnectionSummary() const;
 	void ProcessLbsMessage();
 	void ProcessMcsMessage(const McsMessage& msg);
+	void DeliverKeyMsgBatch();
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void BeginSilentSeek();
@@ -57,16 +74,29 @@ class GdxsvBackendReplay {
 	void PrepareRoundStartReplayState();
 	void RebuildKeyDisplay() const;
 	void BeginLoadingHud();
+	void BeginTakeoverAlignment(u16 target_input);
 	void CancelPendingTakeover();
-	void RenderPauseMenu();
-	void RenderTakeoverAlignment(u16 current_input);
-	void RenderTakeoverCountdown();
-	void UpdateControlBarVisibility();
-	void RenderControlBar();
-	void RenderLoadingHud();
+	void RenderPauseMenu(const UiState& ui);
+	void RenderTakeoverAlignment(const UiState& ui, u16 current_input);
+	void RenderTakeoverCountdown(const UiState& ui);
+	void UpdateControlBarVisibility(const UiState& ui);
+	void RenderControlBar(const UiState& ui);
+	void RenderLoadingHud(const UiState& ui);
 	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
 	void GetControlTimelineBounds(int& timelineStart, int& timelineEnd, int& totalRounds) const;
-	const char* SpeedText() const;
+	static const char* SpeedText(int speed);
+
+	// The UDP worker stages deltas. OnNextFrame folds them into log_file_ on
+	// the emulation thread; the UI reads only the published display snapshot.
+	void CheckLiveUpdate();
+
+	// Steers the main loop's frame period so playback holds live_buffer_frames_
+	// behind the edge. Small, continuous corrections instead of whole-frame
+	// stalls - see gdxsv_frame_period_trim_us.
+	void UpdateFramePacing();
+
+	// Live Spectate buffer readout, drawn next to the FPS counter.
+	void DisplayLivePacingOSD(const UiState& ui);
 
 	struct ReplayCtrlCommand {
 		enum Command {
@@ -92,6 +122,12 @@ class GdxsvBackendReplay {
 			StartTakeover,
 			RetryTakeover,
 			ReturnToReplay,
+			FollowLive,
+			ResumePlayback,
+			ExitReplay,
+			CancelTakeover,
+			SkipTakeoverAlignment,
+			TakeoverInput,
 		};
 
 		ReplayCtrlCommand() = default;
@@ -151,8 +187,14 @@ class GdxsvBackendReplay {
 	};
 
 	State state_ = State::None;
+	GdxsvReplayUiSnapshot ui_snapshot_;
+	// UI requests are applied on the emulation thread before catch-up decides
+	// what to queue. ctrl_commands_ also holds internal seek/start work.
+	CommandQueue ui_commands_;
 	CommandQueue ctrl_commands_;
 	LbsMessageReader lbs_tx_reader_;
+	// Emulation-thread owned after Start; initialization/reset require a
+	// stopped emulator. No UI function may read the protobuf directly.
 	proto::BattleLogFile log_file_;
 	std::deque<u8> recv_buf_;
 	int pov_ = 0;
@@ -166,18 +208,21 @@ class GdxsvBackendReplay {
 	int target_round_ = 0;
 	int target_frame_ = 0;
 	bool pause_menu_opend_ = false;
-	bool lbs_first_skip_ = false;
 	int ctrl_play_speed_ = 0;
 	bool ctrl_step_frame_ = false;
 	bool ctrl_pause_ = false;
 	bool ctrl_loading_ = false;
 	int ctrl_loading_wait_frames_ = 0;
 	bool save_converted_log_ = false;
+	uint64_t timeline_revision_ = 0;
+	int audio_fade_frames_ = 0;
 
+	// UI-thread owned presentation/input state, reset before playback starts.
+	bool lbs_first_skip_ = false;
+	uint64_t displayed_timeline_revision_ = 0;
 	float ctrl_bar_visibility_ = 0.0f;
 	float ctrl_bar_idle_timer_ = 0.0f;
 	u32 ctrl_bar_prev_kcode_ = ~0u;
-	int audio_fade_frames_ = 0;
 	float step_hold_timer_ = 0.0f;
 	float flash_left_ = 0.0f;
 	float flash_right_ = 0.0f;
@@ -189,10 +234,68 @@ class GdxsvBackendReplay {
 	int ctrl_bar_drag_target_frame_ = -1;
 	bool ctrl_input_release_pending_ = false;
 
+	// ---- Live Spectate ----
+	// Replays a match that is still being played: live_downlink_ feeds log_file_
+	// as frames arrive, instead of it being read whole from a file up front.
+	bool live_mode_ = false;
+	GdxsvSpectatorDownlink live_downlink_;
+
+	// True while playback is far enough behind live to warrant a skip-render
+	// seek. Measured from the gap each frame, not latched.
+	bool live_catching_up_ = true;
+
+	// Whether playback is chasing the live edge. Cleared when the viewer moves
+	// somewhere deliberately, so the catch-up does not drag them straight back;
+	// the Live button sets it again. Same idea as YouTube's live indicator.
+	bool live_following_ = true;
+
+	// Whether playback is actually at the live edge, however it got there. The
+	// Live indicator reads this rather than live_following_, so it reports
+	// position instead of intent.
+	bool live_at_edge_ = false;
+
+	// UI-thread viewer count, refreshed by gdxsv_live_viewer_count.
+	int live_viewers_ = 0;
+
+	// Set when the control bar appears, so the count is fetched fresh for the
+	// few seconds it is on screen rather than shown stale from last time.
+	bool live_viewers_stale_ = true;
+	bool ctrl_bar_was_visible_ = false;
+
+	// True while the initial jump to the live match's current round is still
+	// in flight (queued SeekToBriefing -> SetRound). Live catch-up must not
+	// run during that window - see the catch-up gate in OnNextFrame.
+	bool live_round_jump_pending_ = false;
+
+	// How far behind the newest available frame playback aims to sit, in
+	// frames. Loaded from gdxsv:LiveBufferFrames, default kLiveDefaultBuffer.
+	// Sized purely for smoothness: frames arrive in clumps, so 1 leaves no
+	// cushion and stutters on every gap.
+	int live_buffer_frames_ = 30;
+
+	// Frame-period pacing, which holds the buffer at live_buffer_frames_.
+	int pacing_last_recv_ = -1;
+	int pacing_stall_frames_ = 0;
+	double pacing_rate_hz_ = 59.94;
+	int pacing_rate_recv_ = 0;
+	std::chrono::steady_clock::time_point pacing_rate_time_{};
+	double pacing_integral_ = 0.0;
+
+	// Intake cap, which keeps consumption on the frame clock.
+	u32 deliver_last_mainui_ = 0xffffffffu;
+	int deliver_this_frame_ = 0;
+
+	// Local multi-instance sync, which holds several spectators on one machine
+	// to the same frame. Inactive unless gdxsv:SpectateSyncGroup is set.
+	GdxsvSpectateSync spectate_sync_;
+	int sync_subframe_ = 0;
+	int sync_max_wait_ms_ = 2;
+
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
 	int takeover_countdown_ = 0;
 	bool takeover_aligning_ = false;
+	bool takeover_skip_input_matching_ = false;
 	u16 takeover_target_input_ = 0;
 	std::deque<u16> takeover_input_buf_;
 };

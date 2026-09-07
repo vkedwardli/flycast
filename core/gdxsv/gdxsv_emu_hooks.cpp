@@ -1,6 +1,8 @@
 #include "gdxsv_emu_hooks.h"
 
+#include <chrono>
 #include <regex>
+#include <thread>
 #include <sstream>
 
 #include "cfg/cfg.h"
@@ -29,6 +31,8 @@ static void wireless_warning_popup(const std::string& connection_medium);
 static void vpn_warning_toast(const std::string& connection_medium);
 static void p2p_connection_toast();
 
+std::atomic<int> gdxsv_frame_period_trim_us{0};
+
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
@@ -45,12 +49,32 @@ void gdxsv_emu_start() {
 	gdxsv.Reset();
 
 	if (gdxsv.Enabled()) {
-		auto replay = config::loadStr("gdxsv", "replay", "");
-		if (!replay.empty()) {
-			dc_savestate(90);
-			dc_loadstate(99);
-		} else if (!config::loadStr("gdxsv", "rbk_test", "").empty()) {
-			dc_loadstate(99);
+		const auto replay = config::loadStr("gdxsv", "replay", "");
+		const auto spectate = config::loadStr("gdxsv", "spectate", "");
+		const auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
+
+		if (!replay.empty() || !spectate.empty()) {
+			// Both resume from the shared slot-99 bootstrap savestate;
+			// gdxsv_emu_loadstate picks which of the two to start from the
+			// same config once the state is loaded.
+			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+				// Start every instance from one wall-clock instant. Launch time
+				// varies by seconds, and that offset would otherwise show up as
+				// drift the sync had no way to remove.
+				const int sync_at = config::loadInt("gdxsv", "SyncStartTime", 0);
+				if (0 < sync_at) {
+					NOTICE_LOG(COMMON, "waiting until SyncStartTime %d to load state", sync_at);
+					std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(sync_at));
+				}
+				if (gdxsv.IsSaveStateAllowed()) {
+					dc_savestate(90);
+				}
+				dc_loadstate(99);
+			}
+		} else if (!rbk_test.empty()) {
+			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+				dc_loadstate(99);
+			}
 		} else {
 			gdxsv.StartPingTest();
 			gui_setState(GuiState::GdxsvLatencyCheck);
@@ -103,9 +127,22 @@ void gdxsv_emu_savestate(int slot) {
 void gdxsv_emu_loadstate(int slot) {
 	if (gdxsv.Enabled()) {
 		auto replay = config::loadStr("gdxsv", "replay", "");
+		auto spectate = config::loadStr("gdxsv", "spectate", "");
+
+		// One backend, one source: replay wins.
+		if (!replay.empty() && !spectate.empty()) {
+			NOTICE_LOG(COMMON, "gdxsv:replay and gdxsv:spectate are both set; ignoring spectate=%s", spectate.c_str());
+			spectate.clear();
+		}
+
 		if (!replay.empty() && slot == 99) {
 			auto replay_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
 			gdxsv.StartReplayFile(replay.c_str(), replay_pov - 1);
+		}
+
+		if (!spectate.empty() && slot == 99) {
+			auto spectate_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
+			gdxsv.StartLiveSpectate(spectate.c_str(), spectate_pov - 1);
 		}
 
 		auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");

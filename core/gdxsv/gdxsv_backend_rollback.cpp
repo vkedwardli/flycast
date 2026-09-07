@@ -103,6 +103,7 @@ void GdxsvBackendRollback::Reset() {
 	matching_.Clear();
 	report_.Clear();
 	ping_pong_.Reset();
+	spectator_uplink_.Stop();
 	start_network_ = std::future<bool>();
 
 	start_at_ = 0;
@@ -110,6 +111,9 @@ void GdxsvBackendRollback::Reset() {
 	start_msg_indexes_.clear();
 	start_msg_randoms_.clear();
 	round_data_.clear();
+	spectator_flushed_inputs_ = 0;
+	spectator_flushed_round_events_ = 0;
+	pending_spectator_round_results_.clear();
 
 	ggpo::stopSession();
 	gdxsv.key_display_.Clear();
@@ -407,6 +411,8 @@ void GdxsvBackendRollback::Prepare(const proto::P2PMatching& matching, int port)
 		}
 	}
 	ping_pong_.Start(matching.session_id(), matching.peer_id(), port, matching.ping_test_duration());
+	spectator_uplink_.Start(gdxsv.lbs_net_.RemoteHost(), gdxsv.lbs_net_.RemotePort(), matching.battle_code(),
+							 matching.session_id(), matching.is_training_game());
 
 	report_.Clear();
 	report_.set_battle_code(matching.battle_code());
@@ -446,6 +452,9 @@ void GdxsvBackendRollback::Close() {
 	osd_network_stat_ = false;
 	error_fast_return_ = false;
 	SaveReplay();
+	// Finish ACK-tracked round/input retries before returning to the lobby,
+	// where P2PMatchingReport tells LBS to close the spectator recording.
+	spectator_uplink_.Stop(true);
 	gdxsv.key_display_.enabled(false);
 	state_ = State::Closed;
 	EventManager::event(Event::GGPOGameEnd);
@@ -458,6 +467,48 @@ void GdxsvBackendRollback::ResetGgpoGameRendererState() {
 	}
 	ggpo_game_renderer_reset_ = true;
 	EventManager::event(Event::GGPOGameEnd);
+}
+
+void GdxsvBackendRollback::FlushConfirmedToSpectatorUplink() {
+	if (matching_.is_training_game() || !ggpo::active()) {
+		return;
+	}
+	// Highest frame GGPO can no longer roll back, derived from public API so
+	// no GGPO source needs patching: GetPredictedFrames() is simply
+	// (framecount - last_confirmed_frame), and it is already surfaced as
+	// stats.sync.predicted_frames.
+	int current_frame = 0;
+	if (!ggpo::getCurrentFrame(&current_frame)) {
+		return;
+	}
+	ggpo::NetworkStats stats{};
+	ggpo::getNetworkStats(matching_.peer_id(), &stats);
+	const int confirmed_frame = current_frame - stats.sync.predicted_frames;
+
+	while (spectator_flushed_inputs_ < static_cast<int32_t>(input_logs_.size()) &&
+		   input_logs_[spectator_flushed_inputs_].first <= confirmed_frame) {
+		spectator_uplink_.PushInput(spectator_flushed_inputs_, input_logs_[spectator_flushed_inputs_].second);
+		++spectator_flushed_inputs_;
+	}
+
+	while (spectator_flushed_round_events_ < static_cast<int32_t>(start_msg_indexes_.size()) &&
+		   start_msg_indexes_[spectator_flushed_round_events_].first <= confirmed_frame) {
+		const int idx = spectator_flushed_round_events_;
+		spectator_uplink_.PushRoundEvent(start_msg_indexes_[idx].second, static_cast<uint64_t>(start_msg_randoms_[idx].second));
+		++spectator_flushed_round_events_;
+	}
+
+	for (auto it = pending_spectator_round_results_.begin(); it != pending_spectator_round_results_.end();) {
+		if (it->first <= confirmed_frame) {
+			const int32_t round_index = it->second;
+			const auto& round = round_data_[round_index];
+			spectator_uplink_.PushRoundResult(round_index, round.win_team(),
+											   std::vector<int32_t>(round.used_ms().begin(), round.used_ms().end()));
+			it = pending_spectator_round_results_.erase(it);
+		} else {
+			++it;
+		}
+	}
 }
 
 u32 GdxsvBackendRollback::OnSockWrite(u32 addr, u32 size) {
@@ -522,6 +573,11 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			input_logs_.pop_back();
 		}
 		if (!matching_.is_training_game()) {
+			// Runs on every simulation pass, speculative and rollback alike.
+			// Pushing to spectator_uplink_ from here would leak mispredicted
+			// values whenever the ack beats GGPO's rollback window. So only
+			// touch the local record; FlushConfirmedToSpectatorUplink pushes
+			// once GGPO confirms the frame can't change.
 			input_logs_.emplace_back(frame, inputs);
 		}
 		return inputs;
@@ -578,6 +634,10 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			round_data_.back().add_used_ms(ms_index + 1);  // 0-origin → 1-origin
 			NOTICE_LOG(COMMON, "%d USED MS = %d", i, ms_index + 1);
 		}
+		// Deferred like input_logs_ above - round_data_.back() can still be
+		// corrected by a later rollback re-simulation of this same frame;
+		// FlushConfirmedToSpectatorUplink sends it once that can't happen.
+		pending_spectator_round_results_.emplace_back(frame, static_cast<int32_t>(round_data_.size()) - 1);
 	}
 
 	// Fast disconnect dialog appear
@@ -695,6 +755,12 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			start_msg_indexes_.emplace_back(frame, input_logs_.size());
 			start_msg_randoms_.emplace_back(frame, rand_value);
 			round_data_.resize(start_msg_indexes_.size());
+			// Deferred like input_logs_ above - this can re-fire during a
+			// rollback re-simulation of this same frame, and LBS dedups
+			// SpectatorRoundEvent by frame with "first arrival wins", so an
+			// early speculative push here could permanently lock in the
+			// wrong RNG seed. FlushConfirmedToSpectatorUplink sends it once
+			// GGPO confirms this frame can't change again.
 		}
 
 		if (ok && exInput == ExInputWaitLoadEnd) {
@@ -730,6 +796,10 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 	if (0 < skipFrameCount && skipFrameCount + 1 == gdxsv_ReadMem16(DataStopCounter)) {
 		appendKeyMsg1Inputs();
+	}
+
+	if (!ggpo::isInRollback()) {
+		FlushConfirmedToSpectatorUplink();
 	}
 
 	verify(recv_buf_.size() <= size);

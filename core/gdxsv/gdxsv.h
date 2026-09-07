@@ -54,6 +54,7 @@ class Gdxsv {
 	std::shared_future<std::pair<bool, std::string>> PublicIPv6() const { return public_ipv6_; }
 	void NotifyWanPort() const;
 	bool StartReplayFile(const char* path, int pov);
+	bool StartLiveSpectate(const char* battle_code, int pov);
 	void StopReplay();
 	bool StartRollbackTest(const char* param);
 	void WritePatch();
