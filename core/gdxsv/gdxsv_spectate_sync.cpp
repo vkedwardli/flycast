@@ -44,20 +44,38 @@ int64_t NowUs() {
 // Shared memory every instance in the group maps by name. Zero-filled on
 // creation on both platforms, so an uninitialised header reads as 0.
 //
-// The backing differs: POSIX uses a file in /tmp that outlives the group, which
-// is why Join reclaims a slot by pid - a killed instance leaves its slot behind.
-// Windows uses an anonymous section that lives only while some view is mapped,
-// so it cleans itself up, but the reclaim still matters while instances overlap.
+// Both platforms back this with a real file that outlives the group, which is
+// why Join reclaims a slot by pid - a killed instance leaves its slot behind.
+// Windows previously used an anonymous section named under "Local\\", but that
+// namespace is scoped to the creating process's session; instances launched
+// as separate child processes (e.g. one per spectator POV, spawned by a
+// driver script or harness) can end up in different sessions and each then
+// silently gets its own private, zero-filled section instead of sharing one -
+// no error, just two peers that never see each other. A real file sidesteps
+// session scoping entirely.
 void* MapShared(const std::string& group, size_t size) {
 #ifdef _WIN32
-	const std::string name = "Local\\gdxsv_spec_sync_" + group;
-	HANDLE h = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, static_cast<DWORD>(size), name.c_str());
+	char temp_dir[MAX_PATH];
+	if (GetTempPathA(MAX_PATH, temp_dir) == 0) {
+		WARN_LOG(COMMON, "spectate sync: GetTempPath failed");
+		return nullptr;
+	}
+	const std::string path = std::string(temp_dir) + "gdxsv_spec_sync_" + group;
+	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+								OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (hFile == INVALID_HANDLE_VALUE) {
+		WARN_LOG(COMMON, "spectate sync: CreateFile failed %s", path.c_str());
+		return nullptr;
+	}
+	HANDLE h = CreateFileMappingA(hFile, nullptr, PAGE_READWRITE, 0, static_cast<DWORD>(size), nullptr);
 	if (h == nullptr) {
-		WARN_LOG(COMMON, "spectate sync: CreateFileMapping failed %s", name.c_str());
+		WARN_LOG(COMMON, "spectate sync: CreateFileMapping failed %s", path.c_str());
+		CloseHandle(hFile);
 		return nullptr;
 	}
 	void* m = MapViewOfFile(h, FILE_MAP_ALL_ACCESS, 0, 0, size);
-	CloseHandle(h);	 // the mapped view keeps the section alive
+	CloseHandle(h);		 // the mapped view keeps the section alive
+	CloseHandle(hFile);	 // ditto
 	if (m == nullptr) WARN_LOG(COMMON, "spectate sync: MapViewOfFile failed");
 	return m;
 #else
