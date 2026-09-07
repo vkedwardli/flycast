@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -62,6 +63,14 @@ struct GdxsvReplayUiState {
 	bool NeedsTakeoverAlignment(uint16_t currentInput) const {
 		return takeoverAligning || (takeoverCountdown > 0 && !takeoverSkipInputMatching &&
 			currentInput != takeoverTargetInput);
+	}
+
+	int FrameAtProgress(float progress) const {
+		if (timelineEnd <= timelineStart || !std::isfinite(progress))
+			return timelineStart;
+		const double fraction = std::clamp(static_cast<double>(progress), 0.0, 1.0);
+		const int64_t length = static_cast<int64_t>(timelineEnd) - timelineStart;
+		return static_cast<int>(timelineStart + std::llround(fraction * length));
 	}
 
 	// Called only by the recording's owner. Work is bounded by ten rounds and

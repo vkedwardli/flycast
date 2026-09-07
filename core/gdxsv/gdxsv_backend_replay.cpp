@@ -723,7 +723,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (!end_of_frame_) return;
 	if (seeking_) return;
 
-	constexpr int save_interval = 60;
+	constexpr int save_interval = ReplaySeekFrames;
 	auto need_cancel = [&]() -> bool {
 		return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End;
 	};
@@ -2632,6 +2632,36 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 	};
 	const ImU32 disabledCol = IM_COL32(120, 120, 120, (int)(120 * alpha));
 
+	auto iconButton = [&](const char* id, ImVec2 center, ImVec2 hitSize, bool enabled) -> bool {
+		ImGui::SetCursorScreenPos(center - hitSize * 0.5f);
+		ImGui::InvisibleButton(id, hitSize);
+		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+			ctrl_bar_idle_timer_ = 3.0f;
+		}
+		return enabled && ImGui::IsItemClicked(ImGuiMouseButton_Left);
+	};
+
+	// Draw above the bar without clipping to its window or taking mouse focus.
+	auto hoverOverlay = [&](const std::string& text, float anchorX) {
+		ctrl_bar_idle_timer_ = 3.0f;
+		const ImVec2 padding = ScaledVec2(8.0f, 5.0f);
+		const float wrapWidth = std::max(1.0f, displaySize.x - pad * 2.0f - padding.x * 2.0f);
+		const ImVec2 size = ImGui::CalcTextSize(text.c_str(), nullptr, false, wrapWidth) + padding * 2.0f;
+		const float x = std::clamp(anchorX - size.x * 0.5f, pad, std::max(pad, displaySize.x - pad - size.x));
+		const float y = std::max(pad, barY - uiScaled(8.0f) - size.y);
+		const ImVec2 pos(x, y);
+		ImDrawList* overlay = ImGui::GetForegroundDrawList();
+		overlay->AddRectFilled(pos, pos + size, IM_COL32(20, 20, 20, (int)(235 * alpha)), uiScaled(4.0f));
+		overlay->AddText(ImGui::GetFont(), ImGui::GetFontSize(), pos + padding, textCol, text.c_str(), nullptr, wrapWidth);
+	};
+	auto controlTooltip = [&](const char* label, const char* button = nullptr, const char* detail = nullptr) {
+		if (!ImGui::IsItemHovered() && !ImGui::IsItemActive()) return;
+		std::string text = label;
+		if (button != nullptr) text += std::string(" (") + button + ")";
+		if (detail != nullptr) text += std::string("\n") + detail;
+		hoverOverlay(text, (ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5f);
+	};
+
 	// Live pill: a dot and the word Live, red while chasing the live edge and
 	// grey once the viewer has moved somewhere else. Clicking it resumes the
 	// chase - the catch-up seek does the actual travelling.
@@ -2649,11 +2679,11 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		dl->AddText(ImVec2(dotX + liveDotR + pad * 0.75f, barY + (barH - liveTextSize.y) * 0.5f),
 					ui.liveAtEdge ? textCol : liveOff, "Live");
 
-		ImGui::SetCursorScreenPos(ImVec2(liveX, barY));
-		ImGui::InvisibleButton("##gdxsv-live", ImVec2(liveW, barH));
-		if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ui.liveAtEdge) {
+		if (iconButton("##gdxsv-live", ImVec2(liveX + liveW * 0.5f, barY + barH * 0.5f), ImVec2(liveW, barH), !ui.liveAtEdge)) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::FollowLive);
 		}
+		if (!ui.liveAtEdge)
+			controlTooltip("Skip ahead to live");
 	}
 
 	// Viewer count on the right, balancing the Live pill on the left.
@@ -2663,75 +2693,90 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		snprintf(viewersTxt, sizeof(viewersTxt), ICON_FA_EYE " %d", live_viewers_);
 		const ImVec2 vSize = ImGui::CalcTextSize(viewersTxt);
 		dl->AddText(ImVec2(viewersX + (viewersW - vSize.x) * 0.5f, barY + (barH - vSize.y) * 0.5f), textCol, viewersTxt);
+		iconButton("##gdxsv-viewers", ImVec2(viewersX + viewersW * 0.5f, barY + barH * 0.5f), ImVec2(viewersW, barH), false);
+		char viewersHint[48];
+		snprintf(viewersHint, sizeof(viewersHint), "%d watching now", live_viewers_);
+		controlTooltip(viewersHint);
 	}
-
-	auto iconButton = [&](const char* id, ImVec2 center, ImVec2 size, bool enabled) -> bool {
-		const float hitW = std::max(size.x + uiScaled(8.0f), uiScaled(20.0f));
-		const float hitH = std::max(size.y + uiScaled(6.0f), uiScaled(18.0f));
-		ImGui::SetCursorScreenPos(ImVec2(center.x - hitW * 0.5f, center.y - hitH * 0.5f));
-		ImGui::InvisibleButton(id, ImVec2(hitW, hitH));
-		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
-			ctrl_bar_idle_timer_ = 3.0f;
-		}
-		return enabled && ImGui::IsItemClicked(ImGuiMouseButton_Left);
-	};
 
 	// Layout positions
 	float cx = barX + pad;
 	const float cy = barY + barH * 0.5f;
 
 	// --- Left: Play/Pause icon + Up/Down guide + speed + Left/Right guide ---
-	const char* stateIcon = ui.paused ? ICON_FA_PAUSE : ICON_FA_PLAY;
+	const char* stateIcon = ui.paused ? ICON_FA_PLAY : ICON_FA_PAUSE;
 	ImVec2 iconSize = ImGui::CalcTextSize(stateIcon);
-	// Fixed-width slot for play/pause icon to prevent layout shift
-	float iconSlotW = std::max(ImGui::CalcTextSize(ICON_FA_PLAY).x, ImGui::CalcTextSize(ICON_FA_PAUSE).x);
+	// Fixed, non-overlapping hit slots keep both the icons and hover targets stable.
+	float iconSlotW = std::max({ImGui::CalcTextSize(ICON_FA_PLAY).x, ImGui::CalcTextSize(ICON_FA_PAUSE).x, uiScaled(20.0f)});
 	float iconOfs = (iconSlotW - iconSize.x) * 0.5f;
 	const ImVec2 stateIconPos(cx + iconOfs, cy - iconSize.y * 0.5f);
 	dl->AddText(stateIconPos, textCol, stateIcon);
-	if (iconButton("##gdxsv-play-pause", ImVec2(cx + iconSlotW * 0.5f, cy), ImVec2(iconSlotW, iconSize.y), true)) {
+	if (iconButton("##gdxsv-play-pause", ImVec2(cx + iconSlotW * 0.5f, cy), ImVec2(iconSlotW, barH), true)) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
 	}
-	cx += iconSlotW + uiScaled(10.0f);
+	controlTooltip(ui.paused ? "Play" : "Pause", "A");
+	cx += iconSlotW + uiScaled(6.0f);
 
 	// Up/Down guide icons (for speed control)
 	ImVec2 udSize = ImGui::CalcTextSize(ICON_FA_ANGLE_UP);
+	const float udSlotW = std::max(udSize.x, uiScaled(20.0f));
 	const bool canSpeedUp = ui.playSpeed < 2;
 	const bool canSpeedDown = ui.playSpeed > -2;
-	const ImVec2 upPos(cx, cy - udSize.y - uiScaled(1.0f));
-	const ImVec2 downPos(cx, cy + uiScaled(1.0f));
+	const ImVec2 upCenter(cx + udSlotW * 0.5f, barY + barH * 0.25f);
+	const ImVec2 downCenter(cx + udSlotW * 0.5f, barY + barH * 0.75f);
+	const ImVec2 upPos = upCenter - udSize * 0.5f;
+	const ImVec2 downPos = downCenter - udSize * 0.5f;
 	dl->AddText(upPos, canSpeedUp ? flashCol(flash_up_) : disabledCol, ICON_FA_ANGLE_UP);
 	dl->AddText(downPos, canSpeedDown ? flashCol(flash_down_) : disabledCol, ICON_FA_ANGLE_DOWN);
-	if (iconButton("##gdxsv-speed-up", ImVec2(upPos.x + udSize.x * 0.5f, upPos.y + udSize.y * 0.5f), udSize, canSpeedUp)) {
+	if (iconButton("##gdxsv-speed-up", upCenter, ImVec2(udSlotW, barH * 0.5f), canSpeedUp)) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
 		flash_up_ = 0.3f;
 	}
-	if (iconButton("##gdxsv-speed-down", ImVec2(downPos.x + udSize.x * 0.5f, downPos.y + udSize.y * 0.5f), udSize, canSpeedDown)) {
+	controlTooltip(ICON_FA_ARROW_UP " Speed", "D-pad Up");
+	if (iconButton("##gdxsv-speed-down", downCenter, ImVec2(udSlotW, barH * 0.5f), canSpeedDown)) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 		flash_down_ = 0.3f;
 	}
-	cx += udSize.x + uiScaled(4.0f);
+	controlTooltip(ICON_FA_ARROW_DOWN " Speed", "D-pad Down");
+	cx += udSlotW + uiScaled(4.0f);
 
 	const char* speedTxt = SpeedText(ui.playSpeed);
 	ImVec2 speedSize = ImGui::CalcTextSize(speedTxt);
 	dl->AddText(ImVec2(cx, cy - speedSize.y * 0.5f), textCol, speedTxt);
+	iconButton("##gdxsv-current-speed", ImVec2(cx + speedSize.x * 0.5f, cy), ImVec2(speedSize.x, barH), false);
+	controlTooltip("Current speed");
 	cx += speedSize.x + uiScaled(10.0f);
 
 	// Left/Right guide icons (for seek/step) - placed next to each other
 	ImVec2 lrSize = ImGui::CalcTextSize(ICON_FA_ANGLE_LEFT);
-	const ImVec2 leftPos(cx, cy - lrSize.y * 0.5f);
+	const float lrSlotW = std::max(lrSize.x, uiScaled(20.0f));
+	const ImVec2 leftCenter(cx + lrSlotW * 0.5f, cy);
+	const ImVec2 leftPos = leftCenter - lrSize * 0.5f;
+	char backwardLabel[32], forwardLabel[32], seekDetail[64];
+	if (ui.paused) {
+		snprintf(backwardLabel, sizeof(backwardLabel), "- 1 frame");
+		snprintf(forwardLabel, sizeof(forwardLabel), "+ 1 frame");
+	} else {
+		snprintf(backwardLabel, sizeof(backwardLabel), "- %.0fs", ReplaySeekFrames / 59.94);
+		snprintf(forwardLabel, sizeof(forwardLabel), "+ %.0fs", ReplaySeekFrames / 59.94);
+	}
+	snprintf(seekDetail, sizeof(seekDetail), "%d frames; hold D-pad to repeat", ReplaySeekFrames);
 	dl->AddText(leftPos, flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
-	if (iconButton("##gdxsv-prev", ImVec2(leftPos.x + lrSize.x * 0.5f, leftPos.y + lrSize.y * 0.5f), lrSize, true)) {
+	if (iconButton("##gdxsv-prev", leftCenter, ImVec2(lrSlotW, barH), true)) {
 		ui_commands_.emplace_back(ui.paused ? ReplayCtrlCommand::StepFrameBackward : ReplayCtrlCommand::SeekBackward);
 		flash_left_ = 0.3f;
 	}
-	cx += lrSize.x + uiScaled(2.0f);
-	const ImVec2 rightPos(cx, cy - lrSize.y * 0.5f);
+	controlTooltip(backwardLabel, "D-pad Left", ui.paused ? "Hold D-pad to repeat" : seekDetail);
+	cx += lrSlotW + uiScaled(2.0f);
+	const ImVec2 rightCenter(cx + lrSlotW * 0.5f, cy);
+	const ImVec2 rightPos = rightCenter - lrSize * 0.5f;
 	dl->AddText(rightPos, flashCol(flash_right_), ICON_FA_ANGLE_RIGHT);
-	if (iconButton("##gdxsv-next", ImVec2(rightPos.x + lrSize.x * 0.5f, rightPos.y + lrSize.y * 0.5f), lrSize, true)) {
+	if (iconButton("##gdxsv-next", rightCenter, ImVec2(lrSlotW, barH), true)) {
 		ui_commands_.emplace_back(ui.paused ? ReplayCtrlCommand::StepFrame : ReplayCtrlCommand::SeekForward);
 		flash_right_ = 0.3f;
 	}
-	cx += lrSize.x + uiScaled(6.0f);
+	controlTooltip(forwardLabel, "D-pad Right", ui.paused ? "Hold D-pad to repeat" : seekDetail);
+	cx += lrSlotW + uiScaled(6.0f);
 
 	// --- Right: Round/Frame info ---
 	const int timelineStart = ui.timelineStart;
@@ -2764,9 +2809,7 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 	if (progX1 > progX0 + uiScaled(20.0f)) {
 		const float progW = progX1 - progX0;
 		auto frameFromProgressX = [&](float x) -> int {
-			const float progress = std::clamp((x - progX0) / progW, 0.0f, 1.0f);
-			const int target = timelineStart + (int)(progress * (float)std::max(timelineLen, 0) + 0.5f);
-			return std::clamp(target, timelineStart, timelineEnd);
+			return ui.FrameAtProgress((x - progX0) / progW);
 		};
 
 		const float hitH = uiScaled(24.0f);
@@ -2774,6 +2817,9 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		ImGui::InvisibleButton("##gdxsv-replay-progress-slider", ImVec2(progW, hitH));
 		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
 			ctrl_bar_idle_timer_ = 3.0f;
+			char targetFrame[32];
+			snprintf(targetFrame, sizeof(targetFrame), "Frame %d", frameFromProgressX(ImGui::GetIO().MousePos.x));
+			hoverOverlay(targetFrame, std::clamp(ImGui::GetIO().MousePos.x, progX0, progX1));
 		}
 		if (ImGui::IsItemActivated() || ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
 			ctrl_bar_dragging_ = true;

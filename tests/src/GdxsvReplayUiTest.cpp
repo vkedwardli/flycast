@@ -1,6 +1,7 @@
 #include "gdxsv/gdxsv_replay_ui.h"
 
 #include <atomic>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -157,6 +158,45 @@ TEST(GdxsvReplayUi, TakeoverSkipChoiceIsPublishedWithoutChangingOlderSnapshots) 
 	EXPECT_FALSE(snapshot.Read().takeoverSkipInputMatching);
 	EXPECT_EQ(0, snapshot.Read().takeoverCountdown);
 	EXPECT_TRUE(skipped.takeoverSkipInputMatching);
+}
+
+TEST(GdxsvReplayUi, ProgressTargetsTheDisplayedTimelineAndClampsItsEnds) {
+	UiState ui;
+	ui.timelineStart = 10000;
+	ui.timelineEnd = 11000;
+	EXPECT_EQ(10000, ui.FrameAtProgress(-1.0f));
+	EXPECT_EQ(10000, ui.FrameAtProgress(0.0f));
+	EXPECT_EQ(10250, ui.FrameAtProgress(0.25f));
+	EXPECT_EQ(10500, ui.FrameAtProgress(0.5f));
+	EXPECT_EQ(11000, ui.FrameAtProgress(1.0f));
+	EXPECT_EQ(11000, ui.FrameAtProgress(2.0f));
+
+	// A growing live timeline must use the latest published end frame.
+	ui.timelineEnd = 12000;
+	EXPECT_EQ(11000, ui.FrameAtProgress(0.5f));
+}
+
+TEST(GdxsvReplayUi, ProgressRoundsToTheNearestFrameWithoutIntegerOverflow) {
+	UiState ui;
+	ui.timelineStart = 10000;
+	ui.timelineEnd = 10003;
+	EXPECT_EQ(10001, ui.FrameAtProgress(0.25f));
+	EXPECT_EQ(10002, ui.FrameAtProgress(0.5f));
+	EXPECT_EQ(10002, ui.FrameAtProgress(0.75f));
+	ui.timelineEnd = std::numeric_limits<int>::max();
+	EXPECT_EQ(ui.timelineEnd, ui.FrameAtProgress(1.0f));
+}
+
+TEST(GdxsvReplayUi, InvalidProgressOrAnEmptyTimelineReturnsTheStart) {
+	UiState ui;
+	ui.timelineStart = 10000;
+	ui.timelineEnd = 11000;
+	EXPECT_EQ(10000, ui.FrameAtProgress(std::numeric_limits<float>::quiet_NaN()));
+	EXPECT_EQ(10000, ui.FrameAtProgress(std::numeric_limits<float>::infinity()));
+	ui.timelineEnd = ui.timelineStart;
+	EXPECT_EQ(10000, ui.FrameAtProgress(0.5f));
+	ui.timelineEnd = 9999;
+	EXPECT_EQ(10000, ui.FrameAtProgress(0.5f));
 }
 
 TEST(GdxsvReplayUi, ConcurrentReadersSeeCoherentSnapshotsDuringGrowthAndReset) {

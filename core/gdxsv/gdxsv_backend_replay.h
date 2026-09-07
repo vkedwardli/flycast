@@ -51,6 +51,7 @@ class GdxsvBackendReplay {
 
    private:
 	using UiState = GdxsvReplayUiState;
+	static constexpr int ReplaySeekFrames = 60;
 	void PublishUiState();
 	void ProcessUiCommands();
 	void UpdateReplayFlow();
