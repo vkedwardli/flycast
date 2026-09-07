@@ -11,6 +11,7 @@ class GdxsvUpdate {
 	void FetchLatestVersionInfo();
 	std::string GetLatestVersionTag() const;
 	static bool IsSupportSelfUpdate();
+	static bool IsAppTranslocated();
 	static std::string DownloadPageURL();
 	std::shared_future<bool> StartSelfUpdate();
 	float SelfUpdateProgress() const;

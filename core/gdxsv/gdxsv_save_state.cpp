@@ -53,6 +53,17 @@ bool GdxsvSaveState::LoadStateMostRecent(int& frame) {
 	return LoadStateInternal(it->first);
 }
 
+int GdxsvSaveState::FindSavedFrameAtOrBefore(int frame) const {
+	if (buffers.empty()) {
+		return -1;
+	}
+	auto it = buffers.upper_bound(frame);
+	if (it == buffers.begin()) {
+		return -1;
+	}
+	return std::prev(it)->first;
+}
+
 bool GdxsvSaveState::LoadStateInternal(int frame) {
 	if (LastSavedFrame() == -1 || !SaveState(LastSavedFrame() + 1)) {
 		return false;

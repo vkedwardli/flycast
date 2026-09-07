@@ -126,6 +126,15 @@ static void captureMouse(bool capture)
 	}
 	else
 	{
+		if (settings.gdxsv.replayModeActive)
+		{
+			if (!config::UseRawInput)
+				SDL_SetRelativeMouseMode(SDL_FALSE);
+			SDL_ShowCursor(SDL_ENABLE);
+			setWindowTitleGame();
+			mouseCaptured = false;
+			return;
+		}
 		if (config::UseRawInput
 				|| SDL_SetRelativeMouseMode(SDL_TRUE) == 0)
 		{
@@ -156,7 +165,7 @@ static void emuEventCallback(Event event, void *)
 	case Event::Resume:
 		gameRunning = true;
 		captureMouse(mouseCaptured);
-		if (window_fullscreen && !mouseCaptured)
+		if (window_fullscreen && !mouseCaptured && !settings.gdxsv.replayModeActive)
 			SDL_ShowCursor(SDL_DISABLE);
 		resumeHaptic();
 		break;
@@ -371,7 +380,7 @@ void input_sdl_handle()
 							else
 							{
 								SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
-								if (gameRunning)
+								if (gameRunning && !settings.gdxsv.replayModeActive)
 									SDL_ShowCursor(SDL_DISABLE);
 							}
 							window_fullscreen = !window_fullscreen;
@@ -398,6 +407,11 @@ void input_sdl_handle()
 				break;
 
 			case SDL_WINDOWEVENT:
+				// gdxsv: handle outside window for network stats hovering
+				if (event.window.event == SDL_WINDOWEVENT_LEAVE)
+				{
+					gui_set_mouse_position(-1, -1, false);
+				}
 				if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED
 						|| event.window.event == SDL_WINDOWEVENT_RESTORED
 						|| event.window.event == SDL_WINDOWEVENT_MINIMIZED
@@ -418,7 +432,7 @@ void input_sdl_handle()
 				}
 				else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
 				{
-					if (window_fullscreen && gameRunning)
+					if (window_fullscreen && gameRunning && !settings.gdxsv.replayModeActive)
 						SDL_ShowCursor(SDL_DISABLE);
 				}
 				else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
@@ -728,6 +742,12 @@ bool sdl_recreate_window(u32 flags)
 #else
 	flags |= SDL_WINDOW_FULLSCREEN;
 #endif
+
+	// gdxsv: a capture rig tiles instances edge to edge, so it wants no border.
+	// Set at creation, not after: removing the decoration later moves the frame
+	// and the grid comes out overlapping.
+	if (config::loadBool("gdxsv", "borderless", false))
+		flags |= SDL_WINDOW_BORDERLESS;
 
 	window = SDL_CreateWindow("Flycast", windowPos.x, windowPos.y,
 			windowPos.w * hdpiScaling, windowPos.h * hdpiScaling, flags);

@@ -12,6 +12,7 @@ class GdxsvSaveState {
 	size_t SavedFrames() { return buffers.size(); }
 	int LastSavedFrame() { return buffers.empty() ? -1 : buffers.rbegin()->first; }
 	int FirstSavedFrame() { return buffers.empty() ? -1 : buffers.begin()->first; }
+	int FindSavedFrameAtOrBefore(int frame) const;
 	bool SaveState(int frame);
 	bool LoadState(int frame);
 	bool LoadStateMostRecent(int& frame);

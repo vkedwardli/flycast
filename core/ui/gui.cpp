@@ -867,7 +867,7 @@ static void gui_display_commands()
 		{
 			DisabledScope scope(gdxsv_is_online());
 
-			if (ImGui::Button(ICON_FA_VIDEO "  Replays", ScaledVec2(buttonWidth, 50)) && !scope.isDisabled())
+			if (ImGui::Button(ICON_FA_TV "  Live & Replays", ScaledVec2(buttonWidth, 50)) && !scope.isDisabled())
 			{
 				gui_state = GuiState::GdxsvReplay;
 			}

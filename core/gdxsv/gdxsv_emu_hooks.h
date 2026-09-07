@@ -1,8 +1,16 @@
 #pragma once
+#include <atomic>
 #include <cstdio>
 #include <string>
 #include <vector>
 // Functions provided to the emulator by the gdxsv module.
+
+// Signed microseconds added to the main loop's frame period (see get_period in
+// core/ui/mainui.cpp). Negative runs the emulator slightly fast, positive
+// slightly slow. Replay and Live Spectate steer this to hold a target distance
+// behind the live edge without the visible hitch a whole-frame stall causes.
+// Zero everywhere else, so normal play and online battle are untouched.
+extern std::atomic<int> gdxsv_frame_period_trim_us;
 
 namespace http {
 struct PostField;

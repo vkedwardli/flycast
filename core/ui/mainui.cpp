@@ -29,6 +29,7 @@
 #include "network/ggpo.h"
 #include "oslib/i18n.h"
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 #include "sleep.h"
@@ -53,6 +54,13 @@ int64_t get_period() {
 	// Half Native NTSC/VGA
 	if (mode == 5) return 33333; // 1/30
 	return 16683;
+}
+
+// The nominal period, plus whatever trim replay/Live Spectate is asking for.
+// The trim is zero outside those modes.
+static int64_t get_trimmed_period() {
+	const int64_t trim = gdxsv_frame_period_trim_us;
+	return std::max<int64_t>(1000, get_period() + trim);
 }
 
 bool mainui_rend_frame()
@@ -133,7 +141,7 @@ void mainui_loop(bool forceStart)
 		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
 			return;
 
-		const auto period = get_period();
+		const auto period = get_trimmed_period();
 		int64_t overSlept = 0;
 
 		auto remaining = period - getElapsed();

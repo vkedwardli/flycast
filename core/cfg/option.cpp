@@ -169,6 +169,7 @@ Option<std::string> GdxLobbyServer("server", "zdxsv.net", "gdxsv");
 Option<std::string> GdxLoginKey("loginkey", "", "gdxsv");
 Option<int> GdxLanguage("language", -1, "gdxsv");
 Option<bool> GdxUseTexturePack("UseTexturePack", false, "gdxsv");
+Option<int> GdxWidescreenHudLayout("WidescreenHudLayout", 1, "gdxsv");
 OptionString GdxTexturePackChannel("TexturePackChannel", "", "gdxsv");
 Option<int> GdxLocalPort("LocalPort", 0, "gdxsv");
 Option<int> GdxMinDelay("MinDelay", 2, "gdxsv");
@@ -180,6 +181,7 @@ Option<bool> GdxSlowIdleLoopHack("SlowIdleLoopHack", true, "gdxsv");
 Option<bool> GdxReplayHideName("ReplayHideName", false, "gdxsv");
 Option<bool> GdxReplayShowAllyHP("ReplayShowAllyHP", true, "gdxsv");
 Option<bool> GdxReplayKeyDisplay("ReplayKeyDisplay", true, "gdxsv");
+Option<bool> GdxReplaySkipMsSelection("ReplaySkipMsSelection", true, "gdxsv");
 
 // Network
 

@@ -2,6 +2,7 @@
 #include <future>
 
 #include "gdxsv_network.h"
+#include "gdxsv_spectator_uplink.h"
 #include "lbs_message.h"
 
 class GdxsvBackendRollback {
@@ -45,10 +46,18 @@ class GdxsvBackendRollback {
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
 	void ProcessLbsMessage();
+	void ResetGgpoGameRendererState();
+	// Pushes locally-settled (input_logs_/start_msg_indexes_/start_msg_randoms_/
+	// round_data_) entries to spectator_uplink_ once GGPO's confirmed frame has
+	// passed them - see the call site in OnSockWrite for why this can't just
+	// happen inline where those vectors are written (they're written on every
+	// speculative/rollback simulation pass, not just the final settled one).
+	void FlushConfirmedToSpectatorUplink();
 
 	State state_ = State::None;
 	bool is_local_test_ = false;
 	bool error_fast_return_ = false;
+	bool ggpo_game_renderer_reset_ = false;
 	bool osd_network_stat_ = false;
 	int osd_network_stat_countdown_ = 0;
 	int start_button_counter_ = 0;
@@ -59,6 +68,7 @@ class GdxsvBackendRollback {
 	proto::P2PMatching matching_;
 	proto::P2PMatchingReport report_;
 	UdpPingPong ping_pong_;
+	GdxsvSpectatorUplink spectator_uplink_;
 	std::future<bool> start_network_;
 
 	int64_t start_at_ = 0;
@@ -66,4 +76,9 @@ class GdxsvBackendRollback {
 	std::vector<std::pair<int, int>> start_msg_indexes_;
 	std::vector<std::pair<int, u32>> start_msg_randoms_;
 	std::vector<proto::BattleLogRound> round_data_;
+
+	// Watermarks/queue for FlushConfirmedToSpectatorUplink - see its doc above.
+	int32_t spectator_flushed_inputs_ = 0;
+	int32_t spectator_flushed_round_events_ = 0;
+	std::vector<std::pair<int, int32_t>> pending_spectator_round_results_;
 };

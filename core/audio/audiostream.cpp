@@ -119,6 +119,11 @@ void TermAudio()
 	currentBackend = nullptr;
 }
 
+void FlushAudio()
+{
+	writePtr = 0;
+}
+
 void StartAudioRecording(bool eight_khz)
 {
 	::eight_khz = eight_khz;

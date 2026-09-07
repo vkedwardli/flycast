@@ -213,6 +213,7 @@ struct settings_t
 	struct
 	{
 		int disk;
+		bool replayModeActive;      // Runtime replay mode flag used by platform/UI code
 		u32 skipRenderingAddr;      // Active skip address (0 = disabled)
 		u32 skipRenderingBaseAddr;  // Pre-computed based on disk (set once at init)
 	} gdxsv;
