@@ -14,6 +14,9 @@ namespace {
 // gdxsv server repo): keeps a maximally-backed-up push well under a safe
 // single-UDP-datagram size, and keeps it within what LBS will accept.
 constexpr size_t kMaxBacklogFrames = 128;
+// Buffer this many confirmed frames before sending, to cut the uplink's
+// packet rate (was one packet per confirmed frame, i.e. ~60pps/player).
+constexpr int32_t kUplinkBatchFrames = 20;
 constexpr auto kRetryInterval = std::chrono::milliseconds(100);
 constexpr auto kFinalDrainTimeout = std::chrono::seconds(2);
 }  // namespace
@@ -29,7 +32,7 @@ void GdxsvSpectatorUplink::Start(const std::string &lbs_host, int lbs_port, cons
 		std::lock_guard<std::mutex> lock(mtx_);
 		backlog_start_frame_ = 0;
 		backlog_.clear();
-		dirty_ = false;
+		frames_since_last_send_ = 0;
 		pending_round_events_.clear();
 		pending_round_results_.clear();
 	}
@@ -75,7 +78,7 @@ void GdxsvSpectatorUplink::PushInput(int32_t frame, uint64_t packed_input) {
 	}
 
 	backlog_.push_back(packed_input);
-	dirty_ = true;
+	++frames_since_last_send_;
 
 	while (backlog_.size() > kMaxBacklogFrames) {
 		backlog_.pop_front();
@@ -175,11 +178,11 @@ void GdxsvSpectatorUplink::ThreadMain(std::string lbs_host, int lbs_port, std::s
 		std::vector<RoundResult> round_results;
 		{
 			std::lock_guard<std::mutex> lock(mtx_);
-			if (!backlog_.empty() && (dirty_ || now >= next_input_send)) {
+			if (!backlog_.empty() && (kUplinkBatchFrames <= frames_since_last_send_ || now >= next_input_send)) {
 				should_send_inputs = true;
 				start_frame = backlog_start_frame_;
 				inputs.assign(backlog_.begin(), backlog_.end());
-				dirty_ = false;
+				frames_since_last_send_ = 0;
 				next_input_send = now + kRetryInterval;
 			}
 			if (now >= next_round_send) {

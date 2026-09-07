@@ -67,7 +67,11 @@ class GdxsvSpectatorUplink {
 	// as acks arrive on the background thread.
 	int32_t backlog_start_frame_ = 0;
 	std::deque<uint64_t> backlog_;
-	bool dirty_ = false;
+	// Frames pushed since the last send. A send fires once this reaches
+	// kUplinkBatchFrames, or the retry interval elapses (see ThreadMain) -
+	// whichever comes first, so a quiet stretch still keeps the uplink from
+	// falling behind.
+	int32_t frames_since_last_send_ = 0;
 	std::deque<RoundEvent> pending_round_events_;
 	std::deque<RoundResult> pending_round_results_;
 };
