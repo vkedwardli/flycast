@@ -28,6 +28,7 @@ struct LbsMessage {
 	static constexpr u16 lbsLineCheck = 0x6001;
 	static constexpr u16 lbsUserRegist = 0x6112;
 	static constexpr u16 lbsUserDecide = 0x6113;
+	static constexpr u16 lbsWinLose = 0x6145;
 
 	static constexpr u16 lbsLobbyMatchingEntry = 0x640e;
 	static constexpr u16 lbsReadyBattle = 0x6910;
@@ -45,6 +46,8 @@ struct LbsMessage {
 	static constexpr u16 lbsP2PMatching = 0x9961;
 	static constexpr u16 lbsP2PMatchingReport = 0x9962;
 	static constexpr u16 lbsBattleUserCount = 0x9965;
+	static constexpr u16 lbsAskPlayerInfo32 = 0x9966;
+	static constexpr u16 lbsWinLose32 = 0x9967;
 
 	template <typename C>
 	int Serialize(C &buf) const {

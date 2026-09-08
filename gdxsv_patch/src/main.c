@@ -725,3 +725,91 @@ asm(
     "	.size gdx_widescreen_result_black_scale, 4\n"
     "	.size gdx_widescreen_result_black_postproject, .-gdx_widescreen_result_black_postproject\n"
 );
+
+// Disc-2 record-line replacement. Other text calls retain the stock renderer.
+struct gdx_player_info32_record {
+    u32 valid;
+    u32 battles;
+    u32 wins;
+    u32 losses;
+    float scale_x;
+    char text[40];
+    u32 pad;
+};
+
+struct gdx_player_info32_record gdx_player_info32_records[4]
+    __attribute__((section("gdx.data.info.records"))) = {0};
+
+_Static_assert(sizeof(struct gdx_player_info32_record) == 64, "player-info32 host layout");
+
+void __attribute__((section("gdx.func.info"), noinline))
+gdx_player_info32_draw(const char *text, float x, float y, float z) {
+    void (*draw)(const char *, float, float, float) = (void *)0x0c01e444;
+    u32 caller = (u32)__builtin_return_address(0);
+    caller &= 0x1fffffff;
+    if (caller != 0x0c03e4c8 && caller != 0x0c03e644 &&
+        caller != 0x0c03e7c0 && caller != 0x0c03e93c) {
+        draw(text, x, y, z);
+        return;
+    }
+
+    // Owner 0x0c03e2e0 keeps its advanced order cursor at incoming sp+0x10.
+    const u8 *cursor = *(const u8 **)((u8 *)__builtin_dwarf_cfa() + 0x10);
+    u32 player = cursor[-1];
+    if (player >= 4 || !gdx_player_info32_records[player].valid) {
+        draw(text, x, y, z);
+        return;
+    }
+
+    struct gdx_player_info32_record *record = &gdx_player_info32_records[player];
+    union { u32 bits; float value; } volatile *scale =
+        (void *)(read32(0x0c391388) + 0x14b8);
+    u32 saved = scale->bits;
+    scale->value *= record->scale_x;
+    draw(record->text, x, y, z);
+    scale->bits = saved;
+}
+
+// Personal ranking numbers only; labels and leaderboard text stay stock.
+struct gdx_win_lose32_field {
+    float scale_x;
+    char text[16];
+};
+
+struct gdx_win_lose32_data {
+    u32 valid;
+    struct gdx_win_lose32_field fields[4];
+} gdx_win_lose32_record __attribute__((section("gdx.data.info.ranking"))) = {0};
+
+_Static_assert(sizeof(struct gdx_win_lose32_data) == 84, "win-lose32 host layout");
+
+void __attribute__((section("gdx.func.info.ranking"), noinline))
+gdx_win_lose32_draw(const char *text, float x, float y, float z) {
+    void (*draw)(const char *, float, float, float) = (void *)0x0c01e444;
+    u32 caller = (u32)__builtin_return_address(0) & 0x1fffffff;
+    u32 field;
+    if (caller == 0x0c04218c)
+        field = 0;
+    else if (caller == 0x0c0421c8)
+        field = 1;
+    else if (caller == 0x0c04222e)
+        field = 2;
+    else if (caller == 0x0c04226a)
+        field = 3;
+    else {
+        draw(text, x, y, z);
+        return;
+    }
+    if (!gdx_win_lose32_record.valid) {
+        draw(text, x, y, z);
+        return;
+    }
+
+    struct gdx_win_lose32_field *record = &gdx_win_lose32_record.fields[field];
+    union { u32 bits; float value; } volatile *scale =
+        (void *)(read32(0x0c391388) + 0x14b8);
+    u32 saved = scale->bits;
+    scale->value *= record->scale_x;
+    draw(record->text, x, y, z);
+    scale->bits = saved;
+}

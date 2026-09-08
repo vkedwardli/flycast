@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <initializer_list>
 #include <random>
 #include <sstream>
 
@@ -116,6 +117,7 @@ void Gdxsv::ResetWidescreenPatch() {
 }
 
 void Gdxsv::Reset() {
+	ResetPlayerStats32();
 	lbs_net_.Reset();
 	udp_net_.Reset();
 	rollback_net_.Reset();
@@ -204,6 +206,7 @@ void Gdxsv::Reset() {
 		}
 
 		if (lbs_msg.command == LbsMessage::lbsReadyBattle) {
+			ResetPlayerStats32();
 			// Reset current patches for no-patched game
 			RestoreOnlinePatch();
 			going_to_battle_ = true;
@@ -673,6 +676,130 @@ void Gdxsv::RestoreOnlinePatch() {
 	emu.getSh4Executor()->ResetCache();
 }
 
+void Gdxsv::ResetPlayerStats32() {
+	player_info32_ready_ = false;
+	win_lose32_ready_ = false;
+	player_info32_requests_.Clear();
+	win_lose32_requests_.Clear();
+	if (!enabled_ || disk_ != 2)
+		return;
+
+	// Only clear tables belonging to the current payload. An older savestate
+	// may not contain them yet; WritePatch initializes them when upgrading it.
+	const u32 patch_id = symbols_["patch_id"];
+	if (patch_id == 0 || gdxsv_ReadMem32(patch_id) != symbols_[":patch_id"])
+		return;
+	const u32 players = symbols_["gdx_player_info32_records"];
+	if (players != 0) {
+		for (int p = 0; p < 4; ++p)
+			gdxsv_WriteMem32(players + p * 64, 0);
+	}
+	const u32 ranking = symbols_["gdx_win_lose32_record"];
+	if (ranking != 0)
+		gdxsv_WriteMem32(ranking, 0);
+}
+
+bool Gdxsv::ReceivePlayerInfo32(const LbsMessage& reply, LbsMessage& legacy, int expected_player) {
+	gdxsv_player_info32::Record record{};
+	if (!player_info32_ready_ || !gdxsv_player_info32::Decode(reply, legacy, record, expected_player))
+		return false;
+	std::string format;
+	for (int i = 0; i < 16; ++i) {
+		const char ch = gdxsv_ReadMem8(0x0c1d31bc + i);
+		if (ch == 0)
+			break;
+		format += ch;
+	}
+	const std::string text = gdxsv_player_info32::Format(format, record);
+	if (text.empty())
+		return false;
+	const int pos = legacy.body[0];
+	const u32 entry = symbols_["gdx_player_info32_records"] + (pos - 1) * 64;
+	const float scale = gdxsv_player_info32::HorizontalScale(text);
+	u32 scale_bits;
+	std::memcpy(&scale_bits, &scale, sizeof(scale_bits));
+	gdxsv_WriteMem32(entry, 0);
+	gdxsv_WriteMem32(entry + 4, record.battles);
+	gdxsv_WriteMem32(entry + 8, record.wins);
+	gdxsv_WriteMem32(entry + 12, record.losses);
+	gdxsv_WriteMem32(entry + 16, scale_bits);
+	for (size_t i = 0; i <= text.size(); ++i)
+		gdxsv_WriteMem8(entry + 20 + i, i == text.size() ? 0 : u8(text[i]));
+	gdxsv_WriteMem32(entry, 1);
+	NOTICE_LOG(COMMON, "player-info32: P%d battles=%u wins=%u losses=%u scale=%.6f",
+			   pos, record.battles, record.wins, record.losses, scale);
+	return true;
+}
+
+void Gdxsv::PreparePlayerInfo32Request(LbsMessage& msg) {
+	if (!enabled_ || disk_ != 2 || netmode_ != NetMode::Lbs || !gdxsv_player_info32::IsRequest(msg))
+		return;
+	WritePatch();
+	if (!player_info32_ready_)
+		return;
+	const u32 entry = symbols_["gdx_player_info32_records"] + (msg.body[0] - 1) * 64;
+	gdxsv_WriteMem32(entry, 0);
+	player_info32_requests_.Rewrite(msg);
+}
+
+bool Gdxsv::FilterPlayerInfo32Reply(LbsMessage& msg) {
+	if (msg.command != LbsMessage::lbsAskPlayerInfo32)
+		return true;
+	const int pos = player_info32_requests_.TakeReply(msg);
+	if (netmode_ != NetMode::Lbs || !player_info32_ready_ || pos == 0)
+		return false;
+	LbsMessage legacy;
+	if (!ReceivePlayerInfo32(msg, legacy, pos)) {
+		ERROR_LOG(COMMON, "player-info32: rejected reply for P%d seq=%u status=%08x", pos, msg.seq, msg.status);
+		legacy = gdxsv_player_info32::ErrorReply(msg);
+	}
+	msg = std::move(legacy);
+	return true;
+}
+
+void Gdxsv::PrepareWinLose32Request(LbsMessage& msg) {
+	if (!enabled_ || disk_ != 2 || netmode_ != NetMode::Lbs || !gdxsv_win_lose32::IsRequest(msg))
+		return;
+	WritePatch();
+	if (!win_lose32_ready_)
+		return;
+	gdxsv_WriteMem32(symbols_["gdx_win_lose32_record"], 0);
+	win_lose32_requests_.Rewrite(msg);
+}
+
+bool Gdxsv::FilterWinLose32Reply(LbsMessage& msg) {
+	if (msg.command != LbsMessage::lbsWinLose32)
+		return true;
+	if (netmode_ != NetMode::Lbs || !win_lose32_ready_ || !win_lose32_requests_.TakeReply(msg))
+		return false;
+	LbsMessage legacy;
+	gdxsv_win_lose32::Record record{};
+	if (!gdxsv_win_lose32::Decode(msg, legacy, record)) {
+		ERROR_LOG(COMMON, "win-lose32: rejected reply seq=%u status=%08x", msg.seq, msg.status);
+		msg = gdxsv_win_lose32::ErrorReply(msg);
+		return true;
+	}
+
+	const u32 table = symbols_["gdx_win_lose32_record"];
+	const auto values = gdxsv_win_lose32::DisplayValues(record);
+	gdxsv_WriteMem32(table, 0);
+	for (size_t i = 0; i < values.size(); ++i) {
+		const std::string text = gdxsv_win_lose32::Format(values[i]);
+		const float scale = gdxsv_win_lose32::HorizontalScale(text);
+		u32 scale_bits;
+		std::memcpy(&scale_bits, &scale, sizeof(scale_bits));
+		const u32 field = table + 4 + i * 20;
+		gdxsv_WriteMem32(field, scale_bits);
+		for (size_t j = 0; j <= text.size(); ++j)
+			gdxsv_WriteMem8(field + 4 + j, j == text.size() ? 0 : u8(text[j]));
+	}
+	gdxsv_WriteMem32(table, 1);
+	NOTICE_LOG(COMMON, "win-lose32: wins=%u losses=%u draws=%u invalid=%u",
+			   record.wins, record.losses, record.draws, record.invalid);
+	msg = std::move(legacy);
+	return true;
+}
+
 void Gdxsv::WritePatch() {
 	if (disk_ == 1) WritePatchDisk1();
 	if (disk_ == 2) WritePatchDisk2();
@@ -683,9 +810,36 @@ void Gdxsv::WritePatch() {
 #include "gdxsv_patch.inc"
 
 		gdxsv_WriteMem32(symbols_["disk"], (int)disk_);
+		ResetPlayerStats32();
 	}
 
 	if (disk_ == 2) {
+		// Hooks live with the guest patch, not a lobby connection or replay.
+		// Recheck guest pointers so a restored savestate can reinstall them,
+		// without clearing the records restored by an ordinary replay seek.
+		auto installStatsHook = [this](const char* name, u32 pointer, u16 instruction,
+									  std::initializer_list<u32> calls) {
+			const u32 hook = symbols_[name];
+			if (hook == 0)
+				return false;
+			const u32 current = gdxsv_ReadMem32(pointer);
+			if (current == hook)
+				return true;
+			if (current != 0x0c02404c)
+				return false;
+			for (u32 call : calls) {
+				if (gdxsv_ReadMem16(call) != instruction)
+					return false;
+			}
+			gdxsv_WriteMem32(pointer, hook);
+			emu.getSh4Executor()->ResetCache();
+			NOTICE_LOG(COMMON, "%s installed: %08x", name, hook);
+			return true;
+		};
+		player_info32_ready_ = installStatsHook("gdx_player_info32_draw", 0x0c03e454, 0x490b,
+			{0x0c03e4c4, 0x0c03e640, 0x0c03e7bc, 0x0c03e938});
+		win_lose32_ready_ = installStatsHook("gdx_win_lose32_draw", 0x0c041f8c, 0x4e0b,
+			{0x0c042188, 0x0c0421c4, 0x0c04222a, 0x0c042266});
 		WriteWidescreenPatchDisk2();
 		if (symbols_["lang_patch_id"] == 0 || gdxsv_ReadMem32(symbols_["lang_patch_id"]) != symbols_[":lang_patch_id"] ||
 			symbols_[":lang_patch_lang"] != (u8)GdxsvLanguage::Language()) {

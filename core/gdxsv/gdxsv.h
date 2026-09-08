@@ -9,6 +9,8 @@
 #include "gdxsv_backend_tcp.h"
 #include "gdxsv_backend_udp.h"
 #include "gdxsv_key_display.h"
+#include "gdxsv_player_info32.h"
+#include "gdxsv_win_lose32.h"
 #include "network/miniupnp.h"
 #include "types.h"
 
@@ -72,6 +74,12 @@ class Gdxsv {
 	void WritePatchDisk1();
 	void WritePatchDisk2();
 	void WriteWidescreenPatchDisk2();
+	void ResetPlayerStats32();
+	bool ReceivePlayerInfo32(const LbsMessage& reply, LbsMessage& legacy, int expected_player = 0);
+	void PreparePlayerInfo32Request(LbsMessage& msg);
+	bool FilterPlayerInfo32Reply(LbsMessage& msg);
+	void PrepareWinLose32Request(LbsMessage& msg);
+	bool FilterWinLose32Reply(LbsMessage& msg);
 
 	NetMode netmode_ = NetMode::Offline;
 	std::atomic<bool> enabled_;
@@ -84,6 +92,10 @@ class Gdxsv {
 	std::map<std::string, u32> symbols_;
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;
+	bool player_info32_ready_ = false;
+	gdxsv_player_info32::Requests player_info32_requests_;
+	bool win_lose32_ready_ = false;
+	gdxsv_win_lose32::Requests win_lose32_requests_;
 	// Snapshotted once in Reset(). Widescreen changes require a game restart.
 	bool widescreen_patch_enabled_ = false;
 	float widescreen_patch_aspect_ = 4.f / 3.f;

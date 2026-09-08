@@ -1521,6 +1521,7 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 }
 
 void GdxsvBackendReplay::Stop() {
+	gdxsv.ResetPlayerStats32();
 	config::FixedFrequency.load();
 	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();
@@ -1828,6 +1829,7 @@ bool GdxsvBackendReplay::Start() {
 	for (const int a : log_file_.start_msg_randoms()) ss << a << " ";
 	NOTICE_LOG(COMMON, "start_msg_randoms = %s", ss.str().c_str());
 
+	gdxsv.ResetPlayerStats32();
 	state_ = State::Start;
 	gdxsv.maxlag_ = 0;
 	gdxsv.key_display_.SetDisplayPlayer(pov_);
@@ -1929,6 +1931,10 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 		}
 
 		if (msg.command == LbsMessage::lbsAskPlayerInfo) {
+			if (!gdxsv_player_info32::IsRequest(msg) || msg.body[0] > log_file_.users_size())
+				return;
+			gdxsv.WritePatch();
+			const bool player_info32 = gdxsv.player_info32_ready_;
 			int pos = msg.Read8();
 			auto user = log_file_.users(pos - 1);
 
@@ -1945,20 +1951,26 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 				user.set_lose_count(0);
 			}
 
-			LbsMessage::SvAnswer(msg)
-				.Write8(pos)
+			const gdxsv_player_info32::Record record{u32(std::max(0, user.battle_count())),
+				u32(std::max(0, user.win_count())), u32(std::max(0, user.lose_count()))};
+			const u32 other = u32(std::max<int64_t>(0, int64_t(record.battles) - record.wins - record.losses));
+			auto reply = LbsMessage::SvAnswer(msg);
+			reply.Write8(pos)
 				->WriteString(user.user_id())
 				->WriteBytes(user.user_name_sjis().data(), user.user_name_sjis().size())
 				->WriteBytes(user.game_param().data(), user.game_param().size())
 				->Write16(user.grade())
-				->Write16(user.win_count())
-				->Write16(user.lose_count())
+				->Write16(player_info32 ? std::min(record.wins, 65535u) : user.win_count())
+				->Write16(player_info32 ? std::min(record.losses, 65535u) : user.lose_count())
 				->Write16(0)
-				->Write16(user.battle_count() - user.win_count() - user.lose_count())
+				->Write16(player_info32 ? std::min(other, 65535u) : user.battle_count() - user.win_count() - user.lose_count())
 				->Write16(0)
 				->Write16(user.team())
-				->Write16(0)
-				->Serialize(recv_buf_);
+				->Write16(0);
+			// Replay and live spectate use the same adapter with recorded counters.
+			if (player_info32 && !gdxsv.ReceivePlayerInfo32(gdxsv_player_info32::Encode(reply, record), reply, pos))
+				ERROR_LOG(COMMON, "player-info32: invalid replay record for P%d", pos);
+			reply.Serialize(recv_buf_);
 		}
 
 		if (msg.command == LbsMessage::lbsAskRuleData) {
