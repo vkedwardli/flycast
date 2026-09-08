@@ -726,6 +726,13 @@ asm(
     "	.size gdx_widescreen_result_black_postproject, .-gdx_widescreen_result_black_postproject\n"
 );
 
+// These draw hooks run in the game's single-precision FPSCR context.
+// Avoid GCC's ABI-based precision toggles around the multiplication.
+static inline float gdx_stats_multiply(float value, float factor) {
+    __asm__("fmul %1,%0" : "+f"(value) : "f"(factor));
+    return value;
+}
+
 // Disc-2 record-line replacement. Other text calls retain the stock renderer.
 struct gdx_player_info32_record {
     u32 valid;
@@ -765,7 +772,7 @@ gdx_player_info32_draw(const char *text, float x, float y, float z) {
     union { u32 bits; float value; } volatile *scale =
         (void *)(read32(0x0c391388) + 0x14b8);
     u32 saved = scale->bits;
-    scale->value *= record->scale_x;
+    scale->value = gdx_stats_multiply(scale->value, record->scale_x);
     draw(record->text, x, y, z);
     scale->bits = saved;
 }
@@ -809,7 +816,7 @@ gdx_win_lose32_draw(const char *text, float x, float y, float z) {
     union { u32 bits; float value; } volatile *scale =
         (void *)(read32(0x0c391388) + 0x14b8);
     u32 saved = scale->bits;
-    scale->value *= record->scale_x;
+    scale->value = gdx_stats_multiply(scale->value, record->scale_x);
     draw(record->text, x, y, z);
     scale->bits = saved;
 }

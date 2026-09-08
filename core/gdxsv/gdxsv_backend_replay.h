@@ -196,6 +196,8 @@ class GdxsvBackendReplay {
 	// Emulation-thread owned after Start; initialization/reset require a
 	// stopped emulator. No UI function may read the protobuf directly.
 	proto::BattleLogFile log_file_;
+	// Written on the emulation thread, read on the UI thread after emu.stop().
+	std::string replay_error_;
 	std::deque<u8> recv_buf_;
 	int pov_ = 0;
 	int key_msg_count_ = 0;

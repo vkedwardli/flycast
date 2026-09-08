@@ -4,27 +4,19 @@ SECTIONS
     gdx.data ALIGN(16) : {
         *(gdx.data)
         *(gdx.data.ws)
+        /* Append new records without moving the existing patch data. */
+        *(gdx.data.info.records)
+        *(gdx.data.info.ranking)
     }
-    ASSERT(. <= 0x0C4E0800, "base data overlaps player-info records")
     . = 0x0C4F0000;
     gdx.func ALIGN(16) : {
         *(gdx.func)
         *(gdx.func.ws)
         *(.rodata*)
-    }
-    ASSERT(. <= 0x0C4F1000, "base patch overlaps player-info helper")
-    . = 0x0C4E0800;
-    gdx.info.data ALIGN(16) : {
-        *(gdx.data.info.records)
-        *(gdx.data.info.ranking)
-    }
-    ASSERT(. <= 0x0C4F0000, "info data overlaps base code")
-    . = 0x0C4F1000;
-    gdx.info.func ALIGN(16) : {
+        /* Saved callbacks depend on the existing function addresses. */
         *(gdx.func.info)
         *(gdx.func.info.ranking)
     }
-    ASSERT(. <= 0x0C500000, "player-info helper overlaps cheats")
     . = 0x0C500000;
     gdx.cheat ALIGN(16) : {
         *(gdx.cheat*)

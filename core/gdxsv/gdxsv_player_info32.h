@@ -1,9 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <string>
-#include "lbs_message.h"
+#include "gdxsv_stats32.h"
 
 namespace gdxsv_player_info32 {
 
@@ -14,15 +13,13 @@ struct Record {
 };
 
 inline bool IsRequest(const LbsMessage& msg) {
-	return msg.direction == LbsMessage::ClientToServer && msg.category == LbsMessage::CategoryQuestion &&
-		msg.command == LbsMessage::lbsAskPlayerInfo && msg.body.size() == 1 && msg.body[0] >= 1 && msg.body[0] <= 4;
+	return gdxsv_stats32::IsRequest(msg, LbsMessage::lbsAskPlayerInfo) && msg.body[0] >= 1 && msg.body[0] <= 4;
 }
 
 // At most one outstanding player-info request per card. No timeout fallback:
 // live servers must implement the new command before this client is released.
 class Requests {
-	struct Pending { bool active = false; u16 seq = 0; };
-	std::array<Pending, 4> pending_{};
+	std::array<gdxsv_stats32::PendingRequest, 4> pending_{};
 
 public:
 	void Clear() { pending_ = {}; }
@@ -31,19 +28,15 @@ public:
 			return false;
 		const size_t player = msg.body[0] - 1;
 		for (size_t p = 0; p < pending_.size(); ++p)
-			if (p != player && pending_[p].active && pending_[p].seq == msg.seq)
+			if (p != player && pending_[p].Matches(msg.seq))
 				return false;
 		pending_[player] = {true, msg.seq};
 		msg.command = LbsMessage::lbsAskPlayerInfo32;
 		return true;
 	}
 	u8 TakeReply(const LbsMessage& msg) {
-		if (msg.direction != LbsMessage::ServerToClient || msg.category != LbsMessage::CategoryAnswer ||
-			msg.command != LbsMessage::lbsAskPlayerInfo32)
-			return 0;
 		for (size_t p = 0; p < pending_.size(); ++p) {
-			if (pending_[p].active && pending_[p].seq == msg.seq) {
-				pending_[p].active = false;
+			if (pending_[p].TakeReply(msg, LbsMessage::lbsAskPlayerInfo32)) {
 				return u8(p + 1);
 			}
 		}
@@ -52,10 +45,7 @@ public:
 };
 
 inline LbsMessage ErrorReply(const LbsMessage& reply) {
-	auto legacy = LbsMessage::SvAnswer(reply);
-	legacy.command = LbsMessage::lbsAskPlayerInfo;
-	legacy.status = LbsMessage::StatusError;
-	return legacy;
+	return gdxsv_stats32::ErrorReply(reply, LbsMessage::lbsAskPlayerInfo);
 }
 
 // Reply body: original lbsAskPlayerInfo body, followed by battles/wins/losses
@@ -67,8 +57,8 @@ inline LbsMessage Encode(LbsMessage legacy, const Record& record) {
 }
 
 inline bool Decode(LbsMessage reply, LbsMessage& legacy, Record& record, int expected_player = 0) {
-	if (reply.command != LbsMessage::lbsAskPlayerInfo32 || reply.direction != LbsMessage::ServerToClient ||
-		reply.category != LbsMessage::CategoryAnswer || reply.status != LbsMessage::StatusSuccess || reply.body.size() < 35)
+	if (!gdxsv_stats32::IsReply(reply, LbsMessage::lbsAskPlayerInfo32) ||
+		reply.status != LbsMessage::StatusSuccess || reply.body.size() < 35)
 		return false;
 	if (reply.body[0] < 1 || reply.body[0] > 4)
 		return false;
@@ -121,7 +111,7 @@ inline std::string Format(const std::string& format, const Record& record) {
 }
 
 inline float HorizontalScale(const std::string& text) {
-	return text.empty() ? 1.f : std::min(1.f, 18.f / float(text.size()));
+	return gdxsv_stats32::HorizontalScale(text, 18.f);
 }
 
 } // namespace gdxsv_player_info32

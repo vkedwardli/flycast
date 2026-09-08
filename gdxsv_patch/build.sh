@@ -25,6 +25,5 @@ sh4-linux-gnu-objdump -h bin/main.o
 sh4-linux-gnu-objcopy \
     --only-section gdx.main1 --only-section gdx.main2 \
     --only-section gdx.data --only-section gdx.func \
-    --only-section gdx.info.data --only-section gdx.info.func \
     bin/main.o bin/gdxsv_patch.o
 sh4-linux-gnu-objdump -h -D bin/gdxsv_patch.o > bin/gdxsv_patch.asm

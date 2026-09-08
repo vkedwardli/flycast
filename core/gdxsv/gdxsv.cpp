@@ -770,7 +770,8 @@ void Gdxsv::PrepareWinLose32Request(LbsMessage& msg) {
 bool Gdxsv::FilterWinLose32Reply(LbsMessage& msg) {
 	if (msg.command != LbsMessage::lbsWinLose32)
 		return true;
-	if (netmode_ != NetMode::Lbs || !win_lose32_ready_ || !win_lose32_requests_.TakeReply(msg))
+	const bool matched = win_lose32_requests_.TakeReply(msg);
+	if (netmode_ != NetMode::Lbs || !win_lose32_ready_ || !matched)
 		return false;
 	LbsMessage legacy;
 	gdxsv_win_lose32::Record record{};

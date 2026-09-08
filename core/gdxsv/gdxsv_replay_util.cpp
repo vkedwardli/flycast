@@ -1444,12 +1444,16 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	}
 }
 
-void gdxsv_end_replay() {
+void gdxsv_end_replay(std::string error) {
+	// Own the message: restoring the previous state resets the replay backend.
 	emu.stop();
 	dc_loadstate(90);
 	settings.input.fastForwardMode = false;
 
-	if (!selected_replay_file.empty() || selected_replay_entry_index != -1) {
+	if (!error.empty()) {
+		gui_state = GuiState::GdxsvReplay;
+		gui_error(error);
+	} else if (!selected_replay_file.empty() || selected_replay_entry_index != -1) {
 		gui_state = GuiState::GdxsvReplay;
 	} else {
 		// Replay from command-line, resume game when end replaying

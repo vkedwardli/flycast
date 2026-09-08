@@ -147,6 +147,7 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_commands_.clear();
 	lbs_tx_reader_.Clear();
 	log_file_.Clear();
+	replay_error_.clear();
 	recv_buf_.clear();
 	pov_ = 0;
 	key_msg_count_ = 0;
@@ -204,7 +205,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		ctrl_input_release_pending_ = false;
 		ui_snapshot_.Publish({});
 		gdxsv.netmode_ = Gdxsv::NetMode::Offline;
-		gdxsv_end_replay();
+		gdxsv_end_replay(replay_error_);
 		return;
 	}
 
@@ -1931,8 +1932,16 @@ void GdxsvBackendReplay::ProcessLbsMessage() {
 		}
 
 		if (msg.command == LbsMessage::lbsAskPlayerInfo) {
-			if (!gdxsv_player_info32::IsRequest(msg) || msg.body[0] > log_file_.users_size())
+			if (msg.body.empty() || msg.body[0] < 1 || msg.body[0] > 4 || msg.body[0] > log_file_.users_size()) {
+				ERROR_LOG(COMMON, "Replay %s: invalid player info (size=%zu player=%d users=%d)",
+					log_file_.battle_code().c_str(), msg.body.size(),
+					msg.body.empty() ? -1 : int(msg.body[0]), log_file_.users_size());
+				replay_error_ = "Cannot replay this battle log: player information is missing or invalid.";
+				save_converted_log_ = false;
+				Stop();
+				PublishUiState();
 				return;
+			}
 			gdxsv.WritePatch();
 			const bool player_info32 = gdxsv.player_info32_ready_;
 			int pos = msg.Read8();

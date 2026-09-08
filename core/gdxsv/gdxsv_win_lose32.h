@@ -1,9 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <string>
-#include "lbs_message.h"
+#include "gdxsv_stats32.h"
 
 namespace gdxsv_win_lose32 {
 
@@ -15,50 +14,40 @@ struct Record {
 };
 
 inline bool IsRequest(const LbsMessage& msg) {
-	return msg.direction == LbsMessage::ClientToServer && msg.category == LbsMessage::CategoryQuestion &&
-		msg.command == LbsMessage::lbsWinLose && msg.body.size() == 1;
+	return gdxsv_stats32::IsRequest(msg, LbsMessage::lbsWinLose);
 }
 
 // The personal panel has one outstanding request. A new category invalidates
 // the previous reply; categories other than zero keep the legacy path.
 class Requests {
-	bool active_ = false;
-	u16 seq_ = 0;
+	gdxsv_stats32::PendingRequest pending_;
 
 public:
-	void Clear() { active_ = false; }
+	void Clear() { pending_ = {}; }
 	bool Rewrite(LbsMessage& msg) {
 		if (!IsRequest(msg))
 			return false;
 		Clear();
 		if (msg.body[0] != 0)
 			return false;
-		active_ = true;
-		seq_ = msg.seq;
+		pending_ = {true, msg.seq};
 		msg.command = LbsMessage::lbsWinLose32;
 		return true;
 	}
 
 	bool TakeReply(const LbsMessage& msg) {
-		if (!active_ || msg.seq != seq_ || msg.direction != LbsMessage::ServerToClient ||
-			msg.category != LbsMessage::CategoryAnswer || msg.command != LbsMessage::lbsWinLose32)
-			return false;
-		Clear();
-		return true;
+		return pending_.TakeReply(msg, LbsMessage::lbsWinLose32);
 	}
 };
 
 inline LbsMessage ErrorReply(const LbsMessage& reply) {
-	auto legacy = LbsMessage::SvAnswer(reply);
-	legacy.command = LbsMessage::lbsWinLose;
-	legacy.status = LbsMessage::StatusError;
-	return legacy;
+	return gdxsv_stats32::ErrorReply(reply, LbsMessage::lbsWinLose);
 }
 
 // Original 18-byte body followed by wins/losses/draws/invalid, all BE u32.
 inline bool Decode(LbsMessage reply, LbsMessage& legacy, Record& record) {
-	if (reply.command != LbsMessage::lbsWinLose32 || reply.direction != LbsMessage::ServerToClient ||
-		reply.category != LbsMessage::CategoryAnswer || reply.status != LbsMessage::StatusSuccess || reply.body.size() != 34)
+	if (!gdxsv_stats32::IsReply(reply, LbsMessage::lbsWinLose32) ||
+		reply.status != LbsMessage::StatusSuccess || reply.body.size() != 34)
 		return false;
 	reply.reading = 18;
 	Record decoded{reply.Read32(), reply.Read32(), reply.Read32(), reply.Read32()};
@@ -84,7 +73,7 @@ inline std::string Format(u64 value) {
 }
 
 inline float HorizontalScale(const std::string& text) {
-	return text.empty() ? 1.f : std::min(1.f, 5.f / float(text.size()));
+	return gdxsv_stats32::HorizontalScale(text, 5.f);
 }
 
 } // namespace gdxsv_win_lose32
