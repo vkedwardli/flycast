@@ -192,7 +192,7 @@ struct LbsMessage {
 	}
 
 	u32 Read32() {
-		u32 v = u32(body[reading]) << 24 | u32(body[reading]) << 16 | u32(body[reading]) << 8 | body[reading];
+		u32 v = u32(body[reading]) << 24 | u32(body[reading + 1]) << 16 | u32(body[reading + 2]) << 8 | body[reading + 3];
 		reading += 4;
 		return v;
 	}
