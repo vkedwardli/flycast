@@ -807,7 +807,9 @@ gdx_win_lose32_draw(const char *text, float x, float y, float z) {
         draw(text, x, y, z);
         return;
     }
-    if (!gdx_win_lose32_record.valid) {
+    // These draw sites serve every category. The cached 32-bit record is
+    // only for category zero; top_rank_now selects the displayed category.
+    if (!gdx_win_lose32_record.valid || read8(0x0c3a081b) != 0) {
         draw(text, x, y, z);
         return;
     }

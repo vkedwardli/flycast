@@ -763,8 +763,8 @@ void Gdxsv::PrepareWinLose32Request(LbsMessage& msg) {
 	WritePatch();
 	if (!win_lose32_ready_)
 		return;
-	gdxsv_WriteMem32(symbols_["gdx_win_lose32_record"], 0);
-	win_lose32_requests_.Rewrite(msg);
+	if (win_lose32_requests_.Rewrite(msg))
+		gdxsv_WriteMem32(symbols_["gdx_win_lose32_record"], 0);
 }
 
 bool Gdxsv::FilterWinLose32Reply(LbsMessage& msg) {
