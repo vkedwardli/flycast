@@ -683,6 +683,9 @@ void Gdxsv::WritePatch() {
 #include "gdxsv_patch.inc"
 
 		gdxsv_WriteMem32(symbols_["disk"], (int)disk_);
+		// Restore the backend flag cleared by payload initialization so guest
+		// polling can reach HandleRPC without first sending another request.
+		gdxsv_WriteMem32(symbols_["is_online"], netmode_ != NetMode::Offline);
 	}
 
 	if (disk_ == 2) {

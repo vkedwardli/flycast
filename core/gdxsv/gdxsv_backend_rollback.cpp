@@ -852,12 +852,12 @@ void GdxsvBackendRollback::ProcessLbsMessage() {
 			LbsMessage::SvAnswer(msg).Write8(matching_.peer_id() + 1)->Serialize(recv_buf_);
 		}
 
-		if (msg.command == LbsMessage::lbsAskPlayerInfo) {
+		if (msg.command == LbsMessage::lbsAskPlayerInfo || msg.command == LbsMessage::lbsAskPlayerInfo32) {
 			int pos = msg.Read8();
 			DummyGameParam[16] = '0' + pos;
 			DummyGameParam[17] = 0;
-			LbsMessage::SvAnswer(msg)
-				.Write8(pos)
+			auto reply = LbsMessage::SvAnswer(msg);
+			reply.Write8(pos)
 				->WriteString("USER0" + std::to_string(pos))
 				->WriteString("USER0" + std::to_string(pos))
 				->WriteBytes(reinterpret_cast<char*>(DummyGameParam), sizeof(DummyGameParam))
@@ -868,8 +868,10 @@ void GdxsvBackendRollback::ProcessLbsMessage() {
 				->Write16(0)
 				->Write16(0)
 				->Write16(1 + (pos - 1) / 2)
-				->Write16(0)
-				->Serialize(recv_buf_);
+				->Write16(0);
+			if (msg.command == LbsMessage::lbsAskPlayerInfo32)
+				reply.Write32(0)->Write32(0)->Write32(0);
+			reply.Serialize(recv_buf_);
 		}
 
 		if (msg.command == LbsMessage::lbsAskRuleData) {

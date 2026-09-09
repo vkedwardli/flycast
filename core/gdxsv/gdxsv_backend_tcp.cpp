@@ -1,6 +1,7 @@
 #include "gdxsv_backend_tcp.h"
 
 #include "gdx_rpc.h"
+#include "gdxsv.h"
 #include "libs.h"
 
 void GdxsvBackendTcp::Reset() {
@@ -68,13 +69,20 @@ u32 GdxsvBackendTcp::OnSockPoll() {
 			rx_msg_reader_.Write(reinterpret_cast<char *>(buf), n);
 
 			while (rx_msg_reader_.Read(lbs_msg_)) {
-				if (lbs_packet_filter_) {
-					if (lbs_packet_filter_(lbs_msg_)) {
-						lbs_msg_.Serialize(recv_buf_);
-					}
-				} else {
-					lbs_msg_.Serialize(recv_buf_);
+				if (lbs_packet_filter_ && !lbs_packet_filter_(lbs_msg_))
+					continue;
+				// The disc-2 reader assumes exact reads and has a 768-byte body
+				// buffer. Keep staging complete messages, and reject oversize
+				// bodies before exposing their header to the guest. Host-only
+				// messages (e.g. protobuf patches) were handled by the filter.
+				if (gdxsv.Disk() == 2 && lbs_msg_.body.size() > 768) {
+					WARN_LOG(COMMON, "LBS: oversized guest reply command=%04x size=%zu",
+						lbs_msg_.command, lbs_msg_.body.size());
+					lbs_msg_.body.clear();
+					lbs_msg_.body_size = 0;
+					lbs_msg_.status = LbsMessage::StatusError;
 				}
+				lbs_msg_.Serialize(recv_buf_);
 			}
 		}
 	}
