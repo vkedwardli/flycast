@@ -7,6 +7,7 @@ SECTIONS
         /* Append new records without moving the existing patch data. */
         *(gdx.data.info.records)
         *(gdx.data.info.ranking)
+        *(gdx.data.stats)
     }
     . = 0x0C4F0000;
     gdx.func ALIGN(16) : {
@@ -16,6 +17,7 @@ SECTIONS
         /* Saved callbacks depend on the existing function addresses. */
         *(gdx.func.info)
         *(gdx.func.info.ranking)
+        *(gdx.func.stats)
     }
     . = 0x0C500000;
     gdx.cheat ALIGN(16) : {

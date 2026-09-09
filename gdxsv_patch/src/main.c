@@ -1,6 +1,7 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
+typedef unsigned long long u64;
 
 #define CALL_ORG_FUNC 0 // works only disk2
 #define DEBUG_PRINT 0
@@ -747,7 +748,7 @@ struct gdx_player_info32_record {
 struct gdx_player_info32_record gdx_player_info32_records[4]
     __attribute__((section("gdx.data.info.records"))) = {0};
 
-_Static_assert(sizeof(struct gdx_player_info32_record) == 64, "player-info32 host layout");
+_Static_assert(sizeof(struct gdx_player_info32_record) == 64, "player-info32 saved layout");
 
 void __attribute__((section("gdx.func.info"), noinline))
 gdx_player_info32_draw(const char *text, float x, float y, float z) {
@@ -777,6 +778,124 @@ gdx_player_info32_draw(const char *text, float x, float y, float z) {
     scale->bits = saved;
 }
 
+// Statistics helpers are appended so existing saved callbacks keep their addresses.
+#define GDXSTATSFUNC __attribute__((section("gdx.func.stats"), noinline))
+#define GDXSTATSDATA __attribute__((section("gdx.data.stats")))
+
+// The largest displayed total is three UINT32_MAX counters (11 digits).
+// Repeated subtraction avoids an SH4 64-bit division runtime dependency.
+static u32 GDXSTATSFUNC gdx_stats_format_number(char *out, u32 capacity, u64 value, u32 width) {
+    char digits[11];
+    u32 length = 0;
+    u64 power = 10000000000ULL;
+    if (value >= 100000000000ULL)
+        return 0;
+    for (u32 i = 0; i < 11; ++i) {
+        char digit = '0';
+        while (value >= power) {
+            value -= power;
+            ++digit;
+        }
+        if (digit != '0' || length != 0 || i == 10)
+            digits[length++] = digit;
+        // Every remaining power fits in u32; constant division needs no helper.
+        power = i == 0 ? 1000000000u : (u32)power / 10;
+    }
+    u32 size = length < width ? width : length;
+    if (size >= capacity)
+        return 0;
+    u32 padding = size - length;
+    for (u32 i = 0; i < padding; ++i)
+        out[i] = ' ';
+    for (u32 i = 0; i < length; ++i)
+        out[padding + i] = digits[i];
+    out[size] = 0;
+    return size;
+}
+
+// Preserve the translated labels; only replace the three original %4d fields.
+static u32 GDXSTATSFUNC gdx_stats_format_player(char *out, u32 capacity,
+        const char *format, u32 format_size, const u32 values[3]) {
+    u32 size = 0, field = 0;
+    for (u32 i = 0; i < format_size && format[i] != 0;) {
+        if (format[i] == '%') {
+            if (i + 2 >= format_size || format[i + 1] != '4' ||
+                    format[i + 2] != 'd' || field >= 3)
+                return 0;
+            u32 length = gdx_stats_format_number(out + size, capacity - size, values[field++], 4);
+            if (length == 0)
+                return 0;
+            size += length;
+            i += 3;
+        } else {
+            if (size + 1 >= capacity)
+                return 0;
+            out[size++] = format[i++];
+        }
+    }
+    if (field != 3 || size >= capacity)
+        return 0;
+    out[size] = 0;
+    return size;
+}
+
+static u32 GDXSTATSFUNC gdx_stats_read_be32(const u8 *data) {
+    return (u32)data[0] << 24 | (u32)data[1] << 16 | (u32)data[2] << 8 | data[3];
+}
+
+static u16 GDXSTATSFUNC gdx_stats_read_be16(const u8 *data) {
+    return (u16)data[0] << 8 | data[1];
+}
+
+static void GDXSTATSFUNC gdx_stats_write_be16(u8 *data, u16 value) {
+    data[0] = value >> 8;
+    data[1] = value;
+}
+
+// Encode min(1, width / length) as single-precision bits. Integer arithmetic
+// avoids changing the game's FPSCR precision mode (which differs from GCC's).
+static u32 GDXSTATSFUNC gdx_stats_scale_bits(u32 width, u32 length) {
+    if (length <= width)
+        return 0x3f800000;
+    u32 exponent = 127, mantissa = 0;
+    while (width < length) {
+        width <<= 1;
+        --exponent;
+    }
+    for (u32 i = 0; i < 24; ++i) {
+        mantissa <<= 1;
+        if (width >= length) {
+            width -= length;
+            mantissa |= 1;
+        }
+        width <<= 1;
+    }
+    // Round to nearest, ties to even.
+    if (width > length || (width == length && (mantissa & 1)))
+        ++mantissa;
+    return ((exponent - 1) << 23) + mantissa;
+}
+
+// Validate the legacy prefix before accessing the appended 32-bit counters.
+static u32 GDXSTATSFUNC gdx_stats_player_legacy_size(const u8 *body, u32 size) {
+    if (size < 35 || size > 768 || body[0] < 1 || body[0] > 4)
+        return 0;
+    u32 legacy_size = size - 12;
+    u32 cursor = 1;
+    for (u32 field = 0; field < 3; ++field) {
+        if (cursor + 2 > legacy_size)
+            return 0;
+        u32 length = (u32)body[cursor] << 8 | body[cursor + 1];
+        cursor += 2;
+        // The original receiver copies these fields without destination bounds.
+        u32 capacity = field == 0 ? 7 : field == 1 ? 17 : 0x280;
+        if (length > legacy_size - cursor || length > capacity)
+            return 0;
+        cursor += length;
+    }
+    return cursor + 16 == legacy_size ? legacy_size : 0;
+}
+
 // Personal ranking numbers only; labels and leaderboard text stay stock.
 struct gdx_win_lose32_field {
     float scale_x;
@@ -788,7 +907,7 @@ struct gdx_win_lose32_data {
     struct gdx_win_lose32_field fields[4];
 } gdx_win_lose32_record __attribute__((section("gdx.data.info.ranking"))) = {0};
 
-_Static_assert(sizeof(struct gdx_win_lose32_data) == 84, "win-lose32 host layout");
+_Static_assert(sizeof(struct gdx_win_lose32_data) == 84, "win-lose32 saved layout");
 
 void __attribute__((section("gdx.func.info.ranking"), noinline))
 gdx_win_lose32_draw(const char *text, float x, float y, float z) {
@@ -821,4 +940,173 @@ gdx_win_lose32_draw(const char *text, float x, float y, float z) {
     scale->value = gdx_stats_multiply(scale->value, record->scale_x);
     draw(record->text, x, y, z);
     scale->bits = saved;
+}
+
+// Disc-2 complete-message hooks. Framing and the original record receivers
+// stay in the game; only the two private extensions are handled here.
+struct gdx_stats_pending {
+    u16 wire_seq;
+    u16 original_seq;
+    u16 command;
+    u8 active;
+};
+
+static struct {
+    u32 needs_init;
+    u16 next_seq;
+    struct gdx_stats_pending pending[5]; // four player cards, one personal panel
+} gdx_stats_state GDXSTATSDATA = { .needs_init = 1 };
+
+static void GDXSTATSFUNC gdx_stats_initialize() {
+    if (!gdx_stats_state.needs_init)
+        return;
+    // Slot 99 is already connected. Do not call gdx_initialize(), which clears
+    // is_online, or reset this state on an ordinary same-payload savestate load.
+    for (u32 i = 0; i < 5; ++i)
+        gdx_stats_state.pending[i].active = 0;
+    gdx_stats_state.next_seq = 0;
+    for (u32 i = 0; i < 4; ++i)
+        gdx_player_info32_records[i].valid = 0;
+    gdx_win_lose32_record.valid = 0;
+    write32(BIN_OFFSET + 0x0c03e454, gdx_player_info32_draw);
+    write32(BIN_OFFSET + 0x0c041f8c, gdx_win_lose32_draw);
+    gdx_stats_state.needs_init = 0;
+}
+
+static void GDXSTATSFUNC gdx_stats_request(u16 command, u8 argument) {
+    gdx_stats_initialize();
+    if (command == 0x6145 && argument != 0) {
+        // Other categories keep their legacy protocol and display. A late
+        // personal-panel response must not complete the new category's request.
+        gdx_stats_state.pending[4].active = 0;
+        ((void (*)(int))0x0c034e9c)(argument);
+        return;
+    }
+    if (command == 0x6913 && (argument < 1 || argument > 4)) {
+        ((void (*)(int))0x0c036094)(argument);
+        return;
+    }
+
+    u32 slot = command == 0x6913 ? argument - 1 : 4;
+    struct gdx_stats_pending *pending = &gdx_stats_state.pending[slot];
+    pending->active = 0;
+    // Stock player requests are a burst sharing one sequence. Assign distinct
+    // wire sequences so even empty error replies identify exactly one request.
+    u16 seq;
+    u32 collision;
+    do {
+        seq = ++gdx_stats_state.next_seq;
+        collision = 0;
+        for (u32 i = 0; i < 5; ++i)
+            if (gdx_stats_state.pending[i].active && gdx_stats_state.pending[i].wire_seq == seq)
+                collision = 1;
+    } while (collision);
+
+    u8 *tx = (void *)0x0c3a98c0;
+    u16 original_seq = gdx_stats_read_be16(tx + 10);
+    u16 extended = command == 0x6913 ? 0x9966 : 0x9967;
+    ((void (*)(u8 *, u16))0x0c0341bc)(tx, extended);
+    tx[5] = 1; // question
+    ((void (*)(u8 *, u8))0x0c034288)(tx, argument);
+    ((void (*)(u8 *))0x0c03426e)(tx);
+    pending->wire_seq = seq;
+    pending->original_seq = original_seq;
+    pending->command = extended;
+    pending->active = 1;
+    if (slot < 4)
+        gdx_player_info32_records[slot].valid = 0;
+    else
+        gdx_win_lose32_record.valid = 0;
+    gdx_stats_write_be16(tx + 10, seq);
+    ((void (*)(u8 *))0x0c03436c)(tx);
+    gdx_stats_write_be16(tx + 10, original_seq);
+}
+
+void GDXSTATSFUNC gdx_player_info32_request(int player) {
+    gdx_stats_request(0x6913, (u8)player);
+}
+
+void GDXSTATSFUNC gdx_win_lose32_request(int category) {
+    gdx_stats_request(0x6145, (u8)category);
+}
+
+static u32 GDXSTATSFUNC gdx_stats_store_player(const u8 *body, u32 size, u32 slot) {
+    u32 legacy_size = gdx_stats_player_legacy_size(body, size);
+    if (!legacy_size || body[0] != slot + 1)
+        return 0;
+    struct gdx_player_info32_record *record = &gdx_player_info32_records[slot];
+    u32 values[3];
+    for (u32 i = 0; i < 3; ++i)
+        values[i] = gdx_stats_read_be32(body + legacy_size + i * 4);
+    record->battles = values[0];
+    record->wins = values[1];
+    record->losses = values[2];
+    u32 length = gdx_stats_format_player(record->text, sizeof(record->text),
+        (const char *)0x0c1d31bc, 16, values);
+    if (length) {
+        u32 scale = gdx_stats_scale_bits(18, length);
+        __builtin_memcpy(&record->scale_x, &scale, sizeof(scale));
+        record->valid = 1;
+    }
+    // An unrecognized translation can use the legacy text without stranding
+    // an otherwise valid player-info reply before the battle starts.
+    return legacy_size;
+}
+
+static u32 GDXSTATSFUNC gdx_stats_store_ranking(const u8 *body, u32 size) {
+    if (size != 34)
+        return 0;
+    u64 wins = gdx_stats_read_be32(body + 18);
+    u64 losses = gdx_stats_read_be32(body + 22);
+    u64 draws = gdx_stats_read_be32(body + 26);
+    u64 values[4] = {wins + losses + draws, wins, losses + draws, gdx_stats_read_be32(body + 30)};
+    for (u32 i = 0; i < 4; ++i) {
+        struct gdx_win_lose32_field *field = &gdx_win_lose32_record.fields[i];
+        u32 length = gdx_stats_format_number(field->text, sizeof(field->text), values[i], 5);
+        u32 scale = gdx_stats_scale_bits(5, length);
+        __builtin_memcpy(&field->scale_x, &scale, sizeof(scale));
+    }
+    gdx_win_lose32_record.valid = 1;
+    return 18;
+}
+
+int GDXSTATSFUNC gdx_stats_poll(u16 *command) {
+    gdx_stats_initialize();
+    int ready = ((int (*)(u16 *))0x0c033e20)(command);
+    if (!ready || (*command != 0x9966 && *command != 0x9967))
+        return ready;
+
+    // The host exposes complete messages only, capped to this 768-byte body
+    // buffer BEFORE the stock reader runs. The extension has now been drained.
+    u8 *header = (void *)0x0c3a9bd0;
+    u8 *body = header + 12;
+    if (header[0] != 0x18 || header[1] != 2)
+        return 0;
+    u16 seq = gdx_stats_read_be16(header + 6);
+    for (u32 slot = 0; slot < 5; ++slot) {
+        struct gdx_stats_pending *pending = &gdx_stats_state.pending[slot];
+        if (!pending->active || pending->wire_seq != seq || pending->command != *command)
+            continue;
+        pending->active = 0; // duplicates must never advance the completion count
+        u32 legacy_size = 0;
+        if (gdx_stats_read_be32(header + 8) == 0x00ffffff) {
+            u32 size = gdx_stats_read_be16(header + 4);
+            legacy_size = slot < 4 ? gdx_stats_store_player(body, size, slot)
+                                  : gdx_stats_store_ranking(body, size);
+        }
+        if (!legacy_size) {
+            // Both ranking callers ignore status and still run the receiver.
+            // Clear the body as well, preserving the stock legacy error path.
+            for (u32 i = 0; i < 768; ++i)
+                body[i] = 0;
+            for (u32 i = 8; i < 12; ++i)
+                header[i] = 0xff;
+        }
+        *command = slot < 4 ? 0x6913 : 0x6145;
+        gdx_stats_write_be16(header + 2, *command);
+        gdx_stats_write_be16(header + 4, legacy_size);
+        gdx_stats_write_be16(header + 6, pending->original_seq);
+        return 1; // the original caller still owns receiver dispatch/completion
+    }
+    return 0; // consume unsolicited, superseded or duplicate extension replies
 }

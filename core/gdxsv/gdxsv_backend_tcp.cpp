@@ -23,7 +23,6 @@ bool GdxsvBackendTcp::Connect(const std::string &host, u16 port) {
 	rx_msg_reader_.Clear();
 	tx_msg_reader_.Clear();
 	recv_buf_.clear();
-	gdxsv.ResetPlayerStats32();
 	return true;
 }
 
@@ -54,8 +53,6 @@ u32 GdxsvBackendTcp::OnSockWrite(u32 addr, u32 size) {
 	}
 
 	while (tx_msg_reader_.Read(lbs_msg_)) {
-		gdxsv.PreparePlayerInfo32Request(lbs_msg_);
-		gdxsv.PrepareWinLose32Request(lbs_msg_);
 		std::vector<u8> v;
 		lbs_msg_.Serialize(v);
 		tcp_client_.Send(reinterpret_cast<const char *>(v.data()), v.size());
@@ -72,17 +69,20 @@ u32 GdxsvBackendTcp::OnSockPoll() {
 			rx_msg_reader_.Write(reinterpret_cast<char *>(buf), n);
 
 			while (rx_msg_reader_.Read(lbs_msg_)) {
-				if (!gdxsv.FilterPlayerInfo32Reply(lbs_msg_))
+				if (lbs_packet_filter_ && !lbs_packet_filter_(lbs_msg_))
 					continue;
-				if (!gdxsv.FilterWinLose32Reply(lbs_msg_))
-					continue;
-				if (lbs_packet_filter_) {
-					if (lbs_packet_filter_(lbs_msg_)) {
-						lbs_msg_.Serialize(recv_buf_);
-					}
-				} else {
-					lbs_msg_.Serialize(recv_buf_);
+				// The disc-2 reader assumes exact reads and has a 768-byte body
+				// buffer. Keep staging complete messages, and reject oversize
+				// bodies before exposing their header to the guest. Host-only
+				// messages (e.g. protobuf patches) were handled by the filter.
+				if (gdxsv.Disk() == 2 && lbs_msg_.body.size() > 768) {
+					WARN_LOG(COMMON, "LBS: oversized guest reply command=%04x size=%zu",
+						lbs_msg_.command, lbs_msg_.body.size());
+					lbs_msg_.body.clear();
+					lbs_msg_.body_size = 0;
+					lbs_msg_.status = LbsMessage::StatusError;
 				}
+				lbs_msg_.Serialize(recv_buf_);
 			}
 		}
 	}
