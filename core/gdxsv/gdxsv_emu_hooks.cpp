@@ -88,6 +88,12 @@ void gdxsv_emu_reset() {
 	gdxsv.Reset();
 }
 
+void gdxsv_emu_state_restored() {
+	if (gdxsv.Enabled()) {
+		gdxsv.InvalidateWidescreenPatch();
+	}
+}
+
 void gdxsv_emu_vblank() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookVBlank();

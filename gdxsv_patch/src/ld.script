@@ -1,24 +1,21 @@
 SECTIONS
 {
+    /* Keep networking first; append widescreen, then statistics. */
     . = 0x0C4E0200;
     gdx.data ALIGN(16) : {
         *(gdx.data)
         *(gdx.data.ws)
-        /* Append new records without moving the existing patch data. */
-        *(gdx.data.info.records)
-        *(gdx.data.info.ranking)
         *(gdx.data.stats)
     }
     . = 0x0C4F0000;
     gdx.func ALIGN(16) : {
         *(gdx.func)
         *(gdx.func.ws)
-        *(.rodata*)
-        /* Saved callbacks depend on the existing function addresses. */
-        *(gdx.func.info)
-        *(gdx.func.info.ranking)
         *(gdx.func.stats)
+        *(.rodata*)
     }
+    /* gdxsv-1.8.11 savestates retain this HUD callback address. */
+    ASSERT(gdx_widescreen_hud_render == 0x0C4F0640, "gdxsv-1.8.11 HUD callback address changed")
     . = 0x0C500000;
     gdx.cheat ALIGN(16) : {
         *(gdx.cheat*)
