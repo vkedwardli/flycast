@@ -12,7 +12,7 @@ typedef unsigned long long u64;
 #define GDXMAIN2 __attribute__((section("gdx.main2")))
 
 // Append each feature after the legacy networking payload (see ld.script).
-// Widescreen source order keeps its saved HUD entry's padding predictable.
+// Widescreen source order keeps its released entries and table in place.
 #define GDXWSDATA __attribute__((section("gdx.data.ws")))
 #define GDXWSFUNC __attribute__((section("gdx.func.ws"), no_reorder))
 #define GDXSTATSDATA __attribute__((section("gdx.data.stats")))
@@ -448,6 +448,25 @@ struct gdx_ws_vtx {
 GDXWSDATA float gdx_widescreen_transition_left_x = 0.0f;
 GDXWSDATA float gdx_widescreen_transition_right_x = 640.0f;
 
+// .ws follows the unchanged networking code at 0x0c4f0590. Keep the
+// gdxsv-1.8.11 transition entry here; its C implementation follows the
+// released HUD table and result hook below. The jump preserves PR.
+asm(
+    ".pushsection gdx.func.ws,\"ax\",@progbits\n"
+    ".org 0\n"
+    ".global gdx_widescreen_transition_matte\n"
+    ".type gdx_widescreen_transition_matte, @function\n"
+    "gdx_widescreen_transition_matte:\n"
+    "\tmov.l\t.Ltransition_matte_impl,r0\n"
+    "\tjmp\t@r0\n"
+    "\t nop\n"
+    "\t.balign 4\n"
+    ".Ltransition_matte_impl:\n"
+    "\t.long\tgdx_widescreen_transition_matte_impl\n"
+    "\t.size gdx_widescreen_transition_matte, .-gdx_widescreen_transition_matte\n"
+    ".popsection\n"
+);
+
 // FUN_0c049e20 rebuilds the general fade quad on every draw. Widen it at
 // its private submit call, after the stock code sets XY and the live color.
 void GDXWSFUNC gdx_widescreen_fade_submit(int count, struct gdx_ws_vtx *v) {
@@ -491,9 +510,10 @@ void GDXWSFUNC gdx_widescreen_hud_render_impl(void *work_) {
     field->bits = saved;
 }
 
-// .ws follows the unchanged networking code at 0x0c4f0590. Pad within .ws
-// to the gdxsv-1.8.11 saved HUD callback at 0x0c4f0640 (offset 0xb0).
-// .org rejects helpers which outgrow the gap; ld.script checks the address.
+// Pad within .ws to the gdxsv-1.8.11 HUD callback at 0x0c4f0640 and its
+// renderer table at 0x0c4f06b0. Saved objects retain the callback; creating
+// new objects uses the table, so both must survive a payload replacement.
+// .org rejects helpers which outgrow the gaps; ld.script checks the addresses.
 // The jump changes neither PR nor the incoming work argument.
 asm(
     ".pushsection gdx.func.ws,\"ax\",@progbits\n"
@@ -508,59 +528,38 @@ asm(
     ".Lhud_render_impl:\n"
     "\t.long\tgdx_widescreen_hud_render_impl\n"
     "\t.size gdx_widescreen_hud_render, .-gdx_widescreen_hud_render\n"
+    ".org 0x120\n"
+    ".global gdx_widescreen_hud_renderer_table\n"
+    ".type gdx_widescreen_hud_renderer_table, @object\n"
+    "gdx_widescreen_hud_renderer_table:\n"
+    "\t.long\tgdx_widescreen_hud_render\n" // type 0: right
+    "\t.long\tgdx_widescreen_hud_render\n" // type 1: right
+    "\t.long\tgdx_widescreen_hud_render\n" // type 2: right
+    "\t.long\tgdx_widescreen_hud_render\n" // type 3: right
+    "\t.long\t0x0c11edea\n"
+    "\t.long\t0x0c11ef96\n"
+    "\t.long\tgdx_widescreen_hud_render\n" // type 6: left
+    "\t.long\t0x0c11f940\n"
+    "\t.long\t0x0c11fb18\n"
+    "\t.long\t0x0c120268\n"
+    "\t.long\t0x0c11bec0\n"
+    "\t.long\t0x0c120380\n"
+    "\t.long\tgdx_widescreen_hud_render\n" // type 12: information panel
+    "\t.long\t0x0c121bc4\n"
+    "\t.long\t0x0c121c74\n"
+    "\t.long\t0x0c121c74\n"
+    "\t.long\t0x0c121dbc\n"
+    "\t.size gdx_widescreen_hud_renderer_table, .-gdx_widescreen_hud_renderer_table\n"
     ".popsection\n"
 );
-void gdx_widescreen_hud_render(void *work);
-
-GDXWSDATA u32 gdx_widescreen_hud_renderer_table[17] = {
-    (u32) gdx_widescreen_hud_render,  // type 0: right
-    (u32) gdx_widescreen_hud_render,  // type 1: right
-    (u32) gdx_widescreen_hud_render,  // type 2: right
-    (u32) gdx_widescreen_hud_render,  // type 3: right
-    0x0c11edea,
-    0x0c11ef96,
-    (u32) gdx_widescreen_hud_render,  // type 6: left
-    0x0c11f940,
-    0x0c11fb18,
-    0x0c120268,
-    0x0c11bec0,
-    0x0c120380,
-    (u32) gdx_widescreen_hud_render,  // type 12: information panel
-    0x0c121bc4,
-    0x0c121c74,
-    0x0c121c74,
-    0x0c121dbc,
-};
-
-// Centred arbitrary-aspect replacement for FUN_0c1955b4.
-void GDXWSFUNC gdx_widescreen_transition_matte(void) {
-    // Preserve the live packed color: (alpha << 24) | rgb.
-    u32 rgb = read32(0x0c470428);
-    u32 alpha = read32(0x0c47042c);
-    u32 color = (alpha << 24) | rgb;
-
-    float global_x = *(volatile float *)(0x0c3d0584 + 16);
-    float global_y = *(volatile float *)(0x0c3d0584 + 20);
-    float left = gdx_add(global_x, gdx_widescreen_transition_left_x);
-    float right = gdx_add(global_x, gdx_widescreen_transition_right_x);
-    float top = global_y;
-    float bottom = gdx_add(global_y, 480.0f);
-
-    struct gdx_ws_vtx v[4];
-    v[0].x = left;  v[0].y = top;    v[0].z = 0.02f; v[0].color = color;
-    v[1].x = left;  v[1].y = bottom; v[1].z = 0.02f; v[1].color = color;
-    v[2].x = right; v[2].y = top;    v[2].z = 0.02f; v[2].color = color;
-    v[3].x = right; v[3].y = bottom; v[3].z = 0.02f; v[3].color = color;
-
-    ((void (*)(int)) 0x0c19e390)(0);             // prepare
-    ((void (*)(int, void *)) 0x0c19e630)(4, v);  // submit(count, &vertices)
-}
 
 // This one hook must remain assembly: it enters FUN_0c1be120 mid-function
 // with live fr5/r14 and replays the overwritten instructions. Keep its
-// PC-relative literals together; resizing only changes the scale value.
+// gdxsv-1.8.11 entry at 0x0c4f06f4 and its PC-relative literals together;
+// resizing only changes the scale value.
 asm(
     ".pushsection gdx.func.ws,\"ax\",@progbits\n"
+    ".org 0x164\n"
     ".align 2\n"
     ".global gdx_widescreen_result_black_postproject\n"
     ".type gdx_widescreen_result_black_postproject, @function\n"
@@ -637,6 +636,31 @@ asm(
     "	.size gdx_widescreen_result_black_postproject, .-gdx_widescreen_result_black_postproject\n"
     ".popsection\n"
 );
+
+// Centred arbitrary-aspect replacement for FUN_0c1955b4. The released
+// entry at 0x0c4f0590 jumps here, outside the fixed-address compatibility area.
+void GDXWSFUNC gdx_widescreen_transition_matte_impl(void) {
+    // Preserve the live packed color: (alpha << 24) | rgb.
+    u32 rgb = read32(0x0c470428);
+    u32 alpha = read32(0x0c47042c);
+    u32 color = (alpha << 24) | rgb;
+
+    float global_x = *(volatile float *)(0x0c3d0584 + 16);
+    float global_y = *(volatile float *)(0x0c3d0584 + 20);
+    float left = gdx_add(global_x, gdx_widescreen_transition_left_x);
+    float right = gdx_add(global_x, gdx_widescreen_transition_right_x);
+    float top = global_y;
+    float bottom = gdx_add(global_y, 480.0f);
+
+    struct gdx_ws_vtx v[4];
+    v[0].x = left;  v[0].y = top;    v[0].z = 0.02f; v[0].color = color;
+    v[1].x = left;  v[1].y = bottom; v[1].z = 0.02f; v[1].color = color;
+    v[2].x = right; v[2].y = top;    v[2].z = 0.02f; v[2].color = color;
+    v[3].x = right; v[3].y = bottom; v[3].z = 0.02f; v[3].color = color;
+
+    ((void (*)(int)) 0x0c19e390)(0);             // prepare
+    ((void (*)(int, void *)) 0x0c19e630)(4, v);  // submit(count, &vertices)
+}
 
 // These draw hooks run in the game's single-precision FPSCR context.
 // Avoid GCC's ABI-based precision toggles around the multiplication.
