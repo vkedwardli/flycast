@@ -842,6 +842,10 @@ void Gdxsv::WriteWidescreenPatchDisk2() {
 		return;
 	if (symbols_.count("gdx_widescreen_transition_right_x") == 0)
 		return;
+	// A savestate can restore an older payload while host symbols stay current.
+	// Wait for WritePatch() to install the current payload before publishing hooks.
+	if (gdxsv_ReadMem32(symbols_["patch_id"]) != symbols_[":patch_id"])
+		return;
 
 	constexpr float stock_aspect = 4.f / 3.f;
 	const float viewport_aspect = static_cast<float>(width) / height;
