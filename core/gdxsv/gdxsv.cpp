@@ -872,8 +872,16 @@ void Gdxsv::WriteWidescreenPatchDisk2() {
 	const u32 old_table = gdxsv_ReadMem32(0x0c1196f0);
 	const bool patch_table = (old_table & 0x1fffffff) >= 0x0c4e0200 &&
 		(old_table & 0x1fffffff) < 0x0c500000;
-	if (old_table != 0x0c2403a4 && old_table != hud_table && !patch_table)
-		return; // The disc-2 game image is not ready yet.
+	if (old_table != 0x0c2403a4 && old_table != hud_table && !patch_table) {
+		if (old_table != 0) {
+			static bool warned = false;
+			if (!warned) {
+				WARN_LOG(COMMON, "Widescreen update deferred: unrecognized HUD renderer table=%08x", old_table);
+				warned = true;
+			}
+		}
+		return; // The game image may not be ready, or the table may be unsupported.
+	}
 
 	const bool install = old_table != hud_table ||
 		gdxsv_ReadMem32(0x0c1955ac) != transition || gdxsv_ReadMem32(0x0c1be1e4) != result ||
