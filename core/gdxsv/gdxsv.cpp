@@ -850,11 +850,12 @@ void Gdxsv::WriteWidescreenPatchDisk2() {
 	constexpr float stock_aspect = 4.f / 3.f;
 	const float viewport_aspect = static_cast<float>(width) / height;
 	const float aspect = super_widescreen ? viewport_aspect : 16.f / 9.f;
+	// HUD placement follows the viewport independently of the rendering aspect.
 	float hud_aspect = stock_aspect;
 	if (hud_layout == 1)
-		hud_aspect = std::max(stock_aspect, std::min(aspect, 16.f / 9.f));
+		hud_aspect = std::max(stock_aspect, std::min(viewport_aspect, 16.f / 9.f));
 	else if (hud_layout == 2)
-		hud_aspect = std::max(stock_aspect, aspect);
+		hud_aspect = std::max(stock_aspect, viewport_aspect);
 
 	auto float_bits = [](float value) {
 		u32 bits;
