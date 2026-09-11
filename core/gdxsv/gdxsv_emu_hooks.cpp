@@ -1,4 +1,5 @@
 #include "gdxsv_emu_hooks.h"
+#include <cstdlib>
 
 #include <chrono>
 #include <regex>
@@ -7,6 +8,9 @@
 
 #include "cfg/cfg.h"
 #include "gdxsv.h"
+#include "libs.h"
+#include "stdclass.h"
+#include <nowide/cstdio.hpp>
 #include "gdxsv_custom_texture_source.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_replay_util.h"
@@ -75,6 +79,15 @@ void gdxsv_emu_start() {
 			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
 				dc_loadstate(99);
 			}
+		} else if (gdxsv_headless() && config::loadBool("gdxsv", "headless_loadstate", false)) {
+			// Headless inspection boot: resume from the shared slot-99 lobby
+			// savestate (no battle, no online boot) so HookVBlank->WritePatch
+			// applies the gdxsv patches within a few frames. A test then reads
+			// the patched memory via the headless probe (headless_probe_frames
+			// + dumpmem) without a long cold boot or any network.
+			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+				dc_loadstate(99);
+			}
 		} else {
 			gdxsv.StartPingTest();
 			gui_setState(GuiState::GdxsvLatencyCheck);
@@ -94,10 +107,55 @@ void gdxsv_emu_state_restored() {
 	}
 }
 
+// Headless boot probe: after gdxsv:headless_probe_frames vblanks, optionally
+// dump memory ranges (gdxsv:dumpmem="<hexaddr>:<len>[;...]") and exit. Lets a
+// test boot the game far enough for HookVBlank->WritePatch to apply the gdxsv
+// patches, then read the patched memory, without starting a battle.
+// Ranges are separated by ';' (not ',') because the -config CLI parser
+// (core/cfg/cl.cpp) splits each --config argument's value on commas.
+static void gdxsv_headless_probe_tick() {
+	if (!gdxsv_headless())
+		return;
+	static int probe_frames = -1;
+	if (probe_frames == -1)
+		probe_frames = config::loadInt("gdxsv", "headless_probe_frames", 0);
+	if (probe_frames <= 0)
+		return;
+	static int count = 0;
+	if (++count < probe_frames)
+		return;
+
+	const std::string spec = config::loadStr("gdxsv", "dumpmem", "");
+	if (!spec.empty()) {
+		std::string path = get_writable_data_path("dumpmem.txt");
+		FILE *f = nowide::fopen(path.c_str(), "w");
+		if (f != nullptr) {
+			std::stringstream ss(spec);
+			std::string range;
+			while (std::getline(ss, range, ';')) {
+				auto colon = range.find(':');
+				if (colon == std::string::npos)
+					continue;
+				u32 addr = (u32)strtoul(range.substr(0, colon).c_str(), nullptr, 16);
+				u32 len = (u32)strtoul(range.substr(colon + 1).c_str(), nullptr, 0);
+				fprintf(f, "%08x %u ", addr, len);
+				for (u32 i = 0; i < len; i++)
+					fprintf(f, "%02x", gdxsv_ReadMem8(addr + i));
+				fprintf(f, "\n");
+			}
+			fclose(f);
+			NOTICE_LOG(COMMON, "headless probe: dumped %s", path.c_str());
+		}
+	}
+	NOTICE_LOG(COMMON, "headless probe: exiting after %d frames", probe_frames);
+	gdxsv_headless_exit(0);
+}
+
 void gdxsv_emu_vblank() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookVBlank();
 	}
+	gdxsv_headless_probe_tick();
 }
 
 void gdxsv_emu_end_frame() {
@@ -143,7 +201,13 @@ void gdxsv_emu_loadstate(int slot) {
 
 		if (!replay.empty() && slot == 99) {
 			auto replay_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
-			gdxsv.StartReplayFile(replay.c_str(), replay_pov - 1);
+			if (!gdxsv.StartReplayFile(replay.c_str(), replay_pov - 1) && gdxsv_headless()) {
+				// The replay could not be loaded (missing, corrupt, or an
+				// unreadable old format): fail the headless run instead of
+				// dropping into a GUI that will never be shown.
+				ERROR_LOG(COMMON, "headless replay failed to start: %s", replay.c_str());
+				gdxsv_headless_exit(3);
+			}
 		}
 
 		if (!spectate.empty() && slot == 99) {
@@ -634,3 +698,22 @@ static void p2p_connection_toast() {
 }
 
 bool gdxsv_is_using_memwatch() { return gdxsv.Enabled() && gdxsv_save_state.Enabled(); }
+
+bool gdxsv_headless() {
+	return config::loadBool("gdxsv", "headless", false);
+}
+
+static int gdxsv_exit_code_ = 0;
+
+void gdxsv_set_exit_code(int code) {
+	gdxsv_exit_code_ = code;
+}
+
+int gdxsv_exit_code() {
+	return gdxsv_exit_code_;
+}
+
+void gdxsv_headless_exit(int code) {
+	fflush(nullptr);
+	std::_Exit(code);
+}
