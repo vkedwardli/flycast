@@ -174,16 +174,14 @@ struct MemPages
 static std::unordered_map<int, MemPages> deltaStates;
 static int lastSavedFrame = -1;
 
-// gdxsv: per-frame hash log for desync analysis (gdxsv:hashlog=yes).
-// Each line is "frame state_hash ram_hash aram_hash state_len". The state is
-// what GGPO saves (CPU and peripherals, not memory: rollback tracks memory by
-// page), and it holds a few per-peer values, so peers are compared on the RAM
-// and ARAM hashes. Every saved frame is logged, rollbacks included, so a frame
-// number can appear more than once; the last line for a frame is the state
-// the session settled on. gdxsv:statedump=<frame>[,<frame>...] also writes
-// the serialized state of those frames, for diffing two peers offline.
+// gdxsv: per-frame log of GGPO saved states (gdxsv:hashlog=yes). Each line is
+// "frame state_hash state_len". Every saved frame is logged, rollbacks
+// included, so a frame number can appear more than once; the last line for a
+// frame is the state the session settled on. The test harness reads the frame
+// numbers to measure how far a local match progressed; state_hash is a cheap
+// per-frame fingerprint of what GGPO saves (CPU and peripherals, not memory:
+// rollback tracks memory by page).
 static FILE *hashLogFile;
-static std::vector<int> stateDumpFrames;
 
 static void closeHashLog()
 {
@@ -192,7 +190,6 @@ static void closeHashLog()
 		fclose(hashLogFile);
 		hashLogFile = nullptr;
 	}
-	stateDumpFrames.clear();
 }
 
 static void openHashLog()
@@ -207,37 +204,12 @@ static void openHashLog()
 		else
 			NOTICE_LOG(NETWORK, "State hash log: %s", path.c_str());
 	}
-	std::string frames = config::loadStr("gdxsv", "statedump", "");
-	for (size_t pos = 0; pos < frames.size(); )
-	{
-		size_t next = frames.find(',', pos);
-		if (next == std::string::npos)
-			next = frames.size();
-		if (next > pos)
-			stateDumpFrames.push_back(atoi(frames.substr(pos, next - pos).c_str()));
-		pos = next + 1;
-	}
 }
 
 static void logSavedState(int frame, const unsigned char *buffer, int len)
 {
 	if (hashLogFile != nullptr)
-	{
-		const XXH64_hash_t ramHash = XXH3_64bits(&mem_b[0], RAM_SIZE);
-		const XXH64_hash_t aramHash = XXH3_64bits(&aica::aica_ram[0], ARAM_SIZE);
-		fprintf(hashLogFile, "%d %08x %016llx %016llx %d\n", frame, XXH32(buffer, len, 7),
-				(unsigned long long)ramHash, (unsigned long long)aramHash, len);
-	}
-	if (!stateDumpFrames.empty() && std::find(stateDumpFrames.begin(), stateDumpFrames.end(), frame) != stateDumpFrames.end())
-	{
-		std::string path = get_writable_data_path("state_" + std::to_string(frame) + ".bin");
-		FILE *f = nowide::fopen(path.c_str(), "wb");
-		if (f != nullptr)
-		{
-			fwrite(buffer, 1, len, f);
-			fclose(f);
-		}
-	}
+		fprintf(hashLogFile, "%d %08x %d\n", frame, XXH32(buffer, len, 7), len);
 }
 static int seekToFrame = -1;
 static int totalRollbackFrames;
