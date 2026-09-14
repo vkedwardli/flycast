@@ -21,6 +21,7 @@
 #include "gdxsv_emu_hooks.h"
 #include "gdxsv_translation.h"
 #include "gdxsv_replay_util.h"
+#include "gdxsv_round_counters.h"
 #include "input/gamepad_device.h"
 #include "libs.h"
 #include "oslib/oslib.h"
@@ -138,6 +139,7 @@ std::string formatMcsInput(u16 input) {
 void GdxsvBackendReplay::Reset() {
 	live_downlink_.Stop();
 	live_mode_ = false;
+	live_counter_reconstruction_ = false;
 	live_catching_up_ = true;
 	live_following_ = true;
 	live_at_edge_ = false;
@@ -679,6 +681,8 @@ void GdxsvBackendReplay::OnNextFrame() {
 		UpdateReplayFlow();
 		OnNextFrameInternal();
 	}
+	if (live_counter_reconstruction_ && !takeover_ && state_ == State::McsInBattle && gdxsv.Disk() == 2)
+		gdxsv_round_counters::Restore(log_file_);
 	PublishUiState();
 }
 
@@ -1143,8 +1147,13 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		if (ctrl.cmd == ReplayCtrlCommand::SetRound || ctrl.cmd == ReplayCtrlCommand::NextRound) {
 			const int round = ctrl.cmd == ReplayCtrlCommand::SetRound ? ctrl.arg1 : start_msg_count_ + ctrl.arg1;
 			if (0 < round && round - 1 < log_file_.start_msg_indexes_size() &&
-				round - 1 < log_file_.start_msg_randoms_size() && gdxsv_save_state.FirstSavedFrame() != -1) {
-				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame());
+				round - 1 < log_file_.start_msg_randoms_size() && gdxsv_save_state.FirstSavedFrame() != -1 &&
+				gdxsv_save_state.LoadState(gdxsv_save_state.FirstSavedFrame())) {
+				if ((live_mode_ || live_counter_reconstruction_) && gdxsv.Disk() == 2) {
+					live_counter_reconstruction_ = true;
+					const bool complete = gdxsv_round_counters::Restore(log_file_, round - 1);
+					NOTICE_LOG(COMMON, "Live round %d counters: %s", round, complete ? "restored" : "waiting for results");
+				}
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
 				start_msg_count_ = round;
 				briefing_start_frame_ = 0;
@@ -2386,6 +2395,8 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 							ImGui::TextColored(ImVec4(.42f, .79f, .99f, 1), "%s", strprintf(GdxsvLanguage::gdxT("%s Wins"), GdxsvLanguage::gdxT("Federation")).c_str());
 						} else if (rd.winTeam == 2) {
 							ImGui::TextColored(ImVec4(.97f, .23f, .35f, 1), "%s", strprintf(GdxsvLanguage::gdxT("%s Wins"), GdxsvLanguage::gdxT("Zeon")).c_str());
+						} else if (rd.winTeam == gdxsv_round_counters::kDraw) {
+							ImGui::TextUnformatted(GdxsvLanguage::gdxT("Draw"));
 						} else {
 							ImGui::TextDisabled("  -  ");
 						}

@@ -240,6 +240,8 @@ class GdxsvBackendReplay {
 	// Replays a match that is still being played: live_downlink_ feeds log_file_
 	// as frames arrive, instead of it being read whole from a file up front.
 	bool live_mode_ = false;
+	// Enabled only by a live round jump, retained while that stream drains.
+	bool live_counter_reconstruction_ = false;
 	GdxsvSpectatorDownlink live_downlink_;
 
 	// True while playback is far enough behind live to warrant a skip-render

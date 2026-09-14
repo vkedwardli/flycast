@@ -254,6 +254,9 @@ msgstr "ジオン"
 msgid "%s Wins"
 msgstr "%s 勝利"
 
+msgid "Draw"
+msgstr "引分"
+
 msgid "Gundam"
 msgstr "ガンダム"
 

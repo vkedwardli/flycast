@@ -142,15 +142,24 @@ TEST(GdxsvSpectator, AppliesResultOnlyUpdatesAndAcksAfterApplication) {
 	EXPECT_EQ(2, log.round_data(0).win_team());
 	EXPECT_EQ(3, log.round_data(0).used_ms(0));
 
+	// A legacy timeout may be reconciled after a winner was already applied.
+	auto draw = result;
+	draw.set_round_state_version(3);
+	draw.mutable_round_data(0)->set_win_team(-1);
+	server.Push(draw);
+	server.Push(result);
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.round_data(0).win_team() == -1; }));
+	ASSERT_TRUE(server.WaitAck(0, 3));
+
 	proto::SpectatorInputPush close;
 	close.set_battle_code("rounds");
 	close.set_close_reason("game_end");
-	close.set_round_state_version(3); // Premature close must not discard missing round state.
+	close.set_round_state_version(4); // Premature close must not discard missing round state.
 	server.Push(close);
-	ASSERT_TRUE(server.WaitAck(0, 2));
+	ASSERT_TRUE(server.WaitAck(0, 3));
 	client.DrainInto(&log);
 	EXPECT_TRUE(log.close_reason().empty());
-	close.set_round_state_version(2);
+	close.set_round_state_version(3);
 	server.Push(close);
 	ASSERT_TRUE(DrainUntil(client, log, [&] { return !log.close_reason().empty(); }));
 }
