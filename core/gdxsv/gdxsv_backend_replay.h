@@ -253,9 +253,8 @@ class GdxsvBackendReplay {
 	// the Live button sets it again. Same idea as YouTube's live indicator.
 	bool live_following_ = true;
 
-	// Whether playback is actually at the live edge, however it got there. The
-	// Live indicator reads this rather than live_following_, so it reports
-	// position instead of intent.
+	// The Live pill is active only while following and near the live edge.
+	// A deliberate pause/seek leaves it clickable until FollowLive is requested.
 	bool live_at_edge_ = false;
 
 	// UI-thread viewer count, refreshed by gdxsv_live_viewer_count.

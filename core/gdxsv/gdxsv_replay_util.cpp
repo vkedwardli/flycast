@@ -1493,14 +1493,10 @@ void gdxsv_end_replay(std::string error) {
 	dc_loadstate(90);
 	settings.input.fastForwardMode = false;
 
+	// Reopen the browser; ImGui retains the tab that launched playback.
+	gui_state = GuiState::GdxsvReplay;
 	if (!error.empty()) {
-		gui_state = GuiState::GdxsvReplay;
 		gui_error(error);
-	} else if (!selected_replay_file.empty() || selected_replay_entry_index != -1) {
-		gui_state = GuiState::GdxsvReplay;
-	} else {
-		// Replay from command-line, resume game when end replaying
-		emu.start();
 	}
 }
 

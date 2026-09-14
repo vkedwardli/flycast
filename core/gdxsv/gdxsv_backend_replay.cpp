@@ -547,8 +547,10 @@ constexpr int kSyncMaxWaitPerFrameMs = 2;
 constexpr int kSyncTrimUsPerFrame = 200;
 constexpr int kSyncTrimMaxUs = 4000;
 
-// How far past the buffer target still counts as live, in frames.
-constexpr int kLiveAtEdgeMargin = 60;
+// One input push can add 128 frames. Keep an already-red pill red until
+// skip-render catch-up is needed; automatic entry uses the tighter margin.
+constexpr int kLiveAtEdgeEnterMargin = 60;
+constexpr int kLiveCatchUpFastSeekMargin = 270;
 
 constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 
@@ -556,8 +558,10 @@ constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 
 
 void GdxsvBackendReplay::UpdateFramePacing() {
-	if (!live_mode_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
+	if (!live_mode_ || !live_following_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
 		gdxsv_frame_period_trim_us = 0;
+		pacing_integral_ = 0.0;
+		pacing_rate_time_ = {};
 		return;
 	}
 
@@ -767,23 +771,13 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	gdxsv.key_display_.enabled(config::GdxReplayKeyDisplay && IsInGame() && !live_mode_);
 	regular_save_state();
 
-	// Reaching the live edge resumes following, however it got there. Outside
-	// the catch-up gate below so it stays right while paused.
-	if (live_mode_) {
-		const int64_t gap_now = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
-		live_at_edge_ = gap_now <= live_buffer_frames_ + kLiveAtEdgeMargin;
-
-		// Not while a requested jump is queued: key_msg_count_ is still at the
-		// live edge until it lands, so this would undo the request.
-		const bool reposition_pending = ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) ||
-										ctrl_commands_.contains(ReplayCtrlCommand::SetRound) ||
-										ctrl_commands_.contains(ReplayCtrlCommand::SeekBackward) ||
-										ctrl_commands_.contains(ReplayCtrlCommand::StepFrameBackward) ||
-										ctrl_commands_.contains(ReplayCtrlCommand::SeekToBriefing);
-		if (live_at_edge_ && !ctrl_loading_ && !reposition_pending) {
-			live_following_ = true;
-		}
-	}
+	// Hysteresis stabilizes the indicator without changing live-following intent
+	// or pacing. A negative gap means a round jump is still ahead of the download,
+	// not that playback is at live. Manual pause/seek clears live_following_.
+	const int64_t gap_now = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+	live_at_edge_ = live_mode_ && live_following_ && 0 <= gap_now &&
+		(live_at_edge_ ? gap_now < live_buffer_frames_ + kLiveCatchUpFastSeekMargin
+					   : gap_now <= live_buffer_frames_ + kLiveAtEdgeEnterMargin);
 
 	// Catch-up runs coarsest first: a round jump crosses whole rounds, one
 	// skip-render seek closes the gap within the round, and 300% playback takes
@@ -796,7 +790,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	// visible as speeding through a fight. A skip-render seek is different: it
 	// is a jump, not fast playback, so it may run in any scene.
 	const int kLiveCatchUpThreshold = live_buffer_frames_ + 240;
-	const int kLiveCatchUpFastSeekThreshold = live_buffer_frames_ + 270;
+	const int kLiveCatchUpFastSeekThreshold = live_buffer_frames_ + kLiveCatchUpFastSeekMargin;
 
 	// start_msg_count_ > 0, not IsInGame(): during the pre-round-1 boot
 	// inputs_size() is already full while key_msg_count_ has not started
@@ -845,7 +839,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		// Stop at the target buffer, not at the live edge, and not merely
 		// because this burst ran out of data. With kLiveCatchUpThreshold this
 		// is the hysteresis band that stops the speed flapping.
-		if (live_mode_ && !need_cancel()) {
+		if (live_mode_ && live_following_ && !need_cancel()) {
 			const int64_t gap_after = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
 			if (gap_after <= kLiveTargetBufferFrames + 10) {
 				ctrl_play_speed_ = 0;
@@ -855,6 +849,11 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 
 	ReplayCtrlCommand ctrl{};
 	while (ctrl_commands_.try_get_front(ctrl)) {
+		// A user action can arrive while an automatic catch-up is queued.
+		if (ctrl.cmd == ReplayCtrlCommand::SeekForward && ctrl.arg2 != 0 && !live_following_) {
+			ctrl_commands_.pop_front();
+			continue;
+		}
 		const bool wait_for_loading_hud = ctrl.cmd == ReplayCtrlCommand::JumpToKeyMsg || ctrl.cmd == ReplayCtrlCommand::SetRound ||
 										  ctrl.cmd == ReplayCtrlCommand::NextRound || ctrl.cmd == ReplayCtrlCommand::SeekToBriefing ||
 										  (ctrl.cmd == ReplayCtrlCommand::SeekForward && ctrl.arg1 > 0);
@@ -1035,7 +1034,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			// chasing keeps moving. skip_frames stays as a safety bound in
 			// case the host cannot emulate faster than the match advances.
 			auto live_seek_unfinished = [&]() -> bool {
-				return static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_ > kLiveTargetBufferFrames;
+				return live_following_ && static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_ > kLiveTargetBufferFrames;
 			};
 			BeginSilentSeekWithAudioReset();
 			for (; skipped_frame < skip_frames && can_run_silent_replay_frame() &&
@@ -1409,12 +1408,16 @@ void GdxsvBackendReplay::PublishUiState() {
 	GetControlTimelineBounds(ui.timelineStart, ui.timelineEnd, totalRounds);
 	ui.timelineRevision = timeline_revision_;
 	ui.bootSeekFrames = target_frame_ > 0 ? 1000 : 180;
-	ui.playSpeed = ctrl_play_speed_;
+	// Following live displays nominal speed, not automatic pacing/catch-up.
+	ui.playSpeed = live_mode_ && live_following_ ? 0 : ctrl_play_speed_;
 	ui.inGame = state_ >= State::McsInBattle && state_ != State::End && IsInGame();
 	ui.seeking = seeking_;
 	ui.paused = ctrl_pause_;
 	ui.pauseMenuOpen = pause_menu_opend_;
-	ui.loading = ctrl_loading_;
+	// Round metadata can move the cursor ahead of the downloaded inputs.
+	// Reuse the HUD without changing the control queue's loading state; an
+	// ordinary wait at the live edge (cursor == input count) is not loading.
+	ui.loading = ctrl_loading_ || (live_mode_ && state_ != State::End && ui.playbackFrame > ui.inputCount);
 	ui.takeover = takeover_;
 	ui.takeoverAligning = takeover_aligning_;
 	ui.takeoverSkipInputMatching = takeover_skip_input_matching_;
@@ -1432,6 +1435,20 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 		ui_commands_.pop_front();
 		if (state_ == State::None || state_ == State::End)
 			continue;
+		// Manual playback owns its speed and position until FollowLive is
+		// requested. Do not leave automatic 300% recovery running after rewind.
+		if (live_mode_ && (cmd.cmd == ReplayCtrlCommand::SetRound || cmd.cmd == ReplayCtrlCommand::NextRound ||
+			cmd.cmd == ReplayCtrlCommand::JumpToKeyMsg || cmd.cmd == ReplayCtrlCommand::SeekBackward ||
+			cmd.cmd == ReplayCtrlCommand::StepFrameBackward || cmd.cmd == ReplayCtrlCommand::TogglePause ||
+			cmd.cmd == ReplayCtrlCommand::TogglePauseMenu || cmd.cmd == ReplayCtrlCommand::SetSpeed ||
+			cmd.cmd == ReplayCtrlCommand::NextSpeed)) {
+			if (live_following_)
+				ctrl_play_speed_ = 0;
+			live_following_ = false;
+			live_catching_up_ = false;
+			live_at_edge_ = false;
+			ctrl_loading_ = false;
+		}
 		switch (cmd.cmd) {
 		case ReplayCtrlCommand::FollowLive: {
 			if (!live_mode_) break;
@@ -1446,6 +1463,11 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, live_round);
 			}
+			// An explicit Live request accepts a short gap immediately. Normal
+			// catch-up closes it; larger gaps and pending round jumps stay grey.
+			const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+			live_at_edge_ = !live_round_jump_pending_ && 0 <= gap &&
+				gap < live_buffer_frames_ + kLiveCatchUpFastSeekMargin;
 			break;
 		}
 		case ReplayCtrlCommand::ResumePlayback:
@@ -1492,20 +1514,13 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			break;
 		}
 		case ReplayCtrlCommand::SetRound:
-			live_following_ = false;
 			live_round_jump_pending_ = live_mode_;
 			pause_menu_opend_ = false;
 			BeginLoadingHud();
 			ctrl_commands_.emplace_back(cmd);
 			break;
 		case ReplayCtrlCommand::JumpToKeyMsg:
-			live_following_ = false;
 			BeginLoadingHud();
-			ctrl_commands_.emplace_back(cmd);
-			break;
-		case ReplayCtrlCommand::SeekBackward:
-		case ReplayCtrlCommand::StepFrameBackward:
-			live_following_ = false;
 			ctrl_commands_.emplace_back(cmd);
 			break;
 		case ReplayCtrlCommand::TakeOver:
@@ -2048,22 +2063,20 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		return;
 	}
 
-	// Live Spectate: cap intake at one input frame per rendered frame, so the
-	// frame period governs consumption. The game polls for input more often
-	// than it renders once it is behind, and answering every poll decouples
-	// intake from the frame clock entirely.
+	// While following live, keep input intake on the rendered-frame clock.
+	// After a rewind, use ordinary replay delivery: rejecting a buffered
+	// request until the next render can stall the game's input pipeline.
 	//
 	// Steady state only: a skip-render seek runs hundreds of emulator frames
 	// inside one UI frame, so capping during catch-up would stall it.
-	if (live_mode_ && !takeover_ && !seeking_ && !live_catching_up_ && ctrl_play_speed_ == 0) {
+	if (live_mode_ && live_following_ && !takeover_ && !seeking_ && !live_catching_up_ && ctrl_play_speed_ == 0) {
 		if (deliver_last_mainui_ != MainFrameCount) {
 			deliver_last_mainui_ = MainFrameCount;
 			deliver_this_frame_ = 0;
 		}
 
-		// Allow a second frame while genuinely behind. A strict one-per-frame
-		// cap can never regain a lost buffer when the host renders slower than
-		// the match produces, leaving the 300% path to oscillate.
+		// Allow a second frame to recover the buffer when the host renders
+		// slower than the match, rather than oscillating into 300% recovery.
 		const int64_t behind = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
 		const int allowance = (live_buffer_frames_ + kPacingRecoverMargin < behind) ? 2 : 1;
 		if (allowance <= deliver_this_frame_) {
@@ -2886,7 +2899,13 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		}
 
 		if (ctrl_bar_dragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-			if (ctrl_bar_drag_target_frame_ >= 0 && ctrl_bar_drag_target_frame_ != ui.playbackFrame) {
+			// Re-evaluate on release: more live inputs may have arrived since
+			// the previous drag frame. Follow the moving edge, not its old index.
+			ctrl_bar_drag_target_frame_ = frameFromProgressX(ImGui::GetIO().MousePos.x);
+			if (ui.IsLiveSeekTarget(ctrl_bar_drag_target_frame_)) {
+				ui_commands_.emplace_back(ReplayCtrlCommand::FollowLive);
+				ctrl_bar_drag_target_frame_ = -1;
+			} else if (ctrl_bar_drag_target_frame_ != ui.playbackFrame) {
 				// Going somewhere on purpose stops the chase, or the catch-up
 				// would drag the viewer straight back to the live edge.
 				ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, ctrl_bar_drag_target_frame_);
