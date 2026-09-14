@@ -245,8 +245,9 @@ void gdxsv_emu_gui_display() {
 		ImGui::End();
 		
 		if (gdxsv.PingResult() == "Done") {
-			gui_state = GuiState::Closed;
-			emu.start();
+			// A cached result can be ready before automatic state loading ends.
+			// Let the normal loader finish before it closes the UI and starts emulation.
+			gui_setState(GuiState::Loading);
 		}
 		
 		p2p_connection_toast();

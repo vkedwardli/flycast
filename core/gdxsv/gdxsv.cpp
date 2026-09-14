@@ -553,7 +553,11 @@ void Gdxsv::HandleRPC() {
 	gdxsv_WriteMem32(symbols_["is_online"], netmode_ != NetMode::Offline);
 }
 
-void Gdxsv::StartPingTest() { gcp_ping_test_result_ = gcp_ping_test().share(); }
+void Gdxsv::StartPingTest() {
+	// Reuse the running or completed test across game loads in this app session.
+	if (!gcp_ping_test_result_.valid())
+		gcp_ping_test_result_ = gcp_ping_test().share();
+}
 
 void Gdxsv::StartP2PFeasibilityTest() {
 	if (p2p_feasibility_result_.valid())
