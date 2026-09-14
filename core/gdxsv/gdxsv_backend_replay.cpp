@@ -1607,7 +1607,7 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 	}
 
 	live_downlink_.DrainInto(&log_file_, live_initial_catchup_ ? &live_initial_backlog_ : nullptr);
-	live_downlink_.ReportAcked(log_file_.inputs_size());
+	live_downlink_.ReportAcked(log_file_.inputs_size(), live_initial_catchup_);
 
 	if (!log_file_.close_reason().empty()) {
 		// Battle ended - stop the downlink and let the normal exhaustion

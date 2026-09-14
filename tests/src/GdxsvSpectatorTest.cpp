@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <future>
+#include <limits>
 #include <thread>
 
 #include "gtest/gtest.h"
@@ -99,6 +100,193 @@ bool DrainUntil(GdxsvSpectatorDownlink &client, proto::BattleLogFile &log, Predi
 		std::this_thread::sleep_for(1ms);
 	}
 	return false;
+}
+
+TEST(GdxsvSpectator, InitialDownloadRunsAheadOfEmulation) {
+	SpectatorSocket server;
+	ASSERT_TRUE(server.Open());
+	GdxsvSpectatorDownlink client;
+	client.Start("127.0.0.1", server.port, "prefetch", 0);
+	proto::Packet packet;
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	proto::SpectatorInputPush push;
+	push.set_battle_code("prefetch");
+	push.mutable_header()->set_battle_code("prefetch");
+	server.Push(push);
+	proto::BattleLogFile log;
+	ASSERT_TRUE(client.WaitForBootstrap(&log, 1000));
+	ASSERT_TRUE(server.WaitAck(0, 0));
+	push.clear_header();
+	push.set_round_state_version(1);
+	push.add_start_msg_indexes(0);
+	push.add_start_msg_randoms(123);
+
+	// Emulation is still loading: do not call DrainInto between packets.
+	// The unchanged server may send its next chunk as soon as it gets an ACK.
+	for (int start = 0; start < 1024; start += 128) {
+		push.set_start_frame(start);
+		push.clear_inputs();
+		for (int i = 0; i < 128; ++i) push.add_inputs(start + i + 1);
+		server.Push(push);
+		ASSERT_TRUE(server.WaitAck(start + 128, 0));
+		EXPECT_EQ(0, log.inputs_size());
+	}
+	EXPECT_EQ(0, log.start_msg_indexes_size()); // Round ACK still requires application.
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.inputs_size() == 1024; }));
+	ASSERT_TRUE(server.WaitAck(1024, 1));
+	for (int i = 0; i < log.inputs_size(); ++i) EXPECT_EQ(i + 1, log.inputs(i));
+}
+
+TEST(GdxsvSpectator, InitialDownloadPreservesHeaderRecoveryAndDoesNotAckGaps) {
+	SpectatorSocket server;
+	ASSERT_TRUE(server.Open());
+	GdxsvSpectatorDownlink client;
+	client.Start("127.0.0.1", server.port, "prefetch-loss", 0);
+	proto::Packet packet;
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	proto::SpectatorInputPush push;
+	push.set_battle_code("prefetch-loss");
+	for (int i = 0; i < 128; ++i) push.add_inputs(i + 1);
+	server.Push(push); // The preceding bootstrap header was lost.
+	ASSERT_TRUE(server.WaitAck(0, 0));
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	EXPECT_EQ(0, packet.spectator_subscribe_data().from_frame());
+	proto::SpectatorInputPush header;
+	header.set_battle_code("prefetch-loss");
+	header.mutable_header()->set_battle_code("prefetch-loss");
+	server.Push(header);
+	proto::BattleLogFile log;
+	ASSERT_TRUE(client.WaitForBootstrap(&log, 1000));
+	ASSERT_TRUE(server.WaitAck(128, 0)); // Buffered inputs become safe to ACK now.
+	EXPECT_EQ(0, log.inputs_size());
+
+	for (int start : {-1, 256, std::numeric_limits<int32_t>::max()}) {
+		push.set_start_frame(start);
+		server.Push(push);
+		ASSERT_TRUE(server.WaitAck(128, 0)); // Invalid range or a missing preceding chunk.
+	}
+	push.set_start_frame(128);
+	push.add_inputs(999); // Oversized packets cannot extend the receive frontier either.
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(128, 0));
+
+	for (int start : {128, 256}) {
+		push.set_start_frame(start);
+		push.clear_inputs();
+		for (int i = 0; i < 128; ++i) push.add_inputs(start + i + 1);
+		server.Push(push);
+		ASSERT_TRUE(server.WaitAck(start + 128, 0));
+		push.mutable_inputs()->Set(0, 999999); // Lost ACK: a duplicate must not overwrite retained inputs.
+		server.Push(push);
+		ASSERT_TRUE(server.WaitAck(start + 128, 0));
+	}
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.inputs_size() == 384; }));
+	for (int i = 0; i < log.inputs_size(); ++i) EXPECT_EQ(i + 1, log.inputs(i));
+}
+
+TEST(GdxsvSpectator, InitialDownloadStopsWithoutRegressingAckOrRearming) {
+	SpectatorSocket server;
+	ASSERT_TRUE(server.Open());
+	GdxsvSpectatorDownlink client;
+	client.Start("127.0.0.1", server.port, "prefetch-stop", 0);
+	proto::Packet packet;
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	proto::SpectatorInputPush push;
+	push.set_battle_code("prefetch-stop");
+	push.mutable_header()->set_battle_code("prefetch-stop");
+	server.Push(push);
+	proto::BattleLogFile log;
+	ASSERT_TRUE(client.WaitForBootstrap(&log, 1000));
+	ASSERT_TRUE(server.WaitAck(0, 0));
+	push.clear_header();
+	push.mutable_inputs()->Resize(128, 123);
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(128, 0));
+	client.ReportAcked(0, true); // Application is still behind the worker.
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(128, 0));
+
+	client.ReportAcked(0, false); // Manual control or initial catch-up completion.
+	push.set_start_frame(128);
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(128, 0)); // New data is retained, but must wait for application.
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.inputs_size() == 256; }));
+	ASSERT_TRUE(server.WaitAck(256, 0));
+
+	client.ReportAcked(256, true); // Later Live clicks cannot rearm startup read-ahead.
+	push.set_start_frame(256);
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(256, 0));
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.inputs_size() == 384; }));
+	ASSERT_TRUE(server.WaitAck(384, 0));
+}
+
+TEST(GdxsvSpectator, InitialDownloadBoundsQueueWithoutLosingAcknowledgedInputs) {
+	SpectatorSocket server;
+	ASSERT_TRUE(server.Open());
+	GdxsvSpectatorDownlink client;
+	client.Start("127.0.0.1", server.port, "prefetch-full", 0);
+	proto::Packet packet;
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	proto::SpectatorInputPush push;
+	push.set_battle_code("prefetch-full");
+	push.mutable_header()->set_battle_code("prefetch-full");
+	server.Push(push);
+	proto::BattleLogFile log;
+	ASSERT_TRUE(client.WaitForBootstrap(&log, 1000));
+	ASSERT_TRUE(server.WaitAck(0, 0));
+	push.clear_header();
+	constexpr int buffered_frames = 256 * 128;
+	for (int start = 0; start < buffered_frames; start += 128) {
+		push.set_start_frame(start);
+		push.clear_inputs();
+		for (int i = 0; i < 128; ++i) push.add_inputs(start + i + 1);
+		server.Push(push);
+		ASSERT_TRUE(server.WaitAck(start + 128, 0));
+	}
+	push.set_start_frame(buffered_frames);
+	push.clear_inputs();
+	for (int i = 0; i < 128; ++i) push.add_inputs(buffered_frames + i + 1);
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(buffered_frames, 0)); // Full: withhold progress, not acknowledged data.
+	EXPECT_EQ(0, log.inputs_size());
+	ASSERT_TRUE(client.DrainInto(&log));
+	client.ReportAcked(log.inputs_size(), true);
+	ASSERT_EQ(buffered_frames, log.inputs_size());
+	server.Push(push); // The unchanged server retries this unacknowledged chunk.
+	ASSERT_TRUE(server.WaitAck(buffered_frames + 128, 0));
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.inputs_size() == buffered_frames + 128; }));
+	for (int i = 0; i < log.inputs_size(); ++i) EXPECT_EQ(i + 1, log.inputs(i));
+}
+
+TEST(GdxsvSpectator, InitialDownloadAppliesRetainedInputsBeforeClose) {
+	SpectatorSocket server;
+	ASSERT_TRUE(server.Open());
+	GdxsvSpectatorDownlink client;
+	client.Start("127.0.0.1", server.port, "prefetch-close", 0);
+	proto::Packet packet;
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	proto::SpectatorInputPush push;
+	push.set_battle_code("prefetch-close");
+	push.mutable_header()->set_battle_code("prefetch-close");
+	server.Push(push);
+	proto::BattleLogFile log;
+	ASSERT_TRUE(client.WaitForBootstrap(&log, 1000));
+	ASSERT_TRUE(server.WaitAck(0, 0));
+	push.clear_header();
+	push.mutable_inputs()->Resize(128, 123);
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(128, 0));
+	push.clear_inputs();
+	push.set_start_frame(128);
+	push.set_close_reason("game_end");
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(128, 0));
+	EXPECT_EQ(0, log.inputs_size());
+	EXPECT_TRUE(log.close_reason().empty());
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return !log.close_reason().empty(); }));
+	EXPECT_EQ(128, log.inputs_size());
+	EXPECT_EQ(123u, log.inputs(127));
 }
 
 TEST(GdxsvSpectator, StartupBacklogHintUsesOnlyFreshInputPacketLengths) {

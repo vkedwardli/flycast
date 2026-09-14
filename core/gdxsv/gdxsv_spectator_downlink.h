@@ -17,9 +17,10 @@
 // receives SpectatorInputPush, and acks the highest contiguous frame with
 // SpectatorInputAck.
 //
-// Owns a background thread and its own socket. That thread only queues what it
-// receives. DrainInto and ReportAcked fold updates into the BattleLogFile on
-// the emulation thread.
+// Owns a background thread and its own socket. During the initial download it
+// ACKs inputs retained in its bounded queue, so emulation startup cannot hold
+// up the download. Only DrainInto modifies the BattleLogFile, on the emulation
+// thread. Round state is always ACKed after application.
 class GdxsvSpectatorDownlink {
    public:
 	~GdxsvSpectatorDownlink() { Stop(); }
@@ -45,10 +46,10 @@ class GdxsvSpectatorDownlink {
 	// advancing input packets update the hint, never duplicates or metadata.
 	bool DrainInto(proto::BattleLogFile *log_file, bool *backlog_pending = nullptr);
 
-	// Reports what the main thread has actually folded in, so the next ack
-	// reflects that and not just what was received. Call after every
-	// DrainInto that returns true.
-	void ReportAcked(int32_t frame);
+	// Reports applied inputs after DrainInto. Once initial_download is false,
+	// future input ACKs wait for application again; true cannot rearm it until
+	// Start. Already ACKed, queued inputs remain retained across this change.
+	void ReportAcked(int32_t frame, bool initial_download = false);
 
    private:
 	void ThreadMain(std::string lbs_host, int lbs_port, std::string battle_code, int32_t from_frame);
@@ -58,12 +59,13 @@ class GdxsvSpectatorDownlink {
 	int32_t applied_round_state_version_ = 0; // main thread only
 
 	std::mutex mtx_;
-	std::deque<proto::SpectatorInputPush> pending_;	// raw received pushes, main thread folds them in
+	std::deque<proto::SpectatorInputPush> pending_;	// contiguous inputs and metadata awaiting application
 	proto::BattleLogFile header_;					// bootstrap header, once received
 	bool have_header_ = false;
 	std::vector<proto::GamePatch> patches_;			// bootstrap patches, assembled in order
 	int32_t patch_total_ = -1;						// -1 until the header or a chunk supplies the total
-	int32_t acked_frame_ = 0;							// highest frame the main thread has folded in
+	int32_t acked_frame_ = 0;							// monotonic: applied, or retained during initial download
+	bool initial_download_ = true;					// read ahead only until initial catch-up ends/cancels
 	int32_t acked_round_state_version_ = 0;			// published only after DrainInto applies it
 	bool acked_dirty_ = false;							// progress changed or receipt feedback needs repeating
 };
