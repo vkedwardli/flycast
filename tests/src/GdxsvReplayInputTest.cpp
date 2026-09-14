@@ -5,6 +5,8 @@
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include "gdxsv/libs.h"
 #include "gtest/gtest.h"
+#include "imgui.h"
+#include "input/gamepad_device.h"
 
 class GdxsvReplayInputTest : public ::testing::Test {
  protected:
@@ -43,6 +45,19 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	void SetRoundCount(int round) { replay_.start_msg_count_ = round; }
 	void SetLiveBuffer(int frames) { replay_.live_buffer_frames_ = frames; }
 	void SetDownloadedInputs(int count) { replay_.log_file_.mutable_inputs()->Resize(count, FirstInput); }
+	void PrepareInitialLiveCatchUp(bool backlog = true) {
+		replay_.live_initial_catchup_ = true;
+		replay_.live_initial_backlog_ = backlog;
+	}
+	bool IsInitialLiveCatchUp() const { return replay_.live_initial_catchup_; }
+	bool InitialLiveCatchUpReady(int quiet_ms) const {
+		return replay_.InitialLiveCatchUpReady(std::chrono::milliseconds(quiet_ms));
+	}
+	Command PendingControlCommand() {
+		Command cmd;
+		replay_.ctrl_commands_.try_get_front(cmd);
+		return cmd;
+	}
 	void BeginLoading() { replay_.BeginLoadingHud(); }
 	bool IsControlLoading() const { return replay_.ctrl_loading_; }
 	GdxsvReplayUiState PublishedUi() {
@@ -63,6 +78,12 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	void UpdatePacing() { replay_.UpdateFramePacing(); }
 	void QueueUi(Command::Command cmd, int arg = 0) {
 		replay_.ui_commands_.emplace_back(cmd, arg);
+		replay_.ProcessUiCommands();
+	}
+	void RunMainUiInput(u32 buttons) {
+		mapleInputState[0].kcode = ~buttons;
+		replay_.PublishUiState();
+		replay_.OnMainUiLoop();
 		replay_.ProcessUiCommands();
 	}
 	void PrepareAutoRecovery() {
@@ -187,6 +208,7 @@ class GdxsvReplayInputTest : public ::testing::Test {
 };
 
 TEST_F(GdxsvReplayInputTest, ManualActionsDetachAndCancelAutomaticSpeed) {
+	PrepareFrameControl();
 	for (auto cmd : {Command::SeekBackward, Command::StepFrameBackward, Command::JumpToKeyMsg,
 		Command::SetRound, Command::NextRound, Command::TogglePause, Command::TogglePauseMenu,
 		Command::SetSpeed, Command::NextSpeed}) {
@@ -323,6 +345,146 @@ TEST_F(GdxsvReplayInputTest, ReachingTheEdgeDoesNotResumeFollowing) {
 	EXPECT_EQ(0, PlaybackSpeed());
 	RunFrameControl();
 	EXPECT_TRUE(IsAtLiveEdge());
+}
+
+TEST_F(GdxsvReplayInputTest, BootstrapAPressesDoNotCancelInitialLiveCatchUp) {
+	PrepareFrameControl();
+	const auto previous_context = ImGui::GetCurrentContext();
+	const auto context = ImGui::CreateContext();
+	const auto previous_input = mapleInputState[0];
+	const u32 previous_kcode = kcode[0];
+	mapleInputState[0] = {};
+	gdxsv_WriteMem8(0x0c3d16d5, 3); // MS selection, not the pausable battle scene.
+	for (auto state : {GdxsvBackendReplay::State::LbsStartBattleFlow,
+		GdxsvBackendReplay::State::McsWaitJoin, GdxsvBackendReplay::State::McsSessionExchange,
+		GdxsvBackendReplay::State::McsInBattle}) {
+		SCOPED_TRACE(static_cast<int>(state));
+		SetReplayState(state);
+		SetFollowing(true);
+		PrepareInitialLiveCatchUp();
+		// Model the automatic lobby A pulses, including a sampled press still
+		// present after the network state advances to MS selection.
+		RunMainUiInput(0);
+		RunMainUiInput(DC_BTN_A);
+		EXPECT_TRUE(IsFollowing());
+		EXPECT_TRUE(IsInitialLiveCatchUp());
+	}
+
+	// A real pause in battle must still cancel the startup catch-up.
+	gdxsv_WriteMem8(0x0c3d16d5, 7);
+	SetFollowing(true);
+	PrepareInitialLiveCatchUp();
+	RunMainUiInput(0);
+	RunMainUiInput(DC_BTN_A);
+	EXPECT_FALSE(IsFollowing());
+	EXPECT_FALSE(IsInitialLiveCatchUp());
+	mapleInputState[0] = previous_input;
+	kcode[0] = previous_kcode;
+	ImGui::DestroyContext(context);
+	ImGui::SetCurrentContext(previous_context);
+}
+
+TEST_F(GdxsvReplayInputTest, InitialLiveCatchUpWaitsAtTheTemporaryDownloadedEdge) {
+	PrepareFrameControl();
+	PrepareInitialLiveCatchUp();
+	EXPECT_FALSE(InitialLiveCatchUpReady(0));
+	EXPECT_FALSE(InitialLiveCatchUpReady(999));
+	EXPECT_TRUE(PublishedUi().loading);
+	RunFrameControl();
+	EXPECT_FALSE(IsAtLiveEdge());
+	ASSERT_EQ(1u, PendingControlCommands());
+	const auto cmd = PendingControlCommand();
+	EXPECT_EQ(Command::SeekForward, cmd.cmd);
+	EXPECT_EQ(2, cmd.arg2); // One startup seek, not ordinary gap-based recovery.
+	EXPECT_EQ(1 << 20, cmd.arg1); // Not bounded by the tiny currently-downloaded gap.
+}
+
+TEST_F(GdxsvReplayInputTest, InitialLiveCatchUpNeedsBothTheDownloadAndPlaybackToCatchUp) {
+	PrepareFrameControl();
+	PrepareInitialLiveCatchUp(false); // A fresh short input packet reached LBS's edge.
+	SetDownloadedInputs(12000);
+	SetPlaybackFrame(9000);
+	EXPECT_FALSE(InitialLiveCatchUpReady(0));
+	EXPECT_FALSE(InitialLiveCatchUpReady(2000));
+	SetPlaybackFrame(11969);
+	EXPECT_FALSE(InitialLiveCatchUpReady(0));
+	SetPlaybackFrame(11970);
+	EXPECT_TRUE(InitialLiveCatchUpReady(0));
+}
+
+TEST_F(GdxsvReplayInputTest, InitialLiveCatchUpDoesNotStartBeforeTheRoundIsDownloaded) {
+	PrepareFrameControl();
+	PrepareInitialLiveCatchUp(false);
+	SetDownloadedInputs(InputIndex() - 1);
+	RunFrameControl();
+	EXPECT_FALSE(InitialLiveCatchUpReady(2000));
+	EXPECT_TRUE(IsInitialLiveCatchUp());
+	EXPECT_FALSE(IsCatchingUp());
+	EXPECT_EQ(0u, PendingControlCommands());
+	EXPECT_TRUE(PublishedUi().loading);
+}
+
+TEST_F(GdxsvReplayInputTest, InitialLiveCatchUpHasABoundedQuietNetworkFallback) {
+	PrepareFrameControl();
+	PrepareInitialLiveCatchUp(); // An exact full final packet need not have a short tail.
+	EXPECT_FALSE(InitialLiveCatchUpReady(999));
+	EXPECT_TRUE(InitialLiveCatchUpReady(1000));
+	SetDownloadedInputs(InputIndex() + 31);
+	EXPECT_FALSE(InitialLiveCatchUpReady(2000));
+}
+
+TEST_F(GdxsvReplayInputTest, CompletedInitialLiveCatchUpDoesNotRearmForLaterLiveClicks) {
+	PrepareFrameControl();
+	PrepareInitialLiveCatchUp(false);
+	// Allow the normal two-frame Loading HUD lead-in, then finish without
+	// running SH4: playback is already exactly one buffer behind the short tail.
+	RunFrameControl();
+	RunFrameControl();
+	RunFrameControl();
+	EXPECT_FALSE(IsInitialLiveCatchUp());
+	EXPECT_FALSE(IsControlLoading());
+	EXPECT_FALSE(PublishedUi().loading);
+	EXPECT_EQ(0u, PendingControlCommands());
+
+	QueueUi(Command::SeekBackward);
+	QueueUi(Command::FollowLive);
+	EXPECT_FALSE(IsInitialLiveCatchUp());
+	EXPECT_FALSE(InitialLiveCatchUpReady(2000));
+	EXPECT_TRUE(IsFollowing());
+}
+
+TEST_F(GdxsvReplayInputTest, ManualPlaybackCancelsInitialCatchUpPermanently) {
+	PrepareFrameControl();
+	for (auto cmd : {Command::SeekBackward, Command::JumpToKeyMsg, Command::TogglePause,
+		Command::TogglePauseMenu, Command::SetRound, Command::SetSpeed}) {
+		SCOPED_TRACE(cmd);
+		PrepareInitialLiveCatchUp();
+		SetFollowing(true);
+		QueueUi(cmd, 1);
+		EXPECT_FALSE(IsInitialLiveCatchUp());
+		QueueUi(Command::FollowLive);
+		EXPECT_FALSE(IsInitialLiveCatchUp());
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, LaterAutomaticCatchUpKeepsTheOrdinarySeekMode) {
+	PrepareFrameControl();
+	SetDownloadedInputs(InputIndex() + 300);
+	RunFrameControl();
+	ASSERT_EQ(1u, PendingControlCommands());
+	EXPECT_EQ(Command::SeekForward, PendingControlCommand().cmd);
+	EXPECT_EQ(1, PendingControlCommand().arg2);
+	EXPECT_FALSE(IsInitialLiveCatchUp());
+}
+
+TEST_F(GdxsvReplayInputTest, ClosingOrResettingClearsInitialLiveCatchUp) {
+	PrepareInitialLiveCatchUp();
+	CloseStream();
+	EXPECT_FALSE(IsInitialLiveCatchUp());
+	EXPECT_FALSE(InitialLiveCatchUpReady(2000));
+	PrepareInitialLiveCatchUp();
+	ResetReplay();
+	EXPECT_FALSE(IsInitialLiveCatchUp());
 }
 
 TEST_F(GdxsvReplayInputTest, LiveIndicatorUsesSeparateEnterAndLeaveThresholds) {

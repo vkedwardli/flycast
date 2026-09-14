@@ -89,6 +89,7 @@ class GdxsvBackendReplay {
 	// The UDP worker stages deltas. OnNextFrame folds them into log_file_ on
 	// the emulation thread; the UI reads only the published display snapshot.
 	void CheckLiveUpdate();
+	bool InitialLiveCatchUpReady(std::chrono::steady_clock::duration quiet) const;
 
 	// Steers the main loop's frame period so playback holds live_buffer_frames_
 	// behind the edge. Small, continuous corrections instead of whole-frame
@@ -269,6 +270,12 @@ class GdxsvBackendReplay {
 	// in flight (queued SeekToBriefing -> SetRound). Live catch-up must not
 	// run during that window - see the catch-up gate in OnNextFrame.
 	bool live_round_jump_pending_ = false;
+
+	// Armed only by StartLive. The first catch-up keeps waiting for downloaded
+	// inputs instead of ending at each temporary local edge. Completion or a
+	// manual playback action clears it; later Live clicks never rearm it.
+	bool live_initial_catchup_ = false;
+	bool live_initial_backlog_ = true;
 
 	// How far behind the newest available frame playback aims to sit, in
 	// frames. Loaded from gdxsv:LiveBufferFrames, default kLiveDefaultBuffer.

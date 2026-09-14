@@ -13,6 +13,9 @@ namespace {
 // (10s, see lbs_spectator.go) so a brief delay never drops the subscription.
 constexpr int kSubscribeIntervalMs = 2000;
 constexpr size_t kSubscribeCookieBytes = 16;
+// Matches maxSpectatorPushFrames in lbs_spectator.go. LBS sends the entire
+// remaining input tail when it is smaller than this limit.
+constexpr int kInputPushFrames = 128;
 }  // namespace
 
 void GdxsvSpectatorDownlink::Start(const std::string &lbs_host, int lbs_port, const std::string &battle_code,
@@ -62,7 +65,7 @@ bool GdxsvSpectatorDownlink::WaitForBootstrap(proto::BattleLogFile *out, int tim
 	return false;
 }
 
-bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file) {
+bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file, bool *backlog_pending) {
 	std::deque<proto::SpectatorInputPush> pushes;
 	{
 		std::lock_guard<std::mutex> lock(mtx_);
@@ -85,7 +88,11 @@ bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file) {
 			for (int32_t i = offset; i < push.inputs_size(); ++i) {
 				log_file->add_inputs(push.inputs(i));
 			}
-			if (offset < push.inputs_size()) applied = true;
+			if (offset < push.inputs_size()) {
+				applied = true;
+				if (backlog_pending)
+					*backlog_pending = push.inputs_size() >= kInputPushFrames;
+			}
 		}
 
 		// Results change without another round start. A version also keeps a

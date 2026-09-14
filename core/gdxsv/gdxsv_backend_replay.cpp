@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <ctime>
+#include <thread>
 
 #include "SDL_events.h"
 #include "cfg/option.h"
@@ -144,6 +145,8 @@ void GdxsvBackendReplay::Reset() {
 	live_following_ = true;
 	live_at_edge_ = false;
 	live_round_jump_pending_ = false;
+	live_initial_catchup_ = false;
+	live_initial_backlog_ = true;
 	state_ = State::None;
 	ui_commands_.clear();
 	ctrl_commands_.clear();
@@ -551,6 +554,9 @@ constexpr int kSyncTrimMaxUs = 4000;
 // skip-render catch-up is needed; automatic entry uses the tighter margin.
 constexpr int kLiveAtEdgeEnterMargin = 60;
 constexpr int kLiveCatchUpFastSeekMargin = 270;
+// An exact full final packet, or a round transition, may have no short tail.
+// Silence is a bounded startup fallback, not proof of the server's live edge.
+constexpr auto kLiveInitialQuietWait = std::chrono::seconds(1);
 
 constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 
@@ -775,7 +781,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	// or pacing. A negative gap means a round jump is still ahead of the download,
 	// not that playback is at live. Manual pause/seek clears live_following_.
 	const int64_t gap_now = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
-	live_at_edge_ = live_mode_ && live_following_ && 0 <= gap_now &&
+	live_at_edge_ = live_mode_ && live_following_ && !live_initial_catchup_ && 0 <= gap_now &&
 		(live_at_edge_ ? gap_now < live_buffer_frames_ + kLiveCatchUpFastSeekMargin
 					   : gap_now <= live_buffer_frames_ + kLiveAtEdgeEnterMargin);
 
@@ -799,12 +805,14 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		!need_cancel() && !takeover_) {
 		const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
 
-		// Measured every frame, never latched. Right after a round jump
-		// playback sits at the round's start while the log is still streaming,
-		// so the gap reads negative - a latch set from that never reopens.
+		// After a round jump, wait for the download to reach that cursor before
+		// starting the one-time catch-up. It must not finish at a temporary
+		// local edge while the rest of the initial backlog is still arriving.
+		// Later catch-ups keep their ordinary gap-based behavior.
 		// Never catching up while not following, so the intake cap and the sync
 		// barrier do not treat a deliberate rewind as a catch-up burst.
-		live_catching_up_ = live_following_ && kLiveCatchUpFastSeekThreshold <= gap;
+		live_catching_up_ = live_following_ &&
+			((live_initial_catchup_ && 0 <= gap) || kLiveCatchUpFastSeekThreshold <= gap);
 		if (live_catching_up_) {
 			// One seek closes it. The seek re-reads the live edge every
 			// iteration, and CheckLiveUpdate keeps delivering inside the
@@ -817,8 +825,11 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				// Bound generously. The seek folds in new frames as it runs, so
 				// it covers more than the gap measured now. It stops on the gap
 				// itself; this is only a safety cap.
-				const int64_t bound = std::min<int64_t>(gap * 3 + 1200, 1 << 20);
-				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, static_cast<int>(bound), /*live=*/1);
+				const int64_t bound = live_initial_catchup_ ? 1 << 20 : std::min<int64_t>(gap * 3 + 1200, 1 << 20);
+				if (live_initial_catchup_)
+					NOTICE_LOG(COMMON, "Initial live catch-up queued: frame=%d downloaded=%d", key_msg_count_, log_file_.inputs_size());
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::SeekForward, static_cast<int>(bound),
+					/*live=*/live_initial_catchup_ ? 2 : 1);
 			}
 		} else if (live_following_ && IsInGame() && kLiveCatchUpThreshold <= gap && ctrl_play_speed_ == 0) {
 			// Use 300% recovery below the fast-seek threshold.
@@ -1020,14 +1031,17 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 
 		if (ctrl.cmd == ReplayCtrlCommand::SeekForward) {
 			const int skip_frames = 1 <= ctrl.arg1 ? ctrl.arg1 : save_interval;
-			// arg2 marks a Live Spectate catch-up seek. It differs from a
-			// plain seek in that new frames keep arriving while it runs, so
-			// it folds them in as it goes and keeps seeking until it is
-			// actually at the live edge - see live_seek_target below.
+			// arg2 marks a Live Spectate catch-up seek (1 = ordinary, 2 = initial).
+			// Unlike a plain seek, it folds in arriving frames as it goes and
+			// follows the downloaded edge - see live_seek_unfinished below.
 			const bool live_catch_up = ctrl.arg2 != 0;
+			const bool initial_catch_up = ctrl.arg2 == 2;
 			const int prev_key_msg_count = key_msg_count_;
 			auto t0 = high_resolution_clock::now();
 			int skipped_frame = 0;
+			int downloaded = log_file_.inputs_size();
+			auto last_download = initial_catch_up ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+			bool initial_complete = false;
 			// A live catch-up seek is done when it is within the target
 			// buffer of the live edge, not when it has run a fixed number of
 			// frames: folding in new frames as it goes means the edge it is
@@ -1037,14 +1051,51 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				return live_following_ && static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_ > kLiveTargetBufferFrames;
 			};
 			BeginSilentSeekWithAudioReset();
-			for (; skipped_frame < skip_frames && can_run_silent_replay_frame() &&
-				   (!live_catch_up || live_seek_unfinished());
-				 skipped_frame++) {
+			if (initial_catch_up) PublishUiState();
+			while (skipped_frame < skip_frames) {
+				if (initial_catch_up) {
+					// No SH4 frames run while waiting: explicitly drain/ACK the UDP
+					// worker and process UI requests so pause/exit can still cancel.
+					CheckLiveUpdate();
+					ProcessUiCommands();
+					if (need_cancel() || !live_initial_catchup_ || !live_following_ || !live_mode_)
+						break;
+					const auto now = std::chrono::steady_clock::now();
+					if (downloaded != log_file_.inputs_size()) {
+						downloaded = log_file_.inputs_size();
+						last_download = now;
+						PublishUiState();
+					}
+					const int64_t gap = static_cast<int64_t>(downloaded) - key_msg_count_;
+					if (gap <= kLiveTargetBufferFrames) {
+						if (InitialLiveCatchUpReady(now - last_download)) {
+							initial_complete = true;
+							break;
+						}
+						// If a round boundary moved the cursor ahead of the download,
+						// yield back to the usual Loading path rather than blocking.
+						if (gap < 0 && now - last_download >= kLiveInitialQuietWait) break;
+						if (!emu.running()) break;
+						std::this_thread::sleep_for(std::chrono::milliseconds(1));
+						continue;
+					}
+					if (!emu.running()) break;
+				}
+				if (!can_run_silent_replay_frame() || (live_catch_up && !live_seek_unfinished()))
+					break;
 				RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
+				++skipped_frame;
 				regular_save_state();
 				if (need_cancel()) break;
 			}
 			EndSilentSeekWithAudioReset();
+			if (initial_catch_up && (initial_complete || skipped_frame == skip_frames || !emu.running())) {
+				NOTICE_LOG(COMMON, "Initial live catch-up %s: frame=%d downloaded=%d tail=%s",
+					initial_complete ? "completed" : "stopped", key_msg_count_, log_file_.inputs_size(),
+					live_initial_backlog_ ? "full/quiet" : "short");
+				live_initial_catchup_ = false;
+				live_catching_up_ = false;
+			}
 			if (0 < skipped_frame) {
 				const auto ms = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
 				NOTICE_LOG(COMMON, "SeekForward skipped %d[fr] in %ld[ms] (%.2f[ms/fr]) %d->%d(%d keys)", skipped_frame, ms,
@@ -1390,10 +1441,11 @@ bool GdxsvBackendReplay::StartLive(const std::string& host, const std::string& b
 		return false;
 	}
 
-	// Catching up to the live edge (a match may already be thousands of
-	// frames in by the time a spectator connects) is handled by the
-	// continuous live_mode_ check at the top of OnNextFrame.
+	// Only the first catch-up waits for the initial download to drain. Normal
+	// playback and later Live-button seeks retain their gap-based pacing.
 	live_mode_ = true;
+	live_initial_catchup_ = true;
+	live_initial_backlog_ = true;
 	PublishUiState();
 	return true;
 }
@@ -1414,10 +1466,11 @@ void GdxsvBackendReplay::PublishUiState() {
 	ui.seeking = seeking_;
 	ui.paused = ctrl_pause_;
 	ui.pauseMenuOpen = pause_menu_opend_;
-	// Round metadata can move the cursor ahead of the downloaded inputs.
-	// Reuse the HUD without changing the control queue's loading state; an
-	// ordinary wait at the live edge (cursor == input count) is not loading.
-	ui.loading = ctrl_loading_ || (live_mode_ && state_ != State::End && ui.playbackFrame > ui.inputCount);
+	// Keep the initial round jump/download/catch-up under one Loading HUD,
+	// without changing the control queue's loading state. Once startup is
+	// complete, an ordinary wait at the live edge does not show Loading.
+	ui.loading = ctrl_loading_ || (live_mode_ && state_ != State::End &&
+		((live_initial_catchup_ && start_msg_count_ > 0) || ui.playbackFrame > ui.inputCount));
 	ui.takeover = takeover_;
 	ui.takeoverAligning = takeover_aligning_;
 	ui.takeoverSkipInputMatching = takeover_skip_input_matching_;
@@ -1435,6 +1488,11 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 		ui_commands_.pop_front();
 		if (state_ == State::None || state_ == State::End)
 			continue;
+		// Bootstrap presses A to advance the lobby. Pausing is only supported
+		// in battle, so reject an ineffective pause before it can cancel live
+		// following (including the initial catch-up).
+		if (cmd.cmd == ReplayCtrlCommand::TogglePause && (state_ != State::McsInBattle || !IsInGame()))
+			continue;
 		// Manual playback owns its speed and position until FollowLive is
 		// requested. Do not leave automatic 300% recovery running after rewind.
 		if (live_mode_ && (cmd.cmd == ReplayCtrlCommand::SetRound || cmd.cmd == ReplayCtrlCommand::NextRound ||
@@ -1442,11 +1500,14 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			cmd.cmd == ReplayCtrlCommand::StepFrameBackward || cmd.cmd == ReplayCtrlCommand::TogglePause ||
 			cmd.cmd == ReplayCtrlCommand::TogglePauseMenu || cmd.cmd == ReplayCtrlCommand::SetSpeed ||
 			cmd.cmd == ReplayCtrlCommand::NextSpeed)) {
+			if (live_initial_catchup_)
+				NOTICE_LOG(COMMON, "Initial live catch-up cancelled by control=%d at frame=%d", int(cmd.cmd), key_msg_count_);
 			if (live_following_)
 				ctrl_play_speed_ = 0;
 			live_following_ = false;
 			live_catching_up_ = false;
 			live_at_edge_ = false;
+			live_initial_catchup_ = false;
 			ctrl_loading_ = false;
 		}
 		switch (cmd.cmd) {
@@ -1466,7 +1527,7 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			// An explicit Live request accepts a short gap immediately. Normal
 			// catch-up closes it; larger gaps and pending round jumps stay grey.
 			const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
-			live_at_edge_ = !live_round_jump_pending_ && 0 <= gap &&
+			live_at_edge_ = !live_initial_catchup_ && !live_round_jump_pending_ && 0 <= gap &&
 				gap < live_buffer_frames_ + kLiveCatchUpFastSeekMargin;
 			break;
 		}
@@ -1534,23 +1595,31 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 	}
 }
 
+bool GdxsvBackendReplay::InitialLiveCatchUpReady(std::chrono::steady_clock::duration quiet) const {
+	const int64_t gap = static_cast<int64_t>(log_file_.inputs_size()) - key_msg_count_;
+	return live_initial_catchup_ && live_mode_ && live_following_ && 0 <= gap && gap <= live_buffer_frames_ &&
+		(!live_initial_backlog_ || quiet >= kLiveInitialQuietWait);
+}
+
 void GdxsvBackendReplay::CheckLiveUpdate() {
 	if (!live_mode_) {
 		return;
 	}
 
-	live_downlink_.DrainInto(&log_file_);
+	live_downlink_.DrainInto(&log_file_, live_initial_catchup_ ? &live_initial_backlog_ : nullptr);
 	live_downlink_.ReportAcked(log_file_.inputs_size());
 
 	if (!log_file_.close_reason().empty()) {
 		// Battle ended - stop the downlink and let the normal exhaustion
 		// path Stop() once playback drains what's left of log_file_.
 		live_mode_ = false;
+		live_initial_catchup_ = false;
 		live_downlink_.Stop();
 	}
 }
 
 void GdxsvBackendReplay::Stop() {
+	live_initial_catchup_ = false;
 	config::FixedFrequency.load();
 	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();

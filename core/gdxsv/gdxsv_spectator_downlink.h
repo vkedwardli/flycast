@@ -40,7 +40,10 @@ class GdxsvSpectatorDownlink {
 
 	// Folds all queued pushes into *log_file in receive order. Main thread,
 	// every frame. Returns true if anything was folded in.
-	bool DrainInto(proto::BattleLogFile *log_file);
+	// Optional startup hint: a full input packet may have more backlog behind
+	// it; a shorter one reached LBS's available edge when it was built. Only
+	// advancing input packets update the hint, never duplicates or metadata.
+	bool DrainInto(proto::BattleLogFile *log_file, bool *backlog_pending = nullptr);
 
 	// Reports what the main thread has actually folded in, so the next ack
 	// reflects that and not just what was received. Call after every

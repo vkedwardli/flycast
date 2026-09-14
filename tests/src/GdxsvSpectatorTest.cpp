@@ -90,15 +90,67 @@ private:
 };
 
 template<class Predicate>
-bool DrainUntil(GdxsvSpectatorDownlink &client, proto::BattleLogFile &log, Predicate done) {
+bool DrainUntil(GdxsvSpectatorDownlink &client, proto::BattleLogFile &log, Predicate done, bool *backlog = nullptr) {
 	const auto deadline = Clock::now() + 3s;
 	while (Clock::now() < deadline) {
-		client.DrainInto(&log);
+		client.DrainInto(&log, backlog);
 		client.ReportAcked(log.inputs_size());
 		if (done()) return true;
 		std::this_thread::sleep_for(1ms);
 	}
 	return false;
+}
+
+TEST(GdxsvSpectator, StartupBacklogHintUsesOnlyFreshInputPacketLengths) {
+	SpectatorSocket server;
+	ASSERT_TRUE(server.Open());
+	GdxsvSpectatorDownlink client;
+	client.Start("127.0.0.1", server.port, "backlog", 0);
+	proto::Packet packet;
+	ASSERT_TRUE(server.Receive(proto::SpectatorSubscribeType, &packet));
+	proto::SpectatorInputPush push;
+	push.set_battle_code("backlog");
+	push.mutable_header()->set_battle_code("backlog");
+	server.Push(push);
+	proto::BattleLogFile log;
+	ASSERT_TRUE(client.WaitForBootstrap(&log, 1000));
+	ASSERT_TRUE(server.WaitAck(0, 0));
+	push.clear_header();
+	bool backlog = true;
+	client.DrainInto(&log, &backlog);
+	EXPECT_TRUE(backlog); // An empty header is not the end of the input backlog.
+
+	auto inputs = [&](int start, int count, int end, bool expected) {
+		push.set_start_frame(start);
+		push.mutable_inputs()->Resize(count, 123);
+		server.Push(push);
+		ASSERT_TRUE(DrainUntil(client, log, [&] { return log.inputs_size() == end; }, &backlog));
+		ASSERT_TRUE(server.WaitAck(end, 0));
+		EXPECT_EQ(expected, backlog);
+	};
+	inputs(0, 128, 128, true);
+	inputs(128, 4, 132, false);
+
+	// Reordered duplicate full chunks must not put a caught-up download back
+	// into backlog mode. Wait for receipt before draining the duplicate.
+	push.set_start_frame(0);
+	push.mutable_inputs()->Resize(128, 123);
+	server.Push(push);
+	ASSERT_TRUE(server.WaitAck(132, 0));
+	client.DrainInto(&log, &backlog);
+	EXPECT_FALSE(backlog);
+
+	inputs(132, 128, 260, true);
+	inputs(196, 128, 324, true); // Only 64 are new, but the packet is still full.
+	inputs(324, 10, 334, false);
+
+	// Metadata-only pushes cannot change the hint in either direction.
+	push.clear_inputs();
+	push.set_round_state_version(1);
+	push.add_start_msg_indexes(0);
+	server.Push(push);
+	ASSERT_TRUE(DrainUntil(client, log, [&] { return log.start_msg_indexes_size() == 1; }, &backlog));
+	EXPECT_FALSE(backlog);
 }
 
 TEST(GdxsvSpectator, AppliesResultOnlyUpdatesAndAcksAfterApplication) {
