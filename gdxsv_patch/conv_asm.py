@@ -61,12 +61,25 @@ stats_hooks = [
 ]
 draw_hooks = [
     (0x0c03e454, 0x0c02404c, "gdx_player_info32_draw"),
+    (0x0c03ec40, 0x0c02404c, "gdx_player_info32_draw"),
     (0x0c041f8c, 0x0c02404c, "gdx_win_lose32_draw"),
 ]
+# Even offline gdxsv-1.8.12 savestates retain the installed request/poll
+# pointers. Accept those exact released targets when replacing the payload;
+# the next guest stats call initializes the new display hooks and baseline.
+# This supports reconnecting online, not resuming an in-flight old stats call.
+released_stats_targets = {
+    "gdx_player_info32_request": 0x0c4f1080,
+    "gdx_win_lose32_request": 0x0c4f1090,
+    "gdx_stats_poll": 0x0c4f10a0,
+    "gdx_player_info32_draw": 0x0c4f0c88,
+    "gdx_win_lose32_draw": 0x0c4f0be8,
+}
 f.write('if (disk_ == 2) {\n')
 f.write('    // Install all stats entry points together, only on the known ROM layout.\n')
 checks = [f'(gdxsv_ReadMem32(0x{cell:08x}) == 0x{original:08x} || '
-          f'gdxsv_ReadMem32(0x{cell:08x}) == symbols_["{name}"])'
+          f'gdxsv_ReadMem32(0x{cell:08x}) == symbols_["{name}"] || '
+          f'gdxsv_ReadMem32(0x{cell:08x}) == 0x{released_stats_targets[name]:08x})'
           for cell, original, name in stats_hooks + draw_hooks]
 f.write('    if (' + '\n        && '.join(checks) + ') {\n')
 for cell, _, name in stats_hooks:
