@@ -3282,9 +3282,15 @@ if (disk_ == 2) {
         gdxsv_WriteMem32(0x0c030aec, symbols_["gdx_stats_poll"]);
         gdxsv_WriteMem32(0x0c02ccbc, symbols_["gdx_stats_poll"]);
         gdxsv_WriteMem32(0x0c03221c, symbols_["gdx_stats_poll"]);
+        if (gdxsv_ReadMem32(0x0c03e454) == 0x0c4f0c88)
+            gdxsv_WriteMem32(0x0c03e454, symbols_["gdx_player_info32_draw"]);
+        if (gdxsv_ReadMem32(0x0c03ec40) == 0x0c4f0c88)
+            gdxsv_WriteMem32(0x0c03ec40, symbols_["gdx_player_info32_draw"]);
+        if (gdxsv_ReadMem32(0x0c041f8c) == 0x0c4f0be8)
+            gdxsv_WriteMem32(0x0c041f8c, symbols_["gdx_win_lose32_draw"]);
     } else {
         WARN_LOG(COMMON, "Stats hooks: unexpected guest pointers; keeping the legacy protocol");
     }
 }
-symbols_[":patch_id"] = 89325900;
+symbols_[":patch_id"] = 89503296;
 gdxsv_WriteMem32(symbols_["patch_id"], symbols_[":patch_id"]);

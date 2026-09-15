@@ -49,8 +49,9 @@ for line in open('bin/gdxsv_patch.asm'):
 f.write(f'if (disk_ == 1) gdxsv_WriteMem32(0x8c181bb4, symbols_["gdx_dial_start_disk1"]);\n')
 f.write(f'if (disk_ == 2) gdxsv_WriteMem32(0x8c1e0274, symbols_["gdx_dial_start_disk2"]);\n')
 # Slot 99 bypasses dialing. Publish complete-message hooks with the payload,
-# after its code/data are present. Guest initialization owns the display hooks
-# and records; same-version savestates retain their saved pending requests.
+# after its code/data are present. Guest initialization replaces stock display
+# hooks and initializes records; already-patched display hooks are relocated
+# below. Same-version savestates retain their saved pending requests.
 stats_hooks = [
     (0x0c030b04, 0x0c036094, "gdx_player_info32_request"),
     (0x0c02cf44, 0x0c034e9c, "gdx_win_lose32_request"),
@@ -64,10 +65,9 @@ draw_hooks = [
     (0x0c03ec40, 0x0c02404c, "gdx_player_info32_draw"),
     (0x0c041f8c, 0x0c02404c, "gdx_win_lose32_draw"),
 ]
-# Even offline gdxsv-1.8.12 savestates retain the installed request/poll
-# pointers. Accept those exact released targets when replacing the payload;
-# the next guest stats call initializes the new display hooks and baseline.
-# This supports reconnecting online, not resuming an in-flight old stats call.
+# Offline gdxsv-1.8.12 savestates can retain these installed pointers. After
+# loading, they must support reconnecting to the lobby and playing a complete
+# battle through its result screen. Online savestates are not supported.
 released_stats_targets = {
     "gdx_player_info32_request": 0x0c4f1080,
     "gdx_win_lose32_request": 0x0c4f1090,
@@ -84,6 +84,12 @@ checks = [f'(gdxsv_ReadMem32(0x{cell:08x}) == 0x{original:08x} || '
 f.write('    if (' + '\n        && '.join(checks) + ') {\n')
 for cell, _, name in stats_hooks:
     f.write(f'        gdxsv_WriteMem32(0x{cell:08x}, symbols_["{name}"]);\n')
+# Repair saved draw pointers in this same installation, before SH4 resumes.
+# The replacement records start invalid, so an early draw uses the stock text.
+# Leave unpatched draw cells for the next guest stats initialization.
+for cell, _, name in draw_hooks:
+    f.write(f'        if (gdxsv_ReadMem32(0x{cell:08x}) == 0x{released_stats_targets[name]:08x})\n')
+    f.write(f'            gdxsv_WriteMem32(0x{cell:08x}, symbols_["{name}"]);\n')
 f.write('    } else {\n')
 f.write('        WARN_LOG(COMMON, "Stats hooks: unexpected guest pointers; keeping the legacy protocol");\n')
 f.write('    }\n}\n')
