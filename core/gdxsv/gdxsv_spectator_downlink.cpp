@@ -14,8 +14,9 @@ namespace {
 // (10s, see lbs_spectator.go) so a brief delay never drops the subscription.
 constexpr int kSubscribeIntervalMs = 2000;
 constexpr size_t kSubscribeCookieBytes = 16;
-// Matches maxSpectatorPushFrames in lbs_spectator.go. LBS sends the entire
-// remaining input tail when it is smaller than this limit.
+// Protocol limit shared with maxSpectatorPushFrames in lbs_spectator.go;
+// changes require client/server coordination, including the queue budget below.
+// LBS sends the entire remaining input tail when it is smaller than this limit.
 constexpr int kInputPushFrames = 128;
 // Pause read-ahead when emulation cannot drain it. At full size this queue
 // holds 256 KiB of input values, plus metadata and protobuf object overhead.
@@ -196,7 +197,13 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 
 	int32_t received_frame = from_frame;
 	int32_t received_round_state_version = 0;
+	bool oversized_push_warned = false;
 	auto stage_push = [&](proto::SpectatorInputPush &push) {
+		if (push.inputs_size() > kInputPushFrames && !oversized_push_warned) {
+			WARN_LOG(COMMON, "spectator downlink rejected oversized inputs: battle_code=%s start_frame=%d inputs=%d limit=%d (once per session)",
+				battle_code.c_str(), push.start_frame(), push.inputs_size(), kInputPushFrames);
+			oversized_push_warned = true;
+		}
 		std::lock_guard<std::mutex> lock(mtx_);
 		// Duplicate/lost ACKs need feedback too, even when no new data fits.
 		acked_dirty_ = true;

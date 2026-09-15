@@ -167,8 +167,10 @@ TEST(GdxsvSpectator, InitialDownloadPreservesHeaderRecoveryAndDoesNotAckGaps) {
 	}
 	push.set_start_frame(128);
 	push.add_inputs(999); // Oversized packets cannot extend the receive frontier either.
-	server.Push(push);
-	ASSERT_TRUE(server.WaitAck(128, 0));
+	for (int retry = 0; retry < 3; ++retry) {
+		server.Push(push);
+		ASSERT_TRUE(server.WaitAck(128, 0));
+	}
 
 	for (int start : {128, 256}) {
 		push.set_start_frame(start);
