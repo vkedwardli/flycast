@@ -15,7 +15,8 @@ constexpr u32 kCountersOffset = 0x2b0;
 constexpr int kPlayerSlots = 4;
 
 inline int Outcome(u8 winner, u8 draw) {
-	// The previous draw flag can outlive the winner reset between rounds.
+	// Disc-2 battle init clears winner (PC 0x0c05afb4), then draw (PC 0x0c05affc).
+	// Both reset before gameplay; a zero winner ignores the leftover draw flag.
 	return winner == 0 ? 0 : draw != 0 ? kDraw : winner;
 }
 
