@@ -95,7 +95,15 @@ struct ReplayEntry {
 	bool readable = true;
 };
 
-std::shared_future<std::vector<ReplayEntry>> local_replays_future;
+constexpr size_t kLocalReplayPageSize = 100;
+struct LocalReplayPage {
+	std::vector<ReplayEntry> entries;
+	size_t page = 0;
+	size_t page_count = 1;
+};
+
+std::shared_future<LocalReplayPage> local_replays_future;
+size_t local_replay_page = 0;
 std::string selected_replay_file;
 std::string broken_replay_path;
 
@@ -385,11 +393,12 @@ bool is_timestamp_replay_filename(const std::string& name) {
 		name.find_first_not_of("0123456789") == 13;
 }
 
-std::vector<ReplayEntry> read_local_replays(const std::string& replay_dir) {
-	std::vector<ReplayEntry> entries;
+LocalReplayPage read_local_replays(const std::string& replay_dir, size_t requested_page) {
+	LocalReplayPage result;
+	std::vector<std::string> filenames;
 	DIR* dir = flycast::opendir(replay_dir.c_str());
 	if (dir == nullptr)
-		return entries;
+		return result;
 	while (auto* file = flycast::readdir(dir)) {
 		std::string name(file->d_name);
 #ifdef __APPLE__
@@ -397,9 +406,27 @@ std::vector<ReplayEntry> read_local_replays(const std::string& replay_dir) {
 #endif
 		if (get_file_extension(name) != "pb")
 			continue;
+		filenames.push_back(std::move(name));
+	}
+	flycast::closedir(dir);
+	// Choose the page using filenames alone, before opening any recordings.
+	std::sort(filenames.begin(), filenames.end(), [](const std::string& a, const std::string& b) {
+		const bool a_timestamp = is_timestamp_replay_filename(a);
+		const bool b_timestamp = is_timestamp_replay_filename(b);
+		if (a_timestamp != b_timestamp)
+			return !a_timestamp; // Named copies and edited replays come first.
+		return a_timestamp ? a > b : a < b;
+	});
+	if (!filenames.empty())
+		result.page_count = 1 + (filenames.size() - 1) / kLocalReplayPageSize;
+	result.page = std::min(requested_page, result.page_count - 1);
+	const size_t first = result.page * kLocalReplayPageSize;
+	const size_t last = first + std::min(kLocalReplayPageSize, filenames.size() - first);
+	result.entries.reserve(last - first);
+	for (size_t i = first; i < last; ++i) {
 		ReplayEntry entry;
-		entry.filename = name;
-		entry.replay_url = replay_dir + "/" + name;
+		entry.filename = filenames[i];
+		entry.replay_url = replay_dir + "/" + entry.filename;
 		struct stat info {};
 		if (flycast::stat(entry.replay_url.c_str(), &info) == 0)
 			entry.start_unix = info.st_mtime;
@@ -433,20 +460,10 @@ std::vector<ReplayEntry> read_local_replays(const std::string& replay_dir) {
 				}
 			}
 		}
-		entries.push_back(std::move(entry));
+		result.entries.push_back(std::move(entry));
 		// Retain only the small display metadata, never the input stream.
 	}
-	flycast::closedir(dir);
-	std::sort(entries.begin(), entries.end(), [](const ReplayEntry& a, const ReplayEntry& b) {
-		const bool a_timestamp = is_timestamp_replay_filename(a.filename);
-		const bool b_timestamp = is_timestamp_replay_filename(b.filename);
-		if (a_timestamp != b_timestamp)
-			return !a_timestamp; // Named copies and edited replays come first.
-		if (!a_timestamp)
-			return a.filename < b.filename;
-		return a.start_unix != b.start_unix ? a.start_unix > b.start_unix : a.filename > b.filename;
-	});
-	return entries;
+	return result;
 }
 
 // Shared by Local and Server.
@@ -482,14 +499,21 @@ bool draw_replay_entry(const ReplayEntry& entry, int index, bool selected) {
 
 void gdxsv_replay_local_tab() {
 	const auto replay_dir = get_writable_data_path("replays");
-	if (!local_replays_future.valid()) {
-		// Parsing many recordings can take time; only this worker reads files.
-		local_replays_future = std::async(std::launch::async, read_local_replays, replay_dir).share();
+	const bool new_page = !local_replays_future.valid();
+	if (new_page) {
+		// Scan filenames and parse only the requested page off the UI thread.
+		local_replays_future = std::async(std::launch::async, read_local_replays, replay_dir, local_replay_page).share();
 	}
 	const bool loaded = future_is_ready(local_replays_future);
+	if (loaded)
+		local_replay_page = local_replays_future.get().page;
+	size_t requested_page = local_replay_page;
 	ImGui::BeginDisabled(!loaded);
 	if (ImGui::Button(ICON_FA_ARROW_ROTATE_RIGHT "  Reload")) {
+		local_replay_page = 0;
 		local_replays_future = {};
+		selected_replay_file.clear();
+		pov_index = -1;
 		ImGui::EndDisabled();
 		return;
 	}
@@ -517,11 +541,15 @@ void gdxsv_replay_local_tab() {
 	ImGui::SameLine();
 	ImGui::TextUnformatted(replay_dir.c_str());
 
-	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list"), ScaledVec2(450, 0), true, ImGuiWindowFlags_DragScrolling);
+	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list_paging"), ScaledVec2(450, 0), false, ImGuiWindowFlags_NoDecoration);
+	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list"),
+		ImVec2(0, std::max(1.f, ImGui::GetContentRegionAvail().y - 40.f * scaling)), true, ImGuiWindowFlags_DragScrolling);
+	if (new_page)
+		ImGui::SetScrollY(0);
 	if (!loaded) {
 		ImGui::TextUnformatted("Loading...");
 	} else {
-		const auto& entries = local_replays_future.get();
+		const auto& entries = local_replays_future.get().entries;
 		if (entries.empty())
 			ImGui::TextUnformatted("(No replay found)");
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30));
@@ -551,10 +579,26 @@ void gdxsv_replay_local_tab() {
 	windowDragScroll();
 	ImGui::EndChild();
 
+	ImGui::BeginDisabled(!loaded || local_replay_page == 0);
+	if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Prev Page"))
+		requested_page = local_replay_page - 1;
+	ImGui::EndDisabled();
+	ImGui::SameLine();
+	if (loaded)
+		ImGui::Text("%zu / %zu", local_replay_page + 1, local_replays_future.get().page_count);
+	else
+		ImGui::TextUnformatted("...");
+	ImGui::SameLine();
+	ImGui::BeginDisabled(!loaded || local_replay_page + 1 >= local_replays_future.get().page_count);
+	if (ImGui::Button(ICON_FA_CHEVRON_RIGHT "  Next Page"))
+		requested_page = local_replay_page + 1;
+	ImGui::EndDisabled();
+	ImGui::EndChild();
+
 	ImGui::SameLine();
 	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_detail"), ImVec2(0, 0), true, ImGuiWindowFlags_DragScrolling);
 	if (loaded && !selected_replay_file.empty()) {
-		const auto& entries = local_replays_future.get();
+		const auto& entries = local_replays_future.get().entries;
 		const auto selected = std::find_if(entries.begin(), entries.end(), [](const ReplayEntry& entry) {
 			return entry.filename == selected_replay_file;
 		});
@@ -574,6 +618,13 @@ void gdxsv_replay_local_tab() {
 	scrollWhenDraggingOnVoid();
 	windowDragScroll();
 	ImGui::EndChild();
+	if (requested_page != local_replay_page) {
+		// Release the completed page only after drawing all references to it.
+		local_replay_page = requested_page;
+		local_replays_future = {};
+		selected_replay_file.clear();
+		pov_index = -1;
+	}
 }
 
 void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEntry>& out) {
