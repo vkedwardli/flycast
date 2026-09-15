@@ -554,9 +554,14 @@ void Gdxsv::HandleRPC() {
 }
 
 void Gdxsv::StartPingTest() {
-	// Reuse the running or completed test across game loads in this app session.
-	if (!gcp_ping_test_result_.valid())
-		gcp_ping_test_result_ = gcp_ping_test().share();
+	// Reuse in-flight tests and successful results across game loads.
+	if (gcp_ping_test_result_.valid() &&
+		(gcp_ping_test_result_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready ||
+		 !gcp_ping_test_result_.get().empty()))
+		return;
+
+	SetPingResult("Latency check...");
+	gcp_ping_test_result_ = gcp_ping_test().share();
 }
 
 void Gdxsv::StartP2PFeasibilityTest() {
