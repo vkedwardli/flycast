@@ -1,3 +1,6 @@
+#include <cstring>
+#include <vector>
+
 #include "gtest/gtest.h"
 #include "emulator.h"
 #include "gdxsv/gdxsv_round_counters.h"
@@ -54,6 +57,37 @@ TEST_F(GdxsvRoundCountersTest, RoundJumpRestoresAllSlotsAndSeparatesDraws) {
 	EXPECT_EQ((std::array<u16, 4>{3, 1, 1, 1}), Read(0));
 	ASSERT_TRUE(gdxsv_round_counters::Restore(log_, 0));
 	EXPECT_EQ((std::array<u16, 4>{0, 0, 0, 0}), Read(0));
+}
+
+TEST_F(GdxsvRoundCountersTest, RejectsInvalidSessionPointersWithoutChangingRam) {
+	constexpr u32 ramEnd = 0x0d000000;
+	constexpr u32 recordSpan = (gdxsv_round_counters::kPlayerSlots + 1) * gdxsv_round_counters::kPlayerStride;
+	for (u32 session : {0u, 0x0bfffffcu, ramEnd - recordSpan + 4,
+			ramEnd - recordSpan + 8, ramEnd, 0xfffffff0u}) {
+		SCOPED_TRACE(session);
+		// Change only the pointer; invalid targets must never be initialized or used.
+		gdxsv_WriteMem32(gdxsv_round_counters::kSessionPointer, session);
+		const std::vector<u8> before(&mem_b[0], &mem_b[0] + RAM_SIZE);
+		for (int completed : {-1, 2}) {
+			SCOPED_TRACE(completed);
+			EXPECT_FALSE(gdxsv_round_counters::Restore(log_, completed));
+			EXPECT_EQ(0, std::memcmp(before.data(), &mem_b[0], before.size()));
+		}
+	}
+}
+
+TEST_F(GdxsvRoundCountersTest, RestoresAllSlotsAtMainRamBoundaries) {
+	constexpr u32 recordSpan = (gdxsv_round_counters::kPlayerSlots + 1) * gdxsv_round_counters::kPlayerStride;
+	for (u32 session : {0x0c000000u, 0x0d000000u - recordSpan}) {
+		SCOPED_TRACE(session);
+		SetSession(session);
+		ASSERT_TRUE(gdxsv_round_counters::Restore(log_, 2));
+		EXPECT_EQ((std::array<u16, 4>{2, 1, 0, 1}), Read(0));
+		EXPECT_EQ((std::array<u16, 4>{2, 0, 1, 1}), Read(1));
+		EXPECT_EQ(Read(0), Read(2));
+		EXPECT_EQ((std::array<u16, 4>{2, 0, 0, 1}), Read(3));
+		ASSERT_TRUE(gdxsv_round_counters::Restore(log_));
+	}
 }
 
 TEST_F(GdxsvRoundCountersTest, MissingResultsWaitThenRestoreAndLateDrawCorrects) {

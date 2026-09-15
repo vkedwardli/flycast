@@ -47,6 +47,9 @@ inline bool Restore(const proto::BattleLogFile& log, int completed = -1) {
 	if (completed < -1 || completed > kMaxRounds)
 		return false;
 	const u32 session = gdxsv_ReadMem32(kSessionPointer);
+	// Require the full record span in main RAM before following the guest pointer.
+	if (session < 0x0c000000 || session > 0x0d000000 - (kPlayerSlots + 1) * kPlayerStride)
+		return false;
 	bool complete = true;
 	for (int i = 0; i < kPlayerSlots; ++i) {
 		const u32 player = session + (i + 1) * kPlayerStride;
