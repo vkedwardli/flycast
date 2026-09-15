@@ -802,8 +802,14 @@ void GDXSTATSFUNC gdx_player_info32_draw(const char *text, float x, float y, flo
         return;
     }
 
+    // Match Restore's full-record bounds check before reading session counters.
+    u32 session = read32(0x0c394524);
+    if (session < 0x0c000000 || session > 0x0d000000 - 5 * 0x2c0) {
+        draw(text, x, y, z);
+        return;
+    }
     struct gdx_player_info32_record *record = &gdx_player_info32_records[player];
-    u32 guest = read32(0x0c394524) + (player + 1) * 0x2c0;
+    u32 guest = session + (player + 1) * 0x2c0;
     // The ROM updates these once per completed round and clears them before
     // receiving a new baseline. Never add to the baseline or capped legacy totals.
     u64 values[3] = {

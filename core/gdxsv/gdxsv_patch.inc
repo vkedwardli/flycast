@@ -2851,9 +2851,9 @@ gdxsv_WriteMem16(0x8c4f0fd4u, 0x000bu); // rts
 gdxsv_WriteMem16(0x8c4f0fd6u, 0x68f6u); // mov.l	@r15+,r8
 gdxsv_WriteMem16(0x8c4f0fd8u, 0x0d90u); // .word 0x0d90
 gdxsv_WriteMem16(0x8c4f0fdau, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f0fdcu, 0x9bdcu); // mov.w	c4f1198 <gdx_win_lose32_request+0x8>,r11	! 9
+gdxsv_WriteMem16(0x8c4f0fdcu, 0x9bdcu); // mov.w	c4f1198 <gdx_win_lose32_request+0x4>,r11	! 9401
 gdxsv_WriteMem16(0x8c4f0fdeu, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f0fe0u, 0x9be8u); // mov.w	c4f11b4 <gdx_stats_poll+0x14>,r11	! 6483
+gdxsv_WriteMem16(0x8c4f0fe0u, 0x9be8u); // mov.w	c4f11b4 <gdx_stats_poll+0x10>,r11	! d047
 gdxsv_WriteMem16(0x8c4f0fe2u, 0x0c3au); // .word 0x0c3a
 gdxsv_WriteMem16(0x8c4f0fe4u, 0x096cu); // mov.b	@(r0,r6),r9
 gdxsv_WriteMem16(0x8c4f0fe6u, 0x0c4fu); // mac.l	@r4+,@r12+
@@ -2871,47 +2871,47 @@ gdxsv_WriteMem16(0x8c4f0ffau, 0x2fa6u); // mov.l	r10,@-r15
 gdxsv_WriteMem16(0x8c4f0ffcu, 0x2fb6u); // mov.l	r11,@-r15
 gdxsv_WriteMem16(0x8c4f0ffeu, 0xffcbu); // fmov	fr12,@-r15
 gdxsv_WriteMem16(0x8c4f1000u, 0x022au); // sts	pr,r2
-gdxsv_WriteMem16(0x8c4f1002u, 0xd150u); // mov.l	c4f1144 <gdx_player_info32_draw+0x150>,r1	! 1fffffff
+gdxsv_WriteMem16(0x8c4f1002u, 0xd14fu); // mov.l	c4f1140 <gdx_player_info32_draw+0x14c>,r1	! 1fffffff
 gdxsv_WriteMem16(0x8c4f1004u, 0xffdbu); // fmov	fr13,@-r15
 gdxsv_WriteMem16(0x8c4f1006u, 0xffebu); // fmov	fr14,@-r15
 gdxsv_WriteMem16(0x8c4f1008u, 0x2129u); // and	r2,r1
-gdxsv_WriteMem16(0x8c4f100au, 0xd24fu); // mov.l	c4f1148 <gdx_player_info32_draw+0x154>,r2	! c03e4c8
+gdxsv_WriteMem16(0x8c4f100au, 0xd24eu); // mov.l	c4f1144 <gdx_player_info32_draw+0x150>,r2	! c03e4c8
 gdxsv_WriteMem16(0x8c4f100cu, 0x4f22u); // sts.l	pr,@-r15
 gdxsv_WriteMem16(0x8c4f100eu, 0x3120u); // cmp/eq	r2,r1
 gdxsv_WriteMem16(0x8c4f1010u, 0x7fe8u); // add	#-24,r15
 gdxsv_WriteMem16(0x8c4f1012u, 0xfc5cu); // fmov	fr5,fr12
-gdxsv_WriteMem16(0x8c4f1014u, 0xfd4cu); // fmov	fr4,fr13
+gdxsv_WriteMem16(0x8c4f1014u, 0xfe4cu); // fmov	fr4,fr14
 gdxsv_WriteMem16(0x8c4f1016u, 0x8d29u); // bt.s	c4f106c <gdx_player_info32_draw+0x78>
-gdxsv_WriteMem16(0x8c4f1018u, 0xfe7cu); // fmov	fr7,fr14
-gdxsv_WriteMem16(0x8c4f101au, 0xd24cu); // mov.l	c4f114c <gdx_player_info32_draw+0x158>,r2	! c03e644
+gdxsv_WriteMem16(0x8c4f1018u, 0xfd7cu); // fmov	fr7,fr13
+gdxsv_WriteMem16(0x8c4f101au, 0xd24bu); // mov.l	c4f1148 <gdx_player_info32_draw+0x154>,r2	! c03e644
 gdxsv_WriteMem16(0x8c4f101cu, 0x3120u); // cmp/eq	r2,r1
 gdxsv_WriteMem16(0x8c4f101eu, 0x8d26u); // bt.s	c4f106e <gdx_player_info32_draw+0x7a>
 gdxsv_WriteMem16(0x8c4f1020u, 0xe048u); // mov	#72,r0
-gdxsv_WriteMem16(0x8c4f1022u, 0xd24bu); // mov.l	c4f1150 <gdx_player_info32_draw+0x15c>,r2	! c03e7c0
+gdxsv_WriteMem16(0x8c4f1022u, 0xd24au); // mov.l	c4f114c <gdx_player_info32_draw+0x158>,r2	! c03e7c0
 gdxsv_WriteMem16(0x8c4f1024u, 0x3120u); // cmp/eq	r2,r1
 gdxsv_WriteMem16(0x8c4f1026u, 0x8922u); // bt	c4f106e <gdx_player_info32_draw+0x7a>
-gdxsv_WriteMem16(0x8c4f1028u, 0xd24au); // mov.l	c4f1154 <gdx_player_info32_draw+0x160>,r2	! c03e93c
+gdxsv_WriteMem16(0x8c4f1028u, 0xd249u); // mov.l	c4f1150 <gdx_player_info32_draw+0x15c>,r2	! c03e93c
 gdxsv_WriteMem16(0x8c4f102au, 0x3120u); // cmp/eq	r2,r1
 gdxsv_WriteMem16(0x8c4f102cu, 0x891fu); // bt	c4f106e <gdx_player_info32_draw+0x7a>
-gdxsv_WriteMem16(0x8c4f102eu, 0xd24au); // mov.l	c4f1158 <gdx_player_info32_draw+0x164>,r2	! c03ecb6
+gdxsv_WriteMem16(0x8c4f102eu, 0xd249u); // mov.l	c4f1154 <gdx_player_info32_draw+0x160>,r2	! c03ecb6
 gdxsv_WriteMem16(0x8c4f1030u, 0x3120u); // cmp/eq	r2,r1
-gdxsv_WriteMem16(0x8c4f1032u, 0x8902u); // bt	c4f103a <gdx_player_info32_draw+0x46>
-gdxsv_WriteMem16(0x8c4f1034u, 0xd249u); // mov.l	c4f115c <gdx_player_info32_draw+0x168>,r2	! c03ee62
-gdxsv_WriteMem16(0x8c4f1036u, 0x3120u); // cmp/eq	r2,r1
-gdxsv_WriteMem16(0x8c4f1038u, 0x8b01u); // bf	c4f103e <gdx_player_info32_draw+0x4a>
-gdxsv_WriteMem16(0x8c4f103au, 0xa07eu); // bra	c4f113a <gdx_player_info32_draw+0x146>
-gdxsv_WriteMem16(0x8c4f103cu, 0xe040u); // mov	#64,r0
-gdxsv_WriteMem16(0x8c4f103eu, 0xd248u); // mov.l	c4f1160 <gdx_player_info32_draw+0x16c>,r2	! c03f00a
+gdxsv_WriteMem16(0x8c4f1032u, 0x8b01u); // bf	c4f1038 <gdx_player_info32_draw+0x44>
+gdxsv_WriteMem16(0x8c4f1034u, 0xa07fu); // bra	c4f1136 <gdx_player_info32_draw+0x142>
+gdxsv_WriteMem16(0x8c4f1036u, 0xe040u); // mov	#64,r0
+gdxsv_WriteMem16(0x8c4f1038u, 0xd247u); // mov.l	c4f1158 <gdx_player_info32_draw+0x164>,r2	! c03ee62
+gdxsv_WriteMem16(0x8c4f103au, 0x3120u); // cmp/eq	r2,r1
+gdxsv_WriteMem16(0x8c4f103cu, 0x897au); // bt	c4f1134 <gdx_player_info32_draw+0x140>
+gdxsv_WriteMem16(0x8c4f103eu, 0xd247u); // mov.l	c4f115c <gdx_player_info32_draw+0x168>,r2	! c03f00a
 gdxsv_WriteMem16(0x8c4f1040u, 0x3120u); // cmp/eq	r2,r1
-gdxsv_WriteMem16(0x8c4f1042u, 0x8d7au); // bt.s	c4f113a <gdx_player_info32_draw+0x146>
+gdxsv_WriteMem16(0x8c4f1042u, 0x8d78u); // bt.s	c4f1136 <gdx_player_info32_draw+0x142>
 gdxsv_WriteMem16(0x8c4f1044u, 0xe040u); // mov	#64,r0
-gdxsv_WriteMem16(0x8c4f1046u, 0xd247u); // mov.l	c4f1164 <gdx_player_info32_draw+0x170>,r2	! c03f1b6
+gdxsv_WriteMem16(0x8c4f1046u, 0xd246u); // mov.l	c4f1160 <gdx_player_info32_draw+0x16c>,r2	! c03f1b6
 gdxsv_WriteMem16(0x8c4f1048u, 0x3120u); // cmp/eq	r2,r1
-gdxsv_WriteMem16(0x8c4f104au, 0x8976u); // bt	c4f113a <gdx_player_info32_draw+0x146>
-gdxsv_WriteMem16(0x8c4f104cu, 0xd146u); // mov.l	c4f1168 <gdx_player_info32_draw+0x174>,r1	! c01e444
+gdxsv_WriteMem16(0x8c4f104au, 0x8974u); // bt	c4f1136 <gdx_player_info32_draw+0x142>
+gdxsv_WriteMem16(0x8c4f104cu, 0xd145u); // mov.l	c4f1164 <gdx_player_info32_draw+0x170>,r1	! c01e444
 gdxsv_WriteMem16(0x8c4f104eu, 0x6483u); // mov	r8,r4
-gdxsv_WriteMem16(0x8c4f1050u, 0xf7ecu); // fmov	fr14,fr7
-gdxsv_WriteMem16(0x8c4f1052u, 0xf4dcu); // fmov	fr13,fr4
+gdxsv_WriteMem16(0x8c4f1050u, 0xf7dcu); // fmov	fr13,fr7
+gdxsv_WriteMem16(0x8c4f1052u, 0xf4ecu); // fmov	fr14,fr4
 gdxsv_WriteMem16(0x8c4f1054u, 0x410bu); // jsr	@r1
 gdxsv_WriteMem16(0x8c4f1056u, 0xf5ccu); // fmov	fr12,fr5
 gdxsv_WriteMem16(0x8c4f1058u, 0x7f18u); // add	#24,r15
@@ -2933,336 +2933,338 @@ gdxsv_WriteMem16(0x8c4f1076u, 0xe103u); // mov	#3,r1
 gdxsv_WriteMem16(0x8c4f1078u, 0x3016u); // cmp/hi	r1,r0
 gdxsv_WriteMem16(0x8c4f107au, 0x8de7u); // bt.s	c4f104c <gdx_player_info32_draw+0x58>
 gdxsv_WriteMem16(0x8c4f107cu, 0xe106u); // mov	#6,r1
-gdxsv_WriteMem16(0x8c4f107eu, 0xd93bu); // mov.l	c4f116c <gdx_player_info32_draw+0x178>,r9	! c4e06f8 <gdx_player_info32_records>
+gdxsv_WriteMem16(0x8c4f107eu, 0xd93au); // mov.l	c4f1168 <gdx_player_info32_draw+0x174>,r9	! c4e06f8 <gdx_player_info32_records>
 gdxsv_WriteMem16(0x8c4f1080u, 0x6a03u); // mov	r0,r10
 gdxsv_WriteMem16(0x8c4f1082u, 0x4a1du); // shld	r1,r10
 gdxsv_WriteMem16(0x8c4f1084u, 0x6393u); // mov	r9,r3
 gdxsv_WriteMem16(0x8c4f1086u, 0x33acu); // add	r10,r3
 gdxsv_WriteMem16(0x8c4f1088u, 0x6132u); // mov.l	@r3,r1
 gdxsv_WriteMem16(0x8c4f108au, 0x2118u); // tst	r1,r1
-gdxsv_WriteMem16(0x8c4f108cu, 0x8ddeu); // bt.s	c4f104c <gdx_player_info32_draw+0x58>
-gdxsv_WriteMem16(0x8c4f108eu, 0x7001u); // add	#1,r0
-gdxsv_WriteMem16(0x8c4f1090u, 0x9155u); // mov.w	c4f113e <gdx_player_info32_draw+0x14a>,r1	! 2c0
-gdxsv_WriteMem16(0x8c4f1092u, 0x9555u); // mov.w	c4f1140 <gdx_player_info32_draw+0x14c>,r5	! 29e
-gdxsv_WriteMem16(0x8c4f1094u, 0xe700u); // mov	#0,r7
-gdxsv_WriteMem16(0x8c4f1096u, 0x0017u); // mul.l	r1,r0
-gdxsv_WriteMem16(0x8c4f1098u, 0xd135u); // mov.l	c4f1170 <gdx_player_info32_draw+0x17c>,r1	! c394524
-gdxsv_WriteMem16(0x8c4f109au, 0x6ba3u); // mov	r10,r11
-gdxsv_WriteMem16(0x8c4f109cu, 0x5631u); // mov.l	@(4,r3),r6
-gdxsv_WriteMem16(0x8c4f109eu, 0x7b14u); // add	#20,r11
-gdxsv_WriteMem16(0x8c4f10a0u, 0x001au); // sts	macl,r0
-gdxsv_WriteMem16(0x8c4f10a2u, 0x6112u); // mov.l	@r1,r1
-gdxsv_WriteMem16(0x8c4f10a4u, 0x3b9cu); // add	r9,r11
-gdxsv_WriteMem16(0x8c4f10a6u, 0x64b3u); // mov	r11,r4
-gdxsv_WriteMem16(0x8c4f10a8u, 0x301cu); // add	r1,r0
-gdxsv_WriteMem16(0x8c4f10aau, 0x350cu); // add	r0,r5
-gdxsv_WriteMem16(0x8c4f10acu, 0x8559u); // mov.w	@(18,r5),r0
-gdxsv_WriteMem16(0x8c4f10aeu, 0xe100u); // mov	#0,r1
-gdxsv_WriteMem16(0x8c4f10b0u, 0x620du); // extu.w	r0,r2
-gdxsv_WriteMem16(0x8c4f10b2u, 0x855au); // mov.w	@(20,r5),r0
-gdxsv_WriteMem16(0x8c4f10b4u, 0x326eu); // addc	r6,r2
-gdxsv_WriteMem16(0x8c4f10b6u, 0x5632u); // mov.l	@(8,r3),r6
-gdxsv_WriteMem16(0x8c4f10b8u, 0x317eu); // addc	r7,r1
-gdxsv_WriteMem16(0x8c4f10bau, 0x2f22u); // mov.l	r2,@r15
-gdxsv_WriteMem16(0x8c4f10bcu, 0x0008u); // clrt
-gdxsv_WriteMem16(0x8c4f10beu, 0x620du); // extu.w	r0,r2
-gdxsv_WriteMem16(0x8c4f10c0u, 0x855bu); // mov.w	@(22,r5),r0
-gdxsv_WriteMem16(0x8c4f10c2u, 0x326eu); // addc	r6,r2
-gdxsv_WriteMem16(0x8c4f10c4u, 0x1f11u); // mov.l	r1,@(4,r15)
-gdxsv_WriteMem16(0x8c4f10c6u, 0xe100u); // mov	#0,r1
-gdxsv_WriteMem16(0x8c4f10c8u, 0x1f22u); // mov.l	r2,@(8,r15)
-gdxsv_WriteMem16(0x8c4f10cau, 0x620du); // extu.w	r0,r2
-gdxsv_WriteMem16(0x8c4f10ccu, 0x855cu); // mov.w	@(24,r5),r0
-gdxsv_WriteMem16(0x8c4f10ceu, 0x317eu); // addc	r7,r1
-gdxsv_WriteMem16(0x8c4f10d0u, 0x0008u); // clrt
-gdxsv_WriteMem16(0x8c4f10d2u, 0x1f13u); // mov.l	r1,@(12,r15)
-gdxsv_WriteMem16(0x8c4f10d4u, 0x660du); // extu.w	r0,r6
-gdxsv_WriteMem16(0x8c4f10d6u, 0xd027u); // mov.l	c4f1174 <gdx_player_info32_draw+0x180>,r0	! c4f0e2c <gdx_stats_format_player.constprop.0>
-gdxsv_WriteMem16(0x8c4f10d8u, 0x326eu); // addc	r6,r2
-gdxsv_WriteMem16(0x8c4f10dau, 0x5633u); // mov.l	@(12,r3),r6
-gdxsv_WriteMem16(0x8c4f10dcu, 0xe100u); // mov	#0,r1
-gdxsv_WriteMem16(0x8c4f10deu, 0x65f3u); // mov	r15,r5
-gdxsv_WriteMem16(0x8c4f10e0u, 0x317eu); // addc	r7,r1
-gdxsv_WriteMem16(0x8c4f10e2u, 0x0008u); // clrt
-gdxsv_WriteMem16(0x8c4f10e4u, 0x326eu); // addc	r6,r2
-gdxsv_WriteMem16(0x8c4f10e6u, 0x317eu); // addc	r7,r1
-gdxsv_WriteMem16(0x8c4f10e8u, 0x1f24u); // mov.l	r2,@(16,r15)
-gdxsv_WriteMem16(0x8c4f10eau, 0x400bu); // jsr	@r0
-gdxsv_WriteMem16(0x8c4f10ecu, 0x1f15u); // mov.l	r1,@(20,r15)
-gdxsv_WriteMem16(0x8c4f10eeu, 0x2008u); // tst	r0,r0
-gdxsv_WriteMem16(0x8c4f10f0u, 0x8dacu); // bt.s	c4f104c <gdx_player_info32_draw+0x58>
-gdxsv_WriteMem16(0x8c4f10f2u, 0x6503u); // mov	r0,r5
-gdxsv_WriteMem16(0x8c4f10f4u, 0xd020u); // mov.l	c4f1178 <gdx_player_info32_draw+0x184>,r0	! c4f09a8 <gdx_stats_scale_bits>
-gdxsv_WriteMem16(0x8c4f10f6u, 0xe412u); // mov	#18,r4
-gdxsv_WriteMem16(0x8c4f10f8u, 0x400bu); // jsr	@r0
-gdxsv_WriteMem16(0x8c4f10fau, 0x7910u); // add	#16,r9
-gdxsv_WriteMem16(0x8c4f10fcu, 0x6103u); // mov	r0,r1
-gdxsv_WriteMem16(0x8c4f10feu, 0x405au); // lds	r0,fpul
-gdxsv_WriteMem16(0x8c4f1100u, 0x60a3u); // mov	r10,r0
-gdxsv_WriteMem16(0x8c4f1102u, 0x0916u); // mov.l	r1,@(r0,r9)
-gdxsv_WriteMem16(0x8c4f1104u, 0xd11du); // mov.l	c4f117c <gdx_player_info32_draw+0x188>,r1	! c391388
-gdxsv_WriteMem16(0x8c4f1106u, 0x64b3u); // mov	r11,r4
-gdxsv_WriteMem16(0x8c4f1108u, 0x901bu); // mov.w	c4f1142 <gdx_player_info32_draw+0x14e>,r0	! 14b8
-gdxsv_WriteMem16(0x8c4f110au, 0x6812u); // mov.l	@r1,r8
-gdxsv_WriteMem16(0x8c4f110cu, 0xd116u); // mov.l	c4f1168 <gdx_player_info32_draw+0x174>,r1	! c01e444
-gdxsv_WriteMem16(0x8c4f110eu, 0x380cu); // add	r0,r8
-gdxsv_WriteMem16(0x8c4f1110u, 0xf20du); // fsts	fpul,fr2
-gdxsv_WriteMem16(0x8c4f1112u, 0x6982u); // mov.l	@r8,r9
-gdxsv_WriteMem16(0x8c4f1114u, 0xf7ecu); // fmov	fr14,fr7
-gdxsv_WriteMem16(0x8c4f1116u, 0xf188u); // fmov	@r8,fr1
-gdxsv_WriteMem16(0x8c4f1118u, 0xf4dcu); // fmov	fr13,fr4
-gdxsv_WriteMem16(0x8c4f111au, 0xf122u); // fmul	fr2,fr1
-gdxsv_WriteMem16(0x8c4f111cu, 0xf5ccu); // fmov	fr12,fr5
-gdxsv_WriteMem16(0x8c4f111eu, 0xf81au); // fmov	fr1,@r8
-gdxsv_WriteMem16(0x8c4f1120u, 0x410bu); // jsr	@r1
-gdxsv_WriteMem16(0x8c4f1122u, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f1124u, 0x2892u); // mov.l	r9,@r8
-gdxsv_WriteMem16(0x8c4f1126u, 0x7f18u); // add	#24,r15
-gdxsv_WriteMem16(0x8c4f1128u, 0x4f26u); // lds.l	@r15+,pr
-gdxsv_WriteMem16(0x8c4f112au, 0xfef9u); // fmov	@r15+,fr14
-gdxsv_WriteMem16(0x8c4f112cu, 0xfdf9u); // fmov	@r15+,fr13
-gdxsv_WriteMem16(0x8c4f112eu, 0xfcf9u); // fmov	@r15+,fr12
-gdxsv_WriteMem16(0x8c4f1130u, 0x6bf6u); // mov.l	@r15+,r11
-gdxsv_WriteMem16(0x8c4f1132u, 0x6af6u); // mov.l	@r15+,r10
-gdxsv_WriteMem16(0x8c4f1134u, 0x69f6u); // mov.l	@r15+,r9
-gdxsv_WriteMem16(0x8c4f1136u, 0x000bu); // rts
-gdxsv_WriteMem16(0x8c4f1138u, 0x68f6u); // mov.l	@r15+,r8
-gdxsv_WriteMem16(0x8c4f113au, 0xaf9cu); // bra	c4f1076 <gdx_player_info32_draw+0x82>
-gdxsv_WriteMem16(0x8c4f113cu, 0x00feu); // mov.l	@(r0,r15),r0
-gdxsv_WriteMem16(0x8c4f113eu, 0x02c0u); // .word 0x02c0
-gdxsv_WriteMem16(0x8c4f1140u, 0x029eu); // mov.l	@(r0,r9),r2
-gdxsv_WriteMem16(0x8c4f1142u, 0x14b8u); // mov.l	r11,@(32,r4)
-gdxsv_WriteMem16(0x8c4f1144u, 0xffffu); // .word 0xffff
-gdxsv_WriteMem16(0x8c4f1146u, 0x1fffu); // mov.l	r15,@(60,r15)
-gdxsv_WriteMem16(0x8c4f1148u, 0xe4c8u); // mov	#-56,r4
+gdxsv_WriteMem16(0x8c4f108cu, 0x89deu); // bt	c4f104c <gdx_player_info32_draw+0x58>
+gdxsv_WriteMem16(0x8c4f108eu, 0xd137u); // mov.l	c4f116c <gdx_player_info32_draw+0x178>,r1	! c394524
+gdxsv_WriteMem16(0x8c4f1090u, 0xd737u); // mov.l	c4f1170 <gdx_player_info32_draw+0x17c>,r7	! f4000000
+gdxsv_WriteMem16(0x8c4f1092u, 0x6112u); // mov.l	@r1,r1
+gdxsv_WriteMem16(0x8c4f1094u, 0xd237u); // mov.l	c4f1174 <gdx_player_info32_draw+0x180>,r2	! fff240
+gdxsv_WriteMem16(0x8c4f1096u, 0x371cu); // add	r1,r7
+gdxsv_WriteMem16(0x8c4f1098u, 0x3726u); // cmp/hi	r2,r7
+gdxsv_WriteMem16(0x8c4f109au, 0x8dd7u); // bt.s	c4f104c <gdx_player_info32_draw+0x58>
+gdxsv_WriteMem16(0x8c4f109cu, 0x7001u); // add	#1,r0
+gdxsv_WriteMem16(0x8c4f109eu, 0x924cu); // mov.w	c4f113a <gdx_player_info32_draw+0x146>,r2	! 2c0
+gdxsv_WriteMem16(0x8c4f10a0u, 0x954cu); // mov.w	c4f113c <gdx_player_info32_draw+0x148>,r5	! 29e
+gdxsv_WriteMem16(0x8c4f10a2u, 0xe700u); // mov	#0,r7
+gdxsv_WriteMem16(0x8c4f10a4u, 0x0027u); // mul.l	r2,r0
+gdxsv_WriteMem16(0x8c4f10a6u, 0x5631u); // mov.l	@(4,r3),r6
+gdxsv_WriteMem16(0x8c4f10a8u, 0x6ba3u); // mov	r10,r11
+gdxsv_WriteMem16(0x8c4f10aau, 0x7b14u); // add	#20,r11
+gdxsv_WriteMem16(0x8c4f10acu, 0x001au); // sts	macl,r0
+gdxsv_WriteMem16(0x8c4f10aeu, 0x3b9cu); // add	r9,r11
+gdxsv_WriteMem16(0x8c4f10b0u, 0x64b3u); // mov	r11,r4
+gdxsv_WriteMem16(0x8c4f10b2u, 0x310cu); // add	r0,r1
+gdxsv_WriteMem16(0x8c4f10b4u, 0x351cu); // add	r1,r5
+gdxsv_WriteMem16(0x8c4f10b6u, 0x8559u); // mov.w	@(18,r5),r0
+gdxsv_WriteMem16(0x8c4f10b8u, 0xe100u); // mov	#0,r1
+gdxsv_WriteMem16(0x8c4f10bau, 0x620du); // extu.w	r0,r2
+gdxsv_WriteMem16(0x8c4f10bcu, 0x855au); // mov.w	@(20,r5),r0
+gdxsv_WriteMem16(0x8c4f10beu, 0x326eu); // addc	r6,r2
+gdxsv_WriteMem16(0x8c4f10c0u, 0x5632u); // mov.l	@(8,r3),r6
+gdxsv_WriteMem16(0x8c4f10c2u, 0x317eu); // addc	r7,r1
+gdxsv_WriteMem16(0x8c4f10c4u, 0x2f22u); // mov.l	r2,@r15
+gdxsv_WriteMem16(0x8c4f10c6u, 0x0008u); // clrt
+gdxsv_WriteMem16(0x8c4f10c8u, 0x620du); // extu.w	r0,r2
+gdxsv_WriteMem16(0x8c4f10cau, 0x855bu); // mov.w	@(22,r5),r0
+gdxsv_WriteMem16(0x8c4f10ccu, 0x326eu); // addc	r6,r2
+gdxsv_WriteMem16(0x8c4f10ceu, 0x1f11u); // mov.l	r1,@(4,r15)
+gdxsv_WriteMem16(0x8c4f10d0u, 0xe100u); // mov	#0,r1
+gdxsv_WriteMem16(0x8c4f10d2u, 0x1f22u); // mov.l	r2,@(8,r15)
+gdxsv_WriteMem16(0x8c4f10d4u, 0x620du); // extu.w	r0,r2
+gdxsv_WriteMem16(0x8c4f10d6u, 0x855cu); // mov.w	@(24,r5),r0
+gdxsv_WriteMem16(0x8c4f10d8u, 0x317eu); // addc	r7,r1
+gdxsv_WriteMem16(0x8c4f10dau, 0x0008u); // clrt
+gdxsv_WriteMem16(0x8c4f10dcu, 0x1f13u); // mov.l	r1,@(12,r15)
+gdxsv_WriteMem16(0x8c4f10deu, 0x660du); // extu.w	r0,r6
+gdxsv_WriteMem16(0x8c4f10e0u, 0xd025u); // mov.l	c4f1178 <gdx_player_info32_draw+0x184>,r0	! c4f0e2c <gdx_stats_format_player.constprop.0>
+gdxsv_WriteMem16(0x8c4f10e2u, 0x326eu); // addc	r6,r2
+gdxsv_WriteMem16(0x8c4f10e4u, 0x5633u); // mov.l	@(12,r3),r6
+gdxsv_WriteMem16(0x8c4f10e6u, 0xe100u); // mov	#0,r1
+gdxsv_WriteMem16(0x8c4f10e8u, 0x65f3u); // mov	r15,r5
+gdxsv_WriteMem16(0x8c4f10eau, 0x317eu); // addc	r7,r1
+gdxsv_WriteMem16(0x8c4f10ecu, 0x0008u); // clrt
+gdxsv_WriteMem16(0x8c4f10eeu, 0x326eu); // addc	r6,r2
+gdxsv_WriteMem16(0x8c4f10f0u, 0x317eu); // addc	r7,r1
+gdxsv_WriteMem16(0x8c4f10f2u, 0x1f24u); // mov.l	r2,@(16,r15)
+gdxsv_WriteMem16(0x8c4f10f4u, 0x400bu); // jsr	@r0
+gdxsv_WriteMem16(0x8c4f10f6u, 0x1f15u); // mov.l	r1,@(20,r15)
+gdxsv_WriteMem16(0x8c4f10f8u, 0x2008u); // tst	r0,r0
+gdxsv_WriteMem16(0x8c4f10fau, 0x8da7u); // bt.s	c4f104c <gdx_player_info32_draw+0x58>
+gdxsv_WriteMem16(0x8c4f10fcu, 0x6503u); // mov	r0,r5
+gdxsv_WriteMem16(0x8c4f10feu, 0xd01fu); // mov.l	c4f117c <gdx_player_info32_draw+0x188>,r0	! c4f09a8 <gdx_stats_scale_bits>
+gdxsv_WriteMem16(0x8c4f1100u, 0xe412u); // mov	#18,r4
+gdxsv_WriteMem16(0x8c4f1102u, 0x400bu); // jsr	@r0
+gdxsv_WriteMem16(0x8c4f1104u, 0x7910u); // add	#16,r9
+gdxsv_WriteMem16(0x8c4f1106u, 0x6103u); // mov	r0,r1
+gdxsv_WriteMem16(0x8c4f1108u, 0x405au); // lds	r0,fpul
+gdxsv_WriteMem16(0x8c4f110au, 0x60a3u); // mov	r10,r0
+gdxsv_WriteMem16(0x8c4f110cu, 0x0916u); // mov.l	r1,@(r0,r9)
+gdxsv_WriteMem16(0x8c4f110eu, 0xd11cu); // mov.l	c4f1180 <gdx_player_info32_draw+0x18c>,r1	! c391388
+gdxsv_WriteMem16(0x8c4f1110u, 0x64b3u); // mov	r11,r4
+gdxsv_WriteMem16(0x8c4f1112u, 0x9214u); // mov.w	c4f113e <gdx_player_info32_draw+0x14a>,r2	! 14b8
+gdxsv_WriteMem16(0x8c4f1114u, 0x6812u); // mov.l	@r1,r8
+gdxsv_WriteMem16(0x8c4f1116u, 0xd113u); // mov.l	c4f1164 <gdx_player_info32_draw+0x170>,r1	! c01e444
+gdxsv_WriteMem16(0x8c4f1118u, 0x382cu); // add	r2,r8
+gdxsv_WriteMem16(0x8c4f111au, 0xf20du); // fsts	fpul,fr2
+gdxsv_WriteMem16(0x8c4f111cu, 0x6982u); // mov.l	@r8,r9
+gdxsv_WriteMem16(0x8c4f111eu, 0xf7dcu); // fmov	fr13,fr7
+gdxsv_WriteMem16(0x8c4f1120u, 0xf188u); // fmov	@r8,fr1
+gdxsv_WriteMem16(0x8c4f1122u, 0xf4ecu); // fmov	fr14,fr4
+gdxsv_WriteMem16(0x8c4f1124u, 0xf122u); // fmul	fr2,fr1
+gdxsv_WriteMem16(0x8c4f1126u, 0xf5ccu); // fmov	fr12,fr5
+gdxsv_WriteMem16(0x8c4f1128u, 0xf81au); // fmov	fr1,@r8
+gdxsv_WriteMem16(0x8c4f112au, 0x410bu); // jsr	@r1
+gdxsv_WriteMem16(0x8c4f112cu, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f112eu, 0x2892u); // mov.l	r9,@r8
+gdxsv_WriteMem16(0x8c4f1130u, 0xaf92u); // bra	c4f1058 <gdx_player_info32_draw+0x64>
+gdxsv_WriteMem16(0x8c4f1132u, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f1134u, 0xe040u); // mov	#64,r0
+gdxsv_WriteMem16(0x8c4f1136u, 0xaf9eu); // bra	c4f1076 <gdx_player_info32_draw+0x82>
+gdxsv_WriteMem16(0x8c4f1138u, 0x00feu); // mov.l	@(r0,r15),r0
+gdxsv_WriteMem16(0x8c4f113au, 0x02c0u); // .word 0x02c0
+gdxsv_WriteMem16(0x8c4f113cu, 0x029eu); // mov.l	@(r0,r9),r2
+gdxsv_WriteMem16(0x8c4f113eu, 0x14b8u); // mov.l	r11,@(32,r4)
+gdxsv_WriteMem16(0x8c4f1140u, 0xffffu); // .word 0xffff
+gdxsv_WriteMem16(0x8c4f1142u, 0x1fffu); // mov.l	r15,@(60,r15)
+gdxsv_WriteMem16(0x8c4f1144u, 0xe4c8u); // mov	#-56,r4
+gdxsv_WriteMem16(0x8c4f1146u, 0x0c03u); // bsrf	r12
+gdxsv_WriteMem16(0x8c4f1148u, 0xe644u); // mov	#68,r6
 gdxsv_WriteMem16(0x8c4f114au, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f114cu, 0xe644u); // mov	#68,r6
+gdxsv_WriteMem16(0x8c4f114cu, 0xe7c0u); // mov	#-64,r7
 gdxsv_WriteMem16(0x8c4f114eu, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f1150u, 0xe7c0u); // mov	#-64,r7
+gdxsv_WriteMem16(0x8c4f1150u, 0xe93cu); // mov	#60,r9
 gdxsv_WriteMem16(0x8c4f1152u, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f1154u, 0xe93cu); // mov	#60,r9
+gdxsv_WriteMem16(0x8c4f1154u, 0xecb6u); // mov	#-74,r12
 gdxsv_WriteMem16(0x8c4f1156u, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f1158u, 0xecb6u); // mov	#-74,r12
+gdxsv_WriteMem16(0x8c4f1158u, 0xee62u); // mov	#98,r14
 gdxsv_WriteMem16(0x8c4f115au, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f115cu, 0xee62u); // mov	#98,r14
+gdxsv_WriteMem16(0x8c4f115cu, 0xf00au); // fmov	fr0,@r0
 gdxsv_WriteMem16(0x8c4f115eu, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f1160u, 0xf00au); // fmov	fr0,@r0
+gdxsv_WriteMem16(0x8c4f1160u, 0xf1b6u); // fmov	@(r0,r11),fr1
 gdxsv_WriteMem16(0x8c4f1162u, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f1164u, 0xf1b6u); // fmov	@(r0,r11),fr1
-gdxsv_WriteMem16(0x8c4f1166u, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f1168u, 0xe444u); // mov	#68,r4
-gdxsv_WriteMem16(0x8c4f116au, 0x0c01u); // .word 0x0c01
-gdxsv_WriteMem16(0x8c4f116cu, 0x06f8u); // .word 0x06f8
-gdxsv_WriteMem16(0x8c4f116eu, 0x0c4eu); // mov.l	@(r0,r4),r12
-gdxsv_WriteMem16(0x8c4f1170u, 0x4524u); // rotcl	r5
-gdxsv_WriteMem16(0x8c4f1172u, 0x0c39u); // .word 0x0c39
-gdxsv_WriteMem16(0x8c4f1174u, 0x0e2cu); // mov.b	@(r0,r2),r14
-gdxsv_WriteMem16(0x8c4f1176u, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f1178u, 0x09a8u); // .word 0x09a8
+gdxsv_WriteMem16(0x8c4f1164u, 0xe444u); // mov	#68,r4
+gdxsv_WriteMem16(0x8c4f1166u, 0x0c01u); // .word 0x0c01
+gdxsv_WriteMem16(0x8c4f1168u, 0x06f8u); // .word 0x06f8
+gdxsv_WriteMem16(0x8c4f116au, 0x0c4eu); // mov.l	@(r0,r4),r12
+gdxsv_WriteMem16(0x8c4f116cu, 0x4524u); // rotcl	r5
+gdxsv_WriteMem16(0x8c4f116eu, 0x0c39u); // .word 0x0c39
+gdxsv_WriteMem16(0x8c4f1170u, 0x0000u); // .word 0x0000
+gdxsv_WriteMem16(0x8c4f1172u, 0xf400u); // fadd	fr0,fr4
+gdxsv_WriteMem16(0x8c4f1174u, 0xf240u); // fadd	fr4,fr2
+gdxsv_WriteMem16(0x8c4f1176u, 0x00ffu); // mac.l	@r15+,@r0+
+gdxsv_WriteMem16(0x8c4f1178u, 0x0e2cu); // mov.b	@(r0,r2),r14
 gdxsv_WriteMem16(0x8c4f117au, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f117cu, 0x1388u); // mov.l	r8,@(32,r3)
-gdxsv_WriteMem16(0x8c4f117eu, 0x0c39u); // .word 0x0c39
-symbols_["gdx_player_info32_request"] = 0x0c4f1180;
-gdxsv_WriteMem16(0x8c4f1180u, 0xd102u); // mov.l	c4f118c <gdx_player_info32_request+0xc>,r1	! c4f0a64 <gdx_stats_request>
-gdxsv_WriteMem16(0x8c4f1182u, 0x654cu); // extu.b	r4,r5
-gdxsv_WriteMem16(0x8c4f1184u, 0x9401u); // mov.w	c4f118a <gdx_player_info32_request+0xa>,r4	! 6913
-gdxsv_WriteMem16(0x8c4f1186u, 0x412bu); // jmp	@r1
-gdxsv_WriteMem16(0x8c4f1188u, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f118au, 0x6913u); // mov	r1,r9
-gdxsv_WriteMem16(0x8c4f118cu, 0x0a64u); // mov.b	r6,@(r0,r10)
-gdxsv_WriteMem16(0x8c4f118eu, 0x0c4fu); // mac.l	@r4+,@r12+
-symbols_["gdx_win_lose32_request"] = 0x0c4f1190;
-gdxsv_WriteMem16(0x8c4f1190u, 0xd102u); // mov.l	c4f119c <gdx_win_lose32_request+0xc>,r1	! c4f0a64 <gdx_stats_request>
-gdxsv_WriteMem16(0x8c4f1192u, 0x654cu); // extu.b	r4,r5
-gdxsv_WriteMem16(0x8c4f1194u, 0x9401u); // mov.w	c4f119a <gdx_win_lose32_request+0xa>,r4	! 6145
-gdxsv_WriteMem16(0x8c4f1196u, 0x412bu); // jmp	@r1
-gdxsv_WriteMem16(0x8c4f1198u, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f119au, 0x6145u); // mov.w	@r4+,r1
-gdxsv_WriteMem16(0x8c4f119cu, 0x0a64u); // mov.b	r6,@(r0,r10)
-gdxsv_WriteMem16(0x8c4f119eu, 0x0c4fu); // mac.l	@r4+,@r12+
-symbols_["gdx_stats_poll"] = 0x0c4f11a0;
-gdxsv_WriteMem16(0x8c4f11a0u, 0x2f86u); // mov.l	r8,@-r15
-gdxsv_WriteMem16(0x8c4f11a2u, 0x2f96u); // mov.l	r9,@-r15
-gdxsv_WriteMem16(0x8c4f11a4u, 0xd149u); // mov.l	c4f12cc <gdx_stats_poll+0x12c>,r1	! c4f09f8 <gdx_stats_initialize>
-gdxsv_WriteMem16(0x8c4f11a6u, 0x2fa6u); // mov.l	r10,@-r15
-gdxsv_WriteMem16(0x8c4f11a8u, 0x2fb6u); // mov.l	r11,@-r15
-gdxsv_WriteMem16(0x8c4f11aau, 0x4f22u); // sts.l	pr,@-r15
-gdxsv_WriteMem16(0x8c4f11acu, 0x410bu); // jsr	@r1
-gdxsv_WriteMem16(0x8c4f11aeu, 0x6843u); // mov	r4,r8
-gdxsv_WriteMem16(0x8c4f11b0u, 0xd047u); // mov.l	c4f12d0 <gdx_stats_poll+0x130>,r0	! c033e20
-gdxsv_WriteMem16(0x8c4f11b2u, 0x400bu); // jsr	@r0
-gdxsv_WriteMem16(0x8c4f11b4u, 0x6483u); // mov	r8,r4
-gdxsv_WriteMem16(0x8c4f11b6u, 0x2008u); // tst	r0,r0
-gdxsv_WriteMem16(0x8c4f11b8u, 0x8d5au); // bt.s	c4f1270 <gdx_stats_poll+0xd0>
-gdxsv_WriteMem16(0x8c4f11bau, 0x6303u); // mov	r0,r3
-gdxsv_WriteMem16(0x8c4f11bcu, 0x6981u); // mov.w	@r8,r9
-gdxsv_WriteMem16(0x8c4f11beu, 0xe201u); // mov	#1,r2
-gdxsv_WriteMem16(0x8c4f11c0u, 0x917fu); // mov.w	c4f12c2 <gdx_stats_poll+0x122>,r1	! 669a
-gdxsv_WriteMem16(0x8c4f11c2u, 0x699du); // extu.w	r9,r9
-gdxsv_WriteMem16(0x8c4f11c4u, 0x319cu); // add	r9,r1
-gdxsv_WriteMem16(0x8c4f11c6u, 0x611du); // extu.w	r1,r1
-gdxsv_WriteMem16(0x8c4f11c8u, 0x3126u); // cmp/hi	r2,r1
-gdxsv_WriteMem16(0x8c4f11cau, 0x8d52u); // bt.s	c4f1272 <gdx_stats_poll+0xd2>
-gdxsv_WriteMem16(0x8c4f11ccu, 0x6033u); // mov	r3,r0
-gdxsv_WriteMem16(0x8c4f11ceu, 0xd141u); // mov.l	c4f12d4 <gdx_stats_poll+0x134>,r1	! c3a9bd0
-gdxsv_WriteMem16(0x8c4f11d0u, 0x6010u); // mov.b	@r1,r0
-gdxsv_WriteMem16(0x8c4f11d2u, 0x8818u); // cmp/eq	#24,r0
-gdxsv_WriteMem16(0x8c4f11d4u, 0x8f4cu); // bf.s	c4f1270 <gdx_stats_poll+0xd0>
-gdxsv_WriteMem16(0x8c4f11d6u, 0xe300u); // mov	#0,r3
-gdxsv_WriteMem16(0x8c4f11d8u, 0x8411u); // mov.b	@(1,r1),r0
-gdxsv_WriteMem16(0x8c4f11dau, 0x8802u); // cmp/eq	#2,r0
-gdxsv_WriteMem16(0x8c4f11dcu, 0x8f48u); // bf.s	c4f1270 <gdx_stats_poll+0xd0>
-gdxsv_WriteMem16(0x8c4f11deu, 0x7101u); // add	#1,r1
-gdxsv_WriteMem16(0x8c4f11e0u, 0xdb3du); // mov.l	c4f12d8 <gdx_stats_poll+0x138>,r11	! c4f0990 <gdx_stats_read_be16>
-gdxsv_WriteMem16(0x8c4f11e2u, 0xd43eu); // mov.l	c4f12dc <gdx_stats_poll+0x13c>,r4	! c3a9bd6
-gdxsv_WriteMem16(0x8c4f11e4u, 0x4b0bu); // jsr	@r11
-gdxsv_WriteMem16(0x8c4f11e6u, 0xea00u); // mov	#0,r10
-gdxsv_WriteMem16(0x8c4f11e8u, 0xd13du); // mov.l	c4f12e0 <gdx_stats_poll+0x140>,r1	! c4e067a
-gdxsv_WriteMem16(0x8c4f11eau, 0xe205u); // mov	#5,r2
-gdxsv_WriteMem16(0x8c4f11ecu, 0x6703u); // mov	r0,r7
-gdxsv_WriteMem16(0x8c4f11eeu, 0x8416u); // mov.b	@(6,r1),r0
-gdxsv_WriteMem16(0x8c4f11f0u, 0x2008u); // tst	r0,r0
-gdxsv_WriteMem16(0x8c4f11f2u, 0x8944u); // bt	c4f127e <gdx_stats_poll+0xde>
-gdxsv_WriteMem16(0x8c4f11f4u, 0x6311u); // mov.w	@r1,r3
-gdxsv_WriteMem16(0x8c4f11f6u, 0x633du); // extu.w	r3,r3
-gdxsv_WriteMem16(0x8c4f11f8u, 0x3370u); // cmp/eq	r7,r3
-gdxsv_WriteMem16(0x8c4f11fau, 0x8b40u); // bf	c4f127e <gdx_stats_poll+0xde>
-gdxsv_WriteMem16(0x8c4f11fcu, 0x8512u); // mov.w	@(4,r1),r0
-gdxsv_WriteMem16(0x8c4f11feu, 0x630du); // extu.w	r0,r3
-gdxsv_WriteMem16(0x8c4f1200u, 0x3390u); // cmp/eq	r9,r3
-gdxsv_WriteMem16(0x8c4f1202u, 0x8f3du); // bf.s	c4f1280 <gdx_stats_poll+0xe0>
-gdxsv_WriteMem16(0x8c4f1204u, 0x4210u); // dt	r2
-gdxsv_WriteMem16(0x8c4f1206u, 0x61a3u); // mov	r10,r1
-gdxsv_WriteMem16(0x8c4f1208u, 0x7101u); // add	#1,r1
-gdxsv_WriteMem16(0x8c4f120au, 0xd936u); // mov.l	c4f12e4 <gdx_stats_poll+0x144>,r9	! c4e0674 <gdx_stats_state>
-gdxsv_WriteMem16(0x8c4f120cu, 0x4108u); // shll2	r1
-gdxsv_WriteMem16(0x8c4f120eu, 0xd036u); // mov.l	c4f12e8 <gdx_stats_poll+0x148>,r0	! c4f096c <gdx_stats_read_be32>
-gdxsv_WriteMem16(0x8c4f1210u, 0x311cu); // add	r1,r1
-gdxsv_WriteMem16(0x8c4f1212u, 0x319cu); // add	r9,r1
-gdxsv_WriteMem16(0x8c4f1214u, 0xd435u); // mov.l	c4f12ec <gdx_stats_poll+0x14c>,r4	! c3a9bd8
-gdxsv_WriteMem16(0x8c4f1216u, 0x7104u); // add	#4,r1
-gdxsv_WriteMem16(0x8c4f1218u, 0xe200u); // mov	#0,r2
-gdxsv_WriteMem16(0x8c4f121au, 0x400bu); // jsr	@r0
-gdxsv_WriteMem16(0x8c4f121cu, 0x2120u); // mov.b	r2,@r1
-gdxsv_WriteMem16(0x8c4f121eu, 0xd134u); // mov.l	c4f12f0 <gdx_stats_poll+0x150>,r1	! ffffff
-gdxsv_WriteMem16(0x8c4f1220u, 0x3010u); // cmp/eq	r1,r0
-gdxsv_WriteMem16(0x8c4f1222u, 0x8932u); // bt	c4f128a <gdx_stats_poll+0xea>
-gdxsv_WriteMem16(0x8c4f1224u, 0xd233u); // mov.l	c4f12f4 <gdx_stats_poll+0x154>,r2	! c3a9bdc
-gdxsv_WriteMem16(0x8c4f1226u, 0xe300u); // mov	#0,r3
-gdxsv_WriteMem16(0x8c4f1228u, 0x914cu); // mov.w	c4f12c4 <gdx_stats_poll+0x124>,r1	! 300
-gdxsv_WriteMem16(0x8c4f122au, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f122cu, 0x2230u); // mov.b	r3,@r2
-gdxsv_WriteMem16(0x8c4f122eu, 0x4110u); // dt	r1
-gdxsv_WriteMem16(0x8c4f1230u, 0x8ffcu); // bf.s	c4f122c <gdx_stats_poll+0x8c>
-gdxsv_WriteMem16(0x8c4f1232u, 0x7201u); // add	#1,r2
-gdxsv_WriteMem16(0x8c4f1234u, 0xd22du); // mov.l	c4f12ec <gdx_stats_poll+0x14c>,r2	! c3a9bd8
-gdxsv_WriteMem16(0x8c4f1236u, 0xe1ffu); // mov	#-1,r1
-gdxsv_WriteMem16(0x8c4f1238u, 0x60a3u); // mov	r10,r0
-gdxsv_WriteMem16(0x8c4f123au, 0x8804u); // cmp/eq	#4,r0
-gdxsv_WriteMem16(0x8c4f123cu, 0x2210u); // mov.b	r1,@r2
-gdxsv_WriteMem16(0x8c4f123eu, 0x7201u); // add	#1,r2
+gdxsv_WriteMem16(0x8c4f117cu, 0x09a8u); // .word 0x09a8
+gdxsv_WriteMem16(0x8c4f117eu, 0x0c4fu); // mac.l	@r4+,@r12+
+gdxsv_WriteMem16(0x8c4f1180u, 0x1388u); // mov.l	r8,@(32,r3)
+gdxsv_WriteMem16(0x8c4f1182u, 0x0c39u); // .word 0x0c39
+symbols_["gdx_player_info32_request"] = 0x0c4f1184;
+gdxsv_WriteMem16(0x8c4f1184u, 0xd102u); // mov.l	c4f1190 <gdx_player_info32_request+0xc>,r1	! c4f0a64 <gdx_stats_request>
+gdxsv_WriteMem16(0x8c4f1186u, 0x654cu); // extu.b	r4,r5
+gdxsv_WriteMem16(0x8c4f1188u, 0x9401u); // mov.w	c4f118e <gdx_player_info32_request+0xa>,r4	! 6913
+gdxsv_WriteMem16(0x8c4f118au, 0x412bu); // jmp	@r1
+gdxsv_WriteMem16(0x8c4f118cu, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f118eu, 0x6913u); // mov	r1,r9
+gdxsv_WriteMem16(0x8c4f1190u, 0x0a64u); // mov.b	r6,@(r0,r10)
+gdxsv_WriteMem16(0x8c4f1192u, 0x0c4fu); // mac.l	@r4+,@r12+
+symbols_["gdx_win_lose32_request"] = 0x0c4f1194;
+gdxsv_WriteMem16(0x8c4f1194u, 0xd102u); // mov.l	c4f11a0 <gdx_win_lose32_request+0xc>,r1	! c4f0a64 <gdx_stats_request>
+gdxsv_WriteMem16(0x8c4f1196u, 0x654cu); // extu.b	r4,r5
+gdxsv_WriteMem16(0x8c4f1198u, 0x9401u); // mov.w	c4f119e <gdx_win_lose32_request+0xa>,r4	! 6145
+gdxsv_WriteMem16(0x8c4f119au, 0x412bu); // jmp	@r1
+gdxsv_WriteMem16(0x8c4f119cu, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f119eu, 0x6145u); // mov.w	@r4+,r1
+gdxsv_WriteMem16(0x8c4f11a0u, 0x0a64u); // mov.b	r6,@(r0,r10)
+gdxsv_WriteMem16(0x8c4f11a2u, 0x0c4fu); // mac.l	@r4+,@r12+
+symbols_["gdx_stats_poll"] = 0x0c4f11a4;
+gdxsv_WriteMem16(0x8c4f11a4u, 0x2f86u); // mov.l	r8,@-r15
+gdxsv_WriteMem16(0x8c4f11a6u, 0x2f96u); // mov.l	r9,@-r15
+gdxsv_WriteMem16(0x8c4f11a8u, 0xd149u); // mov.l	c4f12d0 <gdx_stats_poll+0x12c>,r1	! c4f09f8 <gdx_stats_initialize>
+gdxsv_WriteMem16(0x8c4f11aau, 0x2fa6u); // mov.l	r10,@-r15
+gdxsv_WriteMem16(0x8c4f11acu, 0x2fb6u); // mov.l	r11,@-r15
+gdxsv_WriteMem16(0x8c4f11aeu, 0x4f22u); // sts.l	pr,@-r15
+gdxsv_WriteMem16(0x8c4f11b0u, 0x410bu); // jsr	@r1
+gdxsv_WriteMem16(0x8c4f11b2u, 0x6843u); // mov	r4,r8
+gdxsv_WriteMem16(0x8c4f11b4u, 0xd047u); // mov.l	c4f12d4 <gdx_stats_poll+0x130>,r0	! c033e20
+gdxsv_WriteMem16(0x8c4f11b6u, 0x400bu); // jsr	@r0
+gdxsv_WriteMem16(0x8c4f11b8u, 0x6483u); // mov	r8,r4
+gdxsv_WriteMem16(0x8c4f11bau, 0x2008u); // tst	r0,r0
+gdxsv_WriteMem16(0x8c4f11bcu, 0x8d5au); // bt.s	c4f1274 <gdx_stats_poll+0xd0>
+gdxsv_WriteMem16(0x8c4f11beu, 0x6303u); // mov	r0,r3
+gdxsv_WriteMem16(0x8c4f11c0u, 0x6981u); // mov.w	@r8,r9
+gdxsv_WriteMem16(0x8c4f11c2u, 0xe201u); // mov	#1,r2
+gdxsv_WriteMem16(0x8c4f11c4u, 0x917fu); // mov.w	c4f12c6 <gdx_stats_poll+0x122>,r1	! 669a
+gdxsv_WriteMem16(0x8c4f11c6u, 0x699du); // extu.w	r9,r9
+gdxsv_WriteMem16(0x8c4f11c8u, 0x319cu); // add	r9,r1
+gdxsv_WriteMem16(0x8c4f11cau, 0x611du); // extu.w	r1,r1
+gdxsv_WriteMem16(0x8c4f11ccu, 0x3126u); // cmp/hi	r2,r1
+gdxsv_WriteMem16(0x8c4f11ceu, 0x8d52u); // bt.s	c4f1276 <gdx_stats_poll+0xd2>
+gdxsv_WriteMem16(0x8c4f11d0u, 0x6033u); // mov	r3,r0
+gdxsv_WriteMem16(0x8c4f11d2u, 0xd141u); // mov.l	c4f12d8 <gdx_stats_poll+0x134>,r1	! c3a9bd0
+gdxsv_WriteMem16(0x8c4f11d4u, 0x6010u); // mov.b	@r1,r0
+gdxsv_WriteMem16(0x8c4f11d6u, 0x8818u); // cmp/eq	#24,r0
+gdxsv_WriteMem16(0x8c4f11d8u, 0x8f4cu); // bf.s	c4f1274 <gdx_stats_poll+0xd0>
+gdxsv_WriteMem16(0x8c4f11dau, 0xe300u); // mov	#0,r3
+gdxsv_WriteMem16(0x8c4f11dcu, 0x8411u); // mov.b	@(1,r1),r0
+gdxsv_WriteMem16(0x8c4f11deu, 0x8802u); // cmp/eq	#2,r0
+gdxsv_WriteMem16(0x8c4f11e0u, 0x8f48u); // bf.s	c4f1274 <gdx_stats_poll+0xd0>
+gdxsv_WriteMem16(0x8c4f11e2u, 0x7101u); // add	#1,r1
+gdxsv_WriteMem16(0x8c4f11e4u, 0xdb3du); // mov.l	c4f12dc <gdx_stats_poll+0x138>,r11	! c4f0990 <gdx_stats_read_be16>
+gdxsv_WriteMem16(0x8c4f11e6u, 0xd43eu); // mov.l	c4f12e0 <gdx_stats_poll+0x13c>,r4	! c3a9bd6
+gdxsv_WriteMem16(0x8c4f11e8u, 0x4b0bu); // jsr	@r11
+gdxsv_WriteMem16(0x8c4f11eau, 0xea00u); // mov	#0,r10
+gdxsv_WriteMem16(0x8c4f11ecu, 0xd13du); // mov.l	c4f12e4 <gdx_stats_poll+0x140>,r1	! c4e067a
+gdxsv_WriteMem16(0x8c4f11eeu, 0xe205u); // mov	#5,r2
+gdxsv_WriteMem16(0x8c4f11f0u, 0x6703u); // mov	r0,r7
+gdxsv_WriteMem16(0x8c4f11f2u, 0x8416u); // mov.b	@(6,r1),r0
+gdxsv_WriteMem16(0x8c4f11f4u, 0x2008u); // tst	r0,r0
+gdxsv_WriteMem16(0x8c4f11f6u, 0x8944u); // bt	c4f1282 <gdx_stats_poll+0xde>
+gdxsv_WriteMem16(0x8c4f11f8u, 0x6311u); // mov.w	@r1,r3
+gdxsv_WriteMem16(0x8c4f11fau, 0x633du); // extu.w	r3,r3
+gdxsv_WriteMem16(0x8c4f11fcu, 0x3370u); // cmp/eq	r7,r3
+gdxsv_WriteMem16(0x8c4f11feu, 0x8b40u); // bf	c4f1282 <gdx_stats_poll+0xde>
+gdxsv_WriteMem16(0x8c4f1200u, 0x8512u); // mov.w	@(4,r1),r0
+gdxsv_WriteMem16(0x8c4f1202u, 0x630du); // extu.w	r0,r3
+gdxsv_WriteMem16(0x8c4f1204u, 0x3390u); // cmp/eq	r9,r3
+gdxsv_WriteMem16(0x8c4f1206u, 0x8f3du); // bf.s	c4f1284 <gdx_stats_poll+0xe0>
+gdxsv_WriteMem16(0x8c4f1208u, 0x4210u); // dt	r2
+gdxsv_WriteMem16(0x8c4f120au, 0x61a3u); // mov	r10,r1
+gdxsv_WriteMem16(0x8c4f120cu, 0x7101u); // add	#1,r1
+gdxsv_WriteMem16(0x8c4f120eu, 0xd936u); // mov.l	c4f12e8 <gdx_stats_poll+0x144>,r9	! c4e0674 <gdx_stats_state>
+gdxsv_WriteMem16(0x8c4f1210u, 0x4108u); // shll2	r1
+gdxsv_WriteMem16(0x8c4f1212u, 0xd036u); // mov.l	c4f12ec <gdx_stats_poll+0x148>,r0	! c4f096c <gdx_stats_read_be32>
+gdxsv_WriteMem16(0x8c4f1214u, 0x311cu); // add	r1,r1
+gdxsv_WriteMem16(0x8c4f1216u, 0x319cu); // add	r9,r1
+gdxsv_WriteMem16(0x8c4f1218u, 0xd435u); // mov.l	c4f12f0 <gdx_stats_poll+0x14c>,r4	! c3a9bd8
+gdxsv_WriteMem16(0x8c4f121au, 0x7104u); // add	#4,r1
+gdxsv_WriteMem16(0x8c4f121cu, 0xe200u); // mov	#0,r2
+gdxsv_WriteMem16(0x8c4f121eu, 0x400bu); // jsr	@r0
+gdxsv_WriteMem16(0x8c4f1220u, 0x2120u); // mov.b	r2,@r1
+gdxsv_WriteMem16(0x8c4f1222u, 0xd134u); // mov.l	c4f12f4 <gdx_stats_poll+0x150>,r1	! ffffff
+gdxsv_WriteMem16(0x8c4f1224u, 0x3010u); // cmp/eq	r1,r0
+gdxsv_WriteMem16(0x8c4f1226u, 0x8932u); // bt	c4f128e <gdx_stats_poll+0xea>
+gdxsv_WriteMem16(0x8c4f1228u, 0xd233u); // mov.l	c4f12f8 <gdx_stats_poll+0x154>,r2	! c3a9bdc
+gdxsv_WriteMem16(0x8c4f122au, 0xe300u); // mov	#0,r3
+gdxsv_WriteMem16(0x8c4f122cu, 0x914cu); // mov.w	c4f12c8 <gdx_stats_poll+0x124>,r1	! 300
+gdxsv_WriteMem16(0x8c4f122eu, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f1230u, 0x2230u); // mov.b	r3,@r2
+gdxsv_WriteMem16(0x8c4f1232u, 0x4110u); // dt	r1
+gdxsv_WriteMem16(0x8c4f1234u, 0x8ffcu); // bf.s	c4f1230 <gdx_stats_poll+0x8c>
+gdxsv_WriteMem16(0x8c4f1236u, 0x7201u); // add	#1,r2
+gdxsv_WriteMem16(0x8c4f1238u, 0xd22du); // mov.l	c4f12f0 <gdx_stats_poll+0x14c>,r2	! c3a9bd8
+gdxsv_WriteMem16(0x8c4f123au, 0xe1ffu); // mov	#-1,r1
+gdxsv_WriteMem16(0x8c4f123cu, 0x60a3u); // mov	r10,r0
+gdxsv_WriteMem16(0x8c4f123eu, 0x8804u); // cmp/eq	#4,r0
 gdxsv_WriteMem16(0x8c4f1240u, 0x2210u); // mov.b	r1,@r2
 gdxsv_WriteMem16(0x8c4f1242u, 0x7201u); // add	#1,r2
 gdxsv_WriteMem16(0x8c4f1244u, 0x2210u); // mov.b	r1,@r2
 gdxsv_WriteMem16(0x8c4f1246u, 0x7201u); // add	#1,r2
 gdxsv_WriteMem16(0x8c4f1248u, 0x2210u); // mov.b	r1,@r2
-gdxsv_WriteMem16(0x8c4f124au, 0x8d2eu); // bt.s	c4f12aa <gdx_stats_poll+0x10a>
-gdxsv_WriteMem16(0x8c4f124cu, 0xeb00u); // mov	#0,r11
-gdxsv_WriteMem16(0x8c4f124eu, 0x953au); // mov.w	c4f12c6 <gdx_stats_poll+0x126>,r5	! 6913
-gdxsv_WriteMem16(0x8c4f1250u, 0x6153u); // mov	r5,r1
-gdxsv_WriteMem16(0x8c4f1252u, 0x2811u); // mov.w	r1,@r8
-gdxsv_WriteMem16(0x8c4f1254u, 0x4a08u); // shll2	r10
-gdxsv_WriteMem16(0x8c4f1256u, 0xd828u); // mov.l	c4f12f8 <gdx_stats_poll+0x158>,r8	! c4f09a0 <gdx_stats_write_be16>
-gdxsv_WriteMem16(0x8c4f1258u, 0x3aacu); // add	r10,r10
-gdxsv_WriteMem16(0x8c4f125au, 0xd428u); // mov.l	c4f12fc <gdx_stats_poll+0x15c>,r4	! c3a9bd2
-gdxsv_WriteMem16(0x8c4f125cu, 0x480bu); // jsr	@r8
-gdxsv_WriteMem16(0x8c4f125eu, 0x3a9cu); // add	r9,r10
-gdxsv_WriteMem16(0x8c4f1260u, 0xd427u); // mov.l	c4f1300 <gdx_stats_poll+0x160>,r4	! c3a9bd4
-gdxsv_WriteMem16(0x8c4f1262u, 0x480bu); // jsr	@r8
-gdxsv_WriteMem16(0x8c4f1264u, 0x65b3u); // mov	r11,r5
-gdxsv_WriteMem16(0x8c4f1266u, 0x85a4u); // mov.w	@(8,r10),r0
-gdxsv_WriteMem16(0x8c4f1268u, 0xd41cu); // mov.l	c4f12dc <gdx_stats_poll+0x13c>,r4	! c3a9bd6
-gdxsv_WriteMem16(0x8c4f126au, 0x480bu); // jsr	@r8
-gdxsv_WriteMem16(0x8c4f126cu, 0x650du); // extu.w	r0,r5
-gdxsv_WriteMem16(0x8c4f126eu, 0xe301u); // mov	#1,r3
-gdxsv_WriteMem16(0x8c4f1270u, 0x6033u); // mov	r3,r0
-gdxsv_WriteMem16(0x8c4f1272u, 0x4f26u); // lds.l	@r15+,pr
-gdxsv_WriteMem16(0x8c4f1274u, 0x6bf6u); // mov.l	@r15+,r11
-gdxsv_WriteMem16(0x8c4f1276u, 0x6af6u); // mov.l	@r15+,r10
-gdxsv_WriteMem16(0x8c4f1278u, 0x69f6u); // mov.l	@r15+,r9
-gdxsv_WriteMem16(0x8c4f127au, 0x000bu); // rts
-gdxsv_WriteMem16(0x8c4f127cu, 0x68f6u); // mov.l	@r15+,r8
-gdxsv_WriteMem16(0x8c4f127eu, 0x4210u); // dt	r2
-gdxsv_WriteMem16(0x8c4f1280u, 0x7a01u); // add	#1,r10
-gdxsv_WriteMem16(0x8c4f1282u, 0x8fb4u); // bf.s	c4f11ee <gdx_stats_poll+0x4e>
-gdxsv_WriteMem16(0x8c4f1284u, 0x7108u); // add	#8,r1
-gdxsv_WriteMem16(0x8c4f1286u, 0xaff3u); // bra	c4f1270 <gdx_stats_poll+0xd0>
-gdxsv_WriteMem16(0x8c4f1288u, 0xe300u); // mov	#0,r3
-gdxsv_WriteMem16(0x8c4f128au, 0xd41du); // mov.l	c4f1300 <gdx_stats_poll+0x160>,r4	! c3a9bd4
-gdxsv_WriteMem16(0x8c4f128cu, 0x4b0bu); // jsr	@r11
-gdxsv_WriteMem16(0x8c4f128eu, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f1290u, 0x6403u); // mov	r0,r4
-gdxsv_WriteMem16(0x8c4f1292u, 0x60a3u); // mov	r10,r0
-gdxsv_WriteMem16(0x8c4f1294u, 0x8804u); // cmp/eq	#4,r0
-gdxsv_WriteMem16(0x8c4f1296u, 0x890bu); // bt	c4f12b0 <gdx_stats_poll+0x110>
-gdxsv_WriteMem16(0x8c4f1298u, 0xd01au); // mov.l	c4f1304 <gdx_stats_poll+0x164>,r0	! c4f0f10 <gdx_stats_store_player.constprop.0>
-gdxsv_WriteMem16(0x8c4f129au, 0x400bu); // jsr	@r0
-gdxsv_WriteMem16(0x8c4f129cu, 0x65a3u); // mov	r10,r5
-gdxsv_WriteMem16(0x8c4f129eu, 0x2008u); // tst	r0,r0
-gdxsv_WriteMem16(0x8c4f12a0u, 0x89c0u); // bt	c4f1224 <gdx_stats_poll+0x84>
-gdxsv_WriteMem16(0x8c4f12a2u, 0x9510u); // mov.w	c4f12c6 <gdx_stats_poll+0x126>,r5	! 6913
-gdxsv_WriteMem16(0x8c4f12a4u, 0x6b0du); // extu.w	r0,r11
-gdxsv_WriteMem16(0x8c4f12a6u, 0xafd4u); // bra	c4f1252 <gdx_stats_poll+0xb2>
-gdxsv_WriteMem16(0x8c4f12a8u, 0x6153u); // mov	r5,r1
-gdxsv_WriteMem16(0x8c4f12aau, 0x950du); // mov.w	c4f12c8 <gdx_stats_poll+0x128>,r5	! 6145
-gdxsv_WriteMem16(0x8c4f12acu, 0xafd1u); // bra	c4f1252 <gdx_stats_poll+0xb2>
-gdxsv_WriteMem16(0x8c4f12aeu, 0x6153u); // mov	r5,r1
-gdxsv_WriteMem16(0x8c4f12b0u, 0xd015u); // mov.l	c4f1308 <gdx_stats_poll+0x168>,r0	! c4f0c90 <gdx_stats_store_ranking.constprop.0>
-gdxsv_WriteMem16(0x8c4f12b2u, 0x400bu); // jsr	@r0
-gdxsv_WriteMem16(0x8c4f12b4u, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f12b6u, 0x2008u); // tst	r0,r0
-gdxsv_WriteMem16(0x8c4f12b8u, 0x89b4u); // bt	c4f1224 <gdx_stats_poll+0x84>
-gdxsv_WriteMem16(0x8c4f12bau, 0x9505u); // mov.w	c4f12c8 <gdx_stats_poll+0x128>,r5	! 6145
-gdxsv_WriteMem16(0x8c4f12bcu, 0x6b0du); // extu.w	r0,r11
-gdxsv_WriteMem16(0x8c4f12beu, 0xafc8u); // bra	c4f1252 <gdx_stats_poll+0xb2>
-gdxsv_WriteMem16(0x8c4f12c0u, 0x6153u); // mov	r5,r1
-gdxsv_WriteMem16(0x8c4f12c2u, 0x669au); // negc	r9,r6
-gdxsv_WriteMem16(0x8c4f12c4u, 0x0300u); // .word 0x0300
-gdxsv_WriteMem16(0x8c4f12c6u, 0x6913u); // mov	r1,r9
-gdxsv_WriteMem16(0x8c4f12c8u, 0x6145u); // mov.w	@r4+,r1
-gdxsv_WriteMem16(0x8c4f12cau, 0x0009u); // nop
-gdxsv_WriteMem16(0x8c4f12ccu, 0x09f8u); // .word 0x09f8
-gdxsv_WriteMem16(0x8c4f12ceu, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f12d0u, 0x3e20u); // cmp/eq	r2,r14
-gdxsv_WriteMem16(0x8c4f12d2u, 0x0c03u); // bsrf	r12
-gdxsv_WriteMem16(0x8c4f12d4u, 0x9bd0u); // mov.w	c4f1478 <gdx_stats_poll+0x2d8>,r11
-gdxsv_WriteMem16(0x8c4f12d6u, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f12d8u, 0x0990u); // .word 0x0990
-gdxsv_WriteMem16(0x8c4f12dau, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f12dcu, 0x9bd6u); // mov.w	c4f148c <gdx_stats_poll+0x2ec>,r11
-gdxsv_WriteMem16(0x8c4f12deu, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f12e0u, 0x067au); // .word 0x067a
-gdxsv_WriteMem16(0x8c4f12e2u, 0x0c4eu); // mov.l	@(r0,r4),r12
-gdxsv_WriteMem16(0x8c4f12e4u, 0x0674u); // mov.b	r7,@(r0,r6)
+gdxsv_WriteMem16(0x8c4f124au, 0x7201u); // add	#1,r2
+gdxsv_WriteMem16(0x8c4f124cu, 0x2210u); // mov.b	r1,@r2
+gdxsv_WriteMem16(0x8c4f124eu, 0x8d2eu); // bt.s	c4f12ae <gdx_stats_poll+0x10a>
+gdxsv_WriteMem16(0x8c4f1250u, 0xeb00u); // mov	#0,r11
+gdxsv_WriteMem16(0x8c4f1252u, 0x953au); // mov.w	c4f12ca <gdx_stats_poll+0x126>,r5	! 6913
+gdxsv_WriteMem16(0x8c4f1254u, 0x6153u); // mov	r5,r1
+gdxsv_WriteMem16(0x8c4f1256u, 0x2811u); // mov.w	r1,@r8
+gdxsv_WriteMem16(0x8c4f1258u, 0x4a08u); // shll2	r10
+gdxsv_WriteMem16(0x8c4f125au, 0xd828u); // mov.l	c4f12fc <gdx_stats_poll+0x158>,r8	! c4f09a0 <gdx_stats_write_be16>
+gdxsv_WriteMem16(0x8c4f125cu, 0x3aacu); // add	r10,r10
+gdxsv_WriteMem16(0x8c4f125eu, 0xd428u); // mov.l	c4f1300 <gdx_stats_poll+0x15c>,r4	! c3a9bd2
+gdxsv_WriteMem16(0x8c4f1260u, 0x480bu); // jsr	@r8
+gdxsv_WriteMem16(0x8c4f1262u, 0x3a9cu); // add	r9,r10
+gdxsv_WriteMem16(0x8c4f1264u, 0xd427u); // mov.l	c4f1304 <gdx_stats_poll+0x160>,r4	! c3a9bd4
+gdxsv_WriteMem16(0x8c4f1266u, 0x480bu); // jsr	@r8
+gdxsv_WriteMem16(0x8c4f1268u, 0x65b3u); // mov	r11,r5
+gdxsv_WriteMem16(0x8c4f126au, 0x85a4u); // mov.w	@(8,r10),r0
+gdxsv_WriteMem16(0x8c4f126cu, 0xd41cu); // mov.l	c4f12e0 <gdx_stats_poll+0x13c>,r4	! c3a9bd6
+gdxsv_WriteMem16(0x8c4f126eu, 0x480bu); // jsr	@r8
+gdxsv_WriteMem16(0x8c4f1270u, 0x650du); // extu.w	r0,r5
+gdxsv_WriteMem16(0x8c4f1272u, 0xe301u); // mov	#1,r3
+gdxsv_WriteMem16(0x8c4f1274u, 0x6033u); // mov	r3,r0
+gdxsv_WriteMem16(0x8c4f1276u, 0x4f26u); // lds.l	@r15+,pr
+gdxsv_WriteMem16(0x8c4f1278u, 0x6bf6u); // mov.l	@r15+,r11
+gdxsv_WriteMem16(0x8c4f127au, 0x6af6u); // mov.l	@r15+,r10
+gdxsv_WriteMem16(0x8c4f127cu, 0x69f6u); // mov.l	@r15+,r9
+gdxsv_WriteMem16(0x8c4f127eu, 0x000bu); // rts
+gdxsv_WriteMem16(0x8c4f1280u, 0x68f6u); // mov.l	@r15+,r8
+gdxsv_WriteMem16(0x8c4f1282u, 0x4210u); // dt	r2
+gdxsv_WriteMem16(0x8c4f1284u, 0x7a01u); // add	#1,r10
+gdxsv_WriteMem16(0x8c4f1286u, 0x8fb4u); // bf.s	c4f11f2 <gdx_stats_poll+0x4e>
+gdxsv_WriteMem16(0x8c4f1288u, 0x7108u); // add	#8,r1
+gdxsv_WriteMem16(0x8c4f128au, 0xaff3u); // bra	c4f1274 <gdx_stats_poll+0xd0>
+gdxsv_WriteMem16(0x8c4f128cu, 0xe300u); // mov	#0,r3
+gdxsv_WriteMem16(0x8c4f128eu, 0xd41du); // mov.l	c4f1304 <gdx_stats_poll+0x160>,r4	! c3a9bd4
+gdxsv_WriteMem16(0x8c4f1290u, 0x4b0bu); // jsr	@r11
+gdxsv_WriteMem16(0x8c4f1292u, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f1294u, 0x6403u); // mov	r0,r4
+gdxsv_WriteMem16(0x8c4f1296u, 0x60a3u); // mov	r10,r0
+gdxsv_WriteMem16(0x8c4f1298u, 0x8804u); // cmp/eq	#4,r0
+gdxsv_WriteMem16(0x8c4f129au, 0x890bu); // bt	c4f12b4 <gdx_stats_poll+0x110>
+gdxsv_WriteMem16(0x8c4f129cu, 0xd01au); // mov.l	c4f1308 <gdx_stats_poll+0x164>,r0	! c4f0f10 <gdx_stats_store_player.constprop.0>
+gdxsv_WriteMem16(0x8c4f129eu, 0x400bu); // jsr	@r0
+gdxsv_WriteMem16(0x8c4f12a0u, 0x65a3u); // mov	r10,r5
+gdxsv_WriteMem16(0x8c4f12a2u, 0x2008u); // tst	r0,r0
+gdxsv_WriteMem16(0x8c4f12a4u, 0x89c0u); // bt	c4f1228 <gdx_stats_poll+0x84>
+gdxsv_WriteMem16(0x8c4f12a6u, 0x9510u); // mov.w	c4f12ca <gdx_stats_poll+0x126>,r5	! 6913
+gdxsv_WriteMem16(0x8c4f12a8u, 0x6b0du); // extu.w	r0,r11
+gdxsv_WriteMem16(0x8c4f12aau, 0xafd4u); // bra	c4f1256 <gdx_stats_poll+0xb2>
+gdxsv_WriteMem16(0x8c4f12acu, 0x6153u); // mov	r5,r1
+gdxsv_WriteMem16(0x8c4f12aeu, 0x950du); // mov.w	c4f12cc <gdx_stats_poll+0x128>,r5	! 6145
+gdxsv_WriteMem16(0x8c4f12b0u, 0xafd1u); // bra	c4f1256 <gdx_stats_poll+0xb2>
+gdxsv_WriteMem16(0x8c4f12b2u, 0x6153u); // mov	r5,r1
+gdxsv_WriteMem16(0x8c4f12b4u, 0xd015u); // mov.l	c4f130c <gdx_stats_poll+0x168>,r0	! c4f0c90 <gdx_stats_store_ranking.constprop.0>
+gdxsv_WriteMem16(0x8c4f12b6u, 0x400bu); // jsr	@r0
+gdxsv_WriteMem16(0x8c4f12b8u, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f12bau, 0x2008u); // tst	r0,r0
+gdxsv_WriteMem16(0x8c4f12bcu, 0x89b4u); // bt	c4f1228 <gdx_stats_poll+0x84>
+gdxsv_WriteMem16(0x8c4f12beu, 0x9505u); // mov.w	c4f12cc <gdx_stats_poll+0x128>,r5	! 6145
+gdxsv_WriteMem16(0x8c4f12c0u, 0x6b0du); // extu.w	r0,r11
+gdxsv_WriteMem16(0x8c4f12c2u, 0xafc8u); // bra	c4f1256 <gdx_stats_poll+0xb2>
+gdxsv_WriteMem16(0x8c4f12c4u, 0x6153u); // mov	r5,r1
+gdxsv_WriteMem16(0x8c4f12c6u, 0x669au); // negc	r9,r6
+gdxsv_WriteMem16(0x8c4f12c8u, 0x0300u); // .word 0x0300
+gdxsv_WriteMem16(0x8c4f12cau, 0x6913u); // mov	r1,r9
+gdxsv_WriteMem16(0x8c4f12ccu, 0x6145u); // mov.w	@r4+,r1
+gdxsv_WriteMem16(0x8c4f12ceu, 0x0009u); // nop
+gdxsv_WriteMem16(0x8c4f12d0u, 0x09f8u); // .word 0x09f8
+gdxsv_WriteMem16(0x8c4f12d2u, 0x0c4fu); // mac.l	@r4+,@r12+
+gdxsv_WriteMem16(0x8c4f12d4u, 0x3e20u); // cmp/eq	r2,r14
+gdxsv_WriteMem16(0x8c4f12d6u, 0x0c03u); // bsrf	r12
+gdxsv_WriteMem16(0x8c4f12d8u, 0x9bd0u); // mov.w	c4f147c <gdx_stats_poll+0x2d8>,r11
+gdxsv_WriteMem16(0x8c4f12dau, 0x0c3au); // .word 0x0c3a
+gdxsv_WriteMem16(0x8c4f12dcu, 0x0990u); // .word 0x0990
+gdxsv_WriteMem16(0x8c4f12deu, 0x0c4fu); // mac.l	@r4+,@r12+
+gdxsv_WriteMem16(0x8c4f12e0u, 0x9bd6u); // mov.w	c4f1490 <gdx_stats_poll+0x2ec>,r11
+gdxsv_WriteMem16(0x8c4f12e2u, 0x0c3au); // .word 0x0c3a
+gdxsv_WriteMem16(0x8c4f12e4u, 0x067au); // .word 0x067a
 gdxsv_WriteMem16(0x8c4f12e6u, 0x0c4eu); // mov.l	@(r0,r4),r12
-gdxsv_WriteMem16(0x8c4f12e8u, 0x096cu); // mov.b	@(r0,r6),r9
-gdxsv_WriteMem16(0x8c4f12eau, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f12ecu, 0x9bd8u); // mov.w	c4f14a0 <gdx_stats_poll+0x300>,r11
-gdxsv_WriteMem16(0x8c4f12eeu, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f12f0u, 0xffffu); // .word 0xffff
-gdxsv_WriteMem16(0x8c4f12f2u, 0x00ffu); // mac.l	@r15+,@r0+
-gdxsv_WriteMem16(0x8c4f12f4u, 0x9bdcu); // mov.w	c4f14b0 <gdx_stats_poll+0x310>,r11
-gdxsv_WriteMem16(0x8c4f12f6u, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f12f8u, 0x09a0u); // .word 0x09a0
-gdxsv_WriteMem16(0x8c4f12fau, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f12fcu, 0x9bd2u); // mov.w	c4f14a4 <gdx_stats_poll+0x304>,r11
-gdxsv_WriteMem16(0x8c4f12feu, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f1300u, 0x9bd4u); // mov.w	c4f14ac <gdx_stats_poll+0x30c>,r11
+gdxsv_WriteMem16(0x8c4f12e8u, 0x0674u); // mov.b	r7,@(r0,r6)
+gdxsv_WriteMem16(0x8c4f12eau, 0x0c4eu); // mov.l	@(r0,r4),r12
+gdxsv_WriteMem16(0x8c4f12ecu, 0x096cu); // mov.b	@(r0,r6),r9
+gdxsv_WriteMem16(0x8c4f12eeu, 0x0c4fu); // mac.l	@r4+,@r12+
+gdxsv_WriteMem16(0x8c4f12f0u, 0x9bd8u); // mov.w	c4f14a4 <gdx_stats_poll+0x300>,r11
+gdxsv_WriteMem16(0x8c4f12f2u, 0x0c3au); // .word 0x0c3a
+gdxsv_WriteMem16(0x8c4f12f4u, 0xffffu); // .word 0xffff
+gdxsv_WriteMem16(0x8c4f12f6u, 0x00ffu); // mac.l	@r15+,@r0+
+gdxsv_WriteMem16(0x8c4f12f8u, 0x9bdcu); // mov.w	c4f14b4 <gdx_stats_poll+0x310>,r11
+gdxsv_WriteMem16(0x8c4f12fau, 0x0c3au); // .word 0x0c3a
+gdxsv_WriteMem16(0x8c4f12fcu, 0x09a0u); // .word 0x09a0
+gdxsv_WriteMem16(0x8c4f12feu, 0x0c4fu); // mac.l	@r4+,@r12+
+gdxsv_WriteMem16(0x8c4f1300u, 0x9bd2u); // mov.w	c4f14a8 <gdx_stats_poll+0x304>,r11
 gdxsv_WriteMem16(0x8c4f1302u, 0x0c3au); // .word 0x0c3a
-gdxsv_WriteMem16(0x8c4f1304u, 0x0f10u); // .word 0x0f10
-gdxsv_WriteMem16(0x8c4f1306u, 0x0c4fu); // mac.l	@r4+,@r12+
-gdxsv_WriteMem16(0x8c4f1308u, 0x0c90u); // .word 0x0c90
+gdxsv_WriteMem16(0x8c4f1304u, 0x9bd4u); // mov.w	c4f14b0 <gdx_stats_poll+0x30c>,r11
+gdxsv_WriteMem16(0x8c4f1306u, 0x0c3au); // .word 0x0c3a
+gdxsv_WriteMem16(0x8c4f1308u, 0x0f10u); // .word 0x0f10
 gdxsv_WriteMem16(0x8c4f130au, 0x0c4fu); // mac.l	@r4+,@r12+
+gdxsv_WriteMem16(0x8c4f130cu, 0x0c90u); // .word 0x0c90
+gdxsv_WriteMem16(0x8c4f130eu, 0x0c4fu); // mac.l	@r4+,@r12+
 if (disk_ == 1) gdxsv_WriteMem32(0x8c181bb4, symbols_["gdx_dial_start_disk1"]);
 if (disk_ == 2) gdxsv_WriteMem32(0x8c1e0274, symbols_["gdx_dial_start_disk2"]);
 if (disk_ == 2) {
@@ -3292,5 +3294,5 @@ if (disk_ == 2) {
         WARN_LOG(COMMON, "Stats hooks: unexpected guest pointers; keeping the legacy protocol");
     }
 }
-symbols_[":patch_id"] = 89503296;
+symbols_[":patch_id"] = 89507850;
 gdxsv_WriteMem32(symbols_["patch_id"], symbols_[":patch_id"]);
