@@ -10,6 +10,7 @@ namespace gdxsv_round_counters {
 constexpr int kDraw = -1;
 constexpr int kMaxRounds = 10;
 constexpr u32 kSessionPointer = 0x0c394524;
+constexpr u32 kDrawFlagAddress = 0x0c3d1950; // Disc 2
 constexpr u32 kPlayerStride = 0x2c0;
 constexpr u32 kCountersOffset = 0x2b0;
 constexpr int kPlayerSlots = 4;
