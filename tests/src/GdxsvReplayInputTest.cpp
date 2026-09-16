@@ -72,6 +72,7 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	bool IsFollowing() const { return replay_.live_following_; }
 	bool IsAtLiveEdge() const { return replay_.live_at_edge_; }
 	bool IsCatchingUp() const { return replay_.live_catching_up_; }
+	bool IsRoundJumpPending() const { return replay_.live_round_jump_pending_; }
 	bool IsPaused() const { return replay_.ctrl_pause_; }
 	int PlaybackSpeed() const { return replay_.ctrl_play_speed_; }
 	const char* DisplayedSpeed() { return GdxsvBackendReplay::SpeedText(PublishedUi().playSpeed); }
@@ -113,7 +114,7 @@ class GdxsvReplayInputTest : public ::testing::Test {
 		replay_.end_of_frame_ = true;
 		replay_.OnNextFrameInternal();
 	}
-	void QueueAutoSeek() { replay_.ctrl_commands_.emplace_back(Command::SeekForward, 1000, 1); }
+	void QueueAutoSeek(bool initial = false) { replay_.ctrl_commands_.emplace_back(Command::SeekForward, 1000, initial ? 2 : 1); }
 
 	void EnableTakeover(u16 input) {
 		replay_.takeover_ = true;
@@ -589,16 +590,77 @@ TEST_F(GdxsvReplayInputTest, LiveIndicatorDoesNotTreatMissingDownloadedInputsAsT
 	EXPECT_FALSE(IsAtLiveEdge());
 }
 
-TEST_F(GdxsvReplayInputTest, PausingCancelsAnAlreadyQueuedAutomaticSeek) {
+TEST_F(GdxsvReplayInputTest, ManualControlsPreserveLoadingForQueuedRoundJump) {
+	PrepareFrameControl();
+	for (bool initial : {false, true}) {
+		SCOPED_TRACE(initial);
+		for (auto cmd : {Command::TogglePause, Command::TogglePauseMenu, Command::SetSpeed, Command::NextSpeed}) {
+			SCOPED_TRACE(cmd);
+			PrepareAutoRecovery();
+			// SetRound uses the same pending jump and HUD as FollowLive. Keep
+			// it queued here: these tests do not load or execute a guest state.
+			QueueUi(Command::SetRound, 2);
+			QueueUi(Command::FollowLive);
+			if (initial)
+				PrepareInitialLiveCatchUp();
+			QueueUi(cmd, 1);
+			EXPECT_FALSE(IsFollowing());
+			EXPECT_FALSE(IsInitialLiveCatchUp());
+			ASSERT_TRUE(IsRoundJumpPending());
+			ASSERT_TRUE(IsControlLoading());
+			EXPECT_TRUE(PublishedUi().loading);
+			for (int frame = 0; frame < 2; ++frame) {
+				RunFrameControl();
+				EXPECT_TRUE(IsRoundJumpPending());
+				EXPECT_TRUE(IsControlLoading());
+				ASSERT_EQ(2u, PendingControlCommands());
+				EXPECT_EQ(Command::SetRound, PendingControlCommand().cmd);
+			}
+		}
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, CancellingAutomaticSeekPreservesLoadingForQueuedTimelineJump) {
 	PrepareFrameControl();
 	PrepareAutoRecovery();
 	QueueAutoSeek();
+	QueueUi(Command::JumpToKeyMsg, InputIndex());
 	QueueUi(Command::TogglePause);
+	for (int frame = 0; frame < 2; ++frame) {
+		RunFrameControl();
+		EXPECT_TRUE(IsControlLoading());
+		EXPECT_TRUE(PublishedUi().loading);
+		EXPECT_FALSE(IsPaused());
+		ASSERT_EQ(2u, PendingControlCommands());
+		EXPECT_EQ(Command::JumpToKeyMsg, PendingControlCommand().cmd);
+	}
+	// The no-distance jump completes after its HUD lead-in, then pause applies.
 	RunFrameControl();
-	EXPECT_FALSE(IsFollowing());
 	EXPECT_TRUE(IsPaused());
-	EXPECT_EQ(10, InputIndex());
+	EXPECT_FALSE(IsControlLoading());
+	EXPECT_FALSE(PublishedUi().loading);
 	EXPECT_EQ(0u, PendingControlCommands());
+}
+
+TEST_F(GdxsvReplayInputTest, PausingCancelsAnAlreadyQueuedAutomaticSeek) {
+	PrepareFrameControl();
+	for (bool initial : {false, true}) {
+		SCOPED_TRACE(initial);
+		PrepareAutoRecovery();
+		SetPaused(false);
+		if (initial)
+			PrepareInitialLiveCatchUp();
+		QueueAutoSeek(initial);
+		QueueUi(Command::TogglePause);
+		RunFrameControl();
+		EXPECT_FALSE(IsFollowing());
+		EXPECT_FALSE(IsInitialLiveCatchUp());
+		EXPECT_TRUE(IsPaused());
+		EXPECT_FALSE(IsControlLoading());
+		EXPECT_FALSE(PublishedUi().loading);
+		EXPECT_EQ(10, InputIndex());
+		EXPECT_EQ(0u, PendingControlCommands());
+	}
 }
 
 TEST_F(GdxsvReplayInputTest, LiveFollowingDisplaysNominalSpeedWithoutChangingRecoverySpeed) {

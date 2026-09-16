@@ -1315,6 +1315,9 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			ctrl_commands_.pop_front();
 		}
 	}
+	// The queue is drained, including any cancelled automatic seek whose
+	// handler was skipped. No pending command still needs the Loading HUD.
+	ctrl_loading_ = false;
 }
 
 bool GdxsvBackendReplay::OnOpenMenu() {
@@ -1508,7 +1511,8 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			live_catching_up_ = false;
 			live_at_edge_ = false;
 			live_initial_catchup_ = false;
-			ctrl_loading_ = false;
+			// Cancelling live chasing does not cancel an already-queued jump.
+			// Let the control queue finish its work before dismissing Loading.
 		}
 		switch (cmd.cmd) {
 		case ReplayCtrlCommand::FollowLive: {
