@@ -553,7 +553,16 @@ void Gdxsv::HandleRPC() {
 	gdxsv_WriteMem32(symbols_["is_online"], netmode_ != NetMode::Offline);
 }
 
-void Gdxsv::StartPingTest() { gcp_ping_test_result_ = gcp_ping_test().share(); }
+void Gdxsv::StartPingTest() {
+	// Reuse in-flight tests and successful results across game loads.
+	if (gcp_ping_test_result_.valid() &&
+		(gcp_ping_test_result_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready ||
+		 !gcp_ping_test_result_.get().empty()))
+		return;
+
+	SetPingResult("Latency check...");
+	gcp_ping_test_result_ = gcp_ping_test().share();
+}
 
 void Gdxsv::StartP2PFeasibilityTest() {
 	if (p2p_feasibility_result_.valid())

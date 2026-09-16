@@ -160,6 +160,29 @@ TEST(GdxsvReplayUi, TakeoverSkipChoiceIsPublishedWithoutChangingOlderSnapshots) 
 	EXPECT_TRUE(skipped.takeoverSkipInputMatching);
 }
 
+TEST(GdxsvReplayUi, OnlyTheLatestLiveTimelineEndpointRequestsFollowLive) {
+	UiState ui;
+	ui.liveMode = true;
+	ui.timelineStart = 1000;
+	ui.timelineEnd = ui.inputCount = 2000;
+	EXPECT_TRUE(ui.IsLiveSeekTarget(ui.FrameAtProgress(1.0f)));
+	EXPECT_FALSE(ui.IsLiveSeekTarget(1999));
+	EXPECT_FALSE(ui.IsLiveSeekTarget(ui.FrameAtProgress(0.5f)));
+	// The latest frame advances while dragging; evaluate the current snapshot.
+	ui.timelineEnd = ui.inputCount = 2010;
+	EXPECT_FALSE(ui.IsLiveSeekTarget(2000));
+	EXPECT_TRUE(ui.IsLiveSeekTarget(ui.FrameAtProgress(1.0f)));
+	// An older round's endpoint and an offline replay are ordinary seeks.
+	ui.timelineEnd = 1500;
+	EXPECT_FALSE(ui.IsLiveSeekTarget(ui.FrameAtProgress(1.0f)));
+	ui.timelineEnd = ui.inputCount;
+	ui.liveMode = false;
+	EXPECT_FALSE(ui.IsLiveSeekTarget(ui.FrameAtProgress(1.0f)));
+	ui.liveMode = true;
+	ui.timelineEnd = ui.inputCount = 0;
+	EXPECT_FALSE(ui.IsLiveSeekTarget(0));
+}
+
 TEST(GdxsvReplayUi, ProgressTargetsTheDisplayedTimelineAndClampsItsEnds) {
 	UiState ui;
 	ui.timelineStart = 10000;

@@ -31,6 +31,7 @@
 #include "stdclass.h"
 
 #include <sstream>
+#include <future>
 #include <thread>
 #include <algorithm>
 #include <chrono>
@@ -82,19 +83,29 @@ struct ReplayEntry {
 	int round = 0;
 	int renpo_win = 0;
 	int zeon_win = 0;
-	time_t start_unix;
+	time_t start_unix = 0;
 	std::string replay_url;
 	std::string round_win;
 	std::vector<std::string> user_used_ms_list;
-	int play_count = 0;
+	int play_count = -1; // Not present in local recordings.
+	std::string filename;
+	std::string battle_code;
+	time_t end_unix = 0;
+	std::string close_reason;
+	bool readable = true;
 };
 
-bool read_dir = false;
-std::vector<std::pair<std::string, uint64_t>> files;
+constexpr size_t kLocalReplayPageSize = 100;
+struct LocalReplayPage {
+	std::vector<ReplayEntry> entries;
+	size_t page = 0;
+	size_t page_count = 1;
+};
+
+std::shared_future<LocalReplayPage> local_replays_future;
+size_t local_replay_page = 0;
 std::string selected_replay_file;
-std::string battle_log_file_name;
 std::string broken_replay_path;
-proto::BattleLogFile battle_log;
 
 std::string search_user_id;
 std::string search_user_name;
@@ -269,7 +280,7 @@ void gdxsv_replay_draw_players(const std::vector<proto::BattleLogUser>& users) {
 void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& game_disk, const int& users_size,
 							const std::string& close_reason, const time_t& start_time, const time_t& end_time,
 							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst,
-							int play_count = -1) {
+							int play_count = -1, const std::string& filename = {}) {
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
 	// Player cards + Replay button first
@@ -295,6 +306,8 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	ImGui::NewLine();
 
 	// Details below
+	if (!filename.empty())
+		ImGui::TextWrapped("Filename: %s", filename.c_str());
 	ImGui::Text("BattleCode: %s", battle_code.c_str());
 	ImGui::SameLine();
 	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
@@ -348,7 +361,7 @@ void draw_round_detail(const ReplayEntry& entry) {
 			ImGui::Text("%s", GdxsvLanguage::gdxT("Zeon"));
 		} else {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.5f, .5f, .5f, 1));
-			ImGui::Text("  -  ");
+			ImGui::TextUnformatted(win_team == -1 ? GdxsvLanguage::gdxT("Draw") : "  -  ");
 		}
 		ImGui::PopStyleColor();
 		ImGui::SameLine();
@@ -374,42 +387,137 @@ void draw_round_detail(const ReplayEntry& entry) {
 	}
 }
 
-void gdxsv_replay_local_tab() {
-	const auto replay_dir = get_writable_data_path("replays");
+bool is_timestamp_replay_filename(const std::string& name) {
+	// The lobby generates a 13-digit millisecond battle code: <code>.pb.
+	return name.size() == 16 && name.compare(13, 3, ".pb") == 0 &&
+		name.find_first_not_of("0123456789") == 13;
+}
 
-	if (!read_dir) {
-		files.clear();
-		read_dir = true;
-
-		if (file_exists(replay_dir)) {
-			DIR* dir = flycast::opendir(replay_dir.c_str());
-
-			while (true) {
-				struct dirent* entry = flycast::readdir(dir);
-				if (entry == nullptr) break;
-				std::string name(entry->d_name);
+LocalReplayPage read_local_replays(const std::string& replay_dir, size_t requested_page) {
+	LocalReplayPage result;
+	std::vector<std::string> filenames;
+	DIR* dir = flycast::opendir(replay_dir.c_str());
+	if (dir == nullptr)
+		return result;
+	while (auto* file = flycast::readdir(dir)) {
+		std::string name(file->d_name);
 #ifdef __APPLE__
-				name = os_PrecomposedString(name);
+		name = os_PrecomposedString(name);
 #endif
-				if (name == ".") continue;
-				std::string extension = get_file_extension(name);
-				if (extension == "pb") {
-					struct stat result {};
-					if (flycast::stat((replay_dir + "/" + name).c_str(), &result) == 0) {
-						files.emplace_back(name, result.st_mtime);
-					}
+		if (get_file_extension(name) != "pb")
+			continue;
+		filenames.push_back(std::move(name));
+	}
+	flycast::closedir(dir);
+	// Choose the page using filenames alone, before opening any recordings.
+	std::sort(filenames.begin(), filenames.end(), [](const std::string& a, const std::string& b) {
+		const bool a_timestamp = is_timestamp_replay_filename(a);
+		const bool b_timestamp = is_timestamp_replay_filename(b);
+		if (a_timestamp != b_timestamp)
+			return !a_timestamp; // Named copies and edited replays come first.
+		return a_timestamp ? a > b : a < b;
+	});
+	if (!filenames.empty())
+		result.page_count = 1 + (filenames.size() - 1) / kLocalReplayPageSize;
+	result.page = std::min(requested_page, result.page_count - 1);
+	const size_t first = result.page * kLocalReplayPageSize;
+	const size_t last = first + std::min(kLocalReplayPageSize, filenames.size() - first);
+	result.entries.reserve(last - first);
+	for (size_t i = first; i < last; ++i) {
+		ReplayEntry entry;
+		entry.filename = filenames[i];
+		entry.replay_url = replay_dir + "/" + entry.filename;
+		struct stat info {};
+		if (flycast::stat(entry.replay_url.c_str(), &info) == 0)
+			entry.start_unix = info.st_mtime;
+		proto::BattleLogFile log;
+		FILE* fp = nowide::fopen(entry.replay_url.c_str(), "rb");
+		entry.readable = fp != nullptr && log.ParseFromFileDescriptor(fileno(fp));
+		if (fp != nullptr)
+			std::fclose(fp);
+		if (entry.readable) {
+			entry.disk = log.game_disk();
+			entry.battle_code = log.battle_code();
+			entry.users.assign(log.users().begin(), log.users().end());
+			if (log.start_at() != 0)
+				entry.start_unix = log.start_at();
+			entry.end_unix = log.end_at();
+			entry.close_reason = log.close_reason();
+			entry.round = log.start_msg_indexes_size();
+			entry.user_used_ms_list.resize(entry.users.size());
+			for (int i = 0; i < log.round_data_size(); ++i) {
+				const auto& round = log.round_data(i);
+				if (i != 0)
+					entry.round_win += ",";
+				entry.round_win += std::to_string(round.win_team());
+				entry.renpo_win += round.win_team() == 1;
+				entry.zeon_win += round.win_team() == 2;
+				for (int p = 0; p < entry.users.size(); ++p) {
+					auto& ms = entry.user_used_ms_list[p];
+					if (i != 0)
+						ms += ",";
+					ms += std::to_string(p < round.used_ms_size() ? round.used_ms(p) : 0);
 				}
 			}
-			std::sort(files.begin(), files.end(), std::greater<>());
-
-			flycast::closedir(dir);
 		}
+		result.entries.push_back(std::move(entry));
+		// Retain only the small display metadata, never the input stream.
 	}
+	return result;
+}
 
+// Shared by Local and Server.
+bool draw_replay_entry(const ReplayEntry& entry, int index, bool selected) {
+	char timebuf[128] = {};
+	if (const auto* local = std::localtime(&entry.start_unix))
+		std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", local);
+	char head[256] = {};
+	snprintf(head, sizeof(head), u8"  %s  %s ― Result: %d：%d\n\n", ICON_FA_FILM, timebuf, entry.renpo_win, entry.zeon_win);
+	std::string row = entry.readable ? head : "Unable to read replay\n\n";
+	for (int i = 0; i < entry.users.size(); ++i) {
+		row += entry.users[i].user_name();
+		if (i + 1 < entry.users.size())
+			row += entry.users[i + 1].team() != entry.users[i].team() ? " vs " : ", ";
+	}
+	const bool show_filename = !entry.filename.empty() && !is_timestamp_replay_filename(entry.filename);
+	if (show_filename)
+		row += "\n\n" + entry.filename;
+	ImGui::PushID(index);
+	auto* drawlist = ImGui::GetWindowDrawList();
+	drawlist->ChannelsSplit(2);
+	drawlist->ChannelsSetCurrent(1);
+	const float height = ImGui::GetTextLineHeight() * (show_filename ? 5 : 3);
+	const bool clicked = ImGui::Selectable(row.c_str(), selected, 0, ImVec2(0, height));
+	if (index % 2 == 1) {
+		drawlist->ChannelsSetCurrent(0);
+		drawlist->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), IM_COL32(50, 50, 50, 100));
+	}
+	drawlist->ChannelsMerge();
+	ImGui::PopID();
+	return clicked;
+}
+
+void gdxsv_replay_local_tab() {
+	const auto replay_dir = get_writable_data_path("replays");
+	const bool new_page = !local_replays_future.valid();
+	if (new_page) {
+		// Scan filenames and parse only the requested page off the UI thread.
+		local_replays_future = std::async(std::launch::async, read_local_replays, replay_dir, local_replay_page).share();
+	}
+	const bool loaded = future_is_ready(local_replays_future);
+	if (loaded)
+		local_replay_page = local_replays_future.get().page;
+	size_t requested_page = local_replay_page;
+	ImGui::BeginDisabled(!loaded);
 	if (ImGui::Button(ICON_FA_ARROW_ROTATE_RIGHT "  Reload")) {
-		read_dir = false;
+		local_replay_page = 0;
+		local_replays_future = {};
+		selected_replay_file.clear();
+		pov_index = -1;
+		ImGui::EndDisabled();
+		return;
 	}
-
+	ImGui::EndDisabled();
 	ImGui::SameLine();
 #if defined(TARGET_MAC)
 	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Reveal in Finder")) {
@@ -431,67 +539,92 @@ void gdxsv_replay_local_tab() {
 #endif
 
 	ImGui::SameLine();
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, normal_padding);
-	ImVec2 size;
-	size.x = ImGui::GetContentRegionAvail().x;
-	size.y = (ImGui::GetTextLineHeightWithSpacing() + ImGui::GetStyle().FramePadding.y * 2.f);
-	if (ImGui::BeginListBox("##Replay File Directory", size)) {
-		ImGui::AlignTextToFramePadding();
-		ImGui::Text("%s", get_writable_data_path("replays").c_str());
+	ImGui::TextUnformatted(replay_dir.c_str());
 
-		ImGui::EndListBox();
-	}
-	ImGui::PopStyleVar();
-
-	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list"), ImVec2(330, 0) * scaling, true, ImGuiWindowFlags_DragScrolling);
-	{
-		if (files.empty()) {
-			ImGui::Text("(No replay found)");
-		} else {
-			for (int i = 0; i < files.size(); ++i) {
-				ImGui::PushID(i);
-				if (ImGui::Selectable(files[i].first.c_str(), files[i].first == selected_replay_file, 0, ImVec2(0, 0))) {
-					selected_replay_file = files[i].first;
+	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list_paging"), ScaledVec2(450, 0), false, ImGuiWindowFlags_NoDecoration);
+	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list"),
+		ImVec2(0, std::max(1.f, ImGui::GetContentRegionAvail().y - 40.f * scaling)), true, ImGuiWindowFlags_DragScrolling);
+	if (new_page)
+		ImGui::SetScrollY(0);
+	if (!loaded) {
+		ImGui::TextUnformatted("Loading...");
+	} else {
+		const auto& entries = local_replays_future.get().entries;
+		if (entries.empty())
+			ImGui::TextUnformatted("(No replay found)");
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30));
+		// Custom rows include a filename and are taller. Each clipper must
+		// cover a uniform-height group; sorting keeps custom names together.
+		const int custom_count = static_cast<int>(std::partition_point(entries.begin(), entries.end(), [](const ReplayEntry& entry) {
+			return !is_timestamp_replay_filename(entry.filename);
+		}) - entries.begin());
+		int first = 0;
+		for (int last : {custom_count, static_cast<int>(entries.size())}) {
+			ImGuiListClipper clipper;
+			clipper.Begin(last - first);
+			while (clipper.Step()) {
+				for (int i = first + clipper.DisplayStart; i < first + clipper.DisplayEnd; ++i) {
+					const auto& entry = entries[i];
+					if (draw_replay_entry(entry, i, entry.filename == selected_replay_file)) {
+						selected_replay_file = entry.filename;
+						pov_index = -1;
+					}
 				}
-				ImGui::SameLine();
-
-				time_t t = files[i].second;
-				char buf[128] = {0};
-				std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
-				ImGui::Text(buf);
-				ImGui::PopID();
 			}
+			first = last;
 		}
+		ImGui::PopStyleVar();
 	}
 	scrollWhenDraggingOnVoid();
 	windowDragScroll();
+	ImGui::EndChild();
+
+	ImGui::BeginDisabled(!loaded || local_replay_page == 0);
+	if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Prev Page"))
+		requested_page = local_replay_page - 1;
+	ImGui::EndDisabled();
+	ImGui::SameLine();
+	if (loaded)
+		ImGui::Text("%zu / %zu", local_replay_page + 1, local_replays_future.get().page_count);
+	else
+		ImGui::TextUnformatted("...");
+	ImGui::SameLine();
+	ImGui::BeginDisabled(!loaded || local_replay_page + 1 >= local_replays_future.get().page_count);
+	if (ImGui::Button(ICON_FA_CHEVRON_RIGHT "  Next Page"))
+		requested_page = local_replay_page + 1;
+	ImGui::EndDisabled();
 	ImGui::EndChild();
 
 	ImGui::SameLine();
 	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_detail"), ImVec2(0, 0), true, ImGuiWindowFlags_DragScrolling);
-	{
-		if (!selected_replay_file.empty()) {
-			const auto replay_file_path = replay_dir + "/" + selected_replay_file;
-			if (battle_log_file_name != selected_replay_file) {
-				battle_log_file_name = selected_replay_file;
-				battle_log.Clear();
-				FILE* fp = nowide::fopen(replay_file_path.c_str(), "rb");
-				if (fp != nullptr) {
-					battle_log.ParseFromFileDescriptor(fileno(fp));
-					std::fclose(fp);
-				}
-				pov_index = -1;
+	if (loaded && !selected_replay_file.empty()) {
+		const auto& entries = local_replays_future.get().entries;
+		const auto selected = std::find_if(entries.begin(), entries.end(), [](const ReplayEntry& entry) {
+			return entry.filename == selected_replay_file;
+		});
+		if (selected != entries.end()) {
+			const auto& entry = *selected;
+			if (entry.readable) {
+				gdxsv_replay_draw_info(entry.battle_code, entry.disk, static_cast<int>(entry.users.size()),
+					entry.close_reason, entry.start_unix, entry.end_unix, entry.users, entry.replay_url,
+					entry.play_count, entry.filename);
+				draw_round_detail(entry);
+			} else {
+				ImGui::TextWrapped("Filename: %s", entry.filename.c_str());
+				ImGui::TextUnformatted("Failed to read this replay file.");
 			}
-
-			gdxsv_replay_draw_info(battle_log.battle_code(), battle_log.game_disk(), battle_log.users_size(), battle_log.close_reason(),
-								   battle_log.start_at(), battle_log.end_at(),
-								   std::vector<proto::BattleLogUser>(battle_log.users().begin(), battle_log.users().end()),
-								   replay_dir + "/" + selected_replay_file);
 		}
 	}
 	scrollWhenDraggingOnVoid();
 	windowDragScroll();
 	ImGui::EndChild();
+	if (requested_page != local_replay_page) {
+		// Release the completed page only after drawing all references to it.
+		local_replay_page = requested_page;
+		local_replays_future = {};
+		selected_replay_file.clear();
+		pov_index = -1;
+	}
 }
 
 void parse_replay_json(const std::vector<u8>& json_string, std::vector<ReplayEntry>& out) {
@@ -1222,51 +1355,12 @@ void gdxsv_replay_server_tab() {
 				} else if (fetch_replay_entry_http_status != 200) {
 					ImGui::Text("Error: HTTP %d", fetch_replay_entry_http_status);
 				} else {
-					const static auto item_spacing = 30.0f;
-					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, item_spacing));
+					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30));
 					for (int i = 0; i < entries.size(); ++i) {
-						ImGui::PushID(i);
-						const auto& entry = entries[i];
-
-						time_t t = entry.start_unix;
-						char timebuf[128] = {};
-						std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
-
-						char head[256] = {};
-						snprintf(head, sizeof(head), u8"  %s  %s ― Result: %d：%d\n\n", ICON_FA_FILM, timebuf, entry.renpo_win,
-								 entry.zeon_win);
-						std::string row = head;
-
-						for (int i = 0; i < entry.users.size(); i++) {
-							const auto& user = entry.users[i];
-							row += user.user_name();
-							if (i + 1 < entry.users.size()) {
-								row += entry.users[i + 1].team() != user.team() ? " vs " : ", ";
-							}
-						}
-
-						auto drawlist = ImGui::GetWindowDrawList();
-
-						static auto SelectableColor = [drawlist](ImU32 color) {
-							ImVec2 p_min = ImGui::GetItemRectMin();
-							ImVec2 p_max = ImGui::GetItemRectMax();
-							drawlist->AddRectFilled(p_min, p_max, color);
-						};
-
-						drawlist->ChannelsSplit(2);
-						drawlist->ChannelsSetCurrent(1);
-
-						if (ImGui::Selectable(row.c_str(), i == selected_replay_entry_index, 0, ImVec2(0, 0))) {
+						if (draw_replay_entry(entries[i], i, i == selected_replay_entry_index)) {
 							selected_replay_entry_index = i;
 							pov_index = -1;
 						}
-						if (i % 2 == 1) {
-							drawlist->ChannelsSetCurrent(0);
-							SelectableColor(IM_COL32(50, 50, 50, 100));
-						}
-						drawlist->ChannelsMerge();
-
-						ImGui::PopID();
 					}
 					ImGui::PopStyleVar();
 				}
@@ -1450,14 +1544,10 @@ void gdxsv_end_replay(std::string error) {
 	dc_loadstate(90);
 	settings.input.fastForwardMode = false;
 
+	// Reopen the browser; ImGui retains the tab that launched playback.
+	gui_state = GuiState::GdxsvReplay;
 	if (!error.empty()) {
-		gui_state = GuiState::GdxsvReplay;
 		gui_error(error);
-	} else if (!selected_replay_file.empty() || selected_replay_entry_index != -1) {
-		gui_state = GuiState::GdxsvReplay;
-	} else {
-		// Replay from command-line, resume game when end replaying
-		emu.start();
 	}
 }
 

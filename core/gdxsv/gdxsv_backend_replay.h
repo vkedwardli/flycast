@@ -89,6 +89,7 @@ class GdxsvBackendReplay {
 	// The UDP worker stages deltas. OnNextFrame folds them into log_file_ on
 	// the emulation thread; the UI reads only the published display snapshot.
 	void CheckLiveUpdate();
+	bool InitialLiveCatchUpReady(std::chrono::steady_clock::duration quiet) const;
 
 	// Steers the main loop's frame period so playback holds live_buffer_frames_
 	// behind the edge. Small, continuous corrections instead of whole-frame
@@ -240,6 +241,8 @@ class GdxsvBackendReplay {
 	// Replays a match that is still being played: live_downlink_ feeds log_file_
 	// as frames arrive, instead of it being read whole from a file up front.
 	bool live_mode_ = false;
+	// Enabled only by a live round jump, retained while that stream drains.
+	bool live_counter_reconstruction_ = false;
 	GdxsvSpectatorDownlink live_downlink_;
 
 	// True while playback is far enough behind live to warrant a skip-render
@@ -251,9 +254,8 @@ class GdxsvBackendReplay {
 	// the Live button sets it again. Same idea as YouTube's live indicator.
 	bool live_following_ = true;
 
-	// Whether playback is actually at the live edge, however it got there. The
-	// Live indicator reads this rather than live_following_, so it reports
-	// position instead of intent.
+	// The Live pill is active only while following and near the live edge.
+	// A deliberate pause/seek leaves it clickable until FollowLive is requested.
 	bool live_at_edge_ = false;
 
 	// UI-thread viewer count, refreshed by gdxsv_live_viewer_count.
@@ -268,6 +270,12 @@ class GdxsvBackendReplay {
 	// in flight (queued SeekToBriefing -> SetRound). Live catch-up must not
 	// run during that window - see the catch-up gate in OnNextFrame.
 	bool live_round_jump_pending_ = false;
+
+	// Armed only by StartLive. The first catch-up keeps waiting for downloaded
+	// inputs instead of ending at each temporary local edge. Completion or a
+	// manual playback action clears it; later Live clicks never rearm it.
+	bool live_initial_catchup_ = false;
+	bool live_initial_backlog_ = true;
 
 	// How far behind the newest available frame playback aims to sit, in
 	// frames. Loaded from gdxsv:LiveBufferFrames, default kLiveDefaultBuffer.

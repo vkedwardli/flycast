@@ -1,6 +1,7 @@
 #include "gdxsv_spectator_downlink.h"
 
 #include <chrono>
+#include <limits>
 #include <thread>
 
 #include "gdxsv_network.h"
@@ -13,6 +14,13 @@ namespace {
 // (10s, see lbs_spectator.go) so a brief delay never drops the subscription.
 constexpr int kSubscribeIntervalMs = 2000;
 constexpr size_t kSubscribeCookieBytes = 16;
+// Protocol limit shared with maxSpectatorPushFrames in lbs_spectator.go;
+// changes require client/server coordination, including the queue budget below.
+// LBS sends the entire remaining input tail when it is smaller than this limit.
+constexpr int kInputPushFrames = 128;
+// Pause read-ahead when emulation cannot drain it. At full size this queue
+// holds 256 KiB of input values, plus metadata and protobuf object overhead.
+constexpr size_t kMaxPendingPushes = 256;
 }  // namespace
 
 void GdxsvSpectatorDownlink::Start(const std::string &lbs_host, int lbs_port, const std::string &battle_code,
@@ -30,6 +38,7 @@ void GdxsvSpectatorDownlink::Start(const std::string &lbs_host, int lbs_port, co
 		patches_.clear();
 		patch_total_ = -1;
 		acked_frame_ = from_frame;
+		initial_download_ = true;
 		acked_round_state_version_ = 0;
 		acked_dirty_ = false;
 	}
@@ -62,7 +71,7 @@ bool GdxsvSpectatorDownlink::WaitForBootstrap(proto::BattleLogFile *out, int tim
 	return false;
 }
 
-bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file) {
+bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file, bool *backlog_pending) {
 	std::deque<proto::SpectatorInputPush> pushes;
 	{
 		std::lock_guard<std::mutex> lock(mtx_);
@@ -70,22 +79,30 @@ bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file) {
 	}
 
 	bool applied = false;
-	for (const auto &push : pushes) {
+	while (!pushes.empty()) {
+		const auto &push = pushes.front();
 		const int32_t have = log_file->inputs_size();
 
 		if (0 < push.inputs_size()) {
 			if (push.start_frame() > have) {
-				// A gap. Drop the rest of the batch instead of guessing. The
-				// next keepalive re-asks from acked_frame_ and LBS refills it.
-				// Should never happen: LBS pushes from the frame we acked.
+				// The worker only stages contiguous inputs. The caller must use
+				// the same log throughout a session; retain this batch if that
+				// contract is broken, since queued inputs may already be ACKed.
 				WARN_LOG(COMMON, "spectator downlink gap: start_frame=%d have=%d", push.start_frame(), have);
+				std::lock_guard<std::mutex> lock(mtx_);
+				for (auto &pending : pending_) pushes.push_back(std::move(pending));
+				pending_.swap(pushes);
 				return applied;
 			}
 			const int32_t offset = have - push.start_frame();
 			for (int32_t i = offset; i < push.inputs_size(); ++i) {
 				log_file->add_inputs(push.inputs(i));
 			}
-			if (offset < push.inputs_size()) applied = true;
+			if (offset < push.inputs_size()) {
+				applied = true;
+				if (backlog_pending)
+					*backlog_pending = push.inputs_size() >= kInputPushFrames;
+			}
 		}
 
 		// Results change without another round start. A version also keeps a
@@ -110,14 +127,16 @@ bool GdxsvSpectatorDownlink::DrainInto(proto::BattleLogFile *log_file) {
 			log_file->set_disconnect_user_index(push.disconnect_user_index());
 			applied = true;
 		}
+		pushes.pop_front();
 	}
 
 	return applied;
 }
 
-void GdxsvSpectatorDownlink::ReportAcked(int32_t frame) {
+void GdxsvSpectatorDownlink::ReportAcked(int32_t frame, bool initial_download) {
 	std::lock_guard<std::mutex> lock(mtx_);
-	if (frame != acked_frame_) {
+	initial_download_ = initial_download_ && initial_download;
+	if (frame > acked_frame_) {
 		acked_frame_ = frame;
 		acked_dirty_ = true;
 	}
@@ -156,6 +175,74 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 		if (pkt.SerializePartialToArray(buf, sizeof(buf))) {
 			client.SendTo(buf, pkt.GetCachedSize(), remote);
 		}
+	};
+	auto send_ack = [&]() {
+		proto::Packet pkt;
+		{
+			std::lock_guard<std::mutex> lock(mtx_);
+			if (!acked_dirty_) return;
+			pkt.set_type(proto::MessageType::SpectatorInputAckType);
+			auto *ack = pkt.mutable_spectator_input_ack_data();
+			ack->set_battle_code(battle_code);
+			ack->set_ack_frame(acked_frame_);
+			ack->set_patch_ack(static_cast<int32_t>(patches_.size()));
+			ack->set_round_ack(acked_round_state_version_);
+			acked_dirty_ = false;
+		}
+		char buf[256];
+		if (pkt.SerializePartialToArray(buf, sizeof(buf))) {
+			client.SendTo(buf, pkt.GetCachedSize(), remote);
+		}
+	};
+
+	int32_t received_frame = from_frame;
+	int32_t received_round_state_version = 0;
+	bool oversized_push_warned = false;
+	auto stage_push = [&](proto::SpectatorInputPush &push) {
+		if (push.inputs_size() > kInputPushFrames && !oversized_push_warned) {
+			WARN_LOG(COMMON, "spectator downlink rejected oversized inputs: battle_code=%s start_frame=%d inputs=%d limit=%d (once per session)",
+				battle_code.c_str(), push.start_frame(), push.inputs_size(), kInputPushFrames);
+			oversized_push_warned = true;
+		}
+		std::lock_guard<std::mutex> lock(mtx_);
+		// Duplicate/lost ACKs need feedback too, even when no new data fits.
+		acked_dirty_ = true;
+		if (push.has_header()) {
+			header_ = push.header();
+			// Completion belongs to the final, ACK-gated push, never the
+			// bootstrap metadata of an already-finished battle.
+			header_.clear_close_reason();
+			header_.clear_disconnect_user_index();
+			have_header_ = true;
+			patch_total_ = push.patch_total(); // Includes the zero-patch case.
+		}
+		if (0 < push.patches_size() || 0 < push.patch_total()) {
+			patch_total_ = push.patch_total();
+			if (push.patch_start() == static_cast<int32_t>(patches_.size())) {
+				for (int i = 0; i < push.patches_size(); ++i) patches_.push_back(push.patches(i));
+			}
+		}
+
+		const int64_t end = static_cast<int64_t>(push.start_frame()) + push.inputs_size();
+		const bool new_inputs = push.start_frame() >= 0 && push.start_frame() <= received_frame &&
+			push.inputs_size() <= kInputPushFrames && end <= std::numeric_limits<int32_t>::max() && end > received_frame;
+		const bool new_round = push.close_reason().empty() && push.round_state_version() > received_round_state_version;
+		if (pending_.size() < kMaxPendingPushes && (new_inputs || new_round || !push.close_reason().empty())) {
+			// A gap, duplicate or invalid range must not advance the ACK. Round
+			// metadata can still be retained independently of missing inputs.
+			if (!new_inputs) push.clear_inputs();
+			const int32_t version = push.round_state_version();
+			pending_.push_back(std::move(push));
+			if (new_inputs) received_frame = static_cast<int32_t>(end);
+			if (new_round) received_round_state_version = version;
+		}
+		// Keep ACK=0 until bootstrap succeeds, so a lost header still gets
+		// requested by the existing from_frame=0 keepalive recovery path.
+		if (initial_download_ && have_header_ && patch_total_ >= 0 &&
+			static_cast<int32_t>(patches_.size()) == patch_total_ && received_frame > acked_frame_) {
+			acked_frame_ = received_frame;
+		}
+		return initial_download_;
 	};
 
 	send_subscribe(from_frame);
@@ -196,63 +283,12 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 			if (pkt.type() != proto::MessageType::SpectatorInputPushType) continue;
 			if (pkt.spectator_input_push_data().battle_code() != battle_code) continue;
 
-			const auto &push = pkt.spectator_input_push_data();
-			std::lock_guard<std::mutex> lock(mtx_);
-			if (push.has_header()) {
-				header_ = push.header();
-				// Completion belongs to the final, ACK-gated push, never the
-				// bootstrap metadata of an already-finished battle.
-				header_.clear_close_reason();
-				header_.clear_disconnect_user_index();
-				have_header_ = true;
-				patch_total_ = push.patch_total(); // Includes the zero-patch case.
-			}
-			if (0 < push.patches_size() || 0 < push.patch_total()) {
-				patch_total_ = push.patch_total();
-				// Only append a chunk that starts exactly where we left off.
-				// Anything else is a resend or out of order, and LBS keeps
-				// resending from patch_ack until it lands.
-				if (push.patch_start() == static_cast<int32_t>(patches_.size())) {
-					for (int i = 0; i < push.patches_size(); ++i) {
-						patches_.push_back(push.patches(i));
-					}
-				}
-			}
-			pending_.push_back(push);
-			// Repeat receipt feedback even during bootstrap, when playback
-			// cannot advance its frame ACK yet. This keeps patch delivery and
-			// the server's silent-subscriber recovery moving.
-			acked_dirty_ = true;
+			// During startup the next chunk need not wait for an emulated
+			// frame or the rest of the receive batch to finish first.
+			if (stage_push(*pkt.mutable_spectator_input_push_data())) send_ack();
 		}
 
-		int32_t ack_frame = 0;
-		int32_t patch_ack = 0;
-		int32_t round_ack = 0;
-		bool should_ack = false;
-		{
-			std::lock_guard<std::mutex> lock(mtx_);
-			patch_ack = static_cast<int32_t>(patches_.size());
-			if (acked_dirty_) {
-				ack_frame = acked_frame_;
-				round_ack = acked_round_state_version_;
-				should_ack = true;
-				acked_dirty_ = false;
-			}
-		}
-		if (should_ack) {
-			proto::Packet pkt;
-			pkt.set_type(proto::MessageType::SpectatorInputAckType);
-			auto *ack = pkt.mutable_spectator_input_ack_data();
-			ack->set_battle_code(battle_code);
-			ack->set_ack_frame(ack_frame);
-			ack->set_patch_ack(patch_ack);
-			ack->set_round_ack(round_ack);
-
-			char buf[256];
-			if (pkt.SerializePartialToArray(buf, sizeof(buf))) {
-				client.SendTo(buf, pkt.GetCachedSize(), remote);
-			}
-		}
+		send_ack(); // Application may have advanced while no new packet arrived.
 
 		const int64_t now_ms =
 			std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())

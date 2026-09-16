@@ -260,6 +260,9 @@ msgstr "自護"
 msgid "%s Wins"
 msgstr "%s 獲勝"
 
+msgid "Draw"
+msgstr "打和"
+
 msgid "Gundam"
 msgstr "高達"
 

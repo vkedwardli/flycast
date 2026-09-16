@@ -684,33 +684,6 @@ struct gdx_player_info32_record gdx_player_info32_records[4] GDXSTATSDATA = {0};
 
 _Static_assert(sizeof(struct gdx_player_info32_record) == 64, "player-info32 saved layout");
 
-void GDXSTATSFUNC gdx_player_info32_draw(const char *text, float x, float y, float z) {
-    void (*draw)(const char *, float, float, float) = (void *)0x0c01e444;
-    u32 caller = (u32)__builtin_return_address(0);
-    caller &= 0x1fffffff;
-    if (caller != 0x0c03e4c8 && caller != 0x0c03e644 &&
-        caller != 0x0c03e7c0 && caller != 0x0c03e93c) {
-        draw(text, x, y, z);
-        return;
-    }
-
-    // Owner 0x0c03e2e0 keeps its advanced order cursor at incoming sp+0x10.
-    const u8 *cursor = *(const u8 **)((u8 *)__builtin_dwarf_cfa() + 0x10);
-    u32 player = cursor[-1];
-    if (player >= 4 || !gdx_player_info32_records[player].valid) {
-        draw(text, x, y, z);
-        return;
-    }
-
-    struct gdx_player_info32_record *record = &gdx_player_info32_records[player];
-    union { u32 bits; float value; } volatile *scale =
-        (void *)(read32(0x0c391388) + 0x14b8);
-    u32 saved = scale->bits;
-    scale->value = gdx_stats_multiply(scale->value, record->scale_x);
-    draw(record->text, x, y, z);
-    scale->bits = saved;
-}
-
 // The largest displayed total is three UINT32_MAX counters (11 digits).
 // Repeated subtraction avoids an SH4 64-bit division runtime dependency.
 static u32 GDXSTATSFUNC gdx_stats_format_number(char *out, u32 capacity, u64 value, u32 width) {
@@ -744,7 +717,7 @@ static u32 GDXSTATSFUNC gdx_stats_format_number(char *out, u32 capacity, u64 val
 
 // Preserve the translated labels; only replace the three original %4d fields.
 static u32 GDXSTATSFUNC gdx_stats_format_player(char *out, u32 capacity,
-        const char *format, u32 format_size, const u32 values[3]) {
+        const char *format, u32 format_size, const u64 values[3]) {
     u32 size = 0, field = 0;
     for (u32 i = 0; i < format_size && format[i] != 0;) {
         if (format[i] == '%') {
@@ -803,6 +776,63 @@ static u32 GDXSTATSFUNC gdx_stats_scale_bits(u32 width, u32 length) {
     if (width > length || (width == length && (mantissa & 1)))
         ++mantissa;
     return ((exponent - 1) << 23) + mantissa;
+}
+
+void GDXSTATSFUNC gdx_player_info32_draw(const char *text, float x, float y, float z) {
+    void (*draw)(const char *, float, float, float) = (void *)0x0c01e444;
+    u32 caller = (u32)__builtin_return_address(0) & 0x1fffffff;
+    const u8 *stack = __builtin_dwarf_cfa();
+    u32 player;
+    if (caller == 0x0c03e4c8 || caller == 0x0c03e644 ||
+        caller == 0x0c03e7c0 || caller == 0x0c03e93c) {
+        // Normal cards: the advanced order cursor identifies the actual slot.
+        const u8 *cursor = *(const u8 **)(stack + 0x10);
+        player = cursor[-1];
+    } else if (caller == 0x0c03ecb6 || caller == 0x0c03ee62 ||
+               caller == 0x0c03f00a || caller == 0x0c03f1b6) {
+        // Network-wait redraw: this owner saves the slot itself at incoming sp+8.
+        player = *(const u32 *)(stack + 8);
+    } else {
+        // Includes the separate current-battle line, names and countdown.
+        draw(text, x, y, z);
+        return;
+    }
+    if (player >= 4 || !gdx_player_info32_records[player].valid) {
+        draw(text, x, y, z);
+        return;
+    }
+
+    // Match Restore's full-record bounds check before reading session counters.
+    u32 session = read32(0x0c394524);
+    if (session < 0x0c000000 || session > 0x0d000000 - 5 * 0x2c0) {
+        draw(text, x, y, z);
+        return;
+    }
+    struct gdx_player_info32_record *record = &gdx_player_info32_records[player];
+    u32 guest = session + (player + 1) * 0x2c0;
+    // The ROM updates these once per completed round and clears them before
+    // receiving a new baseline. Never add to the baseline or capped legacy totals.
+    u64 values[3] = {
+        (u64)record->battles + read16(guest + 0x2b0),
+        (u64)record->wins + read16(guest + 0x2b2),
+        (u64)record->losses + read16(guest + 0x2b4) + read16(guest + 0x2b6),
+    };
+    u32 length = gdx_stats_format_player(record->text, sizeof(record->text),
+        (const char *)0x0c1d31bc, 16, values);
+    if (!length) {
+        draw(text, x, y, z);
+        return;
+    }
+    // Derive text/fit on each lifetime draw, including after a restored state
+    // or a digit-width transition. Draws count as losses, as in the stock cards.
+    u32 scale_bits = gdx_stats_scale_bits(18, length);
+    __builtin_memcpy(&record->scale_x, &scale_bits, sizeof(scale_bits));
+    union { u32 bits; float value; } volatile *scale =
+        (void *)(read32(0x0c391388) + 0x14b8);
+    u32 saved = scale->bits;
+    scale->value = gdx_stats_multiply(scale->value, record->scale_x);
+    draw(record->text, x, y, z);
+    scale->bits = saved;
 }
 
 // Validate the legacy prefix before accessing the appended 32-bit counters.
@@ -897,6 +927,7 @@ static void GDXSTATSFUNC gdx_stats_initialize() {
         gdx_player_info32_records[i].valid = 0;
     gdx_win_lose32_record.valid = 0;
     write32(BIN_OFFSET + 0x0c03e454, gdx_player_info32_draw);
+    write32(BIN_OFFSET + 0x0c03ec40, gdx_player_info32_draw);
     write32(BIN_OFFSET + 0x0c041f8c, gdx_win_lose32_draw);
     gdx_stats_state.needs_init = 0;
 }
@@ -963,7 +994,7 @@ static u32 GDXSTATSFUNC gdx_stats_store_player(const u8 *body, u32 size, u32 slo
     if (!legacy_size || body[0] != slot + 1)
         return 0;
     struct gdx_player_info32_record *record = &gdx_player_info32_records[slot];
-    u32 values[3];
+    u64 values[3];
     for (u32 i = 0; i < 3; ++i)
         values[i] = gdx_stats_read_be32(body + legacy_size + i * 4);
     record->battles = values[0];

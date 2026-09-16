@@ -60,6 +60,11 @@ struct GdxsvReplayUiState {
 	bool liveAtEdge = false;
 	int liveBufferFrames = 30;
 
+	bool IsLiveSeekTarget(int frame) const {
+		// An older round's right edge is not the latest broadcast position.
+		return liveMode && inputCount > 0 && timelineEnd == inputCount && frame == inputCount;
+	}
+
 	bool NeedsTakeoverAlignment(uint16_t currentInput) const {
 		return takeoverAligning || (takeoverCountdown > 0 && !takeoverSkipInputMatching &&
 			currentInput != takeoverTargetInput);

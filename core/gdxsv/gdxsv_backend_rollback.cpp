@@ -12,6 +12,7 @@
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
+#include "gdxsv_round_counters.h"
 #include "gdxsv_emu_hooks.h"
 #include "gdxsv.pb.h"
 #include "imgui/imgui.h"
@@ -650,8 +651,13 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	}
 
 	// round_data
-	if (ggpo::active() && !round_data_.empty() && gdxsv_ReadMem8(WinTeam) != 0 && gdxsv_ReadMem8(WinTeam) != round_data_.back().win_team()) {
-		round_data_.back().set_win_team(gdxsv_ReadMem8(WinTeam));
+	// Disc 2 timeouts set the local opponent as winner AND a separate draw
+	// flag. Normalize before comparing so a draw is queued once, not every
+	// frame. Keep this in metadata; never change the game's winner byte.
+	const int outcome = gdxsv_round_counters::Outcome(gdxsv_ReadMem8(WinTeam),
+		disk == 2 ? gdxsv_ReadMem8(gdxsv_round_counters::kDrawFlagAddress) : 0);
+	if (ggpo::active() && !round_data_.empty() && outcome != 0 && outcome != round_data_.back().win_team()) {
+		round_data_.back().set_win_team(outcome);
 		round_data_.back().clear_used_ms();
 		NOTICE_LOG(COMMON, "ROUND %d WIN_TEAM = %d", round_data_.size(), round_data_.back().win_team());
 		for (int i = 0; i < matching_.player_count(); ++i) {
