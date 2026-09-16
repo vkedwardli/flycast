@@ -1202,7 +1202,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				if ((live_mode_ || live_counter_reconstruction_) && gdxsv.Disk() == 2) {
 					live_counter_reconstruction_ = true;
 					const bool complete = gdxsv_round_counters::Restore(log_file_, round - 1);
-					NOTICE_LOG(COMMON, "Live round %d counters: %s", round, complete ? "restored" : "waiting for results");
+					NOTICE_LOG(COMMON, "Live round %d counters: %s", round, complete ? "restored" : "incomplete");
 				}
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
 				start_msg_count_ = round;

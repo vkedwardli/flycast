@@ -49,8 +49,12 @@ inline bool Restore(const proto::BattleLogFile& log, int completed = -1) {
 		return false;
 	const u32 session = gdxsv_ReadMem32(kSessionPointer);
 	// Require the full record span in main RAM before following the guest pointer.
-	if (session < 0x0c000000 || session > 0x0d000000 - (kPlayerSlots + 1) * kPlayerStride)
+	if (session < 0x0c000000 || session > 0x0d000000 - (kPlayerSlots + 1) * kPlayerStride) {
+		// Diagnose explicit round jumps without flooding per-frame retries.
+		if (completed >= 0)
+			WARN_LOG(COMMON, "Round counter restore skipped: invalid session pointer 0x%08x (completed=%d)", session, completed);
 		return false;
+	}
 	bool complete = true;
 	for (int i = 0; i < kPlayerSlots; ++i) {
 		const u32 player = session + (i + 1) * kPlayerStride;
