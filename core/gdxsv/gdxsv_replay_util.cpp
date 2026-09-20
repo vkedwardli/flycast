@@ -108,6 +108,28 @@ size_t local_replay_page = 0;
 std::string selected_replay_file;
 std::string broken_replay_path;
 
+// 4-player replay: the host spawns three guests that each have a whole cold
+// boot ahead of them, so it cannot start playing the moment they are
+// launched. Waiting for them inside the start barrier would block the UI
+// thread with the window frozen and nothing on screen to say why, so the wait
+// is a phase of the browser instead: this holds what the host needs to start
+// playing once its guests report in.
+struct MultiPovPendingStart {
+	bool active = false;
+	std::string replay_file;
+	std::vector<uint8_t> replay;
+	std::chrono::steady_clock::time_point deadline{};
+};
+MultiPovPendingStart multi_pov_pending;
+
+// How long the browser waits for the guests before starting anyway with
+// however many made it. As patient as the barrier itself: a cold boot on a
+// slow disk is minutes, and a screen that starts without them is worse than a
+// slow start.
+constexpr auto kMultiPovGuestBootWait = std::chrono::seconds(180);
+
+constexpr char kMultiPovWaitPopup[] = "##gdxsv_multi_pov_wait";
+
 std::string search_user_id;
 std::string search_user_name;
 std::string search_pilot_name;
@@ -1516,7 +1538,102 @@ void gdxsv_start_live_spectate(const std::string& battle_code, int pov) {
 	}
 }
 
+// Fire-and-forget: notify server of replay play (HTTP replays only)
+static void gdxsv_notify_replay_played(const std::string& replay_file) {
+	if (replay_file.find("http") != 0) return;
+	const auto pos = replay_file.find_last_of("/");
+	if (pos == std::string::npos) return;
+	std::string battle_code = replay_file.substr(pos + 1);
+	const auto dot = battle_code.find(".pb");
+	if (dot != std::string::npos) {
+		battle_code = battle_code.substr(0, dot);
+	}
+	std::thread([battle_code]() {
+		http::init();
+		std::vector<u8> dl;
+		std::string content_type;
+		auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch()).count();
+		std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
+			+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
+		http::get(url, dl, content_type);
+	}).detach();
+}
+
+// 4-player replay: the guests are in - or we have waited long enough - so the
+// host loads the bootstrap savestate and plays 1P from the bytes it already
+// published.
+static void gdxsv_multi_pov_start_pending() {
+	const std::string replay_file = multi_pov_pending.replay_file;
+	const std::vector<uint8_t> replay = std::move(multi_pov_pending.replay);
+	multi_pov_pending = {};
+
+	dc_loadstate(99);
+	if (gdxsv.StartReplayBuffer(replay, 0)) {
+		gui_state = GuiState::Closed;
+		gdxsv_notify_replay_played(replay_file);
+	} else {
+		// Nothing is going to play, so do not leave three guests waiting on a
+		// host that never starts.
+		gdxsv_multi_pov::Close();
+		dc_loadstate(90);
+		broken_replay_path = replay_file;
+	}
+}
+
+// The user changed their mind while the guests were still booting. Closing
+// the session is what tells them to quit; nothing has been loaded here yet,
+// so there is no savestate to put back.
+static void gdxsv_multi_pov_cancel_pending() {
+	NOTICE_LOG(COMMON, "multi-pov: start cancelled while waiting for the guests");
+	gdxsv_multi_pov::Close();
+	multi_pov_pending = {};
+}
+
+// Drawn over the replay browser while the host waits for the screens it
+// spawned. A modal, so a second Replay click cannot start another session on
+// top of this one.
+static void gdxsv_multi_pov_wait_modal() {
+	if (!multi_pov_pending.active) return;
+
+	const int ready = gdxsv_multi_pov::ReadyGuestCount();
+	const int total = gdxsv_multi_pov::SpawnedGuestCount();
+
+	if (!ImGui::IsPopupOpen(kMultiPovWaitPopup)) ImGui::OpenPopup(kMultiPovWaitPopup);
+	if (!ImGui::BeginPopupModal(kMultiPovWaitPopup, nullptr,
+								ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove))
+		return;
+
+	// Wrap at a fixed width: an auto-resizing popup has no width of its own
+	// for TextWrapped to wrap against.
+	ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
+	ImGui::Text("Waiting for the other screens (%d/%d)", ready, total);
+	ImGui::TextWrapped("The other three points of view are starting up. They join this one as soon as they are ready.");
+	ImGui::PopTextWrapPos();
+	ImGui::NewLine();
+	const bool cancelled = ImGui::Button(ICON_FA_XMARK "  Cancel", ScaledVec2(120, 40));
+
+	// Read after the readout above is drawn, so the last thing the user sees
+	// is the full count rather than the popup vanishing a frame before it.
+	const bool everyone_in = total <= ready;
+	const bool waited_long_enough = multi_pov_pending.deadline <= std::chrono::steady_clock::now();
+	if (cancelled || everyone_in || waited_long_enough) ImGui::CloseCurrentPopup();
+	ImGui::EndPopup();
+
+	if (cancelled) {
+		gdxsv_multi_pov_cancel_pending();
+	} else if (everyone_in || waited_long_enough) {
+		if (!everyone_in)
+			WARN_LOG(COMMON, "multi-pov: only %d of %d screens started up in time; playing without the rest", ready, total);
+		gdxsv_multi_pov_start_pending();
+	}
+}
+
 void gdxsv_start_replay(const std::string& replay_file, int pov) {
+	// One session at a time: the Replay button is behind the modal, but the
+	// keyboard is not.
+	if (multi_pov_pending.active) return;
+
 	if (gdxsv.IsSaveStateAllowed()) {
 		dc_savestate(90);
 	}
@@ -1531,35 +1648,23 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 		const bool four_screen =
 			gdxsv_multi_pov::FourScreenRequested() && gdxsv_multi_pov::BeginHostSession(replay_file, hosted_replay);
 
+		if (four_screen) {
+			// The guests are cold-booting. Hold the start here, where the
+			// browser can show how many have arrived, rather than loading the
+			// savestate now and waiting it out in the barrier with a frozen
+			// window.
+			multi_pov_pending.active = true;
+			multi_pov_pending.replay_file = replay_file;
+			multi_pov_pending.replay = std::move(hosted_replay);
+			multi_pov_pending.deadline = std::chrono::steady_clock::now() + kMultiPovGuestBootWait;
+			return;
+		}
+
 		dc_loadstate(99);
-		const bool started = four_screen ? gdxsv.StartReplayBuffer(hosted_replay, 0) : gdxsv.StartReplayFile(replay_file.c_str(), pov);
-		if (started) {
+		if (gdxsv.StartReplayFile(replay_file.c_str(), pov)) {
 			gui_state = GuiState::Closed;
-			// Fire-and-forget: notify server of replay play (HTTP replays only)
-			if (replay_file.find("http") == 0) {
-				auto pos = replay_file.find_last_of("/");
-				if (pos != std::string::npos) {
-					std::string battle_code = replay_file.substr(pos + 1);
-					auto dot = battle_code.find(".pb");
-					if (dot != std::string::npos) {
-						battle_code = battle_code.substr(0, dot);
-					}
-					std::thread([battle_code]() {
-						http::init();
-						std::vector<u8> dl;
-						std::string content_type;
-						auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
-							std::chrono::system_clock::now().time_since_epoch()).count();
-						std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
-							+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
-						http::get(url, dl, content_type);
-					}).detach();
-				}
-			}
+			gdxsv_notify_replay_played(replay_file);
 		} else {
-			// Nothing is going to play, so do not leave three guests waiting
-			// on a host that never starts.
-			if (four_screen) gdxsv_multi_pov::Close();
 			dc_loadstate(90);
 			broken_replay_path = replay_file;
 		}
@@ -1616,4 +1721,8 @@ void gdxsv_replay_select_dialog() {
 
 	ImGui::End();
 	ImGui::PopStyleVar();  // ImGuiStyleVar_WindowRounding
+
+	// After End(), so the modal is a window of its own on top of the browser
+	// rather than a child of it.
+	gdxsv_multi_pov_wait_modal();
 }

@@ -172,6 +172,10 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_loading_ = false;
 	ctrl_loading_wait_frames_ = 0;
 	save_converted_log_ = false;
+	multi_pov_host_ = false;
+	multi_pov_guest_ = false;
+	multi_pov_published_frame_ = -1;
+	multi_pov_seek_generation_ = 0;
 	timeline_revision_ = 0;
 	displayed_timeline_revision_ = 0;
 	ctrl_bar_visibility_ = 0.0f;
@@ -233,7 +237,10 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 	}
 
-	if (State::LbsStartBattleFlow <= ui.state && !ui.pauseMenuOpen) {
+	// A guest has no controls of its own. The user drives the host's screen
+	// and the other three follow it, so reading local input here would have a
+	// guest arguing with the host over where playback is.
+	if (State::LbsStartBattleFlow <= ui.state && !ui.pauseMenuOpen && !gdxsv_is_multi_pov_guest()) {
 		auto input = mapleInputState[0];
 		// Map analog stick to d-pad (fullAxes are 16-bit, >> 8 to match convertInput thresholds)
 		if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
@@ -562,6 +569,13 @@ constexpr auto kLiveInitialQuietWait = std::chrono::seconds(1);
 
 constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 
+// 4-player replay: how far the host's playback position may move in a single
+// frame before a guest treats it as a seek rather than as playing on. Ordinary
+// playback advances one key message per frame whatever the speed, so anything
+// larger - or any move backwards - is a jump, a round change or a step back,
+// and the guests have to follow it as one.
+constexpr int kMultiPovSeekSlack = 60;
+
 }  // namespace
 
 
@@ -688,6 +702,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 	// mainui_loop. Draining here lets each one pick up newly arrived frames,
 	// so a catch-up seek can chase an edge that is still moving.
 	CheckLiveUpdate();
+	// Before ProcessUiCommands, so what the host did lands on the same frame
+	// the guest noticed it rather than a frame later.
+	FollowMultiPovHost();
 	ProcessUiCommands();
 	if (state_ != State::End) {
 		UpdateReplayFlow();
@@ -696,6 +713,69 @@ void GdxsvBackendReplay::OnNextFrame() {
 	if (live_counter_reconstruction_ && !takeover_ && state_ == State::McsInBattle && gdxsv.Disk() == 2)
 		gdxsv_round_counters::Restore(log_file_);
 	PublishUiState();
+	// After the frame, so the guests are told where the host actually ended
+	// up - including the far side of a seek that ran within this frame.
+	PublishMultiPovPlayback();
+}
+
+// Host: publish this frame's playback position for the three guests.
+//
+// A seek is not signalled by each command that causes one - there are half a
+// dozen of those, and SetRound and StepFrameBackward move the position
+// without going anywhere near JumpToKeyMsg. It is signalled by the position
+// itself moving in a way playing on cannot explain, which catches all of them
+// at one place.
+void GdxsvBackendReplay::PublishMultiPovPlayback() {
+	if (!multi_pov_host_) return;
+	// Mid-seek the position is a work-in-progress; publishing it would have
+	// the guests chase each intermediate step of the host's own jump.
+	if (seeking_) return;
+
+	const int64_t moved = static_cast<int64_t>(key_msg_count_) - multi_pov_published_frame_;
+	if (0 <= multi_pov_published_frame_ && (moved < 0 || kMultiPovSeekSlack < moved)) {
+		++multi_pov_seek_generation_;
+		NOTICE_LOG(COMMON, "multi-pov: seek %d -> %d, generation %u", multi_pov_published_frame_, key_msg_count_,
+				   multi_pov_seek_generation_);
+	}
+	multi_pov_published_frame_ = key_msg_count_;
+
+	gdxsv_multi_pov::PlaybackState st;
+	st.position = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+	st.speed = ctrl_play_speed_;
+	st.paused = ctrl_pause_;
+	st.seek_generation = multi_pov_seek_generation_;
+	st.seek_target = key_msg_count_;
+	gdxsv_multi_pov::PublishPlayback(st);
+}
+
+// Guest: apply what the host published. The guest has no controls of its own -
+// it queues the commands the user's input would have queued on this screen, so
+// pausing, speed and seeking all go through the paths that already work.
+void GdxsvBackendReplay::FollowMultiPovHost() {
+	if (!multi_pov_guest_) return;
+	if (state_ == State::None || state_ == State::End) return;
+
+	gdxsv_multi_pov::PlaybackState st;
+	if (!gdxsv_multi_pov::ReadPlayback(st)) return;
+
+	// Seeks first: a pause or speed change queued behind a jump that has not
+	// landed yet would otherwise be applied at the position being left.
+	if (st.seek_generation != multi_pov_seek_generation_) {
+		multi_pov_seek_generation_ = st.seek_generation;
+		ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target));
+		return;
+	}
+
+	// One command, then wait for it: these toggle, so queueing a second before
+	// the first is applied would undo it. ProcessUiCommands drops a pause
+	// outside battle exactly as it does on the host, so the two stay in step.
+	if (st.paused != ctrl_pause_ && !ui_commands_.contains(ReplayCtrlCommand::TogglePause) &&
+		!ctrl_commands_.contains(ReplayCtrlCommand::TogglePause))
+		ui_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
+
+	if (st.speed != ctrl_play_speed_ && !ui_commands_.contains(ReplayCtrlCommand::SetSpeed) &&
+		!ctrl_commands_.contains(ReplayCtrlCommand::SetSpeed))
+		ui_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, st.speed);
 }
 
 void GdxsvBackendReplay::OnNextFrameInternal() {
@@ -1327,6 +1407,12 @@ bool GdxsvBackendReplay::OnOpenMenu() {
 		return false;
 	}
 
+	// The pause menu belongs to the screen the user is driving: pausing a
+	// guest on its own would only desync it from the host.
+	if (gdxsv_is_multi_pov_guest()) {
+		return false;
+	}
+
 	ui_commands_.emplace_back(ReplayCtrlCommand::TogglePauseMenu);
 
 	return false;
@@ -1369,11 +1455,17 @@ void GdxsvBackendReplay::DisplayOSD() {
 	}
 	// Kept for measuring the buffer during pacing work; not shown by default.
 	// DisplayLivePacingOSD(ui);
-	if (!ui.seeking && ui.pauseMenuOpen) {
-		RenderPauseMenu(ui);
+	// A guest is a view, not a player: the pause menu and the control bar
+	// belong to the host's screen. The Loading HUD stays - it is not a
+	// control, and it is what explains a quadrant holding still while it
+	// follows the host through a seek.
+	if (!gdxsv_is_multi_pov_guest()) {
+		if (!ui.seeking && ui.pauseMenuOpen) {
+			RenderPauseMenu(ui);
+		}
+		UpdateControlBarVisibility(ui);
+		RenderControlBar(ui);
 	}
-	UpdateControlBarVisibility(ui);
-	RenderControlBar(ui);
 	RenderLoadingHud(ui);
 }
 
@@ -1812,6 +1904,14 @@ bool GdxsvBackendReplay::Start() {
 
 	live_buffer_frames_ = std::clamp(config::loadInt("gdxsv", "LiveBufferFrames", kLiveDefaultBuffer), kLiveMinBuffer, kLiveMaxBuffer);
 	spectate_sync_.Join(config::loadStr("gdxsv", "SpectateSyncGroup", ""));
+
+	// 4-player replay: what this process is, latched once. A guest takes its
+	// playback orders from the host and shows no controls of its own; the
+	// host publishes where it is for the other three to follow.
+	multi_pov_host_ = gdxsv_multi_pov::CurrentRole() == gdxsv_multi_pov::Role::Host;
+	multi_pov_guest_ = gdxsv_multi_pov::CurrentRole() == gdxsv_multi_pov::Role::Guest;
+	multi_pov_published_frame_ = -1;
+	multi_pov_seek_generation_ = 0;
 
 	// 4-player replay: the four screens line up here, once, before any of them
 	// plays a frame. A guest cold-boots while the host is already in the menu,

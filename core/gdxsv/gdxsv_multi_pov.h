@@ -116,6 +116,11 @@ bool HostWaitForGuests(int expected_guests, int timeout_ms);
 // How many guests have reported ready so far, for a progress readout.
 int ReadyGuestCount();
 
+// How many guests this host actually spawned. 0 outside a host session, so
+// `SpawnedGuestCount() <= ReadyGuestCount()` reads as "everyone is in" either
+// way.
+int SpawnedGuestCount();
+
 // ---- per-frame publication --------------------------------------------
 
 void PublishPlayback(const PlaybackState& state);
@@ -170,6 +175,12 @@ int GuestPov();
 // host waits for its guests, the guests wait for the host's go. A no-op
 // outside a session. See the note above GuestReadyAndWait for why this has to
 // happen at all.
+//
+// The host's wait here is short: the long one - a guest has a whole cold boot
+// ahead of it - belongs to the UI, which can say "waiting for the other
+// screens (n/3)" while it happens instead of freezing the window. By the time
+// playback starts the guests are already in, and this only settles the last
+// of them.
 void WaitAtStartBarrier();
 
 }  // namespace gdxsv_multi_pov

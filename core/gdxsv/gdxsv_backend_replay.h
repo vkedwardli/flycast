@@ -80,6 +80,13 @@ class GdxsvBackendReplay {
 	void RenderTakeoverAlignment(const UiState& ui, u16 current_input);
 	void RenderTakeoverCountdown(const UiState& ui);
 	void UpdateControlBarVisibility(const UiState& ui);
+
+	// 4-player replay: playback is host-driven. The host publishes where it
+	// is every frame; a guest turns that into the same control commands the
+	// user would have given, so all four screens show the same moment and the
+	// guests never negotiate a position of their own.
+	void PublishMultiPovPlayback();
+	void FollowMultiPovHost();
 	void RenderControlBar(const UiState& ui);
 	void RenderLoadingHud(const UiState& ui);
 	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
@@ -300,6 +307,18 @@ class GdxsvBackendReplay {
 	GdxsvSpectateSync spectate_sync_;
 	int sync_subframe_ = 0;
 	int sync_max_wait_ms_ = 2;
+
+	// ---- 4-player replay ----
+	// Latched at Start so the per-frame and per-widget paths do not have to
+	// ask the session what this process is.
+	bool multi_pov_host_ = false;
+	bool multi_pov_guest_ = false;
+
+	// Host: the playback position last published, used to spot a
+	// discontinuity - any jump, round change or step backward - and turn it
+	// into a seek the guests replay. Guest: the last seek generation applied.
+	int multi_pov_published_frame_ = -1;
+	uint32_t multi_pov_seek_generation_ = 0;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;

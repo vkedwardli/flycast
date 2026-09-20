@@ -29,6 +29,11 @@ namespace {
 // and plays on its own.
 constexpr int kStartBarrierMs = 180 * 1000;
 
+// The host's own wait at the barrier. Short, because the UI has already held
+// the start until the guests reported in (see gdxsv_start_replay): this only
+// covers the last of them arriving between that check and the first frame.
+constexpr int kHostBarrierSettleMs = 5 * 1000;
+
 // How long a guest waits for the host to publish the payload. The host writes
 // it before spawning anyone, so this only has to cover the mapping itself.
 constexpr int kReplayFetchMs = 30 * 1000;
@@ -175,6 +180,8 @@ bool FourScreenRequested() {
 	return config::GdxReplayFourScreen.get();
 }
 
+int SpawnedGuestCount() { return g_spawned_guests; }
+
 int GuestPov() {
 	const int screen = ScreenArg();
 	if (screen < 1 || kScreens <= screen) return -1;
@@ -220,7 +227,7 @@ bool BeginGuestSession(std::vector<uint8_t>& replay_out) {
 void WaitAtStartBarrier() {
 	switch (CurrentRole()) {
 		case Role::Host:
-			HostWaitForGuests(g_spawned_guests, kStartBarrierMs);
+			HostWaitForGuests(g_spawned_guests, kHostBarrierSettleMs);
 			break;
 		case Role::Guest:
 			GuestReadyAndWait(kStartBarrierMs);
