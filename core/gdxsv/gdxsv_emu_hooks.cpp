@@ -153,6 +153,14 @@ void gdxsv_emu_end_frame() {
 // The four screens are one window, so they leave together: when the host is
 // closed or killed, its guests close too rather than being left behind on the
 // desktop with no way to drive them.
+//
+// This has to run on the UI thread, which is why it is called from
+// gdxsv_emu_mainui_loop and not from the per-frame hook: dc_exit() unloads the
+// game, and Emulator::stop() waits on the emulation thread's future to finish
+// (Emulator::checkStatus). Called from gdxsv_emu_next_frame - which runs on
+// that very thread whenever threaded rendering is on, i.e. by default - the
+// guest would have waited on itself and hung with its window frozen instead of
+// closing. gdxsv_backend_rollback exits from OnMainUiLoop for the same reason.
 static void gdxsv_multi_pov_tick() {
 	if (gdxsv_multi_pov::CurrentRole() != gdxsv_multi_pov::Role::Guest) return;
 	if (!gdxsv_multi_pov::HostGone()) return;
@@ -165,7 +173,6 @@ void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
-	gdxsv_multi_pov_tick();
 }
 
 void gdxsv_emu_mainui_loop() {
@@ -175,6 +182,7 @@ void gdxsv_emu_mainui_loop() {
 	// Window calls have to happen on the UI thread on Windows and macOS alike,
 	// and this is that thread.
 	gdxsv_multi_pov::WindowTick();
+	gdxsv_multi_pov_tick();
 }
 
 void gdxsv_emu_rpc() {

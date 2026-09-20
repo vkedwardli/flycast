@@ -1723,6 +1723,18 @@ void GdxsvBackendReplay::Stop() {
 	// reload here would also throw away a volume change the user made from the
 	// pause menu during an ordinary replay before it had been written out.
 	if (multi_pov_guest_) config::AudioVolume.load();
+	// The host has stopped driving, so there is nothing for the guests to
+	// follow: closing the session is what tells them to go. Without this,
+	// leaving the replay from the pause menu - or simply reaching the end of it
+	// - would return the host to the browser and leave three windows behind,
+	// still up, with no host publishing anything and no controls of their own.
+	// Only the host process dying would have cleared them, and only after the
+	// heartbeat went stale.
+	if (multi_pov_host_) {
+		NOTICE_LOG(COMMON, "multi-pov: host replay stopped, closing the session");
+		gdxsv_multi_pov::Close();
+		multi_pov_host_ = false;
+	}
 	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();
 	settings.gdxsv.replayModeActive = false;
