@@ -128,6 +128,11 @@ void SpawnGuest(int screen, const std::string& session_id, const WindowRect& qua
 	const std::string top = "window:top=" + std::to_string(quadrant.y);
 	const std::string width = "window:width=" + std::to_string(quadrant.w);
 	const std::string height = "window:height=" + std::to_string(quadrant.h);
+	// A guest is a quadrant, whatever the user's own window was doing last
+	// time. Without these it would come up maximized or full screen and sit on
+	// top of the grid.
+	const std::string maximized = "window:maximized=no";
+	const std::string fullscreen = "window:fullscreen=no";
 	const std::string content = settings.content.path;
 
 	const char* args[] = {
@@ -139,6 +144,8 @@ void SpawnGuest(int screen, const std::string& session_id, const WindowRect& qua
 		"-config", top.c_str(),
 		"-config", width.c_str(),
 		"-config", height.c_str(),
+		"-config", maximized.c_str(),
+		"-config", fullscreen.c_str(),
 		content.c_str(),
 	};
 	NOTICE_LOG(COMMON, "multi-pov: spawning %dP at %d,%d %dx%d", screen + 1, quadrant.x, quadrant.y, quadrant.w, quadrant.h);

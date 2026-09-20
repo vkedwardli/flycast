@@ -73,6 +73,11 @@ bool gdxsv_is_using_memwatch();
 // null renderer. Meant for automated runs on machines without a display.
 bool gdxsv_headless();
 
+// True in a 4-player replay guest: a screen spawned and driven by a host
+// instance. A guest is placed where the grid says, so it must not write its
+// window geometry back to the config file the host and every later run share.
+bool gdxsv_is_multi_pov_guest();
+
 // Exit status the process should end with. gdxsv sets it from local test
 // results so a harness can tell a finished match from a broken one.
 void gdxsv_set_exit_code(int code);

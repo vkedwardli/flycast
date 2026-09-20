@@ -41,6 +41,8 @@ std::atomic<int> gdxsv_frame_period_trim_us{0};
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
+bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov::GuestPov(); }
+
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
 
 bool gdxsv_is_online() { return gdxsv.IsOnline(); }

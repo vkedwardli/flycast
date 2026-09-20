@@ -904,7 +904,9 @@ void sdl_window_create()
 void sdl_window_destroy()
 {
 #ifndef __SWITCH__
-	if (window != nullptr && !settings.naomi.slave && settings.naomi.drivingSimSlave == 0)
+	// A 4-player replay guest is placed by the grid, not by the user, so
+	// saving its quadrant would move the window every later run.
+	if (window != nullptr && !settings.naomi.slave && settings.naomi.drivingSimSlave == 0 && !gdxsv_is_multi_pov_guest())
 	{
 		get_window_state();
 		config::saveInt("window", "left", windowPos.x);
