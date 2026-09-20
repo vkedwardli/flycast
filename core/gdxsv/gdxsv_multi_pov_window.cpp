@@ -19,6 +19,17 @@ bool g_last_maximized = false;
 uint32_t g_applied_generation = 0;
 bool g_borderless_done = false;
 
+// The host has not laid the grid out yet. Its window is a whole window at this
+// point, not a quadrant, so the first tick has to place it.
+bool g_host_placed = false;
+
+// Does `inner` fit inside `outer`?
+bool FitsWithin(const WindowRect& inner, const WindowRect& outer) {
+	if (outer.w <= 0 || outer.h <= 0) return true;  // nothing known to fit inside
+	return outer.x <= inner.x && outer.y <= inner.y && inner.x + inner.w <= outer.x + outer.w &&
+		   inner.y + inner.h <= outer.y + outer.h;
+}
+
 void TickHost() {
 	HostWindow hw;
 
@@ -39,6 +50,23 @@ void TickHost() {
 		const WindowRect frame = window::GetFrame();
 		hw.group = {frame.x, frame.y, frame.w * 2, frame.h * 2};
 		hw.maximized = false;
+
+		if (!g_host_placed) {
+			// First tick of the session. The host is still a full-size window,
+			// so a grid of twice that usually runs off the bottom-right of the
+			// display and three of the four screens would come up off-screen.
+			// Lay the grid over the work area instead and take the top-left
+			// quadrant; the user can move and resize it from there.
+			const WindowRect area = window::WorkArea();
+			if (!FitsWithin(hw.group, area)) {
+				hw.group = area;
+				WindowRect quadrants[kScreens];
+				ComputeGrid(hw.group, quadrants);
+				window::SetFrame(quadrants[0]);
+				NOTICE_LOG(COMMON, "multi-pov: grid laid out over the work area %dx%d", area.w, area.h);
+			}
+			g_host_placed = true;
+		}
 	}
 	hw.rect = window::GetFrame();
 
