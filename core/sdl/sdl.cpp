@@ -859,6 +859,11 @@ static int suspendEventFilter(void *userdata, SDL_Event *event)
 }
 #endif
 
+SDL_Window *sdl_get_window()
+{
+	return window;
+}
+
 void sdl_window_create()
 {
 	if (SDL_WasInit(SDL_INIT_VIDEO) == 0)

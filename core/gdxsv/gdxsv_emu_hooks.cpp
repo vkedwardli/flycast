@@ -14,6 +14,7 @@
 #include "gdxsv_custom_texture_source.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_window.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_update.h"
 #include "gdxsv_custom_texture_update.h"
@@ -169,6 +170,9 @@ void gdxsv_emu_mainui_loop() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookMainUiLoop();
 	}
+	// Window calls have to happen on the UI thread on Windows and macOS alike,
+	// and this is that thread.
+	gdxsv_multi_pov::WindowTick();
 }
 
 void gdxsv_emu_rpc() {
