@@ -1,5 +1,7 @@
 #include "gdxsv_backend_replay.h"
 
+#include "gdxsv_multi_pov.h"
+
 #include <nowide/cstdio.hpp>
 
 #include <unistd.h>
@@ -1810,6 +1812,13 @@ bool GdxsvBackendReplay::Start() {
 
 	live_buffer_frames_ = std::clamp(config::loadInt("gdxsv", "LiveBufferFrames", kLiveDefaultBuffer), kLiveMinBuffer, kLiveMaxBuffer);
 	spectate_sync_.Join(config::loadStr("gdxsv", "SpectateSyncGroup", ""));
+
+	// 4-player replay: the four screens line up here, once, before any of them
+	// plays a frame. A guest cold-boots while the host is already in the menu,
+	// so without this the host would be far enough ahead that the per-frame
+	// group barrier above treats it as a peer still catching up and never
+	// closes the gap. No-op outside a 4-screen session.
+	gdxsv_multi_pov::WaitAtStartBarrier();
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
 	// waiting entirely, which is the A/B for "is the barrier costing frames?".

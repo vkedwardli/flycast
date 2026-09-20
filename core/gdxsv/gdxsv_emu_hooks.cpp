@@ -13,6 +13,7 @@
 #include <nowide/cstdio.hpp>
 #include "gdxsv_custom_texture_source.h"
 #include "gdxsv_gui_settings.h"
+#include "gdxsv_multi_pov.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_update.h"
 #include "gdxsv_custom_texture_update.h"
@@ -57,7 +58,13 @@ void gdxsv_emu_start() {
 		const auto spectate = config::loadStr("gdxsv", "spectate", "");
 		const auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
 
-		if (!replay.empty() || !spectate.empty()) {
+		// A 4-player replay guest was spawned by a host that already holds the
+		// replay, so it has no source of its own to name here - it resumes
+		// from the same slot-99 bootstrap and picks the bytes up in
+		// gdxsv_emu_loadstate.
+		const bool multi_pov_guest = 0 <= gdxsv_multi_pov::GuestPov();
+
+		if (!replay.empty() || !spectate.empty() || multi_pov_guest) {
 			// Both resume from the shared slot-99 bootstrap savestate;
 			// gdxsv_emu_loadstate picks which of the two to start from the
 			// same config once the state is loaded.
@@ -140,10 +147,22 @@ void gdxsv_emu_end_frame() {
 	}
 }
 
+// The four screens are one window, so they leave together: when the host is
+// closed or killed, its guests close too rather than being left behind on the
+// desktop with no way to drive them.
+static void gdxsv_multi_pov_tick() {
+	if (gdxsv_multi_pov::CurrentRole() != gdxsv_multi_pov::Role::Guest) return;
+	if (!gdxsv_multi_pov::HostGone()) return;
+	NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
+	gdxsv_multi_pov::Close();
+	dc_exit();
+}
+
 void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
+	gdxsv_multi_pov_tick();
 }
 
 void gdxsv_emu_mainui_loop() {
@@ -189,6 +208,20 @@ void gdxsv_emu_loadstate(int slot) {
 		if (!spectate.empty() && slot == 99) {
 			auto spectate_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
 			gdxsv.StartLiveSpectate(spectate.c_str(), spectate_pov - 1);
+		}
+
+		// 4-player replay guest: everything comes from the host - the replay
+		// bytes included - so nothing is read from disk or the network here.
+		const int multi_pov = gdxsv_multi_pov::GuestPov();
+		if (0 <= multi_pov && slot == 99) {
+			std::vector<u8> buf;
+			if (gdxsv_multi_pov::BeginGuestSession(buf) && gdxsv.StartReplayBuffer(buf, multi_pov)) {
+				NOTICE_LOG(COMMON, "multi-pov: guest %dP playing from the host's replay", multi_pov + 1);
+			} else {
+				ERROR_LOG(COMMON, "multi-pov: guest %dP could not start; closing this screen", multi_pov + 1);
+				gdxsv_multi_pov::Close();
+				dc_exit();
+			}
 		}
 
 		auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
