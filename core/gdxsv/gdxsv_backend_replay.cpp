@@ -1719,6 +1719,10 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 void GdxsvBackendReplay::Stop() {
 	live_initial_catchup_ = false;
 	config::FixedFrequency.load();
+	// Undo the 4-player replay guest mute, and only that: an unconditional
+	// reload here would also throw away a volume change the user made from the
+	// pause menu during an ordinary replay before it had been written out.
+	if (multi_pov_guest_) config::AudioVolume.load();
 	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();
 	settings.gdxsv.replayModeActive = false;
@@ -1912,6 +1916,18 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_guest_ = gdxsv_multi_pov::CurrentRole() == gdxsv_multi_pov::Role::Guest;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+
+	// A guest is silent: four processes mixing the same battle out of phase is
+	// noise, and the host is the screen the user is driving. The command line
+	// already asks for this (aica.Volume=0, transient), which covers the guest's
+	// boot; it is re-applied here because a per-game config section is loaded
+	// after the command line and would otherwise put the volume back. Restored
+	// in Stop(). override() and not set() so it is never written to the config
+	// file - the four processes share one.
+	if (multi_pov_guest_) {
+		config::AudioVolume.override(0);
+		config::AudioVolume.calcDbPower();
+	}
 
 	// 4-player replay: the four screens line up here, once, before any of them
 	// plays a frame. A guest cold-boots while the host is already in the menu,

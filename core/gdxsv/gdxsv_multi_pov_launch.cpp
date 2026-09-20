@@ -138,6 +138,13 @@ void SpawnGuest(int screen, const std::string& session_id, const WindowRect& qua
 	// top of the grid.
 	const std::string maximized = "window:maximized=no";
 	const std::string fullscreen = "window:fullscreen=no";
+	// Four instances mixing the same battle is noise, not four soundtracks:
+	// only the host - the screen the user is actually driving - is audible.
+	// The volume rather than settings.aica.muteAudio because that flag belongs
+	// to the replay backend, which toggles it around seeks and fast-forward, so
+	// a guest could not hold it down. Transient like the rest, so the user's own
+	// volume setting is untouched.
+	const std::string volume = "config:aica.Volume=0";
 	const std::string content = settings.content.path;
 
 	const char* args[] = {
@@ -151,6 +158,7 @@ void SpawnGuest(int screen, const std::string& session_id, const WindowRect& qua
 		"-config", height.c_str(),
 		"-config", maximized.c_str(),
 		"-config", fullscreen.c_str(),
+		"-config", volume.c_str(),
 		content.c_str(),
 	};
 	NOTICE_LOG(COMMON, "multi-pov: spawning %dP at %d,%d %dx%d", screen + 1, quadrant.x, quadrant.y, quadrant.w, quadrant.h);
