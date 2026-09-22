@@ -1757,8 +1757,7 @@ void GdxsvBackendReplay::Stop() {
 	// leaving the replay from the pause menu - or simply reaching the end of it
 	// - would return the host to the browser and leave three windows behind,
 	// still up, with no host publishing anything and no controls of their own.
-	// Only the host process dying would have cleared them, and only after the
-	// heartbeat went stale.
+	// Only the host process dying would have cleared them.
 	if (multi_pov_host_) {
 		NOTICE_LOG(COMMON, "multi-pov: host replay stopped, closing the session");
 		gdxsv_multi_pov_close();

@@ -18,6 +18,7 @@
 #include "InMemoryListener.h"
 #include "NetworkListener.h"
 #include "Log.h"
+#include "gdxsv/gdxsv_multi_pov.h"
 #include "StringUtil.h"
 #include "cfg/cfg.h"
 #include "oslib/oslib.h"
@@ -152,10 +153,11 @@ void LogManager::UpdateConfig()
 			m_listeners[LogListener::FILE_LISTENER].reset();
 		}
 		else {
+			const std::string logName = gdxsv_multi_pov_log_file_name();
 #if defined(__ANDROID__) || defined(__APPLE__) || defined(TARGET_UWP)
-			std::string logPath = get_writable_data_path("flycast.log");
+			std::string logPath = get_writable_data_path(logName);
 #else
-			std::string logPath = "flycast.log";
+			std::string logPath = logName;
 #endif
 			FileLogListener *listener = new FileLogListener(logPath);
 			if (!listener->IsValid())

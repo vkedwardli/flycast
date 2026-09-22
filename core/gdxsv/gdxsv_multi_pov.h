@@ -170,6 +170,11 @@ bool gdxsv_multi_pov_begin_guest_session(std::vector<uint8_t>& replay_out);
 // The POV this process plays, from the command line. -1 when not a guest.
 int gdxsv_multi_pov_guest_pov();
 
+// The log file this process writes. All four screens share one working
+// directory, so a guest names its log after the screen it plays rather than
+// writing over the host's.
+std::string gdxsv_multi_pov_log_file_name();
+
 // Lines the four screens up once, before the first frame of playback: the
 // host waits for its guests, the guests wait for the host's go. A no-op
 // outside a session. See the note above gdxsv_multi_pov_guest_ready_and_wait for why this has to

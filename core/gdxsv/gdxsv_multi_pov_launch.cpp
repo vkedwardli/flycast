@@ -191,6 +191,12 @@ int gdxsv_multi_pov_guest_pov() {
 	return screen;
 }
 
+std::string gdxsv_multi_pov_log_file_name() {
+	const int screen = gdxsv_multi_pov_guest_pov();
+	if (screen < 0) return "flycast.log";
+	return "flycast-" + std::to_string(screen + 1) + "P.log";
+}
+
 bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out) {
 	g_spawned_guests = 0;
 

@@ -92,8 +92,9 @@ static void TickHost() {
 	}
 	hw.generation = g_generation;
 
-	// Published every frame even when nothing moved: this is also the host's
-	// heartbeat, and a host that stops ticking is a host the guests give up on.
+	// Published every frame even when nothing moved: it is a handful of stores,
+	// and it keeps the header the live truth for a guest that is still booting
+	// and has not read the layout yet.
 	gdxsv_multi_pov_publish_host_window(hw);
 }
 

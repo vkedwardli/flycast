@@ -7,6 +7,8 @@
 #endif
 #include <windows.h>
 #else
+#include <csignal>
+#include <cerrno>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -32,12 +34,27 @@ constexpr size_t kPayloadOffset = 4096;
 // by another process, not a budget.
 constexpr uint64_t kMaxReplayBytes = 256ull * 1024 * 1024;
 
-// A session whose host has not ticked for this long is dead: the host was
-// killed and never ran gdxsv_multi_pov_close(), so the guests must not wait for it forever.
-constexpr int64_t kHostStaleUs = 5000000;
-
-static int64_t NowUs() {
-	return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+// Whether a process of the session is still running. This is what "gone"
+// means, and the only thing that can be asked without the other process's
+// help: a heartbeat cannot tell a host that is busy from a host that is dead,
+// and a screen loading a game holds its UI thread for tens of seconds with
+// nothing to tick with. A guest that guesses wrong closes a window the user is
+// watching, so it guesses on the process, not on a clock.
+static bool ProcessAlive(int32_t pid) {
+	if (pid <= 0) return false;
+#ifdef _WIN32
+	// SYNCHRONIZE is enough to wait on it, and a process that has exited is
+	// signalled at once. A pid we cannot open at all is a pid that is gone -
+	// the four screens are our own children, started by us.
+	HANDLE proc = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(pid));
+	if (proc == nullptr) return false;
+	const bool alive = WaitForSingleObject(proc, 0) == WAIT_TIMEOUT;
+	CloseHandle(proc);
+	return alive;
+#else
+	// EPERM means it exists and is not ours; ESRCH means it is gone.
+	return kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
+#endif
 }
 
 static int32_t CurrentPid() {
@@ -49,7 +66,7 @@ static int32_t CurrentPid() {
 }
 
 // Everything the four processes share. Single-writer per field: the host owns
-// all of it except the guest heartbeats and the ready mask, so plain atomics
+// all of it except the guest pids and the ready mask, so plain atomics
 // are enough and no cross-process mutex is needed.
 struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> magic;
@@ -59,7 +76,6 @@ struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> replay_ready;
 
 	std::atomic<int32_t> host_pid;
-	std::atomic<int64_t> host_heartbeat_us;
 	std::atomic<uint32_t> host_closed;
 
 	// Start barrier: a guest sets its bit, the host raises `go` once they are
@@ -67,7 +83,9 @@ struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> ready_mask;
 	std::atomic<uint32_t> go;
 
-	std::atomic<int64_t> guest_heartbeat_us[kGdxsvMultiPovScreens];
+	// Written by each guest into its own slot when it joins, cleared when it
+	// leaves.
+	std::atomic<int32_t> guest_pid[kGdxsvMultiPovScreens];
 
 	// Playback, written by the host every frame.
 	std::atomic<int64_t> position;
@@ -193,23 +211,11 @@ struct GdxsvMultiPovSession {
 
 static GdxsvMultiPovSession g_session;
 
-// The host has to keep proving it is alive, or a guest cannot tell "sitting in
-// a menu" from "killed". Every publication ticks it.
-static void TouchHost() {
-	if (g_session.header() != nullptr) g_session.header()->host_heartbeat_us.store(NowUs(), std::memory_order_release);
-}
-
-static void TouchGuest() {
-	GdxsvMultiPovHeader* h = g_session.header();
-	if (h == nullptr || g_session.screen < 0) return;
-	h->guest_heartbeat_us[g_session.screen].store(NowUs(), std::memory_order_release);
-}
-
 static bool HostAlive(const GdxsvMultiPovHeader* h) {
 	if (h->host_closed.load(std::memory_order_acquire) != 0) return false;
-	const int64_t hb = h->host_heartbeat_us.load(std::memory_order_acquire);
-	// Before the first tick the host is starting up, not gone.
-	return hb == 0 || NowUs() - hb < kHostStaleUs;
+	const int32_t pid = h->host_pid.load(std::memory_order_acquire);
+	// Before the host writes its pid the session is being created, not gone.
+	return pid == 0 || ProcessAlive(pid);
 }
 
 std::string gdxsv_multi_pov_new_session_id() {
@@ -245,7 +251,6 @@ bool gdxsv_multi_pov_host_create(const std::string& session_id, const std::vecto
 	h->version.store(kVersion, std::memory_order_relaxed);
 	h->total_size.store(size, std::memory_order_relaxed);
 	h->host_pid.store(CurrentPid(), std::memory_order_relaxed);
-	h->host_heartbeat_us.store(NowUs(), std::memory_order_relaxed);
 
 	std::memcpy(g_session.payload(), replay.data(), replay.size());
 	h->replay_size.store(replay.size(), std::memory_order_relaxed);
@@ -291,7 +296,7 @@ bool gdxsv_multi_pov_guest_open(const std::string& session_id, int screen) {
 	g_session.map = m;
 	g_session.map_size = static_cast<size_t>(on_disk);
 	g_session.path = path;
-	TouchGuest();
+	g_session.header()->guest_pid[screen].store(CurrentPid(), std::memory_order_release);
 
 	NOTICE_LOG(COMMON, "multi-pov: guest %dP joined session %s", screen + 1, session_id.c_str());
 	return true;
@@ -309,7 +314,7 @@ void gdxsv_multi_pov_close() {
 		// closing one closes them all.
 		h->host_closed.store(1, std::memory_order_release);
 	} else if (0 <= g_session.screen && g_session.screen < kGdxsvMultiPovScreens) {
-		h->guest_heartbeat_us[g_session.screen].store(0, std::memory_order_release);
+		h->guest_pid[g_session.screen].store(0, std::memory_order_release);
 	}
 	UnmapSession(g_session.map, g_session.map_size);
 	g_session.map = nullptr;
@@ -354,7 +359,6 @@ bool gdxsv_multi_pov_guest_ready_and_wait(int timeout_ms) {
 	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Guest) return false;
 
 	h->ready_mask.fetch_or(1u << g_session.screen, std::memory_order_acq_rel);
-	TouchGuest();
 
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
 	while (h->go.load(std::memory_order_acquire) == 0) {
@@ -366,7 +370,6 @@ bool gdxsv_multi_pov_guest_ready_and_wait(int timeout_ms) {
 			WARN_LOG(COMMON, "multi-pov: no start signal within %d ms; starting anyway", timeout_ms);
 			return false;
 		}
-		TouchGuest();
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 	return true;
@@ -393,7 +396,6 @@ bool gdxsv_multi_pov_host_wait_for_guests(int expected_guests, int timeout_ms) {
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
 	bool all_in = false;
 	while (std::chrono::steady_clock::now() < deadline) {
-		TouchHost();
 		if (expected_guests <= gdxsv_multi_pov_ready_guest_count()) {
 			all_in = true;
 			break;
@@ -405,7 +407,6 @@ bool gdxsv_multi_pov_host_wait_for_guests(int expected_guests, int timeout_ms) {
 				 expected_guests);
 
 	// Released either way: the screens that did make it must not hang.
-	TouchHost();
 	h->go.store(1, std::memory_order_release);
 	return all_in;
 }
@@ -420,7 +421,6 @@ void gdxsv_multi_pov_publish_playback(const GdxsvMultiPovPlayback& state) {
 	// Last, so a guest that sees a new generation sees the target that goes
 	// with it.
 	h->seek_generation.store(state.seek_generation, std::memory_order_release);
-	TouchHost();
 }
 
 bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out) {
@@ -431,7 +431,6 @@ bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out) {
 	out.position = h->position.load(std::memory_order_relaxed);
 	out.speed = h->speed.load(std::memory_order_relaxed);
 	out.paused = h->paused.load(std::memory_order_relaxed) != 0;
-	if (g_session.role == GdxsvMultiPovRole::Guest) TouchGuest();
 	return true;
 }
 
@@ -448,7 +447,6 @@ void gdxsv_multi_pov_publish_host_window(const GdxsvMultiPovHostWindow& window) 
 	h->grp_h.store(window.group.h, std::memory_order_relaxed);
 	h->maximized.store(window.maximized ? 1u : 0u, std::memory_order_relaxed);
 	h->win_generation.store(window.generation, std::memory_order_release);
-	TouchHost();
 }
 
 bool gdxsv_multi_pov_read_host_window(GdxsvMultiPovHostWindow& out) {
@@ -477,10 +475,8 @@ bool gdxsv_multi_pov_host_gone() {
 bool gdxsv_multi_pov_guests_gone() {
 	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return true;
-	const int64_t now = NowUs();
 	for (int i = 1; i < kGdxsvMultiPovScreens; ++i) {
-		const int64_t hb = h->guest_heartbeat_us[i].load(std::memory_order_acquire);
-		if (hb != 0 && now - hb < kHostStaleUs) return false;
+		if (ProcessAlive(h->guest_pid[i].load(std::memory_order_acquire))) return false;
 	}
 	return true;
 }
