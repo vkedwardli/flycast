@@ -43,6 +43,13 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area();
 // Guests drop their decorations so the grid reads as one window.
 void gdxsv_multi_pov_window_set_borderless(bool borderless);
 
+// What this window's frame adds around its client area: the title bar and the
+// borders, in pixels per side.
+struct GdxsvMultiPovInsets {
+	int32_t left = 0, top = 0, right = 0, bottom = 0;
+};
+GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets();
+
 // Runs every frame on the UI thread (window calls are main-thread-only on
 // macOS and Windows alike): the host publishes where the grid is, the guests
 // put themselves in it. A no-op outside a 4-screen session.

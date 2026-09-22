@@ -73,6 +73,21 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	return out;
 }
 
+GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
+	GdxsvMultiPovInsets out;
+	SDL_Window* w = Window();
+	if (w == nullptr) return out;
+	int top = 0, left = 0, bottom = 0, right = 0;
+	// Not supported by every driver; zero insets are the right answer for a
+	// window the driver says nothing about.
+	if (SDL_GetWindowBordersSize(w, &top, &left, &bottom, &right) != 0) return out;
+	out.left = left;
+	out.top = top;
+	out.right = right;
+	out.bottom = bottom;
+	return out;
+}
+
 void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	SDL_Window* w = Window();
 	if (w != nullptr) SDL_SetWindowBordered(w, borderless ? SDL_FALSE : SDL_TRUE);

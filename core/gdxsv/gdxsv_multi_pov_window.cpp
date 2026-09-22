@@ -27,6 +27,24 @@ static bool FitsWithin(const GdxsvMultiPovRect& inner, const GdxsvMultiPovRect& 
 		   inner.y + inner.h <= outer.y + outer.h;
 }
 
+// The part of the work area the grid may cover. The grid is laid out in
+// client rects and the host keeps its frame, so its title bar and left border
+// live outside its quadrant: laid out over the whole work area, the host's
+// caption lands above the top of the display and the user is left with a
+// window they cannot move, drag or close - including after the replay ends,
+// because nothing moves the window back.
+static GdxsvMultiPovRect HostGridArea() {
+	GdxsvMultiPovRect area = gdxsv_multi_pov_window_work_area();
+	const GdxsvMultiPovInsets insets = gdxsv_multi_pov_window_frame_insets();
+	// Only the top and the left: the host's own frame is what has to fit, and
+	// the other two sides of it hang over the guests, which are on-screen.
+	area.x += insets.left;
+	area.w -= insets.left;
+	area.y += insets.top;
+	area.h -= insets.top;
+	return area;
+}
+
 static void TickHost() {
 	GdxsvMultiPovHostWindow hw;
 
@@ -34,7 +52,7 @@ static void TickHost() {
 		// Maximized means the grid takes the whole work area, tiled into four
 		// equal quadrants. The host cannot be maximized and be one quadrant at
 		// the same time, so it drops out of the maximized state into its own.
-		const GdxsvMultiPovRect area = gdxsv_multi_pov_window_work_area();
+		const GdxsvMultiPovRect area = HostGridArea();
 		GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];
 		gdxsv_multi_pov_compute_grid(area, quadrants);
 		gdxsv_multi_pov_window_unmaximize();
@@ -54,7 +72,7 @@ static void TickHost() {
 			// display and three of the four screens would come up off-screen.
 			// Lay the grid over the work area instead and take the top-left
 			// quadrant; the user can move and resize it from there.
-			const GdxsvMultiPovRect area = gdxsv_multi_pov_window_work_area();
+			const GdxsvMultiPovRect area = HostGridArea();
 			if (!FitsWithin(hw.group, area)) {
 				hw.group = area;
 				GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];

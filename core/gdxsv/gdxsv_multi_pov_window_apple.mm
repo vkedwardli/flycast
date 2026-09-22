@@ -108,6 +108,22 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	return FromCocoa(screen.visibleFrame);
 }
 
+GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
+	GdxsvMultiPovInsets out;
+	NSWindow* win = CocoaWindow();
+	if (win == nil) return out;
+
+	const NSRect content = NSMakeRect(0, 0, 100, 100);
+	const NSRect frame = [win frameRectForContentRect:content];
+	out.left = static_cast<int32_t>(std::lround(NSMinX(content) - NSMinX(frame)));
+	out.right = static_cast<int32_t>(std::lround(NSMaxX(frame) - NSMaxX(content)));
+	// Cocoa measures from the bottom, the grid from the top: the title bar is
+	// what sits above NSMaxY(content).
+	out.top = static_cast<int32_t>(std::lround(NSMaxY(frame) - NSMaxY(content)));
+	out.bottom = static_cast<int32_t>(std::lround(NSMinY(content) - NSMinY(frame)));
+	return out;
+}
+
 void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return;

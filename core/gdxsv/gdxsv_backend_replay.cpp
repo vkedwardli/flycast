@@ -176,6 +176,7 @@ void GdxsvBackendReplay::Reset() {
 	multi_pov_guest_ = false;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+	multi_pov_round_resync_ = false;
 	timeline_revision_ = 0;
 	displayed_timeline_revision_ = 0;
 	ctrl_bar_visibility_ = 0.0f;
@@ -732,7 +733,13 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	if (seeking_) return;
 
 	const int64_t moved = static_cast<int64_t>(key_msg_count_) - multi_pov_published_frame_;
-	if (0 <= multi_pov_published_frame_ && (moved < 0 || kMultiPovSeekSlack < moved)) {
+	if (multi_pov_round_resync_) {
+		// A round change, not a seek: absorbed rather than published. Held
+		// until the position settles because a round change moves it twice -
+		// the realign onto the round's start index, then the skip through the
+		// intro - and a publish may land between the two.
+		if (0 <= multi_pov_published_frame_ && 0 <= moved && moved <= kMultiPovSeekSlack) multi_pov_round_resync_ = false;
+	} else if (0 <= multi_pov_published_frame_ && (moved < 0 || kMultiPovSeekSlack < moved)) {
 		++multi_pov_seek_generation_;
 		NOTICE_LOG(COMMON, "multi-pov: seek %d -> %d, generation %u", multi_pov_published_frame_, key_msg_count_,
 				   multi_pov_seek_generation_);
@@ -1928,6 +1935,7 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_guest_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Guest;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+	multi_pov_round_resync_ = false;
 
 	// A guest is silent: four processes mixing the same battle out of phase is
 	// noise, and the host is the screen the user is driving. The command line
@@ -2385,6 +2393,15 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 
 		start_msg_count_++;
 		NOTICE_LOG(COMMON, "StartMsg key_msg_count %d", key_msg_count_);
+
+		// The three guests play the same replay and reach this round on their
+		// own. Letting the move the round is about to make look like a seek
+		// would send each of them through a savestate load and a silent re-run
+		// of the round's opening frames instead - work that is both wasted and
+		// done at the one moment the round is changing underneath it. Not
+		// while seeking_: a round boundary crossed inside a seek is part of
+		// that seek, which the guests do have to follow.
+		if (multi_pov_host_ && !seeking_) multi_pov_round_resync_ = true;
 
 		if (start_msg_count_ - 1 < log_file_.start_msg_indexes_size()) {
 			const auto key_msg_count = log_file_.start_msg_indexes(start_msg_count_ - 1);

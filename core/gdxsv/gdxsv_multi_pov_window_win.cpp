@@ -87,6 +87,24 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	return out;
 }
 
+GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
+	GdxsvMultiPovInsets out;
+	HWND hwnd = Hwnd();
+	if (hwnd == nullptr) return out;
+
+	// AdjustWindowRectEx on an empty rect: what comes back is the frame alone,
+	// negative on the sides the frame grows outwards.
+	RECT r{0, 0, 0, 0};
+	const DWORD style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_STYLE));
+	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_EXSTYLE));
+	if (!AdjustWindowRectEx(&r, style, FALSE, ex_style)) return out;
+	out.left = -r.left;
+	out.top = -r.top;
+	out.right = r.right;
+	out.bottom = r.bottom;
+	return out;
+}
+
 void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return;

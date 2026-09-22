@@ -21,3 +21,5 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() { return {}; }
 
 void gdxsv_multi_pov_window_set_borderless(bool) {}
 
+GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() { return {}; }
+
