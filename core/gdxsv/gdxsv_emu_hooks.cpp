@@ -41,7 +41,7 @@ std::atomic<int> gdxsv_frame_period_trim_us{0};
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
-bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov::GuestPov(); }
+bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov_guest_pov(); }
 
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
 
@@ -65,7 +65,7 @@ void gdxsv_emu_start() {
 		// replay, so it has no source of its own to name here - it resumes
 		// from the same slot-99 bootstrap and picks the bytes up in
 		// gdxsv_emu_loadstate.
-		const bool multi_pov_guest = 0 <= gdxsv_multi_pov::GuestPov();
+		const bool multi_pov_guest = 0 <= gdxsv_multi_pov_guest_pov();
 
 		if (!replay.empty() || !spectate.empty() || multi_pov_guest) {
 			// Both resume from the shared slot-99 bootstrap savestate;
@@ -162,10 +162,10 @@ void gdxsv_emu_end_frame() {
 // guest would have waited on itself and hung with its window frozen instead of
 // closing. gdxsv_backend_rollback exits from OnMainUiLoop for the same reason.
 static void gdxsv_multi_pov_tick() {
-	if (gdxsv_multi_pov::CurrentRole() != gdxsv_multi_pov::Role::Guest) return;
-	if (!gdxsv_multi_pov::HostGone()) return;
+	if (gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::Guest) return;
+	if (!gdxsv_multi_pov_host_gone()) return;
 	NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
-	gdxsv_multi_pov::Close();
+	gdxsv_multi_pov_close();
 	dc_exit();
 }
 
@@ -181,7 +181,7 @@ void gdxsv_emu_mainui_loop() {
 	}
 	// Window calls have to happen on the UI thread on Windows and macOS alike,
 	// and this is that thread.
-	gdxsv_multi_pov::WindowTick();
+	gdxsv_multi_pov_window_tick();
 	gdxsv_multi_pov_tick();
 }
 
@@ -226,14 +226,14 @@ void gdxsv_emu_loadstate(int slot) {
 
 		// 4-player replay guest: everything comes from the host - the replay
 		// bytes included - so nothing is read from disk or the network here.
-		const int multi_pov = gdxsv_multi_pov::GuestPov();
+		const int multi_pov = gdxsv_multi_pov_guest_pov();
 		if (0 <= multi_pov && slot == 99) {
 			std::vector<u8> buf;
-			if (gdxsv_multi_pov::BeginGuestSession(buf) && gdxsv.StartReplayBuffer(buf, multi_pov)) {
+			if (gdxsv_multi_pov_begin_guest_session(buf) && gdxsv.StartReplayBuffer(buf, multi_pov)) {
 				NOTICE_LOG(COMMON, "multi-pov: guest %dP playing from the host's replay", multi_pov + 1);
 			} else {
 				ERROR_LOG(COMMON, "multi-pov: guest %dP could not start; closing this screen", multi_pov + 1);
-				gdxsv_multi_pov::Close();
+				gdxsv_multi_pov_close();
 				dc_exit();
 			}
 		}

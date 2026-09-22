@@ -1575,7 +1575,7 @@ static void gdxsv_multi_pov_start_pending() {
 	} else {
 		// Nothing is going to play, so do not leave three guests waiting on a
 		// host that never starts.
-		gdxsv_multi_pov::Close();
+		gdxsv_multi_pov_close();
 		dc_loadstate(90);
 		broken_replay_path = replay_file;
 	}
@@ -1586,7 +1586,7 @@ static void gdxsv_multi_pov_start_pending() {
 // so there is no savestate to put back.
 static void gdxsv_multi_pov_cancel_pending() {
 	NOTICE_LOG(COMMON, "multi-pov: start cancelled while waiting for the guests");
-	gdxsv_multi_pov::Close();
+	gdxsv_multi_pov_close();
 	multi_pov_pending = {};
 }
 
@@ -1596,8 +1596,8 @@ static void gdxsv_multi_pov_cancel_pending() {
 static void gdxsv_multi_pov_wait_modal() {
 	if (!multi_pov_pending.active) return;
 
-	const int ready = gdxsv_multi_pov::ReadyGuestCount();
-	const int total = gdxsv_multi_pov::SpawnedGuestCount();
+	const int ready = gdxsv_multi_pov_ready_guest_count();
+	const int total = gdxsv_multi_pov_spawned_guest_count();
 
 	if (!ImGui::IsPopupOpen(kMultiPovWaitPopup)) ImGui::OpenPopup(kMultiPovWaitPopup);
 	if (!ImGui::BeginPopupModal(kMultiPovWaitPopup, nullptr,
@@ -1646,7 +1646,7 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 		// single-screen playback rather than failing the replay.
 		std::vector<uint8_t> hosted_replay;
 		const bool four_screen =
-			gdxsv_multi_pov::FourScreenRequested() && gdxsv_multi_pov::BeginHostSession(replay_file, hosted_replay);
+			gdxsv_multi_pov_four_screen_requested() && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay);
 
 		if (four_screen) {
 			// The guests are cold-booting. Hold the start here, where the

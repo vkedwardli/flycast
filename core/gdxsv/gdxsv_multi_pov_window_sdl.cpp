@@ -12,18 +12,12 @@
 #include "sdl/sdl.h"
 #include "types.h"
 
-namespace gdxsv_multi_pov {
-namespace window {
-namespace {
+static SDL_Window* Window() { return gdxsv_headless() ? nullptr : sdl_get_window(); }
 
-SDL_Window* Window() { return gdxsv_headless() ? nullptr : sdl_get_window(); }
+bool gdxsv_multi_pov_window_available() { return Window() != nullptr; }
 
-}  // namespace
-
-bool Available() { return Window() != nullptr; }
-
-WindowRect GetFrame() {
-	WindowRect out;
+GdxsvMultiPovRect gdxsv_multi_pov_window_get_frame() {
+	GdxsvMultiPovRect out;
 	SDL_Window* w = Window();
 	if (w == nullptr) return out;
 
@@ -34,7 +28,7 @@ WindowRect GetFrame() {
 	return out;
 }
 
-void SetFrame(const WindowRect& rect) {
+void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect) {
 	SDL_Window* w = Window();
 	if (w == nullptr || rect.w <= 0 || rect.h <= 0) return;
 
@@ -49,18 +43,18 @@ void SetFrame(const WindowRect& rect) {
 	if (cur_x != rect.x || cur_y != rect.y) SDL_SetWindowPosition(w, rect.x, rect.y);
 }
 
-bool IsMaximized() {
+bool gdxsv_multi_pov_window_is_maximized() {
 	SDL_Window* w = Window();
 	return w != nullptr && (SDL_GetWindowFlags(w) & SDL_WINDOW_MAXIMIZED) != 0;
 }
 
-void Unmaximize() {
+void gdxsv_multi_pov_window_unmaximize() {
 	SDL_Window* w = Window();
 	if (w != nullptr) SDL_RestoreWindow(w);
 }
 
-WindowRect WorkArea() {
-	WindowRect out;
+GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
+	GdxsvMultiPovRect out;
 	SDL_Window* w = Window();
 	if (w == nullptr) return out;
 
@@ -79,10 +73,8 @@ WindowRect WorkArea() {
 	return out;
 }
 
-void SetBorderless(bool borderless) {
+void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	SDL_Window* w = Window();
 	if (w != nullptr) SDL_SetWindowBordered(w, borderless ? SDL_FALSE : SDL_TRUE);
 }
 
-}  // namespace window
-}  // namespace gdxsv_multi_pov

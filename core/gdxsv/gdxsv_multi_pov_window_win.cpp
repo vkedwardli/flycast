@@ -19,15 +19,11 @@
 // Defined in core/sdl/sdl.cpp.
 HWND getNativeHwnd();
 
-namespace gdxsv_multi_pov {
-namespace window {
-namespace {
-
-HWND Hwnd() { return gdxsv_headless() ? nullptr : getNativeHwnd(); }
+static HWND Hwnd() { return gdxsv_headless() ? nullptr : getNativeHwnd(); }
 
 // The window rect that produces the wanted client rect. Flycast's window has
 // no menu bar, so bMenu is FALSE.
-RECT ClientToWindowRect(HWND hwnd, const WindowRect& client) {
+static RECT ClientToWindowRect(HWND hwnd, const GdxsvMultiPovRect& client) {
 	RECT r{client.x, client.y, client.x + client.w, client.y + client.h};
 	const DWORD style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_STYLE));
 	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_EXSTYLE));
@@ -35,12 +31,10 @@ RECT ClientToWindowRect(HWND hwnd, const WindowRect& client) {
 	return r;
 }
 
-}  // namespace
+bool gdxsv_multi_pov_window_available() { return Hwnd() != nullptr; }
 
-bool Available() { return Hwnd() != nullptr; }
-
-WindowRect GetFrame() {
-	WindowRect out;
+GdxsvMultiPovRect gdxsv_multi_pov_window_get_frame() {
+	GdxsvMultiPovRect out;
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return out;
 
@@ -54,7 +48,7 @@ WindowRect GetFrame() {
 	return out;
 }
 
-void SetFrame(const WindowRect& rect) {
+void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect) {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr || rect.w <= 0 || rect.h <= 0) return;
 
@@ -62,12 +56,12 @@ void SetFrame(const WindowRect& rect) {
 	SetWindowPos(hwnd, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE | SWP_NOZORDER);
 }
 
-bool IsMaximized() {
+bool gdxsv_multi_pov_window_is_maximized() {
 	HWND hwnd = Hwnd();
 	return hwnd != nullptr && IsZoomed(hwnd);
 }
 
-void Unmaximize() {
+void gdxsv_multi_pov_window_unmaximize() {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return;
 	// SW_RESTORE rather than ShowWindow(SW_SHOWNORMAL): it keeps the window on
@@ -75,8 +69,8 @@ void Unmaximize() {
 	ShowWindow(hwnd, SW_RESTORE);
 }
 
-WindowRect WorkArea() {
-	WindowRect out;
+GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
+	GdxsvMultiPovRect out;
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return out;
 
@@ -93,7 +87,7 @@ WindowRect WorkArea() {
 	return out;
 }
 
-void SetBorderless(bool borderless) {
+void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return;
 
@@ -108,5 +102,3 @@ void SetBorderless(bool borderless) {
 				 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 }
 
-}  // namespace window
-}  // namespace gdxsv_multi_pov

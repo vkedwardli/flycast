@@ -19,9 +19,6 @@
 #include "stdclass.h"
 #include "types.h"
 
-namespace gdxsv_multi_pov {
-namespace {
-
 // A guest cold-boots the game and loads a savestate while the host is already
 // sitting in the replay browser, so the host has to be prepared to wait out a
 // whole startup. Generous on purpose: the cost of waiting too long is a slow
@@ -46,13 +43,13 @@ constexpr char kScreenKey[] = "MultiPovScreen";
 
 // Set once by the host when it spawns: how many guests the barrier should
 // expect. Only meaningful in the host process.
-int g_spawned_guests = 0;
+static int g_spawned_guests = 0;
 
-std::string SessionId() { return config::loadStr("gdxsv", kSessionKey, ""); }
+static std::string SessionId() { return config::loadStr("gdxsv", kSessionKey, ""); }
 
-int ScreenArg() { return config::loadInt("gdxsv", kScreenKey, 0); }
+static int ScreenArg() { return config::loadInt("gdxsv", kScreenKey, 0); }
 
-bool ReadLocalFile(const std::string& path, std::vector<uint8_t>& out) {
+static bool ReadLocalFile(const std::string& path, std::vector<uint8_t>& out) {
 	FILE* fp = nowide::fopen(path.c_str(), "rb");
 	if (fp == nullptr) {
 		WARN_LOG(COMMON, "multi-pov: cannot open replay %s", path.c_str());
@@ -78,7 +75,7 @@ bool ReadLocalFile(const std::string& path, std::vector<uint8_t>& out) {
 
 // The host is the only process that ever touches the replay source, local or
 // remote. Everything else is handed the bytes.
-bool LoadReplaySource(const std::string& source, std::vector<uint8_t>& out) {
+static bool LoadReplaySource(const std::string& source, std::vector<uint8_t>& out) {
 	if (source.compare(0, 4, "http") == 0) {
 		http::init();
 		std::string content_type;
@@ -96,14 +93,14 @@ bool LoadReplaySource(const std::string& source, std::vector<uint8_t>& out) {
 
 // Four screens only make sense for a four-player battle; anything else falls
 // back to ordinary single-screen playback rather than opening blank windows.
-bool IsFourPlayerBattle(const std::vector<uint8_t>& replay) {
+static bool IsFourPlayerBattle(const std::vector<uint8_t>& replay) {
 	proto::BattleLogFile log;
 	if (!log.ParseFromArray(replay.data(), static_cast<int>(replay.size()))) {
 		WARN_LOG(COMMON, "multi-pov: replay does not parse");
 		return false;
 	}
-	if (log.users_size() != kScreens) {
-		NOTICE_LOG(COMMON, "multi-pov: battle has %d players, not %d - using one screen", log.users_size(), kScreens);
+	if (log.users_size() != kGdxsvMultiPovScreens) {
+		NOTICE_LOG(COMMON, "multi-pov: battle has %d players, not %d - using one screen", log.users_size(), kGdxsvMultiPovScreens);
 		return false;
 	}
 	return true;
@@ -113,8 +110,8 @@ bool IsFourPlayerBattle(const std::vector<uint8_t>& replay) {
 // out when it closes, so this is the last known placement rather than the
 // live one; the window layer repositions the grid from the host's real rect
 // once it is up.
-WindowRect InitialGroupRect() {
-	WindowRect group;
+static GdxsvMultiPovRect InitialGroupRect() {
+	GdxsvMultiPovRect group;
 	group.w = std::max(320, config::loadInt("window", "width", 1280)) * 2;
 	group.h = std::max(240, config::loadInt("window", "height", 720)) * 2;
 	group.x = config::loadInt("window", "left", 0);
@@ -122,7 +119,7 @@ WindowRect InitialGroupRect() {
 	return group;
 }
 
-void SpawnGuest(int screen, const std::string& session_id, const WindowRect& quadrant) {
+static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMultiPovRect& quadrant) {
 	const std::string session = std::string("gdxsv:") + kSessionKey + "=" + session_id;
 	const std::string screen_arg = std::string("gdxsv:") + kScreenKey + "=" + std::to_string(screen);
 	// The existing per-frame group barrier (GdxsvSpectateSync) keeps the four
@@ -165,9 +162,7 @@ void SpawnGuest(int screen, const std::string& session_id, const WindowRect& qua
 	os_RunInstance(static_cast<int>(std::size(args)), args);
 }
 
-}  // namespace
-
-void ComputeGrid(const WindowRect& group, WindowRect out[kScreens]) {
+void gdxsv_multi_pov_compute_grid(const GdxsvMultiPovRect& group, GdxsvMultiPovRect out[kGdxsvMultiPovScreens]) {
 	// Halves, with the remainder going to the right and bottom cells so the
 	// four add back up to the group exactly.
 	const int32_t left_w = group.w / 2;
@@ -181,38 +176,38 @@ void ComputeGrid(const WindowRect& group, WindowRect out[kScreens]) {
 	out[3] = {group.x + left_w, group.y + top_h, right_w, bottom_h};
 }
 
-bool FourScreenRequested() {
+bool gdxsv_multi_pov_four_screen_requested() {
 	// A guest is told what it is; it must never read the checkbox and try to
 	// start a session of its own.
 	if (0 < ScreenArg()) return false;
 	return config::GdxReplayFourScreen.get();
 }
 
-int SpawnedGuestCount() { return g_spawned_guests; }
+int gdxsv_multi_pov_spawned_guest_count() { return g_spawned_guests; }
 
-int GuestPov() {
+int gdxsv_multi_pov_guest_pov() {
 	const int screen = ScreenArg();
-	if (screen < 1 || kScreens <= screen) return -1;
+	if (screen < 1 || kGdxsvMultiPovScreens <= screen) return -1;
 	return screen;
 }
 
-bool BeginHostSession(const std::string& replay_source, std::vector<uint8_t>& replay_out) {
+bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out) {
 	g_spawned_guests = 0;
 
 	if (!LoadReplaySource(replay_source, replay_out)) return false;
 	if (!IsFourPlayerBattle(replay_out)) return false;
 
-	const std::string session_id = NewSessionId();
-	if (!HostCreate(session_id, replay_out)) return false;
+	const std::string session_id = gdxsv_multi_pov_new_session_id();
+	if (!gdxsv_multi_pov_host_create(session_id, replay_out)) return false;
 
 	// The host plays 1P and joins the same frame-sync group it puts the
 	// guests in, so all four are held together once they are running.
 	config::setTransient("gdxsv", "SpectateSyncGroup", session_id);
 
-	WindowRect quadrants[kScreens];
-	ComputeGrid(InitialGroupRect(), quadrants);
+	GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];
+	gdxsv_multi_pov_compute_grid(InitialGroupRect(), quadrants);
 
-	for (int screen = 1; screen < kScreens; ++screen) {
+	for (int screen = 1; screen < kGdxsvMultiPovScreens; ++screen) {
 		SpawnGuest(screen, session_id, quadrants[screen]);
 		++g_spawned_guests;
 	}
@@ -220,29 +215,28 @@ bool BeginHostSession(const std::string& replay_source, std::vector<uint8_t>& re
 	return true;
 }
 
-bool BeginGuestSession(std::vector<uint8_t>& replay_out) {
-	const int screen = GuestPov();
+bool gdxsv_multi_pov_begin_guest_session(std::vector<uint8_t>& replay_out) {
+	const int screen = gdxsv_multi_pov_guest_pov();
 	if (screen < 0) return false;
 
-	if (!GuestOpen(SessionId(), screen)) return false;
-	if (!FetchReplay(replay_out, kReplayFetchMs)) {
-		Close();
+	if (!gdxsv_multi_pov_guest_open(SessionId(), screen)) return false;
+	if (!gdxsv_multi_pov_fetch_replay(replay_out, kReplayFetchMs)) {
+		gdxsv_multi_pov_close();
 		return false;
 	}
 	return true;
 }
 
-void WaitAtStartBarrier() {
-	switch (CurrentRole()) {
-		case Role::Host:
-			HostWaitForGuests(g_spawned_guests, kHostBarrierSettleMs);
+void gdxsv_multi_pov_wait_at_start_barrier() {
+	switch (gdxsv_multi_pov_current_role()) {
+		case GdxsvMultiPovRole::Host:
+			gdxsv_multi_pov_host_wait_for_guests(g_spawned_guests, kHostBarrierSettleMs);
 			break;
-		case Role::Guest:
-			GuestReadyAndWait(kStartBarrierMs);
+		case GdxsvMultiPovRole::Guest:
+			gdxsv_multi_pov_guest_ready_and_wait(kStartBarrierMs);
 			break;
-		case Role::None:
+		case GdxsvMultiPovRole::None:
 			break;
 	}
 }
 
-}  // namespace gdxsv_multi_pov

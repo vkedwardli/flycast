@@ -7,22 +7,17 @@
 // real implementation alongside this file.
 #include "gdxsv_multi_pov_window.h"
 
-namespace gdxsv_multi_pov {
-namespace window {
+bool gdxsv_multi_pov_window_available() { return false; }
 
-bool Available() { return false; }
+GdxsvMultiPovRect gdxsv_multi_pov_window_get_frame() { return {}; }
 
-WindowRect GetFrame() { return {}; }
+void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect&) {}
 
-void SetFrame(const WindowRect&) {}
+bool gdxsv_multi_pov_window_is_maximized() { return false; }
 
-bool IsMaximized() { return false; }
+void gdxsv_multi_pov_window_unmaximize() {}
 
-void Unmaximize() {}
+GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() { return {}; }
 
-WindowRect WorkArea() { return {}; }
+void gdxsv_multi_pov_window_set_borderless(bool) {}
 
-void SetBorderless(bool) {}
-
-}  // namespace window
-}  // namespace gdxsv_multi_pov

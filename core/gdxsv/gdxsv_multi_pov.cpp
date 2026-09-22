@@ -21,9 +21,6 @@
 #include "log/LogManager.h"
 #include "types.h"
 
-namespace gdxsv_multi_pov {
-namespace {
-
 constexpr uint32_t kMagic = 0x4D505634;	 // "MPV4"
 constexpr uint32_t kVersion = 1;
 
@@ -36,14 +33,14 @@ constexpr size_t kPayloadOffset = 4096;
 constexpr uint64_t kMaxReplayBytes = 256ull * 1024 * 1024;
 
 // A session whose host has not ticked for this long is dead: the host was
-// killed and never ran Close(), so the guests must not wait for it forever.
+// killed and never ran gdxsv_multi_pov_close(), so the guests must not wait for it forever.
 constexpr int64_t kHostStaleUs = 5000000;
 
-int64_t NowUs() {
+static int64_t NowUs() {
 	return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-int32_t CurrentPid() {
+static int32_t CurrentPid() {
 #ifdef _WIN32
 	return static_cast<int32_t>(GetCurrentProcessId());
 #else
@@ -54,7 +51,7 @@ int32_t CurrentPid() {
 // Everything the four processes share. Single-writer per field: the host owns
 // all of it except the guest heartbeats and the ready mask, so plain atomics
 // are enough and no cross-process mutex is needed.
-struct Header {
+struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> magic;
 	std::atomic<uint32_t> version;
 	std::atomic<uint64_t> total_size;
@@ -70,7 +67,7 @@ struct Header {
 	std::atomic<uint32_t> ready_mask;
 	std::atomic<uint32_t> go;
 
-	std::atomic<int64_t> guest_heartbeat_us[kScreens];
+	std::atomic<int64_t> guest_heartbeat_us[kGdxsvMultiPovScreens];
 
 	// Playback, written by the host every frame.
 	std::atomic<int64_t> position;
@@ -86,9 +83,9 @@ struct Header {
 	std::atomic<uint32_t> win_generation;
 };
 
-static_assert(sizeof(Header) <= kPayloadOffset, "header must fit before the payload");
+static_assert(sizeof(GdxsvMultiPovHeader) <= kPayloadOffset, "header must fit before the payload");
 
-std::string SessionPath(const std::string& session_id) {
+static std::string SessionPath(const std::string& session_id) {
 #ifdef _WIN32
 	char temp_dir[MAX_PATH];
 	if (GetTempPathA(MAX_PATH, temp_dir) == 0) return {};
@@ -102,7 +99,7 @@ std::string SessionPath(const std::string& session_id) {
 // file must already be at least that big - a guest must never read past the
 // end of a file the host is still writing (on POSIX that is a SIGBUS, not an
 // error code).
-void* MapSession(const std::string& path, size_t size, bool create) {
+static void* MapSession(const std::string& path, size_t size, bool create) {
 #ifdef _WIN32
 	HANDLE file = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
 							  create ? CREATE_ALWAYS : OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -158,7 +155,7 @@ void* MapSession(const std::string& path, size_t size, bool create) {
 #endif
 }
 
-void UnmapSession(void* m, size_t size) {
+static void UnmapSession(void* m, size_t size) {
 	if (m == nullptr) return;
 #ifdef _WIN32
 	(void)size;
@@ -169,7 +166,7 @@ void UnmapSession(void* m, size_t size) {
 }
 
 // Size of the session file, or 0 if it is not there yet.
-uint64_t SessionFileSize(const std::string& path) {
+static uint64_t SessionFileSize(const std::string& path) {
 #ifdef _WIN32
 	WIN32_FILE_ATTRIBUTE_DATA attr{};
 	if (!GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &attr)) return 0;
@@ -181,56 +178,54 @@ uint64_t SessionFileSize(const std::string& path) {
 #endif
 }
 
-// Session state of this process. One session per process: a Flycast instance
+// GdxsvMultiPovSession state of this process. One session per process: a Flycast instance
 // is either the host of one grid, or one screen of one grid.
-struct Session {
-	Role role = Role::None;
+struct GdxsvMultiPovSession {
+	GdxsvMultiPovRole role = GdxsvMultiPovRole::None;
 	int screen = -1;
 	void* map = nullptr;
 	size_t map_size = 0;
 	std::string path;
 
-	Header* header() const { return static_cast<Header*>(map); }
+	GdxsvMultiPovHeader* header() const { return static_cast<GdxsvMultiPovHeader*>(map); }
 	uint8_t* payload() const { return static_cast<uint8_t*>(map) + kPayloadOffset; }
 };
 
-Session g_session;
+static GdxsvMultiPovSession g_session;
 
 // The host has to keep proving it is alive, or a guest cannot tell "sitting in
 // a menu" from "killed". Every publication ticks it.
-void TouchHost() {
+static void TouchHost() {
 	if (g_session.header() != nullptr) g_session.header()->host_heartbeat_us.store(NowUs(), std::memory_order_release);
 }
 
-void TouchGuest() {
-	Header* h = g_session.header();
+static void TouchGuest() {
+	GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr || g_session.screen < 0) return;
 	h->guest_heartbeat_us[g_session.screen].store(NowUs(), std::memory_order_release);
 }
 
-bool HostAlive(const Header* h) {
+static bool HostAlive(const GdxsvMultiPovHeader* h) {
 	if (h->host_closed.load(std::memory_order_acquire) != 0) return false;
 	const int64_t hb = h->host_heartbeat_us.load(std::memory_order_acquire);
 	// Before the first tick the host is starting up, not gone.
 	return hb == 0 || NowUs() - hb < kHostStaleUs;
 }
 
-}  // namespace
-
-std::string NewSessionId() {
+std::string gdxsv_multi_pov_new_session_id() {
 	// Pid plus a coarse timestamp: unique across concurrent hosts on one
 	// machine, and plain enough to survive a round trip through a command line.
 	const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	return std::to_string(CurrentPid()) + "_" + std::to_string(now);
 }
 
-bool HostCreate(const std::string& session_id, const std::vector<uint8_t>& replay) {
+bool gdxsv_multi_pov_host_create(const std::string& session_id, const std::vector<uint8_t>& replay) {
 	if (session_id.empty()) return false;
 	if (replay.empty() || kMaxReplayBytes < replay.size()) {
 		WARN_LOG(COMMON, "multi-pov: refusing to publish a %zu byte replay", replay.size());
 		return false;
 	}
-	Close();
+	gdxsv_multi_pov_close();
 
 	const std::string path = SessionPath(session_id);
 	if (path.empty()) return false;
@@ -239,13 +234,13 @@ bool HostCreate(const std::string& session_id, const std::vector<uint8_t>& repla
 	void* m = MapSession(path, size, true);
 	if (m == nullptr) return false;
 
-	g_session.role = Role::Host;
+	g_session.role = GdxsvMultiPovRole::Host;
 	g_session.screen = 0;
 	g_session.map = m;
 	g_session.map_size = size;
 	g_session.path = path;
 
-	Header* h = g_session.header();
+	GdxsvMultiPovHeader* h = g_session.header();
 	std::memset(m, 0, kPayloadOffset);
 	h->version.store(kVersion, std::memory_order_relaxed);
 	h->total_size.store(size, std::memory_order_relaxed);
@@ -262,13 +257,13 @@ bool HostCreate(const std::string& session_id, const std::vector<uint8_t>& repla
 	return true;
 }
 
-bool GuestOpen(const std::string& session_id, int screen) {
+bool gdxsv_multi_pov_guest_open(const std::string& session_id, int screen) {
 	if (session_id.empty()) return false;
-	if (screen < 1 || kScreens <= screen) {
+	if (screen < 1 || kGdxsvMultiPovScreens <= screen) {
 		WARN_LOG(COMMON, "multi-pov: bad guest screen index %d", screen);
 		return false;
 	}
-	Close();
+	gdxsv_multi_pov_close();
 
 	const std::string path = SessionPath(session_id);
 	if (path.empty()) return false;
@@ -284,14 +279,14 @@ bool GuestOpen(const std::string& session_id, int screen) {
 	void* m = MapSession(path, static_cast<size_t>(on_disk), false);
 	if (m == nullptr) return false;
 
-	Header* h = static_cast<Header*>(m);
+	GdxsvMultiPovHeader* h = static_cast<GdxsvMultiPovHeader*>(m);
 	if (h->magic.load(std::memory_order_acquire) != kMagic || h->version.load(std::memory_order_acquire) != kVersion) {
 		WARN_LOG(COMMON, "multi-pov: session %s has a bad header", session_id.c_str());
 		UnmapSession(m, static_cast<size_t>(on_disk));
 		return false;
 	}
 
-	g_session.role = Role::Guest;
+	g_session.role = GdxsvMultiPovRole::Guest;
 	g_session.screen = screen;
 	g_session.map = m;
 	g_session.map_size = static_cast<size_t>(on_disk);
@@ -302,34 +297,34 @@ bool GuestOpen(const std::string& session_id, int screen) {
 	return true;
 }
 
-void Close() {
+void gdxsv_multi_pov_close() {
 	if (g_session.map == nullptr) {
-		g_session.role = Role::None;
+		g_session.role = GdxsvMultiPovRole::None;
 		g_session.screen = -1;
 		return;
 	}
-	Header* h = g_session.header();
-	if (g_session.role == Role::Host) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (g_session.role == GdxsvMultiPovRole::Host) {
 		// Tells the guests to leave with us: four screens are one window, so
 		// closing one closes them all.
 		h->host_closed.store(1, std::memory_order_release);
-	} else if (0 <= g_session.screen && g_session.screen < kScreens) {
+	} else if (0 <= g_session.screen && g_session.screen < kGdxsvMultiPovScreens) {
 		h->guest_heartbeat_us[g_session.screen].store(0, std::memory_order_release);
 	}
 	UnmapSession(g_session.map, g_session.map_size);
 	g_session.map = nullptr;
 	g_session.map_size = 0;
-	g_session.role = Role::None;
+	g_session.role = GdxsvMultiPovRole::None;
 	g_session.screen = -1;
 	g_session.path.clear();
 }
 
-Role CurrentRole() { return g_session.role; }
+GdxsvMultiPovRole gdxsv_multi_pov_current_role() { return g_session.role; }
 
-int ScreenIndex() { return g_session.screen; }
+int gdxsv_multi_pov_screen_index() { return g_session.screen; }
 
-bool FetchReplay(std::vector<uint8_t>& out, int timeout_ms) {
-	Header* h = g_session.header();
+bool gdxsv_multi_pov_fetch_replay(std::vector<uint8_t>& out, int timeout_ms) {
+	GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return false;
 
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
@@ -354,9 +349,9 @@ bool FetchReplay(std::vector<uint8_t>& out, int timeout_ms) {
 	return true;
 }
 
-bool GuestReadyAndWait(int timeout_ms) {
-	Header* h = g_session.header();
-	if (h == nullptr || g_session.role != Role::Guest) return false;
+bool gdxsv_multi_pov_guest_ready_and_wait(int timeout_ms) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Guest) return false;
 
 	h->ready_mask.fetch_or(1u << g_session.screen, std::memory_order_acq_rel);
 	TouchGuest();
@@ -377,19 +372,19 @@ bool GuestReadyAndWait(int timeout_ms) {
 	return true;
 }
 
-int ReadyGuestCount() {
-	const Header* h = g_session.header();
+int gdxsv_multi_pov_ready_guest_count() {
+	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return 0;
 	const uint32_t mask = h->ready_mask.load(std::memory_order_acquire);
 	int n = 0;
-	for (int i = 1; i < kScreens; ++i)
+	for (int i = 1; i < kGdxsvMultiPovScreens; ++i)
 		if (mask & (1u << i)) ++n;
 	return n;
 }
 
-bool HostWaitForGuests(int expected_guests, int timeout_ms) {
-	Header* h = g_session.header();
-	if (h == nullptr || g_session.role != Role::Host) return false;
+bool gdxsv_multi_pov_host_wait_for_guests(int expected_guests, int timeout_ms) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return false;
 	if (expected_guests <= 0) {
 		h->go.store(1, std::memory_order_release);
 		return true;
@@ -399,14 +394,14 @@ bool HostWaitForGuests(int expected_guests, int timeout_ms) {
 	bool all_in = false;
 	while (std::chrono::steady_clock::now() < deadline) {
 		TouchHost();
-		if (expected_guests <= ReadyGuestCount()) {
+		if (expected_guests <= gdxsv_multi_pov_ready_guest_count()) {
 			all_in = true;
 			break;
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 	}
 	if (!all_in)
-		WARN_LOG(COMMON, "multi-pov: only %d of %d guests reported ready; starting without the rest", ReadyGuestCount(),
+		WARN_LOG(COMMON, "multi-pov: only %d of %d guests reported ready; starting without the rest", gdxsv_multi_pov_ready_guest_count(),
 				 expected_guests);
 
 	// Released either way: the screens that did make it must not hang.
@@ -415,9 +410,9 @@ bool HostWaitForGuests(int expected_guests, int timeout_ms) {
 	return all_in;
 }
 
-void PublishPlayback(const PlaybackState& state) {
-	Header* h = g_session.header();
-	if (h == nullptr || g_session.role != Role::Host) return;
+void gdxsv_multi_pov_publish_playback(const GdxsvMultiPovPlayback& state) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return;
 	h->position.store(state.position, std::memory_order_relaxed);
 	h->speed.store(state.speed, std::memory_order_relaxed);
 	h->paused.store(state.paused ? 1u : 0u, std::memory_order_relaxed);
@@ -428,21 +423,21 @@ void PublishPlayback(const PlaybackState& state) {
 	TouchHost();
 }
 
-bool ReadPlayback(PlaybackState& out) {
-	const Header* h = g_session.header();
+bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out) {
+	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return false;
 	out.seek_generation = h->seek_generation.load(std::memory_order_acquire);
 	out.seek_target = h->seek_target.load(std::memory_order_relaxed);
 	out.position = h->position.load(std::memory_order_relaxed);
 	out.speed = h->speed.load(std::memory_order_relaxed);
 	out.paused = h->paused.load(std::memory_order_relaxed) != 0;
-	if (g_session.role == Role::Guest) TouchGuest();
+	if (g_session.role == GdxsvMultiPovRole::Guest) TouchGuest();
 	return true;
 }
 
-void PublishHostWindow(const HostWindow& window) {
-	Header* h = g_session.header();
-	if (h == nullptr || g_session.role != Role::Host) return;
+void gdxsv_multi_pov_publish_host_window(const GdxsvMultiPovHostWindow& window) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return;
 	h->win_x.store(window.rect.x, std::memory_order_relaxed);
 	h->win_y.store(window.rect.y, std::memory_order_relaxed);
 	h->win_w.store(window.rect.w, std::memory_order_relaxed);
@@ -456,8 +451,8 @@ void PublishHostWindow(const HostWindow& window) {
 	TouchHost();
 }
 
-bool ReadHostWindow(HostWindow& out) {
-	const Header* h = g_session.header();
+bool gdxsv_multi_pov_read_host_window(GdxsvMultiPovHostWindow& out) {
+	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return false;
 	out.generation = h->win_generation.load(std::memory_order_acquire);
 	if (out.generation == 0) return false;  // the host has not placed itself yet
@@ -473,21 +468,20 @@ bool ReadHostWindow(HostWindow& out) {
 	return true;
 }
 
-bool HostGone() {
-	const Header* h = g_session.header();
+bool gdxsv_multi_pov_host_gone() {
+	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return false;
 	return !HostAlive(h);
 }
 
-bool GuestsGone() {
-	const Header* h = g_session.header();
-	if (h == nullptr || g_session.role != Role::Host) return true;
+bool gdxsv_multi_pov_guests_gone() {
+	const GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return true;
 	const int64_t now = NowUs();
-	for (int i = 1; i < kScreens; ++i) {
+	for (int i = 1; i < kGdxsvMultiPovScreens; ++i) {
 		const int64_t hb = h->guest_heartbeat_us[i].load(std::memory_order_acquire);
 		if (hb != 0 && now - hb < kHostStaleUs) return false;
 	}
 	return true;
 }
 
-}  // namespace gdxsv_multi_pov

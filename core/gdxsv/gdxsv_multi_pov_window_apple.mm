@@ -21,11 +21,7 @@
 #include "sdl/sdl.h"
 #include "types.h"
 
-namespace gdxsv_multi_pov {
-namespace window {
-namespace {
-
-NSWindow* CocoaWindow() {
+static NSWindow* CocoaWindow() {
 	if (gdxsv_headless()) return nil;
 	SDL_Window* w = sdl_get_window();
 	if (w == nullptr) return nil;
@@ -39,15 +35,15 @@ NSWindow* CocoaWindow() {
 
 // The primary screen is the one AppKit measures everything else from: its
 // frame has origin (0,0) and its height is the flip axis.
-CGFloat PrimaryHeight() {
+static CGFloat PrimaryHeight() {
 	NSArray<NSScreen*>* screens = [NSScreen screens];
 	if (screens.count == 0) return 0;
 	return NSMaxY(screens[0].frame);
 }
 
 // AppKit rect (bottom-left origin) -> desktop rect (top-left origin).
-WindowRect FromCocoa(NSRect r) {
-	WindowRect out;
+static GdxsvMultiPovRect FromCocoa(NSRect r) {
+	GdxsvMultiPovRect out;
 	out.x = static_cast<int32_t>(std::lround(NSMinX(r)));
 	out.y = static_cast<int32_t>(std::lround(PrimaryHeight() - NSMaxY(r)));
 	out.w = static_cast<int32_t>(std::lround(NSWidth(r)));
@@ -55,21 +51,19 @@ WindowRect FromCocoa(NSRect r) {
 	return out;
 }
 
-NSRect ToCocoa(const WindowRect& r) {
+static NSRect ToCocoa(const GdxsvMultiPovRect& r) {
 	return NSMakeRect(r.x, PrimaryHeight() - (r.y + r.h), r.w, r.h);
 }
 
-}  // namespace
+bool gdxsv_multi_pov_window_available() { return CocoaWindow() != nil; }
 
-bool Available() { return CocoaWindow() != nil; }
-
-WindowRect GetFrame() {
+GdxsvMultiPovRect gdxsv_multi_pov_window_get_frame() {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return {};
 	return FromCocoa([win contentRectForFrameRect:win.frame]);
 }
 
-void SetFrame(const WindowRect& rect) {
+void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect) {
 	NSWindow* win = CocoaWindow();
 	if (win == nil || rect.w <= 0 || rect.h <= 0) return;
 
@@ -79,7 +73,7 @@ void SetFrame(const WindowRect& rect) {
 	[win setFrame:[win frameRectForContentRect:content] display:YES];
 }
 
-bool IsMaximized() {
+bool gdxsv_multi_pov_window_is_maximized() {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return false;
 	// Green-button zoom and full screen both mean "take the whole display" to
@@ -88,7 +82,7 @@ bool IsMaximized() {
 	return win.isZoomed;
 }
 
-void Unmaximize() {
+void gdxsv_multi_pov_window_unmaximize() {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return;
 
@@ -101,7 +95,7 @@ void Unmaximize() {
 	if (win.isZoomed) [win zoom:nil];
 }
 
-WindowRect WorkArea() {
+GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return {};
 
@@ -114,7 +108,7 @@ WindowRect WorkArea() {
 	return FromCocoa(screen.visibleFrame);
 }
 
-void SetBorderless(bool borderless) {
+void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return;
 
@@ -127,5 +121,3 @@ void SetBorderless(bool borderless) {
 	}
 }
 
-}  // namespace window
-}  // namespace gdxsv_multi_pov

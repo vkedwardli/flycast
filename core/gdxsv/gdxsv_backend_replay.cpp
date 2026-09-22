@@ -739,13 +739,13 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	}
 	multi_pov_published_frame_ = key_msg_count_;
 
-	gdxsv_multi_pov::PlaybackState st;
+	GdxsvMultiPovPlayback st;
 	st.position = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
 	st.speed = ctrl_play_speed_;
 	st.paused = ctrl_pause_;
 	st.seek_generation = multi_pov_seek_generation_;
 	st.seek_target = key_msg_count_;
-	gdxsv_multi_pov::PublishPlayback(st);
+	gdxsv_multi_pov_publish_playback(st);
 }
 
 // Guest: apply what the host published. The guest has no controls of its own -
@@ -755,8 +755,8 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	if (!multi_pov_guest_) return;
 	if (state_ == State::None || state_ == State::End) return;
 
-	gdxsv_multi_pov::PlaybackState st;
-	if (!gdxsv_multi_pov::ReadPlayback(st)) return;
+	GdxsvMultiPovPlayback st;
+	if (!gdxsv_multi_pov_read_playback(st)) return;
 
 	// Seeks first: a pause or speed change queued behind a jump that has not
 	// landed yet would otherwise be applied at the position being left.
@@ -1732,7 +1732,7 @@ void GdxsvBackendReplay::Stop() {
 	// heartbeat went stale.
 	if (multi_pov_host_) {
 		NOTICE_LOG(COMMON, "multi-pov: host replay stopped, closing the session");
-		gdxsv_multi_pov::Close();
+		gdxsv_multi_pov_close();
 		multi_pov_host_ = false;
 	}
 	gdxsv_frame_period_trim_us = 0;
@@ -1924,8 +1924,8 @@ bool GdxsvBackendReplay::Start() {
 	// 4-player replay: what this process is, latched once. A guest takes its
 	// playback orders from the host and shows no controls of its own; the
 	// host publishes where it is for the other three to follow.
-	multi_pov_host_ = gdxsv_multi_pov::CurrentRole() == gdxsv_multi_pov::Role::Host;
-	multi_pov_guest_ = gdxsv_multi_pov::CurrentRole() == gdxsv_multi_pov::Role::Guest;
+	multi_pov_host_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Host;
+	multi_pov_guest_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Guest;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 
@@ -1946,7 +1946,7 @@ bool GdxsvBackendReplay::Start() {
 	// so without this the host would be far enough ahead that the per-frame
 	// group barrier above treats it as a peer still catching up and never
 	// closes the gap. No-op outside a 4-screen session.
-	gdxsv_multi_pov::WaitAtStartBarrier();
+	gdxsv_multi_pov_wait_at_start_barrier();
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
 	// waiting entirely, which is the A/B for "is the barrier costing frames?".
