@@ -319,9 +319,10 @@ class GdxsvBackendReplay {
 	// into a seek the guests replay. Guest: the last seek generation applied.
 	int multi_pov_published_frame_ = -1;
 	uint32_t multi_pov_seek_generation_ = 0;
-	// Set when a round change moved the position, so the next publish does not
-	// read that move as a seek. See PublishMultiPovPlayback.
-	bool multi_pov_round_resync_ = false;
+	// Set while the position is being moved by the replay itself - a round
+	// change, the skip into a briefing - rather than by the user, so the next
+	// publish does not read that move as a seek. See PublishMultiPovPlayback.
+	bool multi_pov_system_move_ = false;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
