@@ -360,7 +360,8 @@ bool gdxsv_multi_pov_guest_ready_and_wait(int timeout_ms) {
 
 	h->ready_mask.fetch_or(1u << g_session.screen, std::memory_order_acq_rel);
 
-	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+	const auto waiting_since = std::chrono::steady_clock::now();
+	const auto deadline = waiting_since + std::chrono::milliseconds(timeout_ms);
 	while (h->go.load(std::memory_order_acquire) == 0) {
 		if (!HostAlive(h)) {
 			WARN_LOG(COMMON, "multi-pov: host went away before the start signal");
@@ -370,8 +371,10 @@ bool gdxsv_multi_pov_guest_ready_and_wait(int timeout_ms) {
 			WARN_LOG(COMMON, "multi-pov: no start signal within %d ms; starting anyway", timeout_ms);
 			return false;
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
+	NOTICE_LOG(COMMON, "multi-pov: start barrier released after %lld ms",
+			   (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - waiting_since).count());
 	return true;
 }
 
@@ -393,7 +396,8 @@ bool gdxsv_multi_pov_host_wait_for_guests(int expected_guests, int timeout_ms) {
 		return true;
 	}
 
-	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+	const auto waiting_since = std::chrono::steady_clock::now();
+	const auto deadline = waiting_since + std::chrono::milliseconds(timeout_ms);
 	bool all_in = false;
 	while (std::chrono::steady_clock::now() < deadline) {
 		if (expected_guests <= gdxsv_multi_pov_ready_guest_count()) {
@@ -408,6 +412,8 @@ bool gdxsv_multi_pov_host_wait_for_guests(int expected_guests, int timeout_ms) {
 
 	// Released either way: the screens that did make it must not hang.
 	h->go.store(1, std::memory_order_release);
+	NOTICE_LOG(COMMON, "multi-pov: start barrier released %d screens after %lld ms", gdxsv_multi_pov_ready_guest_count() + 1,
+			   (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - waiting_since).count());
 	return all_in;
 }
 

@@ -30,9 +30,6 @@ constexpr int kMaxSlots = 8;
 // or paused instance cannot hold the rest of the group at its last frame.
 constexpr int64_t kSlotStaleUs = 1'000'000;
 
-// Beyond this the peer is catching up, not merely out of step.
-constexpr int64_t kSyncEngageWindow = 300 * 1024;  // position units: 300 input frames
-
 // Two input frames of tolerance, in position units. Enough to stop the pair
 // thrashing against each other, far below what is visible side by side.
 constexpr int32_t kSyncSlack = 2 * 1024;
@@ -121,6 +118,13 @@ struct Slot {
 	std::atomic<int64_t> heartbeat_us;
 	std::atomic<int32_t> frame;
 	std::atomic<int32_t> pid;
+	// "I am not playing, I am getting back to where you are" - a seek, a
+	// takeover, a live client draining its buffer. Published by the instance
+	// itself because distance cannot tell the two apart: a peer 20 seconds
+	// behind is either mid-seek, and waiting for it would freeze the group
+	// through the whole of it, or simply slower than the rest, which is
+	// exactly the case the group sync exists to close.
+	std::atomic<uint32_t> catching_up;
 };
 
 struct Header {
@@ -179,9 +183,10 @@ void GdxsvSpectateSync::Join(const std::string& group) {
 	WARN_LOG(COMMON, "spectate sync: no free slot in group %s", group.c_str());
 }
 
-void GdxsvSpectateSync::Publish(int32_t frame) {
+void GdxsvSpectateSync::Publish(int32_t frame, bool catching_up) {
 	if (slot_ == nullptr) return;
 	slot_->frame.store(frame);
+	slot_->catching_up.store(catching_up ? 1u : 0u);
 	slot_->heartbeat_us.store(NowUs());
 }
 
@@ -196,20 +201,19 @@ int32_t GdxsvSpectateSync::LeadOverSlowest(int32_t frame) const {
 		const int64_t hb = h->slots[i].heartbeat_us.load(std::memory_order_acquire);
 		if (hb == 0 || kSlotStaleUs < now - hb) continue;
 		++peers;
+		// Catching up: not a position to hold the group to.
+		if (h->slots[i].catching_up.load(std::memory_order_acquire) != 0) continue;
 		const int32_t f = h->slots[i].frame.load(std::memory_order_acquire);
-		// A peer that far away is catching up, not out of step; slowing down
-		// for it would drag the whole group through its catch-up.
-		if (kSyncEngageWindow < std::abs(static_cast<int64_t>(f) - frame)) return 0;
 		slowest = std::min(slowest, f);
 	}
-	if (peers <= 1) return 0;
+	if (peers <= 1 || slowest == INT32_MAX) return 0;
 	return std::max(0, frame - slowest);
 }
 
 bool GdxsvSpectateSync::WaitForPeers(int32_t frame, int max_wait_ms) {
 	if (slot_ == nullptr) return false;
 
-	Publish(frame);
+	Publish(frame, false);
 
 	Header* h = static_cast<Header*>(map_);
 	const int64_t deadline = NowUs() + static_cast<int64_t>(max_wait_ms) * 1000;
@@ -217,20 +221,22 @@ bool GdxsvSpectateSync::WaitForPeers(int32_t frame, int max_wait_ms) {
 		const int64_t now = NowUs();
 		int peers = 0;
 		int32_t slowest = INT32_MAX;
-		bool far_away = false;
 		for (int i = 0; i < kMaxSlots; ++i) {
 			const int64_t hb = h->slots[i].heartbeat_us.load(std::memory_order_acquire);
 			if (hb == 0 || kSlotStaleUs < now - hb) continue;
 			++peers;
+			// Catching up: waiting for it would freeze everyone else for the
+			// whole of its catch-up, so run free until it says it is playing
+			// again. Distance used to stand in for this, and it cost the
+			// group the one case it is for: four screens of the same replay
+			// where one is simply slower drift apart, and the moment the gap
+			// passes the threshold the sync gives up on them for good.
+			if (h->slots[i].catching_up.load(std::memory_order_acquire) != 0) continue;
 			const int32_t f = h->slots[i].frame.load(std::memory_order_acquire);
 			slowest = std::min(slowest, f);
-
-			// Still catching up: waiting for it would freeze everyone else for
-			// the whole of its catch-up, so run free until it is close.
-			if (kSyncEngageWindow < std::abs(static_cast<int64_t>(f) - frame)) far_away = true;
 		}
-		if (peers <= 1) return false;	// alone
-		if (far_away) return false;		// someone is catching up
+		if (peers <= 1) return false;			 // alone
+		if (slowest == INT32_MAX) return false;	 // everyone else is catching up
 
 		// Wait only while somebody is meaningfully behind. Waiting for exact
 		// equality deadlocks when instances arrive out of step, since each

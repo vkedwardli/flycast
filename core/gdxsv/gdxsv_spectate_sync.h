@@ -17,7 +17,9 @@ class GdxsvSpectateSync {
 	bool Active() const { return slot_ != nullptr; }
 
 	// Publishes the frame this instance has reached.
-	void Publish(int32_t frame);
+	// `catching_up`: this instance is seeking or otherwise not playing, so the
+	// others should not hold themselves to its position.
+	void Publish(int32_t frame, bool catching_up);
 
 	// How far ahead of the slowest live peer this instance is, in position
 	// units. 0 when alone, when a peer is still catching up, or when we are
@@ -27,9 +29,9 @@ class GdxsvSpectateSync {
 	// Holds this instance back while any live peer is more than kSyncSlack
 	// behind, so the group cannot drift apart.
 	//
-	// Returns true if the group synced up, false if it gave up: alone, a
-	// peer too far away to wait for (still catching up), or the deadline
-	// passed. Playback continues either way - a spectator must never hang.
+	// Returns true if the group synced up, false if it gave up: alone, every
+	// peer catching up, or the deadline passed. Playback continues either way
+	// - a spectator must never hang.
 	bool WaitForPeers(int32_t frame, int max_wait_ms);
 
    private:

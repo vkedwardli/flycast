@@ -829,15 +829,19 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 
 		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
 
+		// Not playing at this position, just travelling through it: the others
+		// must not slow down to it, and it must not slow down to them.
+		const bool catching_up = takeover_ || seeking_ || (live_mode_ && live_catching_up_);
+
 		// Heartbeat unconditionally, sync only when eligible. Publishing
 		// only from inside WaitForPeers lets a catching-up instance go stale
 		// and lose its slot.
-		spectate_sync_.Publish(static_cast<int32_t>(pos));
+		spectate_sync_.Publish(static_cast<int32_t>(pos), catching_up);
 
 		// Runs in every scene. This never speeds anything up - it only holds
 		// back an instance that is ahead, which while production is stalled is
 		// indistinguishable from waiting for data.
-		if (!takeover_ && !seeking_ && (!live_mode_ || !live_catching_up_)) {
+		if (!catching_up) {
 			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), sync_max_wait_ms_);
 		}
 	}
