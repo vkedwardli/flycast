@@ -95,12 +95,13 @@ bool gdxsv_multi_pov_fetch_replay(std::vector<uint8_t>& out, int timeout_ms);
 
 // ---- start barrier -----------------------------------------------------
 //
-// A guest cold-boots the game while the host is already sitting in the menu,
-// so the host would otherwise be tens of seconds of playback ahead before the
-// first guest drew a frame - far outside the window GdxsvSpectateSync will
-// close (peers further away than kSyncEngageWindow are treated as still
-// catching up and are not waited for). So the four line up once, here, before
-// any of them plays a frame.
+// The four screens take different amounts of time to reach playback - the
+// host boots the disc, the guests load a savestate - so without this they
+// would start tens of seconds of playback apart, far outside the window
+// GdxsvSpectateSync will close (peers further away than kSyncEngageWindow are
+// treated as still catching up and are not waited for), and would never come
+// back together. So they line up once, at the first playback position they
+// all share: the first StartMsg, key_msg_count 0.
 
 // Guest: "I have the replay and I am ready to play". Then waits for the host's
 // go signal. Returns false on timeout - playback starts anyway, because a
@@ -175,15 +176,15 @@ int gdxsv_multi_pov_guest_pov();
 // writing over the host's.
 std::string gdxsv_multi_pov_log_file_name();
 
-// Lines the four screens up once, before the first frame of playback: the
-// host waits for its guests, the guests wait for the host's go. A no-op
-// outside a session. See the note above gdxsv_multi_pov_guest_ready_and_wait for why this has to
-// happen at all.
+// Lines the four screens up once, at the first StartMsg: the host waits for
+// its guests, the guests wait for the host's go. Called from the replay
+// backend's frame path, which is where that position is known. A no-op
+// outside a session. See the note above gdxsv_multi_pov_guest_ready_and_wait
+// for why this has to happen at all.
 //
-// The host's wait here is short: the long one - a guest has a whole cold boot
-// ahead of it - belongs to the UI, which can say "waiting for the other
-// screens (n/3)" while it happens instead of freezing the window. By the time
-// playback starts the guests are already in, and this only settles the last
-// of them.
+// The host's wait here is short: it arrives last, so the guests are already
+// in. The long one - a guest has a whole cold boot ahead of it - belongs to
+// the UI, which says "waiting for the other screens (n/3)" while it happens
+// instead of freezing the window.
 void gdxsv_multi_pov_wait_at_start_barrier();
 

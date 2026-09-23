@@ -324,6 +324,12 @@ class GdxsvBackendReplay {
 	// publish does not read that move as a seek. See PublishMultiPovPlayback.
 	bool multi_pov_system_move_ = false;
 
+	// The start barrier is armed at the first StartMsg and taken at the next
+	// frame boundary, so the four screens leave the same playback position
+	// rather than the same point in their own boot. See OnNextFrameInternal.
+	bool multi_pov_start_barrier_pending_ = false;
+	bool multi_pov_start_barrier_done_ = false;
+
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;
 	int takeover_countdown_ = 0;

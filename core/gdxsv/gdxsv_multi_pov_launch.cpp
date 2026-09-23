@@ -26,9 +26,10 @@
 // and plays on its own.
 constexpr int kStartBarrierMs = 180 * 1000;
 
-// The host's own wait at the barrier. Short, because the UI has already held
-// the start until the guests reported in (see gdxsv_start_replay): this only
-// covers the last of them arriving between that check and the first frame.
+// The host's own wait at the barrier. Short, because the host is normally the
+// last one there: it reaches the first StartMsg well after the guests, which
+// load a savestate while it boots the disc. This only covers a guest the boot
+// order went against.
 constexpr int kHostBarrierSettleMs = 5 * 1000;
 
 // How long a guest waits for the host to publish the payload. The host writes

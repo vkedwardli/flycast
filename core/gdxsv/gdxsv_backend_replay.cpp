@@ -177,6 +177,8 @@ void GdxsvBackendReplay::Reset() {
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 	multi_pov_system_move_ = false;
+	multi_pov_start_barrier_pending_ = false;
+	multi_pov_start_barrier_done_ = false;
 	timeline_revision_ = 0;
 	displayed_timeline_revision_ = 0;
 	ctrl_bar_visibility_ = 0.0f;
@@ -802,6 +804,15 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 
 void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (state_ == State::End) return;
+
+	// 4-player replay: the start barrier, armed at the first StartMsg. Taken
+	// at a frame boundary and never inside a seek, so no screen blocks in the
+	// middle of one. The host releases the group when it gets here; the
+	// guests, which get here first, are already waiting.
+	if (multi_pov_start_barrier_pending_ && !seeking_) {
+		multi_pov_start_barrier_pending_ = false;
+		gdxsv_multi_pov_wait_at_start_barrier();
+	}
 
 	// One sync point for every scene, here rather than in the delivery path
 	// because outside battle no input is delivered - which is exactly where the
@@ -1957,6 +1968,8 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 	multi_pov_system_move_ = false;
+	multi_pov_start_barrier_pending_ = false;
+	multi_pov_start_barrier_done_ = false;
 
 	// A guest is silent: four processes mixing the same battle out of phase is
 	// noise, and the host is the screen the user is driving. The command line
@@ -1969,13 +1982,6 @@ bool GdxsvBackendReplay::Start() {
 		config::AudioVolume.override(0);
 		config::AudioVolume.calcDbPower();
 	}
-
-	// 4-player replay: the four screens line up here, once, before any of them
-	// plays a frame. A guest cold-boots while the host is already in the menu,
-	// so without this the host would be far enough ahead that the per-frame
-	// group barrier above treats it as a peer still catching up and never
-	// closes the gap. No-op outside a 4-screen session.
-	gdxsv_multi_pov_wait_at_start_barrier();
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
 	// waiting entirely, which is the A/B for "is the barrier costing frames?".
@@ -2423,6 +2429,23 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		// while seeking_: a round boundary crossed inside a seek is part of
 		// that seek, which the guests do have to follow.
 		if (multi_pov_host_ && !seeking_) multi_pov_system_move_ = true;
+
+		// 4-player replay: the four screens line up on the first StartMsg,
+		// which is the first playback position they share - all four at
+		// key_msg_count 0, the briefing skip already behind them. Reaching it
+		// takes each screen a different amount of time (the host boots the
+		// disc while the three guests load a savestate, and the guests' skip
+		// runs far faster because the host is competing with three booting
+		// instances), so lining up any earlier lines up clocks and not
+		// playback: measured here, the guests left the old barrier 12 s of
+		// replay ahead of the host - past the per-frame group sync's engage
+		// window, so it read them as peers still catching up and never closed
+		// the gap. Taken at the next frame boundary, not here inside a message
+		// handler. No-op outside a 4-screen session.
+		if ((multi_pov_host_ || multi_pov_guest_) && !multi_pov_start_barrier_done_) {
+			multi_pov_start_barrier_done_ = true;
+			multi_pov_start_barrier_pending_ = true;
+		}
 
 		if (start_msg_count_ - 1 < log_file_.start_msg_indexes_size()) {
 			const auto key_msg_count = log_file_.start_msg_indexes(start_msg_count_ - 1);
