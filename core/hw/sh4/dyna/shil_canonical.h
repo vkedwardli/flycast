@@ -949,7 +949,12 @@ shil_opc(fmac)
 shil_canonical
 (
 f32,f1,(float fn, float f0,float fm),
+#ifdef GDXSV_FP_COMPAT
+	// gdxsv: round the product before the add (no fused multiply-add)
+	return fixNaN(f0 * fm + fn);
+#else
 	return fixNaN(std::fma(f0, fm, fn));
+#endif
 )
 shil_compile
 (

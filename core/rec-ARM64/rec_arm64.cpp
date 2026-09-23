@@ -877,8 +877,8 @@ public:
 				break;
 
 			case shop_fmac:
-#ifdef GDXSV_X86_FP_COMPAT
-				// gdxsv: round the product before the add, like the x86_64 dynarec (mulss + addss)
+#ifdef GDXSV_FP_COMPAT
+				// gdxsv: round the product before the add (no fused multiply-add)
 				Fmul(s0, regalloc.MapVRegister(op.rs2), regalloc.MapVRegister(op.rs3));
 				Fadd(regalloc.MapVRegister(op.rd), regalloc.MapVRegister(op.rs1), s0);
 #else

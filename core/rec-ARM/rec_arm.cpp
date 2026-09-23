@@ -1956,7 +1956,12 @@ void Arm32Assembler::compileOp(RuntimeBlockInfo* block, shil_opcode* op, bool op
 				}
 				if (!rd.Is(rs1))
 					Vmov(rd, rs1);
+#ifdef GDXSV_FP_COMPAT
+				// gdxsv: round the product before the add (no fused multiply-add)
+				Vmla(rd, rs2, rs3);
+#else
 				Vfma(rd, rs2, rs3);
+#endif
 			}
 			break;
 

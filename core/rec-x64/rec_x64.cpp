@@ -448,9 +448,11 @@ public:
 					{
 						movss(rd, rs1);
 					}
-					if (cpu.has(Cpu::tFMA) && !config::GGPOEnable && false) // gdxsv: avoid out-sync for replay
+#ifndef GDXSV_FP_COMPAT // gdxsv: fused multiply-add breaks sync of replays and netplay
+					if (cpu.has(Cpu::tFMA) && !config::GGPOEnable)
 						vfmadd231ss(rd, rs2, rs3);
 					else
+#endif
 					{
 						movss(xmm0, rs2);
 						mulss(xmm0, rs3);
