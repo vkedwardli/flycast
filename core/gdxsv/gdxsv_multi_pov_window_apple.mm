@@ -55,6 +55,14 @@ static NSRect ToCocoa(const GdxsvMultiPovRect& r) {
 	return NSMakeRect(r.x, PrimaryHeight() - (r.y + r.h), r.w, r.h);
 }
 
+// Set from the moment the host asks to leave full screen until its quadrant
+// has held against AppKit's restore of the pre-full-screen frame, which lands
+// at the end of the exit and would otherwise shrink the grid back to where it
+// was before the user went full screen.
+static bool g_leaving_fullscreen = false;
+static int g_settled_ticks = 0;
+static constexpr int kSettleTicks = 30;
+
 bool gdxsv_multi_pov_window_available() { return CocoaWindow() != nil; }
 
 GdxsvMultiPovRect gdxsv_multi_pov_window_get_frame() {
@@ -71,6 +79,17 @@ void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect) {
 	// not take focus from the screen the user is driving.
 	const NSRect content = ToCocoa(rect);
 	[win setFrame:[win frameRectForContentRect:content] display:YES];
+
+	if (g_leaving_fullscreen && (win.styleMask & NSWindowStyleMaskFullScreen) == 0) {
+		// Out of full screen, but AppKit restores the pre-full-screen frame at
+		// the end of the exit, after our frame has gone in. Done once the
+		// quadrant has held for a while.
+		if (FromCocoa([win contentRectForFrameRect:win.frame]) == rect) {
+			if (++g_settled_ticks >= kSettleTicks) g_leaving_fullscreen = false;
+		} else {
+			g_settled_ticks = 0;
+		}
+	}
 }
 
 bool gdxsv_multi_pov_window_is_maximized() {
@@ -79,6 +98,9 @@ bool gdxsv_multi_pov_window_is_maximized() {
 	// Green-button zoom and full screen both mean "take the whole display" to
 	// the user, so both put the grid into its tiled layout.
 	if ((win.styleMask & NSWindowStyleMaskFullScreen) != 0) return true;
+	// Still on the way out of full screen: stay "maximized" so the host keeps
+	// laying the grid out until its quadrant sticks.
+	if (g_leaving_fullscreen) return true;
 	return win.isZoomed;
 }
 
@@ -87,11 +109,14 @@ void gdxsv_multi_pov_window_unmaximize() {
 	if (win == nil) return;
 
 	if ((win.styleMask & NSWindowStyleMaskFullScreen) != 0) {
-		// Leaving full screen is animated and takes a moment; the next tick
-		// picks up where it lands.
-		[win toggleFullScreen:nil];
+		// Leaving full screen is animated and takes a moment. Asked once: a
+		// second toggle while the first is under way would go back in.
+		if (!g_leaving_fullscreen) [win toggleFullScreen:nil];
+		g_leaving_fullscreen = true;
+		g_settled_ticks = 0;
 		return;
 	}
+	if (g_leaving_fullscreen) return;
 	if (win.isZoomed) [win zoom:nil];
 }
 
