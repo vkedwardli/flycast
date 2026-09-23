@@ -158,6 +158,14 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 		"-config", fullscreen.c_str(),
 		"-config", volume.c_str(),
 		content.c_str(),
+#ifdef __APPLE__
+		// After a Flycast crash AppKit asks at launch whether to reopen its
+		// windows, and a guest sits in that alert with no log and no screen
+		// until someone clicks it. A guest has no windows worth restoring.
+		// After the content path, where Flycast stops reading options and
+		// AppKit still picks the pair up.
+		"-ApplePersistenceIgnoreState", "YES",
+#endif
 	};
 	NOTICE_LOG(COMMON, "multi-pov: spawning %dP at %d,%d %dx%d", screen + 1, quadrant.x, quadrant.y, quadrant.w, quadrant.h);
 	os_RunInstance(static_cast<int>(std::size(args)), args);
