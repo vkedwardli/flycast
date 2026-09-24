@@ -33,12 +33,13 @@
 
 #include <sys/stat.h>
 #include <file/file_path.h>
+#include <streams/file_stream.h>
 
 #include <libretro.h>
 
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
 #include <glsm/glsm.h>
-#include "wsi/gl_context.h"
+#include "wsi/libretro.h"
 #endif
 #ifdef HAVE_VULKAN
 #include "rend/vulkan/vulkan_context.h"
@@ -49,6 +50,7 @@
 #include "rend/dx11/dx11context_lr.h"
 #endif
 #include "emulator.h"
+#include "hw/gdrom/gdromv3.h"
 #include "hw/sh4/sh4_mem.h"
 #include "hw/sh4/sh4_sched.h"
 #include "keyboard_map.h"
@@ -67,8 +69,10 @@
 #include "rend/CustomTexture.h"
 #include "oslib/i18n.h"
 #include "input/dreampotato.h"
+#include "storage.h"
 
-constexpr char slash = path_default_slash_c();
+// SMB support does not work when the path contains a back-slash, so just stick to using the portable forward-slash instead.
+constexpr char slash = '/';
 
 #define RETRO_DEVICE_TWINSTICK				RETRO_DEVICE_SUBCLASS( RETRO_DEVICE_JOYPAD, 1 )
 #define RETRO_DEVICE_TWINSTICK_SATURN		RETRO_DEVICE_SUBCLASS( RETRO_DEVICE_JOYPAD, 2 )
@@ -180,6 +184,7 @@ static int maxFramebufferWidth;
 static int maxFramebufferHeight;
 static float framebufferAspectRatio = 4.f / 3.f;
 static double fps_current;
+static double fps_spg;
 
 float libretro_expected_audio_samples_per_run;
 unsigned libretro_vsync_swap_interval = 1;
@@ -225,7 +230,41 @@ static std::vector<std::string> disk_paths;
 static std::vector<std::string> disk_labels;
 static bool disc_tray_open = false;
 
+// Fwd decls
+static void retro_keyboard_event(bool down, unsigned keycode, uint32_t character, uint16_t key_modifiers);
 static bool set_variable_visibility(void);
+
+static bool double_is_equal(double a, double b) { return fabs(a - b) < 1e-5; }
+
+/* LED interface */
+extern GD_StatusT get_gd_status(void);
+static retro_set_led_state_t led_state_cb = NULL;
+static unsigned int retro_led_state[2] = {0};
+static void retro_led_interface(void)
+{
+   /* 0: Power
+    * 1: GD */
+
+   unsigned int led_state[2] = {0};
+   unsigned int l            = 0;
+
+   led_state[0] = (emu.running()) ? 1 : 0;
+   led_state[1] = (get_gd_status().BSY || SecNumber.Status == GD_PLAY) ? 1 : 0;
+
+   for (l = 0; l < sizeof(led_state)/sizeof(led_state[0]); l++)
+   {
+      if (retro_led_state[l] != led_state[l])
+      {
+         retro_led_state[l] = led_state[l];
+         led_state_cb(l, led_state[l]);
+      }
+   }
+}
+
+/* Coin limit */
+unsigned coin_inserted = 0;
+unsigned coin_limit    = 0;
+static bool select_pressed[4] = {false};
 
 void retro_set_video_refresh(retro_video_refresh_t cb)
 {
@@ -268,6 +307,8 @@ void retro_set_environment(retro_environment_t cb)
 {
 	environ_cb = cb;
 
+	hostfs::LibretroStorage::initialise(cb);
+
 	// An annoyance: retro_set_environment() can be called
 	// multiple times, and depending upon the current frontend
 	// state various environment callbacks may be disabled.
@@ -308,11 +349,15 @@ void retro_set_environment(retro_environment_t cb)
 			{ 0 },
 	};
 	environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
+
 	const bool b = true;
 	environ_cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, (void *)&b);
-}
 
-static void retro_keyboard_event(bool down, unsigned keycode, uint32_t character, uint16_t key_modifiers);
+	struct retro_led_interface led_interface;
+	if (environ_cb(RETRO_ENVIRONMENT_GET_LED_INTERFACE, &led_interface))
+		if (led_interface.set_led_state && !led_state_cb)
+			led_state_cb = led_interface.set_led_state;
+}
 
 // Now comes the interesting stuff
 void retro_init()
@@ -329,7 +374,7 @@ void retro_init()
 	else
 		log_cb = NULL;
 	LogManager::Init((void *)log_cb);
-	NOTICE_LOG(BOOT, "retro_init");
+	INFO_LOG(BOOT, "retro_init");
 
 	if (environ_cb(RETRO_ENVIRONMENT_GET_PERF_INTERFACE, &perf_cb))
 		perf_get_cpu_features_cb = perf_cb.get_cpu_features;
@@ -435,6 +480,9 @@ static bool set_variable_visibility(void)
 		environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 		option_display.visible = settings.platform.isNaomi();
 		option_display.key = CORE_OPTION_NAME "_force_freeplay";
+		environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+		option_display.visible = settings.platform.isArcade();
+		option_display.key = CORE_OPTION_NAME "_coin_limit";
 		environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 
 		// Show/hide Dreamcast options
@@ -696,11 +744,7 @@ static void setGameGeometry(retro_game_geometry& geometry)
 bool setAVInfo(retro_system_av_info& avinfo)
 {
 	double sample_rate = 44100.0;
-	double fps = SPG_CONTROL.isPAL() ? 50.0 : 59.94;
-
-	// 240p NTSC rate
-	if (framebufferHeight == 240 && !SPG_CONTROL.isNTSC() && !SPG_CONTROL.isPAL())
-		fps = 59.82366;
+	double fps = (fps_spg) ? fps_spg : SPG_CONTROL.isPAL() ? 50.0 : 59.945300;
 
 	setGameGeometry(avinfo.geometry);
 	avinfo.timing.sample_rate = sample_rate;
@@ -709,19 +753,22 @@ bool setAVInfo(retro_system_av_info& avinfo)
 	libretro_expected_audio_samples_per_run = sample_rate / fps;
 
 	// Avoid video reinit with same timings
-	if (avinfo.timing.fps == fps_current)
+	if (double_is_equal(avinfo.timing.fps, fps_current))
 		return false;
 
 	fps_current = avinfo.timing.fps;
 	return true;
 }
 
-static bool retro_refresh_av_info(void)
+bool retro_refresh_av_info(double fps)
 {
 	retro_system_av_info avinfo;
 
 	if (first_run || game_data.empty())
 		return false;
+
+	if (fps > 0 && fps < 100)
+		fps_spg = fps;
 
 	if (setAVInfo(avinfo))
 	{
@@ -735,6 +782,8 @@ static bool retro_refresh_av_info(void)
 void retro_resize_renderer(int w, int h, float aspectRatio)
 {
 	if (w == framebufferWidth && h == framebufferHeight && aspectRatio == framebufferAspectRatio)
+		return;
+	if (w < 4 || h < 4)
 		return;
 	framebufferWidth = w;
 	framebufferHeight = h;
@@ -752,7 +801,7 @@ void retro_resize_renderer(int w, int h, float aspectRatio)
 	else
 	{
 		// Check if timing change is needed instead
-		if (retro_refresh_av_info())
+		if (retro_refresh_av_info(0))
 			return;
 
 		retro_game_geometry geometry;
@@ -827,6 +876,13 @@ static void update_variables(bool first_startup)
 			config::RenderResolution = strtoul(pch, NULL, 0);
 
 		DEBUG_LOG(COMMON, "Got height: %u", (int)config::RenderResolution);
+	}
+
+	var.key   = CORE_OPTION_NAME "_coin_limit";
+	var.value = NULL;
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+	{
+		coin_limit = atoi(var.value);
 	}
 
 	var.key = CORE_OPTION_NAME "_alpha_sorting";
@@ -1264,6 +1320,10 @@ void retro_run()
 		glsm_ctl(GLSM_CTL_STATE_UNBIND, nullptr);
 #endif
 
+	/* LED interface */
+	if (led_state_cb)
+		retro_led_interface();
+
 	// Unless VGA cable is selected, We need to update
 	// the refresh rate for PAL games with a 60Hz mode
 	bool pal_check = SPG_CONTROL.isPAL();
@@ -1316,6 +1376,7 @@ void retro_reset()
 	environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &geometry);
 	blankVmus();
 	retro_audio_flush_buffer();
+	coin_inserted = 0;
 
 	emu.start();
 }
@@ -1364,7 +1425,13 @@ static void context_reset()
 	glsm_ctl(GLSM_CTL_STATE_CONTEXT_RESET, NULL);
 	glsm_ctl(GLSM_CTL_STATE_SETUP, NULL);
 	rend_term_renderer();
-	theGLContext.init();
+	GraphicsContext::Term();
+	try {
+		GLGraphicsContext::Create(nullptr, nullptr);
+	} catch (const std::exception& e) {
+		ERROR_LOG(RENDERER, "%s", e.what());
+		return;
+	}
 	rend_init_renderer();
 #ifdef HAVE_OIT
 	if (!perPixelChecked)
@@ -1377,6 +1444,7 @@ static void context_destroy()
 	gl_ctx_resetting = true;
 	rend_term_renderer();
 	glsm_ctl(GLSM_CTL_STATE_CONTEXT_DESTROY, NULL);
+	GraphicsContext::Term();
 }
 #endif
 
@@ -1941,8 +2009,6 @@ static void remove_extension(char *buf, const char *path, size_t size)
 }
 
 #ifdef HAVE_VULKAN
-static VulkanContext theVulkanContext;
-
 static void retro_vk_context_reset()
 {
 	NOTICE_LOG(RENDERER, "retro_vk_context_reset");
@@ -1952,8 +2018,12 @@ static void retro_vk_context_reset()
 		ERROR_LOG(RENDERER, "Get Vulkan HW interface failed");
 		return;
 	}
-	if (!theVulkanContext.init((retro_hw_render_interface_vulkan *)vulkan))
+	try {
+		VulkanContext::Create((retro_hw_render_interface_vulkan *)vulkan);
+	} catch (const std::exception& e) {
+		ERROR_LOG(RENDERER, "%s", e.what());
 		return;
+	}
 	rend_term_renderer();
 	rend_init_renderer();
 	if (!perPixelChecked)
@@ -1964,7 +2034,7 @@ static void retro_vk_context_destroy()
 {
 	NOTICE_LOG(RENDERER, "retro_vk_context_destroy");
 	rend_term_renderer();
-	theVulkanContext.term();
+	GraphicsContext::Term();
 }
 
 static bool set_vulkan_hw_render()
@@ -2086,9 +2156,14 @@ static void dx11_context_reset()
 		return;
 	}
 	rend_term_renderer();
-	theDX11Context.term();
+	GraphicsContext::Term();
 
-	theDX11Context.init(hw_render->device, hw_render->context, hw_render->D3DCompile, hw_render->featureLevel);
+	try {
+		DX11Context::Create(hw_render->device, hw_render->context, hw_render->D3DCompile, hw_render->featureLevel);
+	} catch (const std::exception& e) {
+		ERROR_LOG(RENDERER, "%s", e.what());
+		return;
+	}
 	if (config::RendererType == RenderType::OpenGL_OIT || config::RendererType == RenderType::Vulkan_OIT)
 		config::RendererType = RenderType::DirectX11_OIT;
 	else if (config::RendererType != RenderType::DirectX11_OIT)
@@ -2102,7 +2177,7 @@ static void dx11_context_destroy()
 {
 	NOTICE_LOG(RENDERER, "DX11 context destroyed");
 	rend_term_renderer();
-	theDX11Context.term();
+	GraphicsContext::Term();
 }
 #endif
 
@@ -2251,7 +2326,7 @@ bool retro_load_game(const struct retro_game_info *game)
 
 		disk_paths.push_back(game->path);
 
-		fill_short_pathname_representation(disk_label, game->path, sizeof(disk_label));
+		fill_pathname(disk_label, path_basename(game->path), "", sizeof(disk_label));
 		disk_labels.push_back(disk_label);
 
 		game_data = game->path;
@@ -2494,7 +2569,7 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(retro_system_av_info *info)
 {
-	NOTICE_LOG(RENDERER, "retro_get_system_av_info: Res=%d", (int)config::RenderResolution);
+	INFO_LOG(RENDERER, "retro_get_system_av_info: Res=%d", (int)config::RenderResolution);
 
 	if (cheatManager.isWidescreen())
 	{
@@ -2949,6 +3024,23 @@ static void UpdateInputStateNaomi(u32 port)
 					else
 						setDeviceButtonStateFromBitmap(ret, port, RETRO_DEVICE_JOYPAD, RETRO_DEVICE_ID_JOYPAD_L);
 					break;
+				case RETRO_DEVICE_ID_JOYPAD_SELECT:
+					if (ret & (1 << id) && !select_pressed[port])
+					{
+						if ((coin_limit && coin_inserted < coin_limit) || !coin_limit)
+						{
+							select_pressed[port] = true;
+							coin_inserted++;
+						}
+
+						if (!select_pressed[port])
+							ret &= ~(1 << id);
+					}
+					else if (!(ret & (1 << id)) && select_pressed[port])
+						select_pressed[port] = false;
+
+					setDeviceButtonStateFromBitmap(ret, port, RETRO_DEVICE_JOYPAD, id);
+					break;
 				default:
 					setDeviceButtonStateFromBitmap(ret, port, RETRO_DEVICE_JOYPAD, id);
 					break;
@@ -3052,6 +3144,7 @@ static void UpdateInputStateNaomi(u32 port)
 
 static int16_t getBitmask(u32 port, int deviceType)
 {
+	deviceType &= RETRO_DEVICE_MASK;
 	int16_t ret = 0;
 	if (libretro_supports_bitmasks)
 		ret = input_cb(port, deviceType, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
@@ -3687,7 +3780,7 @@ static bool retro_replace_image_index(unsigned index, const struct retro_game_in
 
 		disk_paths[index] = info->path;
 
-		fill_short_pathname_representation(disk_label, info->path, sizeof(disk_label));
+		fill_pathname(disk_label, path_basename(info->path), "", sizeof(disk_label));
 		disk_labels[index] = disk_label;
 	}
 
@@ -3774,7 +3867,7 @@ static bool read_m3u(const char *file)
 {
 	char line[PATH_MAX];
 	char name[PATH_MAX];
-	FILE *f = fopen(file, "r");
+	RFILE *f = filestream_open(file, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
 
 	if (!f)
 	{
@@ -3782,7 +3875,7 @@ static bool read_m3u(const char *file)
 		return false;
 	}
 
-	while (fgets(line, sizeof(line), f) && disk_index <= disk_paths.size())
+	while (filestream_gets(f, line, sizeof(line)) && disk_index <= disk_paths.size())
 	{
 		if (line[0] == '#')
 			continue;
@@ -3813,14 +3906,14 @@ static bool read_m3u(const char *file)
 				snprintf(name, sizeof(name), "%s%s", g_roms_dir, line);
 			disk_paths.push_back(name);
 
-			fill_short_pathname_representation(disk_label, name, sizeof(disk_label));
+			fill_pathname(disk_label, path_basename(name), "", sizeof(disk_label));
 			disk_labels.push_back(disk_label);
 
 			disk_index++;
 		}
 	}
 
-	fclose(f);
+	filestream_close(f);
 	return disk_index != 0;
 }
 

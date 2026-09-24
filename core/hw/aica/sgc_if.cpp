@@ -95,15 +95,14 @@ static const char* stream_names[]=
 };
 
 //x.8 format
-static const s32 adpcm_qs[8] =
+static constexpr s32 adpcm_qs[8] =
 {
 	0x0e6, 0x0e6, 0x0e6, 0x0e6, 0x133, 0x199, 0x200, 0x266,
 };
 //x.3 format
-static const s32 adpcm_scale[16] =
+static constexpr s32 adpcm_scale[8] =
 {
-	1,3,5,7,9,11,13,15,
-	-1,-3,-5,-7,-9,-11,-13,-15,
+	1, 3, 5, 7, 9, 11, 13, 15,
 };
 
 static const s32 qtable[32] = {
@@ -420,7 +419,7 @@ struct ChannelEx
 
 	ChannelCommonData* ccd;
 
-	const u8 *SA;
+	u32 SA;
 	u32 CA;
 	fp_22_10 step;
 	u32 update_rate;
@@ -431,6 +430,7 @@ struct ChannelEx
 	{
 		u32 LSA;
 		u32 LEA;
+		u32 alignedLEA;
 
 		u8 looped;
 	} loop;
@@ -766,7 +766,7 @@ struct ChannelEx
 				ChannelNumber, stream_names[ccd->PCMS], (44100.0 * update_rate) / 1024, ccd->LPCTL,
 				ccd->AR, ccd->D1R, ccd->DL << 5, ccd->D2R, ccd->RR,
 				ccd->KRS, ccd->OCT, ccd->FNS,
-				(int)(SA - &aica_ram[0]), ccd->LSA, ccd->LEA);
+				SA, ccd->LSA, ccd->LEA);
 	}
 
 	void KEY_OFF()
@@ -791,17 +791,17 @@ struct ChannelEx
 	//SA,PCMS
 	void UpdateSA()
 	{
-		u32 addr = (ccd->SA_hi << 16) | ccd->SA_low;
+		SA = (ccd->SA_hi << 16) | ccd->SA_low;
 		if (ccd->PCMS == PCM16)
-			addr &= ~1; //0: 16 bit
-		
-		SA = &aica_ram[addr & ARAM_MASK];
+			SA &= ~1; //0: 16 bit
 	}
 	//LSA,LEA
 	void UpdateLoop()
 	{
 		loop.LSA = ccd->LSA;
 		loop.LEA = ccd->LEA;
+		// ADPCM long stream needs 4-sample alignment for LEA
+		loop.alignedLEA = (loop.LEA + 3) & ~3;
 	}
 
 	u32 EG_EffRate(u32 rate)
@@ -1056,15 +1056,21 @@ static SampleType DecodeADPCM(u32 sample, s32 prev, s32& quant)
 	return std::clamp(rv, -32768, 32767);
 }
 
+template<typename T>
+static T readAicaRam(u32 addr) {
+	return *(const T *)&aica_ram[addr & ARAM_MASK & ~(sizeof(T) - 1)];
+}
+
 template<PCMSType PCMS, bool Last>
 void ChannelEx::StepDecodeSample(u32 CA)
 {
+	// Only ADPCM needs all intermediate samples to be decoded
 	if constexpr (!Last && (PCMS == PCM16 || PCMS == PCM8 || PCMS == NOISE))
 		return;
 
-	// TODO bound checking of sample addresses
 	u32 next_addr = CA + 1;
-	if (next_addr >= loop.LEA && loop.LEA > loop.LSA)
+	const u32 lea = PCMS == ADPCM_STREAM ? loop.alignedLEA : loop.LEA;
+	if (next_addr >= lea && lea > loop.LSA)
 		next_addr = loop.LSA;
 
 	SampleType s0, s1;
@@ -1074,33 +1080,26 @@ void ChannelEx::StepDecodeSample(u32 CA)
 		noise_state = noise_state * RAND_FACTOR + RAND_TERM;
 		s0 = noise_state;
 		s0 >>= 16;
-		
-		s1 = noise_state * RAND_FACTOR + RAND_TERM;
+		noise_state = noise_state * RAND_FACTOR + RAND_TERM;
+		s1 = noise_state;
 		s1 >>= 16;
 		break;
 
 	case PCM16:
-		{
-			const s16 *sptr16 = (const s16 *)SA;
-			s0 = sptr16[CA];
-			s1 = sptr16[next_addr];
-			break;
-		}
+		s0 = readAicaRam<s16>(SA + CA * 2);
+		s1 = readAicaRam<s16>(SA + next_addr * 2);
+		break;
 
 	case PCM8:
-		{
-			const s8 *sptr8 = (const s8 *)SA;
-			s0 = sptr8[CA] << 8;
-			s1 = sptr8[next_addr] << 8;
-			break;
-		}
+		s0 = readAicaRam<s8>(SA + CA) << 8;
+		s1 = readAicaRam<s8>(SA + next_addr) << 8;
+		break;
 
 	case ADPCM:
 	case ADPCM_STREAM:
 		{
-			const u8 *uptr8 = (const u8 *)SA;
-			u8 ad1 = uptr8[CA >> 1];
-			u8 ad2 = uptr8[next_addr >> 1];
+			u8 ad1 = readAicaRam<u8>(SA + (CA >> 1));
+			u8 ad2 = readAicaRam<u8>(SA + (next_addr >> 1));
 
 			ad1 >>= (CA & 1) * 4;
 			ad2 >>= (next_addr & 1) * 4;
@@ -1109,7 +1108,7 @@ void ChannelEx::StepDecodeSample(u32 CA)
 			ad2 &= 0xF;
 
 			s32 q = adpcm.last_quant;
-			if (PCMS == ADPCM && CA == loop.LSA)
+			if (CA == loop.LSA)
 			{
 				if (!adpcm.in_loop)
 				{
@@ -1117,7 +1116,7 @@ void ChannelEx::StepDecodeSample(u32 CA)
 					adpcm.loopstart_quant = q;
 					adpcm.loopstart_prev_sample = this->s0;
 				}
-				else
+				else if (PCMS == ADPCM)
 				{
 					q = adpcm.loopstart_quant;
 					this->s0 = adpcm.loopstart_prev_sample;
@@ -1158,11 +1157,7 @@ void ChannelEx::StreamStep()
 		sp.ip--;
 
 		u32 CA = this->CA + 1;
-
-		u32 ca_t = CA;
-		if constexpr (PCMS == ADPCM_STREAM)
-			ca_t &= ~3;	// in adpcm "stream" mode, LEA and LSA are supposed to be 4-sample aligned
-						// but some games don't respect this rule
+		const u32 lea = PCMS == ADPCM_STREAM ? loop.alignedLEA : loop.LEA;
 
 		if constexpr (LPSLNK)
 		{
@@ -1173,13 +1168,13 @@ void ChannelEx::StreamStep()
 			}
 		}
 
-		if (ca_t >= loop.LEA)
+		if (CA >= lea)
 		{
-			if (loop.LSA > loop.LEA)
+			if (loop.LSA > lea)
 			{
 				// When LSA > LEA, aica won't stop when reaching LEA but will continue until LSA.
 				// It will then reset CA to 0 and stop playing, even for looping sounds.
-				if (ca_t >= loop.LSA)
+				if (CA >= loop.LSA)
 				{
 					loop.looped = 1;
 					CA = 0;
@@ -1642,9 +1637,7 @@ void serialize(Serializer& ser)
 {
 	for (const ChannelEx& channel : Chans)
 	{
-		u32 addr = channel.SA - &aica_ram[0];
-		ser << addr;
-
+		ser << channel.SA;
 		ser << channel.CA;
 		ser << channel.step;
 		ser << channel.s0;
@@ -1681,10 +1674,7 @@ void deserialize(Deserializer& deser)
 	for (ChannelEx& channel : Chans)
 	{
 		channel.quiet = true;
-		u32 addr;
-		deser >> addr;
-		channel.SA = addr + &aica_ram[0];
-
+		deser >> channel.SA;
 		deser >> channel.CA;
 		deser >> channel.step;
 		channel.UpdatePitch();

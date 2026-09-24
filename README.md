@@ -12,47 +12,77 @@
 
 Information about configuration and supported features can be found on [**TheArcadeStriker's flycast wiki**](https://github.com/TheArcadeStriker/flycast-wiki/wiki).
 
-Join us on our [**Discord server**](https://discord.gg/X8YWP8w) for a chat. 
+Join us on our [**Discord server**](https://discord.gg/X8YWP8w) for a chat.
+
+## Downloads ![android](https://flyinghead.github.io/flycast-builds/android.jpg) ![windows](https://flyinghead.github.io/flycast-builds/windows.png) ![linux](https://flyinghead.github.io/flycast-builds/ubuntu.png) ![apple](https://flyinghead.github.io/flycast-builds/apple.png) ![switch](https://flyinghead.github.io/flycast-builds/switch.png) ![xbox](https://flyinghead.github.io/flycast-builds/xbox.png)
+
+Get builds for your system from the [**builds page**](https://flyinghead.github.io/flycast-builds/) or [**GitHub Releases**](https://github.com/flyinghead/flycast/releases).
+
+- **Latest master builds:** regular builds from the `master` branch with recent fixes and updates.
+- **Nightly dev builds:** experimental builds with the latest features and changes.
+- **Stable tagged releases:** versioned release builds published on GitHub Releases.
+
+Automated test results are available from the builds page as well.
 
 ## Install
 
 ### Android ![android](https://flyinghead.github.io/flycast-builds/android.jpg)
-Install Flycast from [**Google Play**](https://play.google.com/store/apps/details?id=com.flycast.emulator).
+
+&emsp;Install Flycast from [**Google Play**](https://play.google.com/store/apps/details?id=com.flycast.emulator).
+
 ### Flatpak (Linux ![ubuntu logo](https://flyinghead.github.io/flycast-builds/ubuntu.png))
 
 1. [Set up Flatpak](https://www.flatpak.org/setup/).
 
 2. Install Flycast from [Flathub](https://flathub.org/apps/details/org.flycast.Flycast):
 
-`flatpak install -y org.flycast.Flycast`
+&emsp;`flatpak install -y org.flycast.Flycast`
 
 3. Run Flycast:
 
-`flatpak run org.flycast.Flycast`
+&emsp;`flatpak run org.flycast.Flycast`
 
-### Homebrew (MacOS ![apple logo](https://flyinghead.github.io/flycast-builds/apple.png))
+### Homebrew (macOS ![apple logo](https://flyinghead.github.io/flycast-builds/apple.png))
 
-1. [Set up Homebrew](https://brew.sh).
+1. [Set up Homebrew](https://brew.sh) or run `brew update` if already installed.
 
-2. Install Flycast via Homebrew:
+2. Choose one channel:
 
-`brew install --cask flycast`
+| Channel              | Install command                                         |
+| -------------------- | ------------------------------------------------------- |
+| Master (recommended) | `brew install --cask flyinghead/flycast/flycast@master` |
+| Stable               | `brew install --cask flyinghead/flycast/flycast`        |
+| Nightly dev          | `brew install --cask flyinghead/flycast/flycast@dev`    |
+
+3. Run Flycast from your Application folder
+
+&emsp;See the <a href="https://github.com/flyinghead/homebrew-flycast#readme">Flycast tap</a> for updating, uninstalling, and switching channels.
 
 ### iOS
 
-Due to persistent harassment from an iOS user, support for this platform has been dropped. 
+&emsp;Due to persistent harassment from an iOS user, support for this platform has been dropped.
 
 ### Xbox One/Series ![xbox logo](https://flyinghead.github.io/flycast-builds/xbox.png)
 
-Grab the latest build from [**the builds page**](https://flyinghead.github.io/flycast-builds/), or the [**GitHub Actions**](https://github.com/flyinghead/flycast/actions/workflows/uwp.yml). Then install it using the **Xbox Device Portal**.
+&emsp;Grab the latest build from [**the builds page**](https://flyinghead.github.io/flycast-builds/), or the [**GitHub Actions**](https://github.com/flyinghead/flycast/actions/workflows/uwp.yml). Then install it using the **Xbox Device Portal**.
 
-### Binaries ![android](https://flyinghead.github.io/flycast-builds/android.jpg) ![windows](https://flyinghead.github.io/flycast-builds/windows.png) ![linux](https://flyinghead.github.io/flycast-builds/ubuntu.png) ![apple](https://flyinghead.github.io/flycast-builds/apple.png) ![switch](https://flyinghead.github.io/flycast-builds/switch.png) ![xbox](https://flyinghead.github.io/flycast-builds/xbox.png)
+## Build from source
 
-Get fresh builds for your system [**on the builds page**](https://flyinghead.github.io/flycast-builds/).
+### macOS
 
-**New:** Now automated test results are available as well. 
+&emsp;Right-click the bootstrap script and choose **Open**:
 
-### Build requirements (Linux):
+&emsp;`shell/apple/generate_xcode_project.command`
+
+### Windows
+
+&emsp;Double-click the bootstrap script:
+
+&emsp;`shell\windows\generate_vs_project.bat`
+
+### Linux
+
+#### Dependencies
 
 - **C/C++ compiler toolchain** (e.g. `gcc`/`g++`)
 - **CMake**
@@ -60,9 +90,10 @@ Get fresh builds for your system [**on the builds page**](https://flyinghead.git
 - **libcurl** (development headers)
 - **libudev** (development headers)
 - **SDL2** (development headers)
-- **Graphics API**: Vulcan, OpenGL
+- **Graphics API**: Vulkan, OpenGL
 
-### Build instructions:
+#### Build
+
 ```
 $ git clone --recursive https://github.com/flyinghead/flycast.git
 $ cd flycast
@@ -70,3 +101,7 @@ $ mkdir build && cd build
 $ cmake ..
 $ make
 ```
+
+## Packaging status
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/flycast.svg)](https://repology.org/project/flycast/versions)

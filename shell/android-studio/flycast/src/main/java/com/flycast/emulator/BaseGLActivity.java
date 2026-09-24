@@ -21,6 +21,7 @@ import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.view.Window;
 import android.view.WindowManager;
+import android.window.OnBackInvokedDispatcher;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -132,10 +133,15 @@ public abstract class BaseGLActivity extends Activity implements ActivityCompat.
         Log.i("flycast", "Initializing input devices");
         InputDeviceManager.getInstance().startListening(getApplicationContext());
         register(this);
-
         audioBackend = new AudioBackend();
-
         onConfigurationChanged(getResources().getConfiguration());
+
+        // Back button handling on Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, () -> {
+                onBackKey();
+            });
+        }
 
         // When viewing a resource, pass its URI to the native code for opening
         Intent intent = getIntent();
@@ -155,7 +161,7 @@ public abstract class BaseGLActivity extends Activity implements ActivityCompat.
     }
 
 	// Called from native code
-    private void showAlertDialog(String message)
+    public void showAlertDialog(String message)
     {
         handler.post(new Runnable() {
             @Override
@@ -343,16 +349,20 @@ public abstract class BaseGLActivity extends Activity implements ActivityCompat.
         return super.onKeyUp(keyCode, event);
     }
 
+    private void onBackKey() {
+        if (JNIdc.guiIsContentBrowser()) {
+            finish();
+        }
+        else {
+            showMenu();
+        }
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (event.getRepeatCount() == 0) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
-                if (JNIdc.guiIsContentBrowser()) {
-                    finish();
-                }
-                else {
-                    showMenu();
-                }
+                onBackKey();
                 return true;
             }
             InputDeviceManager deviceManager = InputDeviceManager.getInstance();
