@@ -78,14 +78,15 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 		{ "MK-51136",   nullptr,    { 0x2BDDD0 }, { 0x43700000 } },		// Crazy Taxi 2 (USA)
 //		{ "HDR-0159",   nullptr,    { 0x2FBBD0 }, { 0x43700000 } },		// Crazy Taxi 2 (JP) not working
 		{ "T13004N",    nullptr,    { 0x016D94 }, { 0x44234E73 } },		// Cyber Troopers - Virtual On - Oratorio Tangram (USA)
+		{ "HDR-0040",   nullptr,    { 0x016D94 }, { 0x44234E73 } },		// Cyber Troopers - Virtual On - Oratorio Tangram (JP)
 		// D2 (USA)
 		{ "MK-51036",   nullptr,    { 0x4B5CF4, 0x4B5CC4, 0x3E92A0, 0x3E92A8, 0x3E92C0, 0x3E92C8 },
 				{ 0x3F400000, 0x43F00000, 0, 0, 0, 0 } },
 		// D2 (JP)
 		{ "T30006M",    nullptr,    { 0x4CF42C, 0x4CF45C, 0x3E1A36, 0x3E1A34, 0x3E1A3C, 0x3E1A54, 0x3E1A5C },
 				{ 0x43F00000, 0x3F400000, 0x08010000, 0, 0, 0, 0 } },
-		{ "MK-5103750", nullptr,    { 0x1FE270 }, { 0x43700000 } },		// Daytona USA (PAL)
-		// breaks online connection { "MK-51037",   nullptr,    { 0x1FC6D0 }, { 0x43700000 } },		// Daytona USA (USA)
+		{ "MK-5103750", nullptr,    { 0x1FE270 }, { 0x43700000 }, { 0x43a00000 } },		// Daytona USA (PAL)
+		{ "MK-51037",   nullptr,    { 0x1FC6D0 }, { 0x43700000 }, { 0x43a00000 } },		// Daytona USA (USA)
 		{ "T9501N-50",  nullptr,    { 0x9821D4 }, { 0x3F400000 } },		// Deadly Skies (PAL)
 		{ "T8116D  50", nullptr,    { 0x2E5530 }, { 0x43700000 } },		// Dead or Alive 2 (PAL)
 		{ "T3601N",     nullptr,    { 0x2F0670 }, { 0x43700000 } },		// Dead or Alive 2 (USA)
@@ -238,10 +239,10 @@ const WidescreenCheat CheatManager::widescreen_cheats[] =
 		{ "MK-5105950", nullptr,    { 0x231EF8, 0x1EF370 }, { 0x43800000, 0x7C1EF400 } },	// Shenmue (PAL) code 1 reduces clipping
 		{ "MK-51059",   nullptr,    { 0x230250 }, { 0x43800000 }, { 0x43a00000 } },		// Shenmue (USA) Clipping
 		{ "HDR-0016",   nullptr,    { 0x22E8A0, 0x1EBE70 }, { 0x43800000, 0x7C1EBF00 } },	// Shenmue (JP) code 1 reduces clipping
-		{ "MK-5118450", nullptr,    { 0x31186C }, { 0x43800000 } },		// Shenmue II (PAL) 01160FF4 0000E100 for black bars in cutscenes
+		{ "MK-5118450", nullptr,    { 0x31186C }, { 0x43800000 }, { 0x43a00000 } },		// Shenmue II (PAL) 01160FF4 0000E100 for black bars in cutscenes
 		// Shenmue II (PAL) Alternative code without clipping or black bars. Might be demanding on real hardware.
 		// 02311880 C3A00000, 0227E198 35AA359E, 01160FF4 0000E100
-		{ "HDR-0164",   nullptr,    { 0x30D67C }, { 0x43700000 } },		// Shenmue II (JP) Clipping
+		{ "HDR-0164",   nullptr,    { 0x30D67C }, { 0x43700000 }, { 0x43a00000 } },		// Shenmue II (JP) Clipping
 		{ "T9505D",     nullptr,    { 0xD1FB14, 0x096A4C }, { 0x3F400000, 0x3FAAAAAB } },	// Silent Scope (PAL) Choose 60Hz in game options
 		{ "MK-51052",   "  E     ", { 0x502A84 }, { 0x3F400000 } },		// Skies of Arcadia (PAL)
 		{ "MK-51052",   " U      ", { 0x599158 }, { 0x3F400000 } },		// Skies of Arcadia (USA)
@@ -391,7 +392,7 @@ void CheatManager::loadCheatFile(const std::string& filename)
 		return;
 	}
 
-	FILE* cheatfile = hostfs::storage().openFile(filename, "r");
+	hostfs::File* cheatfile = hostfs::storage().openFile(filename, "r");
 	if (cheatfile == nullptr)
 	{
 		WARN_LOG(COMMON, "Cannot open cheat file '%s'", filename.c_str());
@@ -399,7 +400,7 @@ void CheatManager::loadCheatFile(const std::string& filename)
 	}
 	config::IniFile cfg;
 	cfg.load(cheatfile);
-	fclose(cheatfile);
+	delete cheatfile;
 
 	int count = cfg.getInt("", "cheats", 0);
 	cheats.clear();
@@ -450,7 +451,7 @@ void CheatManager::reset(const std::string& gameId)
 		this->gameId = gameId;
 
 #ifndef LIBRETRO
-		if (!settings.raHardcoreMode)
+		if (!settings.raHardcoreMode && !gameId.empty())
 		{
 			std::string cheatFile = config::loadStr("cheats", gameId);
 			if (!cheatFile.empty())
@@ -556,10 +557,6 @@ found_cheats:
 			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0013f150, 0x2fd62fe6, true);
 			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x0013f150, 0xe000000b, true);
 		}
-		else if (gameId == "HDR-0124") {	// Hundred Swords
-			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x006558ac, 0x1f414f22, true);
-			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x006558ac, 0xe000000b, true);
-		}
 		else if (gameId == "T43903M") {		// Culdcept II
 			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x00800524, 0x2fd62fe6, true);
 			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth", true, 32, 0x00800524, 0xe000000b, true);
@@ -579,6 +576,23 @@ found_cheats:
 			cheats.emplace_back(Cheat::Type::runNextIfEq, "disable net check ifeq", true, 16, 0x00085d2c, 0x3630, true);
 			cheats.emplace_back(Cheat::Type::setValue, "disable net sync check",    true, 16, 0x00085d2c, 0x3330, true);
 		}
+		else if (gameId == "HDR-0006") {	// Nettou Golf
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "bypass auth ifeq", true, 32, 0x0d5fbc, 0x2fd62fe6, true);
+			cheats.emplace_back(Cheat::Type::setValue, "bypass dricas auth",  true, 32, 0x0d5fbc, 0xe000000b, true);
+		}
+		else if (gameId == "SEGA STRIKE FIGHTER IN JPN-SLAVE")
+		{
+			// hack the slave sync procedure
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "easy sync ifeq", true, 32, 0x08b66c, 0x40600000, true);
+			cheats.emplace_back(Cheat::Type::setValue,    "easy sync",      true, 32, 0x08b66c, 0x4cbebc20, true); // 3.5 -> 100000000
+		}
+		else if (gameId == "AIRLINE PILOTS IN JAPAN-SLAVE")
+		{
+			// hack the slave sync procedure
+			cheats.emplace_back(Cheat::Type::runNextIfEq, "easy sync ifeq", true, 32, 0x052ee0, 0x40200000, true);
+			cheats.emplace_back(Cheat::Type::setValue,    "easy sync",      true, 32, 0x052ee0, 0x4cbebc20, true); // 2.5 -> 100000000
+		}
+
 
 		if (cheats.size() > cheatCount)
 			setActive(true);
@@ -1093,10 +1107,10 @@ void CheatManager::saveCheatFile(const std::string& filename)
 		i++;
 	}
 	cfg.set("", "cheats", i);
-	FILE *fp = hostfs::storage().openFile(filename.c_str(), "w");
+	hostfs::File *fp = hostfs::storage().openFile(filename.c_str(), "w");
 	if (fp == nullptr)
 		throw FlycastException(Ts("Can't save cheat file"));
 	cfg.save(fp);
-	fclose(fp);
+	delete fp;
 #endif
 }
