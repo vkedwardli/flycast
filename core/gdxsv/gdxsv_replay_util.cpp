@@ -335,6 +335,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
 	OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
+	OptionCheckbox("Projectile View", config::GdxProjectileView, "Debug: list the projectiles in play (DC2)");
 }
 
 void draw_round_detail(const ReplayEntry& entry) {
