@@ -556,7 +556,12 @@ sh4op(i1111_nnnn_mmmm_1110)
 		u32 n = GetN(op);
 		u32 m = GetM(op);
 
+#ifdef GDXSV_FP_COMPAT
+		// gdxsv: round the product before the add (no fused multiply-add)
+		ctx->fr[n] = ctx->fr[0] * ctx->fr[m] + ctx->fr[n];
+#else
 		ctx->fr[n] = std::fma(ctx->fr[0], ctx->fr[m], ctx->fr[n]);
+#endif
 		CHECK_FPU_32(ctx->fr[n]);
 	}
 	else

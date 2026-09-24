@@ -78,6 +78,7 @@ option(ENABLE_OPROFILE "Enable OProfile" OFF)
 option(TEST_AUTOMATION "Enable test automation" OFF)
 option(ENABLE_LOG "Enable full logging" OFF)
 option(ENABLE_SLEEP_BENCHMARK "Enable sleep timing benchmark logging" OFF)
+option(GDXSV_FP_COMPAT "gdxsv: compute SH4 fmac as fmul + fadd (no fused multiply-add) on every CPU and backend so replays and netplay stay in sync" ON)
 option(ASAN "Enable address sanitizer" OFF)
 option(USE_GLES "Use GLES[3] API" OFF)
 option(USE_GLES2 "Use GLES2 API" OFF)
@@ -1341,6 +1342,14 @@ if("arm" IN_LIST ARCHITECTURE AND NOT APPLE)
 		core/deps/vixl/pool-manager-impl.h
 		core/deps/vixl/utils-vixl.cc
 		core/deps/vixl/utils-vixl.h)
+endif()
+if(GDXSV_FP_COMPAT)
+	# gdxsv: a*b+c must round twice on every host. Keep the compiler from fusing it
+	# (fmac in the interpreter and canonical, innerProduct for fipr/ftrv ...).
+	target_compile_definitions(${PROJECT_NAME} PRIVATE GDXSV_FP_COMPAT)
+	if(NOT MSVC)
+		target_compile_options(${PROJECT_NAME} PRIVATE -ffp-contract=off)
+	endif()
 endif()
 if("arm64" IN_LIST ARCHITECTURE)
 	if(MSVC)
