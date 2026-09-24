@@ -13,6 +13,8 @@ constexpr u32 kPoolBase = 0x0c3fba80;
 constexpr u32 kPoolCount = 320;
 constexpr u32 kPoolStride = 0x210;
 constexpr u32 kFreeSlotMark = 0x100;
+// Header byte 0 bit 0: the object is alive. A dead object keeps its slot (and its last position) for a while.
+constexpr u32 kAliveFlag = 0x1;
 constexpr u8 kWeaponClass = 0x11;
 
 // Player work blocks.
@@ -77,6 +79,7 @@ bool GdxsvProjectileView::Collect(std::vector<Entry>& out, bool all_classes) {
 		const u32 addr = kPoolBase + i * kPoolStride;
 		if (gdxsv_ReadMem32(addr + 0x8) == kFreeSlotMark) continue;
 		const u32 header = gdxsv_ReadMem32(addr);
+		if (!(header & kAliveFlag)) continue;
 		Entry e{};
 		e.slot = i;
 		e.cls = (header >> 8) & 0xff;
