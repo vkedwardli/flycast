@@ -39,14 +39,19 @@ float readFloat(u32 addr) {
 }  // namespace
 
 const char* GdxsvProjectileView::KindName(u8 kind) {
-	// Weapon object kinds (class 0x11), named after their spawner / update functions in DC2.
+	// Weapon object kinds (class 0x11). Names from which MS own them over 5 replays
+	// (gdxsv-reveng dc2/entity_pool.md); the rest are shown by id only.
 	switch (kind) {
+		case 0:
+			return "Melee weapon (held)";
 		case 1:
 			return "Beam";
 		case 2:
-			return "Shot";
+			return "Bullet / missile";
 		case 3:
 			return "Shell / cannon";
+		case 5:
+			return "Bazooka";
 		case 6:
 			return "Explosion puff / fragment";
 		default:
@@ -103,13 +108,31 @@ void GdxsvProjectileView::DisplayOSD() {
 		if (n == 0) continue;
 		ImGui::Separator();
 		ImGui::Text("kind %d: %s  x%d", kind, KindName(kind), n);
-		for (const auto& e : entries_) {
-			if (e.kind != kind) continue;
+		// One row per (type, owner); repeated shots (e.g. machine-gun bullets) show as one row with a count.
+		std::vector<bool> shown(entries_.size());
+		for (size_t i = 0; i < entries_.size(); i++) {
+			const auto& e = entries_[i];
+			if (e.kind != kind || shown[i]) continue;
+			int count = 0;
+			for (size_t j = i; j < entries_.size(); j++) {
+				const auto& f = entries_[j];
+				if (f.kind == kind && f.type == e.type && f.owner == e.owner) {
+					shown[j] = true;
+					count++;
+				}
+			}
+			char ms[24];
 			if (e.owner < 0) {
-				ImGui::Text("  #%03d type %02x  owner ?", e.slot, e.type);
+				snprintf(ms, sizeof(ms), "owner ?");
+			} else if (std::strcmp(MsName(e.owner_ms), "?") == 0) {
+				snprintf(ms, sizeof(ms), "P%d MS id %d", e.owner + 1, e.owner_ms);
 			} else {
-				ImGui::Text("  #%03d type %02x  P%d %-14s (%7.0f %7.0f %7.0f)", e.slot, e.type, e.owner + 1, MsName(e.owner_ms), e.pos[0],
-							e.pos[1], e.pos[2]);
+				snprintf(ms, sizeof(ms), "P%d %s", e.owner + 1, MsName(e.owner_ms));
+			}
+			if (count == 1) {
+				ImGui::Text("  #%03d type %02x  %-18s (%7.0f %7.0f %7.0f)", e.slot, e.type, ms, e.pos[0], e.pos[1], e.pos[2]);
+			} else {
+				ImGui::Text("  #%03d type %02x  %-18s x%d", e.slot, e.type, ms, count);
 			}
 		}
 	}
