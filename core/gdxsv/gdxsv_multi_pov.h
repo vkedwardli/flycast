@@ -73,8 +73,8 @@ struct GdxsvMultiPovPlayback {
 	bool key_display = false;
 	bool skip_ms_selection = false;
 
-	// The host's volume (aica.Volume, 0-100). A guest follows it, scaled
-	// down by gdxsv:MultiPovGuestVolume - see the replay backend.
+	// The host's volume (aica.Volume, 0-100). A guest follows it, so the four
+	// screens play at one level - see MultiPovVolume in the replay backend.
 	int32_t volume = 0;
 };
 

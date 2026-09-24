@@ -225,9 +225,9 @@ struct settings_t
 		u32 skipRenderingAddr;      // Active skip address (0 = disabled)
 		u32 skipRenderingBaseAddr;  // Pre-computed based on disk (set once at init)
 		// Extra gain on the audio output, 0..1. 0 (the zero-initialised
-		// default) means none. A 4-player replay guest plays quieter than the
-		// host through this rather than through aica.Volume, which the four
-		// processes share in one config file.
+		// default) means none. The four screens of a 4-player replay play
+		// quieter through this rather than through aica.Volume, which the
+		// four processes share in one config file.
 		float audioScale;
 	} gdxsv;
 

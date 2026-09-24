@@ -877,17 +877,13 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	if (config::GdxReplayKeyDisplay != st.key_display) config::GdxReplayKeyDisplay.set(st.key_display);
 	if (config::GdxReplaySkipMsSelection != st.skip_ms_selection) config::GdxReplaySkipMsSelection.set(st.skip_ms_selection);
 
-	// Volume follows the host's - a change the user makes on the host reaches
-	// the guests within a frame - scaled down by gdxsv:MultiPovGuestVolume, a
-	// percentage of the host's gain. Four screens play the same sound, so at
-	// 100 the four together are a good deal louder than one; the default
-	// halves each guest. The scale lives in settings, not in aica.Volume,
-	// which the four processes share in one config file.
+	// Volume follows the host's, so a change the user makes on the host
+	// reaches the guests within a frame; the four then play at the same
+	// level (see MultiPovVolume in Start()).
 	if (config::AudioVolume != st.volume) {
 		config::AudioVolume.set(st.volume);
 		config::AudioVolume.calcDbPower();
 	}
-	settings.gdxsv.audioScale = std::clamp(config::loadInt("gdxsv", "MultiPovGuestVolume", 50), 0, 100) / 100.f;
 
 	// The pause menu holds playback on the host (OnSockRead delivers nothing
 	// while it is up), so it holds it here too. Applied directly rather than
@@ -1902,10 +1898,8 @@ void GdxsvBackendReplay::Stop() {
 	// unconditional reload here would also throw away a volume change the user
 	// made from the pause menu during an ordinary replay before it had been
 	// written out.
-	if (multi_pov_guest_) {
-		config::AudioVolume.load();
-		settings.gdxsv.audioScale = 0.f;
-	}
+	if (multi_pov_guest_) config::AudioVolume.load();
+	if (multi_pov_host_ || multi_pov_guest_) settings.gdxsv.audioScale = 0.f;
 	if ((multi_pov_host_ || multi_pov_guest_) && !gdxsv_headless()) settings.input.fastForwardMode = false;
 	// The host has stopped driving, so there is nothing for the guests to
 	// follow: closing the session is what tells them to go. Without this,
@@ -2124,6 +2118,13 @@ bool GdxsvBackendReplay::Start() {
 	if ((multi_pov_host_ || multi_pov_guest_) && !gdxsv_headless()) {
 		settings.input.fastForwardMode = true;
 	}
+
+	// Four screens play the same sound, so each of them - the host included
+	// - plays at gdxsv:MultiPovVolume percent of the configured volume, on the
+	// output rather than on aica.Volume, which the four processes share in
+	// one config file. Cleared in Stop().
+	if (multi_pov_host_ || multi_pov_guest_)
+		settings.gdxsv.audioScale = std::clamp(config::loadInt("gdxsv", "MultiPovVolume", 50), 0, 100) / 100.f;
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
 	// waiting entirely, which is the A/B for "is the barrier costing frames?".
