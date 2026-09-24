@@ -49,7 +49,7 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 	if (get_file_extension(file) != "cue")
 		return nullptr;
 
-	FILE *fsource = hostfs::storage().openFile(file, "rb");
+	hostfs::File *fsource = hostfs::storage().openFile(file, "rb");
 
 	if (fsource == nullptr)
 	{
@@ -64,13 +64,13 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 
 	if (cue_len >= sizeof(cue_data))
 	{
-		std::fclose(fsource);
+		delete fsource;
 		throw FlycastException(i18n::Ts("CUE parse error: CUE file too big"));
 	}
 
-	if (std::fread(cue_data, 1, cue_len, fsource) != cue_len)
+	if (fsource->read(cue_data, 1, cue_len) != cue_len)
 		WARN_LOG(GDROM, "Failed or truncated read of cue file '%s'", file);
-	std::fclose(fsource);
+	delete fsource;
 
 	std::istringstream istream(cue_data);
 	istream.imbue(std::locale::classic());
@@ -83,6 +83,7 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 	u32 currentFAD = 150;
 	// SESSION context
 	u32 session_number = 0;
+	bool firstTrackOfSession = false;
 	// FILE context
 	std::string track_filename;
 	u32 fileStartFAD = 0;
@@ -113,9 +114,11 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 				else if (cur_session != session_number)
 				{
 					session_number = cur_session;
-					if (session_number == 2)
+					if (session_number == 2) {
 						// session 1 lead-out: 01:30:00, session 2 lead-in: 01:00:00, pregap: 00:02:00
-						currentFAD += 11400;
+						currentFAD += 6750 + 4500 + 150;
+						firstTrackOfSession = true;
+					}
 
 					Session ses;
 					ses.FirstTrack = (u8)disc->tracks.size() + 1;
@@ -154,14 +157,16 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 			track_filename.clear();
 			char last;
 			do {
-				cuesheet >> last;
-			} while (isspace(last));
+				if (!(cuesheet >> last))
+					throw FlycastException(i18n::T("Invalid CUE file"));
+			} while (isspace((unsigned char)last));
 
 			if (last == '"')
 			{
 				cuesheet >> std::noskipws;
 				for (;;) {
-					cuesheet >> last;
+					if (!(cuesheet >> last))
+						throw FlycastException(i18n::T("Invalid CUE file"));
 					if (last == '"')
 						break;
 					track_filename += last;
@@ -179,12 +184,12 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 				throw FlycastException(i18n::T("Invalid CUE file"));
 			}
 			track_filename = hostfs::storage().getSubPath(basepath, track_filename);
-			FILE *track_file = hostfs::storage().openFile(track_filename, "rb");
+			hostfs::File *track_file = hostfs::storage().openFile(track_filename, "rb");
 			if (track_file == nullptr)
 				throw FlycastException(strprintf(i18n::T("CUE file: cannot open track %s"), track_filename.c_str()));
 			if (digest != nullptr)
 				md5.add(track_file);
-			std::fclose(track_file);
+			delete track_file;
 			fileInfo = hostfs::storage().getFileInfo(track_filename);
 			fileStartFAD = currentFAD;
 			// Clear track context
@@ -227,6 +232,14 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 				int min = 0, sec = 0, frame = 0;
 				if (sscanf(token.c_str(), "%d:%d:%d", &min, &sec, &frame) == 3)
 					indexFAD = frame + 75 * (sec + 60 * min);
+				if (firstTrackOfSession && indexFAD > 0) {
+					// The session gap above already includes this track's pregap so don't
+					// count the sectors stored before INDEX 01 twice.
+					const u32 pregap = std::min(indexFAD, 150);
+					fileStartFAD -= pregap;
+					currentFAD -= pregap;
+				}
+				firstTrackOfSession = false;
 				Track t;
 				t.StartFAD = fileStartFAD + indexFAD;
 				t.CTRL = (track_type == "AUDIO" || track_type == "CDG") ? 0 : 4;
@@ -234,7 +247,7 @@ Disc* cue_parse(const char* file, std::vector<u8> *digest)
 				t.isrc = track_isrc;
 				DEBUG_LOG(GDROM, "file[%zd] \"%s\": session %d type %s FAD:%d -> %d %s", disc->tracks.size() + 1, track_filename.c_str(),
 						session_number, track_type.c_str(), t.StartFAD, t.EndFAD, t.isrc.empty() ? "" : ("ISRC " + t.isrc).c_str());
-				FILE *track_file = hostfs::storage().openFile(track_filename, "rb");
+				hostfs::File *track_file = hostfs::storage().openFile(track_filename, "rb");
 				t.file = new RawTrackFile(track_file, indexFAD * track_secsize, t.StartFAD, track_secsize);
 				disc->tracks.push_back(t);
 				if (disc->tracks.size() >= 2) {

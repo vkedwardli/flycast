@@ -18,6 +18,7 @@
 */
 #import <Foundation/Foundation.h>
 #include "oslib/http_client.h"
+#include "stdclass.h"
 
 @interface NSURLSessionHandler:NSObject <NSURLSessionDataDelegate, NSURLSessionDelegate, NSURLSessionTaskDelegate>
 - (void)setSemaphore:(dispatch_semaphore_t)sema;
@@ -59,16 +60,33 @@ didCompleteWithError:(nullable NSError *)error {
 
 namespace http {
 
-int get(const std::string& url, std::vector<u8>& content, std::string& contentType)
+int get(const std::string& url, std::vector<u8>& content, const Headers *reqHeaders, Headers *respHeaders)
 {
 	NSString *nsurl = [NSString stringWithCString:url.c_str() 
                                          encoding:[NSString defaultCStringEncoding]];
+    NSString *userAgent = [NSString stringWithCString:getUserAgent().c_str()
+                                             encoding:[NSString defaultCStringEncoding]];
+	NSMutableURLRequest *urlRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:nsurl]];
+	[urlRequest setValue:userAgent forHTTPHeaderField:@"User-Agent"];
+    if (reqHeaders != nullptr)
+    {
+        for (const auto& [ name, value ] : *reqHeaders)
+        {
+            NSString *nsname = [NSString stringWithCString:name.c_str()
+                                                  encoding:[NSString defaultCStringEncoding]];
+            NSString *nsvalue = [NSString stringWithCString:value.c_str()
+                                                   encoding:[NSString defaultCStringEncoding]];
+            [urlRequest setValue:nsvalue forHTTPHeaderField:nsname];
+        }
+    }
+
+	// gdxsv: use the asynchronous NSURLSession API and pump the run loop when called from the main thread
 	NSURLSessionHandler* handler = [[NSURLSessionHandler alloc] init];
 	content.clear();
 	[handler setContent:content];
 	NSURLSessionConfiguration *defaultConfigObject = [NSURLSessionConfiguration defaultSessionConfiguration];
 	NSURLSession *defaultSession = [NSURLSession sessionWithConfiguration: defaultConfigObject delegate: handler delegateQueue: [NSOperationQueue mainQueue]];
-	NSURLSessionDataTask *dataTask = [defaultSession dataTaskWithURL: [NSURL URLWithString:nsurl]];
+	NSURLSessionDataTask *dataTask = [defaultSession dataTaskWithRequest: urlRequest];
 	
 	dispatch_semaphore_t sema = dispatch_semaphore_create(0);
 	[handler setSemaphore:sema];
@@ -83,28 +101,22 @@ int get(const std::string& url, std::vector<u8>& content, std::string& contentTy
 		}
 	}
 	
-	if ([handler httpError] != nil)
+	if ([handler httpError] != nil || [handler httpResponse] == nil)
 		return 500;
 
-/*
-	FIXME: User-Agent port
-    NSString *userAgent = [NSString stringWithCString:getUserAgent().c_str()
-                                             encoding:[NSString defaultCStringEncoding]];
-	NSMutableURLRequest *urlRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:nsurl]];
-	[urlRequest setValue:userAgent forHTTPHeaderField:@"User-Agent"];
-	NSURLResponse *response = nil;
-	NSError *error = nil;
-	NSData *data = [NSURLConnection sendSynchronousRequest:urlRequest
-                                         returningResponse:&response
-                                                     error:&error];
-	if (error != nil)
-		return 500;
-*/
-
-	if ([handler httpResponse].MIMEType != nil)
-		contentType = std::string([[handler httpResponse].MIMEType UTF8String]);
-	else
-		contentType.clear();
+	if (respHeaders != nullptr)
+	{
+		NSDictionary *headers = [handler httpResponse].allHeaderFields;
+		NSEnumerator *enumerator = [headers keyEnumerator];
+		id key;
+		while ((key = [enumerator nextObject]))
+		{
+			std::string strkey([key UTF8String]);
+			string_tolower(strkey);
+			std::string strvalue([[headers objectForKey:key] UTF8String]);
+			respHeaders->emplace_back(strkey, strvalue);
+		}
+	}
 	
 	return [[handler httpResponse] statusCode];
 }

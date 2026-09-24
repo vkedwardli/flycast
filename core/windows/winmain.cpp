@@ -67,6 +67,7 @@
 #include <fstream>
 #include <sstream>
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include <winsock2.h>
 
 static void setupPath()
 {
@@ -329,6 +330,11 @@ int main(int argc, char* argv[])
 {
 	nowide::args _(argc, argv);
 
+	WSADATA wsaData;
+	int ret = WSAStartup(MAKEWORD(2, 0), &wsaData);
+	if (ret != 0)
+		fprintf(stderr, "WSAStartup failed. error %x", ret);
+
 #ifdef USE_BREAKPAD
 	wchar_t tempDir[MAX_PATH + 1];
 	GetTempPathW(MAX_PATH + 1, tempDir);
@@ -391,6 +397,7 @@ int main(int argc, char* argv[])
 
 	flycast_term();
 	os_UninstallFaultHandler();
+	WSACleanup();
 
 	return gdxsv_exit_code();
 }
@@ -546,10 +553,10 @@ void os_RunInstance(int argc, const char *argv[])
 		cmdLine += L" \"";
 		for (wchar_t *p = wname.get(); *p != L'\0'; p++)
 		{
-			cmdLine += *p;
 			if (*p == L'"')
 				// escape double quote
-				cmdLine += L'"';
+				cmdLine += L'\\';
+			cmdLine += *p;
 		}
 		cmdLine += L'"';
 	}

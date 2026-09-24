@@ -9,7 +9,9 @@ void input_sdl_quit();
 // a headless run. Lets code outside core/sdl (e.g. the 4-player replay grid,
 // which has to move the window) reach it without another global.
 SDL_Window *sdl_get_window();
+bool sdl_queue_open_file(const char *path);
 void sdl_window_create();
 void sdl_window_destroy();
 bool sdl_recreate_window(u32 flags);
+bool sdl_update_display_metrics(SDL_Window *window, u32 windowFlags);
 void sdl_fix_steamdeck_dpi(SDL_Window *window);

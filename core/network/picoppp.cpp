@@ -79,8 +79,8 @@ struct GamePortList {
 	uint16_t tcpPorts[10];
 };
 static const GamePortList GamesPorts[] = {
-	{ // Alien Front Online
-		{ "MK-51171" },
+	{ // Alien Front Online, Alien Front (naomi)
+		{ "MK-51171", "ALIEN FRONT" },
 		{ 7980 },
 		{ },
 	},
@@ -403,7 +403,10 @@ private:
 		}
 		else {
 			DEBUG_LOG(NETWORK, "TcpSocket[%s] outbound %d bytes", name.c_str(), (int)len);
-			picoCallback(0);
+			// A read notification can cover more data than fits in sendbuf.
+			// Resume draining after the asynchronous write releases that buffer,
+			// even if no new packet (and therefore no new read event) arrives.
+			picoCallback(pico_sock != nullptr && pico.state != Closed ? PICO_SOCK_EV_RD : 0);
 		}
 	}
 
