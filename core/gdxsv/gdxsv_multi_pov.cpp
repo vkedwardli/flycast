@@ -24,7 +24,7 @@
 #include "types.h"
 
 constexpr uint32_t kMagic = 0x4D505634;	 // "MPV4"
-constexpr uint32_t kVersion = 1;
+constexpr uint32_t kVersion = 2;
 
 // The payload starts on a page boundary so the header and the replay bytes
 // never share a cache line.
@@ -91,13 +91,23 @@ struct GdxsvMultiPovHeader {
 	std::atomic<int64_t> position;
 	std::atomic<int32_t> speed;
 	std::atomic<uint32_t> paused;
+	std::atomic<uint32_t> menu_open;
 	std::atomic<uint32_t> seek_generation;
 	std::atomic<int64_t> seek_target;
+	std::atomic<uint32_t> show_ally_hp;
+	std::atomic<uint32_t> key_display;
+	std::atomic<uint32_t> skip_ms_selection;
+	std::atomic<int32_t> volume;
+	// Set once the host has published playback at all. Until then the fields
+	// above are zero, and a guest that took them as the truth would turn its
+	// replay options off - the guests start before the host does.
+	std::atomic<uint32_t> playback_published;
 
 	// Window layout, written by the host whenever it moves or resizes.
 	std::atomic<int32_t> win_x, win_y, win_w, win_h;
 	std::atomic<int32_t> grp_x, grp_y, grp_w, grp_h;
 	std::atomic<uint32_t> maximized;
+	std::atomic<uint32_t> fullscreen;
 	std::atomic<uint32_t> win_generation;
 };
 
@@ -423,20 +433,32 @@ void gdxsv_multi_pov_publish_playback(const GdxsvMultiPovPlayback& state) {
 	h->position.store(state.position, std::memory_order_relaxed);
 	h->speed.store(state.speed, std::memory_order_relaxed);
 	h->paused.store(state.paused ? 1u : 0u, std::memory_order_relaxed);
+	h->menu_open.store(state.menu_open ? 1u : 0u, std::memory_order_relaxed);
 	h->seek_target.store(state.seek_target, std::memory_order_relaxed);
+	h->show_ally_hp.store(state.show_ally_hp ? 1u : 0u, std::memory_order_relaxed);
+	h->key_display.store(state.key_display ? 1u : 0u, std::memory_order_relaxed);
+	h->skip_ms_selection.store(state.skip_ms_selection ? 1u : 0u, std::memory_order_relaxed);
+	h->volume.store(state.volume, std::memory_order_relaxed);
 	// Last, so a guest that sees a new generation sees the target that goes
 	// with it.
 	h->seek_generation.store(state.seek_generation, std::memory_order_release);
+	h->playback_published.store(1, std::memory_order_release);
 }
 
 bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out) {
 	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return false;
+	if (h->playback_published.load(std::memory_order_acquire) == 0) return false;  // nothing to follow yet
 	out.seek_generation = h->seek_generation.load(std::memory_order_acquire);
 	out.seek_target = h->seek_target.load(std::memory_order_relaxed);
 	out.position = h->position.load(std::memory_order_relaxed);
 	out.speed = h->speed.load(std::memory_order_relaxed);
 	out.paused = h->paused.load(std::memory_order_relaxed) != 0;
+	out.menu_open = h->menu_open.load(std::memory_order_relaxed) != 0;
+	out.show_ally_hp = h->show_ally_hp.load(std::memory_order_relaxed) != 0;
+	out.key_display = h->key_display.load(std::memory_order_relaxed) != 0;
+	out.skip_ms_selection = h->skip_ms_selection.load(std::memory_order_relaxed) != 0;
+	out.volume = h->volume.load(std::memory_order_relaxed);
 	return true;
 }
 
@@ -452,6 +474,7 @@ void gdxsv_multi_pov_publish_host_window(const GdxsvMultiPovHostWindow& window) 
 	h->grp_w.store(window.group.w, std::memory_order_relaxed);
 	h->grp_h.store(window.group.h, std::memory_order_relaxed);
 	h->maximized.store(window.maximized ? 1u : 0u, std::memory_order_relaxed);
+	h->fullscreen.store(window.fullscreen ? 1u : 0u, std::memory_order_relaxed);
 	h->win_generation.store(window.generation, std::memory_order_release);
 }
 
@@ -469,6 +492,7 @@ bool gdxsv_multi_pov_read_host_window(GdxsvMultiPovHostWindow& out) {
 	out.group.w = h->grp_w.load(std::memory_order_relaxed);
 	out.group.h = h->grp_h.load(std::memory_order_relaxed);
 	out.maximized = h->maximized.load(std::memory_order_relaxed) != 0;
+	out.fullscreen = h->fullscreen.load(std::memory_order_relaxed) != 0;
 	return true;
 }
 

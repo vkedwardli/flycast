@@ -87,6 +87,29 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	return out;
 }
 
+GdxsvMultiPovRect gdxsv_multi_pov_window_display_area() {
+	GdxsvMultiPovRect out;
+	HWND hwnd = Hwnd();
+	if (hwnd == nullptr) return out;
+
+	HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+	MONITORINFO info{};
+	info.cbSize = sizeof(info);
+	if (!GetMonitorInfo(monitor, &info)) return out;
+
+	out.x = info.rcMonitor.left;
+	out.y = info.rcMonitor.top;
+	out.w = info.rcMonitor.right - info.rcMonitor.left;
+	out.h = info.rcMonitor.bottom - info.rcMonitor.top;
+	return out;
+}
+
+void gdxsv_multi_pov_window_set_topmost(bool topmost) {
+	HWND hwnd = Hwnd();
+	if (hwnd == nullptr) return;
+	SetWindowPos(hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
 GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
 	GdxsvMultiPovInsets out;
 	HWND hwnd = Hwnd();

@@ -19,18 +19,12 @@
 #include "stdclass.h"
 #include "types.h"
 
-// A guest cold-boots the game and loads a savestate while the host is already
-// sitting in the replay browser, so the host has to be prepared to wait out a
-// whole startup. Generous on purpose: the cost of waiting too long is a slow
-// start, the cost of waiting too little is a screen that misses the barrier
-// and plays on its own.
+// How long any screen waits at the start barrier for the others. A guest
+// starts a whole process and loads a savestate while the host is already
+// playing, so this has to cover a startup. Generous on purpose: the cost of
+// waiting too long is a slow start, the cost of waiting too little is a
+// screen that misses the barrier and plays on its own.
 constexpr int kStartBarrierMs = 180 * 1000;
-
-// The host's own wait at the barrier. Short, because the host is normally the
-// last one there: it reaches the first StartMsg well after the guests, which
-// load a savestate while it boots the disc. This only covers a guest the boot
-// order went against.
-constexpr int kHostBarrierSettleMs = 5 * 1000;
 
 // How long a guest waits for the host to publish the payload. The host writes
 // it before spawning anyone, so this only has to cover the mapping itself.
@@ -136,13 +130,6 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 	// top of the grid.
 	const std::string maximized = "window:maximized=no";
 	const std::string fullscreen = "window:fullscreen=no";
-	// Four instances mixing the same battle is noise, not four soundtracks:
-	// only the host - the screen the user is actually driving - is audible.
-	// The volume rather than settings.aica.muteAudio because that flag belongs
-	// to the replay backend, which toggles it around seeks and fast-forward, so
-	// a guest could not hold it down. Transient like the rest, so the user's own
-	// volume setting is untouched.
-	const std::string volume = "config:aica.Volume=0";
 	const std::string content = settings.content.path;
 
 	const char* args[] = {
@@ -156,7 +143,6 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 		"-config", height.c_str(),
 		"-config", maximized.c_str(),
 		"-config", fullscreen.c_str(),
-		"-config", volume.c_str(),
 		content.c_str(),
 #ifdef __APPLE__
 		// After a Flycast crash AppKit asks at launch whether to reopen its
@@ -245,7 +231,7 @@ bool gdxsv_multi_pov_begin_guest_session(std::vector<uint8_t>& replay_out) {
 void gdxsv_multi_pov_wait_at_start_barrier() {
 	switch (gdxsv_multi_pov_current_role()) {
 		case GdxsvMultiPovRole::Host:
-			gdxsv_multi_pov_host_wait_for_guests(g_spawned_guests, kHostBarrierSettleMs);
+			gdxsv_multi_pov_host_wait_for_guests(g_spawned_guests, kStartBarrierMs);
 			break;
 		case GdxsvMultiPovRole::Guest:
 			gdxsv_multi_pov_guest_ready_and_wait(kStartBarrierMs);

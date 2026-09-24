@@ -15,6 +15,8 @@
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
 #include "gdxsv_multi_pov_window.h"
+#include "gdxsv_save_state.h"
+#include "emulator.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_update.h"
 #include "gdxsv_custom_texture_update.h"
@@ -42,6 +44,8 @@ std::atomic<int> gdxsv_frame_period_trim_us{0};
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
 bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov_guest_pov(); }
+
+bool gdxsv_emu_toggle_fullscreen() { return gdxsv_multi_pov_toggle_fullscreen(); }
 
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
 
@@ -166,6 +170,12 @@ static void gdxsv_multi_pov_tick() {
 	if (!gdxsv_multi_pov_host_gone()) return;
 	NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
 	gdxsv_multi_pov_close();
+	// Stopped first, and the replay's savestates dropped with it: they keep
+	// memwatch's page protection up, and the unload's reset writes into guest
+	// memory from this thread, where a protected page is a fault that nothing
+	// handles.
+	emu.stop();
+	gdxsv_save_state.Reset();
 	dc_exit();
 }
 
@@ -210,6 +220,21 @@ void gdxsv_emu_loadstate(int slot) {
 
 		if (!replay.empty() && slot == 99) {
 			auto replay_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
+			// 4-player replay from the command line (gdxsv:replay= with
+			// gdxsv:ReplayFourScreen=yes): this process hosts, exactly as the
+			// replay browser's "Replay (4 screens)" button would have it, and
+			// falls back to a single screen if the session cannot come up.
+			if (gdxsv_multi_pov_four_screen_requested() && !gdxsv_headless()) {
+				std::vector<uint8_t> hosted;
+				if (gdxsv_multi_pov_begin_host_session(replay, hosted)) {
+					if (gdxsv.StartReplayBuffer(hosted, 0)) {
+						NOTICE_LOG(COMMON, "multi-pov: hosting %s from the command line", replay.c_str());
+						return;
+					}
+					ERROR_LOG(COMMON, "multi-pov: could not start the hosted replay; closing the session");
+					gdxsv_multi_pov_close();
+				}
+			}
 			if (!gdxsv.StartReplayFile(replay.c_str(), replay_pov - 1) && gdxsv_headless()) {
 				// The replay could not be loaded (missing, corrupt, or an
 				// unreadable old format): fail the headless run instead of

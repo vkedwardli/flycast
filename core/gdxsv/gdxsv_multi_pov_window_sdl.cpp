@@ -73,6 +73,29 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	return out;
 }
 
+GdxsvMultiPovRect gdxsv_multi_pov_window_display_area() {
+	GdxsvMultiPovRect out;
+	SDL_Window* w = Window();
+	if (w == nullptr) return out;
+
+	const int display = SDL_GetWindowDisplayIndex(w);
+	SDL_Rect bounds{};
+	if (display < 0 || SDL_GetDisplayBounds(display, &bounds) != 0) {
+		WARN_LOG(COMMON, "multi-pov: cannot read the display bounds: %s", SDL_GetError());
+		return out;
+	}
+	out.x = bounds.x;
+	out.y = bounds.y;
+	out.w = bounds.w;
+	out.h = bounds.h;
+	return out;
+}
+
+void gdxsv_multi_pov_window_set_topmost(bool topmost) {
+	SDL_Window* w = Window();
+	if (w != nullptr) SDL_SetWindowAlwaysOnTop(w, topmost ? SDL_TRUE : SDL_FALSE);
+}
+
 GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
 	GdxsvMultiPovInsets out;
 	SDL_Window* w = Window();

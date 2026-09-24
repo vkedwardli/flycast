@@ -217,6 +217,28 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		if (gdxsv_headless()) {
 			gdxsv_headless_exit(0);
 		}
+		// A 4-player replay guest whose playback ended - the replay ran out,
+		// or its game gave up on it - has nothing to show: it has no menu to
+		// offer and no controls to take. It closes, and the other three go
+		// on. When it is the host that ends, the guests follow it out through
+		// the session (gdxsv_multi_pov_tick) before they get here.
+		if (gdxsv_is_multi_pov_guest()) {
+			NOTICE_LOG(COMMON, "multi-pov: guest playback ended (%s); closing this screen", replay_error_.empty() ? "end of replay" : replay_error_.c_str());
+			// The same teardown as below, before dc_exit: in particular the
+			// savestate reset lifts memwatch's page protection. Stop() only
+			// stops using it, and the unload's own reset writes into guest
+			// memory - on this thread, where a protected page is a fault
+			// nothing handles, and the guest hung there instead of closing.
+			emu.stop();
+			state_ = State::None;
+			gdxsv_save_state.Reset();
+			ctrl_input_release_pending_ = false;
+			ui_snapshot_.Publish({});
+			gdxsv.netmode_ = Gdxsv::NetMode::Offline;
+			gdxsv_multi_pov_close();
+			dc_exit();
+			return;
+		}
 		// Join emulation before resetting its state or restoring the lobby.
 		emu.stop();
 		state_ = State::None;
@@ -362,6 +384,7 @@ void GdxsvBackendReplay::UpdateReplayFlow() {
 				}
 			} else {
 				// re-battle end
+				NOTICE_LOG(COMMON, "replay: re-battle end at key_msg_count_ %d (COM_R_No0+5 = %d)", key_msg_count_, gdxsv_ReadMem8(COM_R_No0 + 5));
 				Stop();
 			}
 		} else if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) != 0) {
@@ -557,10 +580,16 @@ constexpr int kSyncMaxWaitPerFrameMs = 2;
 // spend sleeping anyway. Measured, that left a 12 frame offset closing at
 // 0.04 frames a second. Stretching the period is a real slowdown.
 //
-// Per frame of lead, so a small lead is corrected gently. At 200us a 12 frame
-// lead runs the period ~14% long and closes in about 1.5s.
-constexpr int kSyncTrimUsPerFrame = 200;
-constexpr int kSyncTrimMaxUs = 4000;
+// Per frame of lead beyond the allowed lead (kSyncHoldLeadFrames). Not from
+// the first frame: the positions are published at different moments, so any
+// instance reads a lead of a frame or so much of the time, and a trim on that
+// slowed the whole group - four instances taking turns as the leader ran at
+// 58.4 fps instead of 59.94. Beyond the slack it is strong enough that a
+// leader is brought back by slowing down, which is smooth, rather than by
+// the catch-up wait below: at 600us a lead of 3 over the slack runs the
+// period ~11% long; the cap (~36% long) covers a peer that is markedly slower.
+constexpr int kSyncTrimUsPerFrame = 600;
+constexpr int kSyncTrimMaxUs = 6000;
 
 // One input push can add 128 frames. Keep an already-red pill red until
 // skip-render catch-up is needed; automatic entry uses the tighter margin.
@@ -578,6 +607,33 @@ constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 // larger - or any move backwards - is a jump, a round change or a step back,
 // and the guests have to follow it as one.
 constexpr int kMultiPovSeekSlack = 60;
+
+// 4-player replay: how far past the host's published position a guest may
+// run, in position units, before it waits for the host. Two input frames,
+// like the group sync's slack.
+constexpr int64_t kMultiPovHostLeadSlack = 2 * 1024;
+
+// Group sync: how many input frames one instance may lead the slowest live
+// peer by before it waits for them in earnest. The per-frame wait below is
+// tiny (kSyncMaxWaitPerFrameMs) and the period trim only slows a leader by a
+// few percent, which is not enough when the peers are simply slower - four
+// instances on one machine rarely all hold 60 fps - so the lead would
+// otherwise grow without bound. Past two frames the leader blocks for up to
+// kSyncCatchUpWaitMs per frame, which the slowest peer - never blocked itself
+// - uses to close the gap to within kSyncSlack. A stall, not a frame withheld
+// from the game: the game takes several frames to recover from a missing
+// input, and that was a visible hitch every time.
+//
+// The wait is long so that a leader all but stands still: at a round change
+// each screen skips the MS selection on its own and reaches the briefing at
+// its own time - the result screen runs differently on the two teams - and
+// whoever gets there first waits for the rest, as at the start barrier. With
+// a 50 ms wait the leader crept on at 20 fps meanwhile, and the others came
+// out of their skip a couple of seconds behind it. A peer that has died is
+// dropped by its stale heartbeat (GdxsvSpectateSync), so this cannot wait on
+// one forever.
+constexpr int kSyncHoldLeadFrames = 2;
+constexpr int kSyncCatchUpWaitMs = 500;
 
 }  // namespace
 
@@ -767,9 +823,41 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	st.position = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
 	st.speed = ctrl_play_speed_;
 	st.paused = ctrl_pause_;
+	st.menu_open = pause_menu_opend_;
 	st.seek_generation = multi_pov_seek_generation_;
 	st.seek_target = key_msg_count_;
+	st.show_ally_hp = config::GdxReplayShowAllyHP;
+	st.key_display = config::GdxReplayKeyDisplay;
+	st.skip_ms_selection = config::GdxReplaySkipMsSelection;
+	st.volume = config::AudioVolume;
 	gdxsv_multi_pov_publish_playback(st);
+}
+
+// Guest: never more than kMultiPovHostLeadSlack ahead of the host. The group
+// sync alone does not do this: it drops a peer whose heartbeat is a second old
+// so that a hung instance cannot hold the rest, and a host whose window is
+// being dragged - Windows runs a modal loop that stops its rendering, and the
+// emulation with it - looks exactly like that. In a 4-screen session the host
+// is the screen the user is watching, so the others wait for it for as long as
+// it is alive, and pick up where it does.
+void GdxsvBackendReplay::WaitForMultiPovHost() {
+	if (!multi_pov_guest_ || seeking_ || takeover_) return;
+	const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+	for (int i = 0;; ++i) {
+		GdxsvMultiPovPlayback st;
+		if (!gdxsv_multi_pov_read_playback(st)) return;
+		if (pos <= st.position + kMultiPovHostLeadSlack) return;
+		// A jump is on its way; FollowMultiPovHost applies it next frame.
+		if (st.seek_generation != multi_pov_seek_generation_) return;
+		// The wait has to end when the host does, or when this instance is
+		// being stopped - the UI thread joins the emulation thread to exit.
+		if (i % 64 == 0 && gdxsv_multi_pov_host_gone()) return;
+		if (!emu.running()) return;
+		// Heartbeat, so the other guests do not write this one off while it
+		// waits on the same host they do.
+		if (i % 64 == 0) spectate_sync_.Publish(static_cast<int32_t>(pos), false);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
 }
 
 // Guest: apply what the host published. The guest has no controls of its own -
@@ -781,6 +869,31 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 
 	GdxsvMultiPovPlayback st;
 	if (!gdxsv_multi_pov_read_playback(st)) return;
+
+	// The replay options are the host's. set() rather than override(): the
+	// four processes share one config file, and the host has already written
+	// the same values to it.
+	if (config::GdxReplayShowAllyHP != st.show_ally_hp) config::GdxReplayShowAllyHP.set(st.show_ally_hp);
+	if (config::GdxReplayKeyDisplay != st.key_display) config::GdxReplayKeyDisplay.set(st.key_display);
+	if (config::GdxReplaySkipMsSelection != st.skip_ms_selection) config::GdxReplaySkipMsSelection.set(st.skip_ms_selection);
+
+	// Volume follows the host's - a change the user makes on the host reaches
+	// the guests within a frame - scaled down by gdxsv:MultiPovGuestVolume, a
+	// percentage of the host's gain. Four screens play the same sound, so at
+	// 100 the four together are a good deal louder than one; the default
+	// halves each guest. The scale lives in settings, not in aica.Volume,
+	// which the four processes share in one config file.
+	if (config::AudioVolume != st.volume) {
+		config::AudioVolume.set(st.volume);
+		config::AudioVolume.calcDbPower();
+	}
+	settings.gdxsv.audioScale = std::clamp(config::loadInt("gdxsv", "MultiPovGuestVolume", 50), 0, 100) / 100.f;
+
+	// The pause menu holds playback on the host (OnSockRead delivers nothing
+	// while it is up), so it holds it here too. Applied directly rather than
+	// through TogglePauseMenu: the menu itself, the savestate it takes and the
+	// cursor belong to the host's screen.
+	pause_menu_opend_ = st.menu_open;
 
 	// Seeks first: a pause or speed change queued behind a jump that has not
 	// landed yet would otherwise be applied at the position being left.
@@ -812,6 +925,8 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (multi_pov_start_barrier_pending_ && !seeking_) {
 		multi_pov_start_barrier_pending_ = false;
 		gdxsv_multi_pov_wait_at_start_barrier();
+		// From here the four play in step, at normal speed.
+		if ((multi_pov_host_ || multi_pov_guest_) && !gdxsv_headless()) settings.input.fastForwardMode = false;
 	}
 
 	// One sync point for every scene, here rather than in the delivery path
@@ -842,9 +957,20 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		// back an instance that is ahead, which while production is stalled is
 		// indistinguishable from waiting for data.
 		if (!catching_up) {
-			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), sync_max_wait_ms_);
+			// Offline replay: past the allowed lead, wait properly rather than
+			// for the per-frame token. See kSyncCatchUpWaitMs.
+			int wait_ms = sync_max_wait_ms_;
+			if (!live_mode_) {
+				const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
+				if (kSyncHoldLeadFrames < lead_frames) wait_ms = std::max(wait_ms, kSyncCatchUpWaitMs);
+			}
+			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), wait_ms);
 		}
 	}
+	// After the group sync's own wait: the group keeps the four together, this
+	// keeps them with the host.
+	WaitForMultiPovHost();
+
 	UpdateFramePacing();
 
 	// After UpdateFramePacing, not before: its offline branch clears the trim
@@ -855,8 +981,15 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_) {
 		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
 		const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
-		gdxsv_frame_period_trim_us =
-			lead_frames <= 0 ? 0 : std::min(lead_frames * kSyncTrimUsPerFrame, kSyncTrimMaxUs);
+		const int excess = lead_frames - kSyncHoldLeadFrames;
+		gdxsv_frame_period_trim_us = excess <= 0 ? 0 : std::min(excess * kSyncTrimUsPerFrame, kSyncTrimMaxUs);
+
+		// A readout every ten seconds or so, so a run's logs show how far apart
+		// the group got.
+		static int sync_log_counter = 0;
+		if (++sync_log_counter % 600 == 0 || (kSyncHoldLeadFrames < lead_frames && sync_log_counter % 30 == 0))
+			NOTICE_LOG(COMMON, "spectate sync: frame %d, lead %d frames%s", key_msg_count_, lead_frames,
+					   kSyncHoldLeadFrames < lead_frames ? " (catching up)" : "");
 	}
 
 	if (!end_of_frame_) return;
@@ -1727,7 +1860,9 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			ctrl_commands_.emplace_back(cmd);
 			break;
 		case ReplayCtrlCommand::TakeOver:
-			if (!live_mode_ && IsInGame())
+			// Not in a 4-player replay: the three guests play the recorded
+			// inputs, and a host playing live would leave them behind.
+			if (!live_mode_ && !multi_pov_host_ && IsInGame())
 				ctrl_commands_.emplace_back(cmd);
 			break;
 		default:
@@ -1763,10 +1898,15 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 void GdxsvBackendReplay::Stop() {
 	live_initial_catchup_ = false;
 	config::FixedFrequency.load();
-	// Undo the 4-player replay guest mute, and only that: an unconditional
-	// reload here would also throw away a volume change the user made from the
-	// pause menu during an ordinary replay before it had been written out.
-	if (multi_pov_guest_) config::AudioVolume.load();
+	// Undo the 4-player replay guest's volume offset, and only that: an
+	// unconditional reload here would also throw away a volume change the user
+	// made from the pause menu during an ordinary replay before it had been
+	// written out.
+	if (multi_pov_guest_) {
+		config::AudioVolume.load();
+		settings.gdxsv.audioScale = 0.f;
+	}
+	if ((multi_pov_host_ || multi_pov_guest_) && !gdxsv_headless()) settings.input.fastForwardMode = false;
 	// The host has stopped driving, so there is nothing for the guests to
 	// follow: closing the session is what tells them to go. Without this,
 	// leaving the replay from the pause menu - or simply reaching the end of it
@@ -1975,16 +2115,14 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_start_barrier_pending_ = false;
 	multi_pov_start_barrier_done_ = false;
 
-	// A guest is silent: four processes mixing the same battle out of phase is
-	// noise, and the host is the screen the user is driving. The command line
-	// already asks for this (aica.Volume=0, transient), which covers the guest's
-	// boot; it is re-applied here because a per-game config section is loaded
-	// after the command line and would otherwise put the volume back. Restored
-	// in Stop(). override() and not set() so it is never written to the config
-	// file - the four processes share one.
-	if (multi_pov_guest_) {
-		config::AudioVolume.override(0);
-		config::AudioVolume.calcDbPower();
+	// Every screen has the lobby, the MS selection and the briefing to get
+	// through before the start barrier, and the four reach it at different
+	// times. So each runs flat out - and silent, fast-forward mutes the AICA -
+	// until the barrier, where they line up and drop back to normal speed
+	// together (OnNextFrameInternal). Cleared in Stop() as well, in case the
+	// replay ends before the barrier.
+	if ((multi_pov_host_ || multi_pov_guest_) && !gdxsv_headless()) {
+		settings.input.fastForwardMode = true;
 	}
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
@@ -2341,6 +2479,7 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		// batch on top - the next poll after the bytes drain gets a fresh one.
 		return;
 	}
+
 	gdxsv.maxlag_ = 0;
 
 	for (int i = 0; i < log_file_.users_size(); ++i) {
@@ -2621,8 +2760,10 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 		}
 	} else {
 		// Not in live: takeover disables the pacing trim, the sync barrier, the
-		// intake cap and the starve guard.
-		if (!ui.liveMode) {
+		// intake cap and the starve guard. Not in a 4-player replay either:
+		// the guests play the recording, so a host playing live would leave
+		// them behind.
+		if (!ui.liveMode && !multi_pov_host_) {
 			ImGui::BeginDisabled(!ui.inGame);
 			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
 				ui_commands_.emplace_back(ReplayCtrlCommand::TakeOver);

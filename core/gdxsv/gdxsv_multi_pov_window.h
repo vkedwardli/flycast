@@ -40,6 +40,15 @@ void gdxsv_multi_pov_window_unmaximize();
 // bar, dock, menu bar or panel. This is what "maximized" tiles.
 GdxsvMultiPovRect gdxsv_multi_pov_window_work_area();
 
+// The whole display the window is on, task bar and all. This is what the
+// full-screen grid tiles.
+GdxsvMultiPovRect gdxsv_multi_pov_window_display_area();
+
+// Keeps the window above every other one. The desktop only hides its task bar
+// for a single window that covers the display, and a quadrant does not, so
+// the four windows of a full-screen grid are held on top instead.
+void gdxsv_multi_pov_window_set_topmost(bool topmost);
+
 // Guests drop their decorations so the grid reads as one window.
 void gdxsv_multi_pov_window_set_borderless(bool borderless);
 
@@ -54,4 +63,11 @@ GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets();
 // macOS and Windows alike): the host publishes where the grid is, the guests
 // put themselves in it. A no-op outside a 4-screen session.
 void gdxsv_multi_pov_window_tick();
+
+// Alt+Enter in a 4-screen session. On the host, toggles the grid between its
+// window layout and full screen: four borderless quadrants tiling the whole
+// display, on top of everything else. Returns true when the key was taken -
+// on a guest too, which has no controls of its own - so the caller does not
+// put this one window into full screen by itself. False outside a session.
+bool gdxsv_multi_pov_toggle_fullscreen();
 

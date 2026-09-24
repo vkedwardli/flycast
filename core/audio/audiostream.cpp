@@ -51,6 +51,8 @@ AudioBackend *AudioBackend::getBackend(const std::string& slug)
 void WriteSample(s16 r, s16 l)
 {
 	float vol = config::AudioVolume.dbPower() * settings.aica.audioFade;
+	if (0.f < settings.gdxsv.audioScale && settings.gdxsv.audioScale < 1.f)
+		vol *= settings.gdxsv.audioScale;
 	Buffer[writePtr].r = r * vol;
 	Buffer[writePtr].l = l * vol;
 

@@ -133,6 +133,24 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	return FromCocoa(screen.visibleFrame);
 }
 
+GdxsvMultiPovRect gdxsv_multi_pov_window_display_area() {
+	NSWindow* win = CocoaWindow();
+	if (win == nil) return {};
+
+	NSScreen* screen = win.screen;
+	if (screen == nil) screen = [NSScreen mainScreen];
+	if (screen == nil) return {};
+
+	// frame, not visibleFrame: full screen covers the menu bar and the Dock.
+	return FromCocoa(screen.frame);
+}
+
+void gdxsv_multi_pov_window_set_topmost(bool topmost) {
+	NSWindow* win = CocoaWindow();
+	if (win == nil) return;
+	win.level = topmost ? NSFloatingWindowLevel : NSNormalWindowLevel;
+}
+
 GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
 	GdxsvMultiPovInsets out;
 	NSWindow* win = CocoaWindow();

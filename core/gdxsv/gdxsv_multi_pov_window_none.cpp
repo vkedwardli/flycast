@@ -19,6 +19,10 @@ void gdxsv_multi_pov_window_unmaximize() {}
 
 GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() { return {}; }
 
+GdxsvMultiPovRect gdxsv_multi_pov_window_display_area() { return {}; }
+
+void gdxsv_multi_pov_window_set_topmost(bool) {}
+
 void gdxsv_multi_pov_window_set_borderless(bool) {}
 
 GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() { return {}; }

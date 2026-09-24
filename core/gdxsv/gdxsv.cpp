@@ -849,6 +849,7 @@ void Gdxsv::WriteWidescreenPatchDisk2() {
 	if (width == widescreen_viewport_width_ && height == widescreen_viewport_height_ &&
 		super_widescreen == widescreen_super_ && hud_layout == widescreen_hud_layout_)
 		return;
+	NOTICE_LOG(COMMON, "widescreen: viewport %dx%d super=%d hud=%d", width, height, super_widescreen, hud_layout);
 	if (symbols_.count("gdx_widescreen_transition_right_x") == 0)
 		return;
 	// A savestate can restore an older payload while host symbols stay current.

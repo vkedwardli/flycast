@@ -10,6 +10,7 @@
 static uint32_t g_generation = 0;
 static GdxsvMultiPovRect g_last_group;
 static bool g_last_maximized = false;
+static bool g_last_fullscreen = false;
 
 // Guest state: the generation already applied, so a guest that is not being
 // moved does not fight the window manager every frame.
@@ -19,6 +20,15 @@ static bool g_borderless_done = false;
 // The host has not laid the grid out yet. Its window is a whole window at this
 // point, not a quadrant, so the first tick has to place it.
 static bool g_host_placed = false;
+
+// Host: the grid is full screen (see gdxsv_multi_pov_toggle_fullscreen), and
+// the quadrant to go back to when it leaves it.
+static bool g_fullscreen = false;
+static GdxsvMultiPovRect g_fullscreen_restore;
+
+// Guest: whether this window is currently held on top, so it is only changed
+// when the host's full-screen state does.
+static bool g_guest_topmost = false;
 
 // Does `inner` fit inside `outer`?
 static bool FitsWithin(const GdxsvMultiPovRect& inner, const GdxsvMultiPovRect& outer) {
@@ -48,7 +58,19 @@ static GdxsvMultiPovRect HostGridArea() {
 static void TickHost() {
 	GdxsvMultiPovHostWindow hw;
 
-	if (gdxsv_multi_pov_window_is_maximized()) {
+	if (g_fullscreen) {
+		// Full screen means the grid takes the whole display, tiled into four
+		// equal quadrants, with no frames in the way. The host's quadrant is
+		// re-applied whenever something moved it - the desktop restoring a
+		// frame, say - so the grid stays put until the user leaves.
+		const GdxsvMultiPovRect area = gdxsv_multi_pov_window_display_area();
+		GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];
+		gdxsv_multi_pov_compute_grid(area, quadrants);
+		if (gdxsv_multi_pov_window_get_frame() != quadrants[0]) gdxsv_multi_pov_window_set_frame(quadrants[0]);
+		hw.group = area;
+		hw.maximized = false;
+		hw.fullscreen = true;
+	} else if (gdxsv_multi_pov_window_is_maximized()) {
 		// Maximized means the grid takes the whole work area, tiled into four
 		// equal quadrants. The host cannot be maximized and be one quadrant at
 		// the same time, so it drops out of the maximized state into its own.
@@ -85,9 +107,10 @@ static void TickHost() {
 	}
 	hw.rect = gdxsv_multi_pov_window_get_frame();
 
-	if (hw.group != g_last_group || hw.maximized != g_last_maximized) {
+	if (hw.group != g_last_group || hw.maximized != g_last_maximized || hw.fullscreen != g_last_fullscreen) {
 		g_last_group = hw.group;
 		g_last_maximized = hw.maximized;
+		g_last_fullscreen = hw.fullscreen;
 		++g_generation;
 	}
 	hw.generation = g_generation;
@@ -115,15 +138,62 @@ static void TickGuest() {
 	if (hw.generation == g_applied_generation) return;
 	g_applied_generation = hw.generation;
 
+	// On top with the host while the grid is full screen, so the task bar
+	// does not sit over the bottom row; back to normal with it.
+	if (hw.fullscreen != g_guest_topmost) {
+		g_guest_topmost = hw.fullscreen;
+		gdxsv_multi_pov_window_set_topmost(hw.fullscreen);
+	}
+
 	GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];
 	gdxsv_multi_pov_compute_grid(hw.group, quadrants);
 	gdxsv_multi_pov_window_set_frame(quadrants[screen]);
 }
 
+// The host leaves full screen: frame and place back, on top no longer.
+static void LeaveFullscreen() {
+	g_fullscreen = false;
+	gdxsv_multi_pov_window_set_topmost(false);
+	gdxsv_multi_pov_window_set_borderless(false);
+	gdxsv_multi_pov_window_set_frame(g_fullscreen_restore);
+}
+
+bool gdxsv_multi_pov_toggle_fullscreen() {
+	const GdxsvMultiPovRole role = gdxsv_multi_pov_current_role();
+	if (role == GdxsvMultiPovRole::None) return false;
+	if (!gdxsv_multi_pov_window_available()) return false;
+	// A guest is a view: the user drives the grid from the host's window.
+	if (role == GdxsvMultiPovRole::Guest) return true;
+
+	if (g_fullscreen) {
+		LeaveFullscreen();
+		NOTICE_LOG(COMMON, "multi-pov: grid left full screen");
+	} else {
+		// A maximized window cannot be a quadrant; and the quadrant to come
+		// back to is the one it has as a plain window.
+		if (gdxsv_multi_pov_window_is_maximized()) gdxsv_multi_pov_window_unmaximize();
+		g_fullscreen_restore = gdxsv_multi_pov_window_get_frame();
+		gdxsv_multi_pov_window_set_borderless(true);
+		gdxsv_multi_pov_window_set_topmost(true);
+		g_fullscreen = true;
+		NOTICE_LOG(COMMON, "multi-pov: grid full screen");
+	}
+	return true;
+}
+
 void gdxsv_multi_pov_window_tick() {
 	const GdxsvMultiPovRole role = gdxsv_multi_pov_current_role();
-	if (role == GdxsvMultiPovRole::None) return;
 	if (!gdxsv_multi_pov_window_available()) return;
+
+	if (role == GdxsvMultiPovRole::None) {
+		// The session is over. A host that was full screen gets its window
+		// back the way it was, rather than being left a borderless quadrant
+		// stuck on top of the desktop; and the next session lays the grid out
+		// afresh.
+		if (g_fullscreen) LeaveFullscreen();
+		g_host_placed = false;
+		return;
+	}
 
 	if (role == GdxsvMultiPovRole::Host)
 		TickHost();

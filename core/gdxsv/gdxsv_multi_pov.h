@@ -50,6 +50,10 @@ struct GdxsvMultiPovHostWindow {
 	GdxsvMultiPovRect rect;		 // the host screen's own quadrant, in desktop coords
 	GdxsvMultiPovRect group;		 // the area the 2x2 grid covers as a whole
 	bool maximized = false;	 // tile the maximized area into four quadrants
+	// The grid covers the whole display, borderless and above everything
+	// else: what Alt+Enter means in a 4-screen session, instead of one
+	// window going full screen on its own.
+	bool fullscreen = false;
 	uint32_t generation = 0; // bumped on every change, so a guest can skip no-ops
 };
 
@@ -59,8 +63,19 @@ struct GdxsvMultiPovPlayback {
 	int64_t position = 0;		  // key_msg_count * kSyncSubFrames + subframe
 	int32_t speed = 0;			  // replay speed index
 	bool paused = false;
+	bool menu_open = false;		  // the host's pause menu is up, so playback holds
 	uint32_t seek_generation = 0; // bumped per seek, so a guest applies each one once
 	int64_t seek_target = 0;	  // key message index the host seeked to
+
+	// Replay options the user toggles on the host, mirrored so all four
+	// screens show the same thing.
+	bool show_ally_hp = false;
+	bool key_display = false;
+	bool skip_ms_selection = false;
+
+	// The host's volume (aica.Volume, 0-100). A guest follows it, scaled
+	// down by gdxsv:MultiPovGuestVolume - see the replay backend.
+	int32_t volume = 0;
 };
 
 // ---- session lifecycle -------------------------------------------------
@@ -182,9 +197,8 @@ std::string gdxsv_multi_pov_log_file_name();
 // outside a session. See the note above gdxsv_multi_pov_guest_ready_and_wait
 // for why this has to happen at all.
 //
-// The host's wait here is short: it arrives last, so the guests are already
-// in. The long one - a guest has a whole cold boot ahead of it - belongs to
-// the UI, which says "waiting for the other screens (n/3)" while it happens
-// instead of freezing the window.
+// Host and guests alike start playing as soon as they can and fast-forward,
+// silent, to this point; whoever gets here first waits for the rest, with
+// the same allowance on both sides.
 void gdxsv_multi_pov_wait_at_start_barrier();
 

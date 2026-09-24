@@ -87,6 +87,10 @@ class GdxsvBackendReplay {
 	// guests never negotiate a position of their own.
 	void PublishMultiPovPlayback();
 	void FollowMultiPovHost();
+	// Guest: holds this frame until the host's published position is within
+	// reach, so a host that stops - its window held by the title bar, say -
+	// stops the other three with it instead of being left behind.
+	void WaitForMultiPovHost();
 	void RenderControlBar(const UiState& ui);
 	void RenderLoadingHud(const UiState& ui);
 	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;

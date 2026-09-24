@@ -399,6 +399,10 @@ void input_sdl_handle()
 							&& ((event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT))
 								|| (event.key.keysym.sym == SDLK_F11 && (event.key.keysym.mod & (KMOD_ALT | KMOD_CTRL | KMOD_SHIFT | KMOD_GUI)) == 0)))
 					{
+						// gdxsv: in a 4-player replay the grid goes full screen
+						// as one, not this window on its own.
+						if (gdxsv_emu_toggle_fullscreen())
+							break;
 						if (window_fullscreen)
 						{
 							SDL_SetWindowFullscreen(window, 0);
