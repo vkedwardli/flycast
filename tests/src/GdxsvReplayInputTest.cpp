@@ -157,9 +157,17 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	void SetReplayState(GdxsvBackendReplay::State state) { replay_.state_ = state; }
 	void SetLive() { replay_.live_mode_ = true; }
 	void CloseTakeoverMenu() { replay_.pause_menu_opend_ = false; }
+	void RenderTakeoverMenu(u32 buttons) {
+		kcode[0] = ~buttons;
+		ImGui::NewFrame();
+		replay_.RenderPauseMenu(PublishedUi());
+		ImGui::EndFrame();
+		replay_.ProcessUiCommands();
+	}
 	bool IsTakingOver() const { return replay_.takeover_; }
 	bool IsAligningTakeover() const { return replay_.takeover_aligning_; }
 	bool IsSkippingTakeoverAlignment() const { return replay_.takeover_skip_input_matching_; }
+	u16 TakeoverTargetInput() const { return replay_.takeover_target_input_; }
 	int TakeoverCountdown() const { return replay_.takeover_countdown_; }
 	const std::deque<u16>& TakeoverInputs() const { return replay_.takeover_input_buf_; }
 	size_t PendingControlCommands() { return replay_.ctrl_commands_.size(); }
@@ -879,6 +887,92 @@ TEST_F(GdxsvReplayInputTest, TakeoverAlignmentStartsAndCompletesOnFirstAndRepeat
 		EXPECT_EQ(1u, PendingControlCommands());
 		EXPECT_EQ(attempt > 0, IsTakingOver());
 	}
+}
+
+TEST_F(GdxsvReplayInputTest, TakeoverMatchingIgnoresRecordedStartOnFirstAndRetry) {
+	for (bool retry : {false, true}) {
+		for (u16 target : {u16(0), u16(McsKeyCode::A)}) {
+			PrepareTakeoverAlignment(retry, target | McsKeyCode::START);
+			EXPECT_EQ(target, TakeoverTargetInput());
+			SendTakeoverInput(target);
+			EXPECT_FALSE(IsAligningTakeover());
+			EXPECT_FALSE(IsSkippingTakeoverAlignment());
+			EXPECT_EQ(60, TakeoverCountdown());
+			for (int frame = 0; frame < 60; ++frame)
+				SendTakeoverInput(target);
+			EXPECT_TRUE(StartTakeoverQueued());
+			EXPECT_EQ(std::deque<u16>(60, target), TakeoverInputs());
+		}
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, TakeoverInputIgnoresStartWithoutRequestingSkip) {
+	for (bool retry : {false, true}) {
+		PrepareTakeoverAlignment(retry, McsKeyCode::A);
+		SendTakeoverInput(McsKeyCode::START);
+		EXPECT_TRUE(IsAligningTakeover());
+		EXPECT_EQ(0, TakeoverCountdown());
+		SendTakeoverInput(McsKeyCode::A | McsKeyCode::START);
+		ASSERT_FALSE(IsSkippingTakeoverAlignment());
+		ASSERT_FALSE(IsAligningTakeover());
+		ASSERT_EQ(60, TakeoverCountdown());
+		EXPECT_TRUE(TakeoverInputs().empty());
+		for (int frame = 1; frame <= 60; ++frame) {
+			SendTakeoverInput(McsKeyCode::A | (frame % 2 ? McsKeyCode::START : 0));
+			EXPECT_EQ(60 - frame, TakeoverCountdown());
+			EXPECT_EQ(std::deque<u16>(frame, McsKeyCode::A), TakeoverInputs());
+		}
+		EXPECT_TRUE(StartTakeoverQueued());
+		SendTakeoverInput(McsKeyCode::START);
+		EXPECT_EQ(0, TakeoverCountdown());
+		EXPECT_EQ(std::deque<u16>(60, McsKeyCode::A), TakeoverInputs());
+		EXPECT_EQ(1u, PendingControlCommands());
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, StartMustBePressedSeparatelyForRetryAndSkipMatching) {
+	PrepareFrameControl();
+	const auto previous_context = ImGui::GetCurrentContext();
+	const auto context = ImGui::CreateContext();
+	const auto previous_input = mapleInputState[0];
+	const u32 previous_kcode = kcode[0];
+	ImGui::GetIO().DisplaySize = ImVec2(640, 480);
+	ImGui::GetIO().Fonts->Build();
+	config::ThreadedRendering = true;
+#ifdef _WIN32
+	config::JoystickPolling = false;
+#endif
+	PrepareTakeoverAlignment(true, McsKeyCode::A);
+	CloseTakeoverMenu();
+	mapleInputState[0] = {};
+	RunMainUiInput(0);
+	RunMainUiInput(DC_BTN_START);
+	PrepareTakeoverAlignment(true, McsKeyCode::A);
+	RenderTakeoverMenu(DC_BTN_START);
+	EXPECT_FALSE(IsSkippingTakeoverAlignment());
+	EXPECT_EQ(0, TakeoverCountdown());
+	RenderTakeoverMenu(0);
+	RenderTakeoverMenu(DC_BTN_START);
+	EXPECT_TRUE(IsSkippingTakeoverAlignment());
+	EXPECT_EQ(60, TakeoverCountdown());
+	RenderTakeoverMenu(DC_BTN_START);
+	EXPECT_EQ(59, TakeoverCountdown());
+	for (int frame = 0; frame < 59; ++frame)
+		SendTakeoverInput(McsKeyCode::START);
+	EXPECT_TRUE(StartTakeoverQueued());
+	CloseTakeoverMenu();
+	mapleInputState[0] = {};
+	RunMainUiInput(DC_BTN_START | DC_BTN_A);
+	EXPECT_EQ(1u, PendingControlCommands());
+	// Only START needs releasing; gameplay buttons can remain held.
+	RunMainUiInput(DC_BTN_A);
+	EXPECT_EQ(1u, PendingControlCommands());
+	RunMainUiInput(DC_BTN_START | DC_BTN_A);
+	EXPECT_EQ(2u, PendingControlCommands());
+	mapleInputState[0] = previous_input;
+	kcode[0] = previous_kcode;
+	ImGui::DestroyContext(context);
+	ImGui::SetCurrentContext(previous_context);
 }
 
 TEST_F(GdxsvReplayInputTest, TakeoverCountdownMismatchRequiresMatchingAgainOnFirstAndRetry) {

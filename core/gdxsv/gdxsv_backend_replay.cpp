@@ -195,6 +195,7 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_bar_dragging_ = false;
 	ctrl_bar_drag_target_frame_ = -1;
 	ctrl_input_release_pending_ = false;
+	takeover_start_down_ = false;
 	settings.gdxsv.replayModeActive = false;
 	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
@@ -252,6 +253,8 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	// A 4-player replay guest has no controls of its own.
 	if (State::LbsStartBattleFlow <= ui.state && !ui.pauseMenuOpen && !gdxsv_is_multi_pov_guest()) {
 		auto input = mapleInputState[0];
+		// Preserve a held retry press when the matching menu opens.
+		takeover_start_down_ = (~input.kcode & DC_BTN_START) != 0;
 		// Map analog stick to d-pad (fullAxes are 16-bit, >> 8 to match convertInput thresholds)
 		if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
 		if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_RIGHT;
@@ -261,7 +264,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		static u32 prev_kcode = 0;
 		if (prev_kcode == 0) prev_kcode = input.kcode;
 		if (ctrl_input_release_pending_) {
-			constexpr u32 replay_control_buttons =
+			const u32 replay_control_buttons = ui.takeover ? DC_BTN_START :
 				DC_BTN_A | DC_BTN_START | DC_DPAD_UP | DC_DPAD_DOWN | DC_DPAD_LEFT | DC_DPAD_RIGHT;
 			step_hold_timer_ = 0.0f;
 			prev_kcode = input.kcode;
@@ -1735,8 +1738,8 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			break;
 		case ReplayCtrlCommand::TakeoverInput: {
 			// RetryTakeover keeps takeover_ true while waiting for matching input.
-			if (!pause_menu_opend_) break;
-			const u16 input = static_cast<u16>(cmd.arg1);
+			if (live_mode_ || !pause_menu_opend_) break;
+			const u16 input = static_cast<u16>(cmd.arg1) & ~McsKeyCode::START;
 			if (takeover_aligning_) {
 				if (input == takeover_target_input_) {
 					takeover_aligning_ = false;
@@ -1872,7 +1875,8 @@ void GdxsvBackendReplay::BeginTakeoverAlignment(u16 target_input) {
 	takeover_aligning_ = true;
 	// Each attempt starts with input matching enabled.
 	takeover_skip_input_matching_ = false;
-	takeover_target_input_ = target_input;
+	// START controls takeover, rather than participating in input matching.
+	takeover_target_input_ = target_input & ~McsKeyCode::START;
 	takeover_input_buf_.clear();
 }
 
@@ -2620,12 +2624,22 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 	}
 	ImGui::Begin("##gdxsv-replay-pause", NULL, window_flags);
 
+	const u16 current_input = liveTakeoverMcsInput();
+	const bool start_down = (current_input & McsKeyCode::START) != 0;
+	const bool start_pressed = start_down && !takeover_start_down_;
+	takeover_start_down_ = start_down;
+
 	if (ui.takeoverCountdown > 0 || ui.takeoverAligning) {
 		ImGui::SetNextFrameWantCaptureKeyboard(false);
-		const u16 current_input = liveTakeoverMcsInput();
-		ui_commands_.emplace_back(ReplayCtrlCommand::TakeoverInput, current_input);
-		if (ui.NeedsTakeoverAlignment(current_input))
-			RenderTakeoverAlignment(ui, current_input);
+		// Do not turn a held skip press into RetryTakeover when the menu closes.
+		if (start_down)
+			ctrl_input_release_pending_ = true;
+		const u16 matching_input = current_input & ~McsKeyCode::START;
+		ui_commands_.emplace_back(ReplayCtrlCommand::TakeoverInput, matching_input);
+		if (start_pressed)
+			ui_commands_.emplace_back(ReplayCtrlCommand::SkipTakeoverAlignment);
+		if (ui.NeedsTakeoverAlignment(matching_input))
+			RenderTakeoverAlignment(ui, matching_input);
 		else
 			RenderTakeoverCountdown(ui);
 		ImGui::End();
@@ -2782,7 +2796,7 @@ void GdxsvBackendReplay::RenderTakeoverAlignment(const UiState& ui, u16 current_
 	ImGui::Text("Replay: %s", formatMcsInput(ui.takeoverTargetInput).c_str());
 	ImGui::Text("Current: %s", formatMcsInput(current_input).c_str());
 	ImGui::Dummy(ScaledVec2(0, 8));
-	if (ImGui::Button(ICON_FA_FORWARD "  Skip Matching", ScaledVec2(300, 40))) {
+	if (ImGui::Button(ICON_FA_FORWARD "  Skip Matching (START)", ScaledVec2(300, 40))) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::SkipTakeoverAlignment);
 	}
 	if (ImGui::Button(ICON_FA_XMARK "  Cancel", ScaledVec2(300, 40))) {
