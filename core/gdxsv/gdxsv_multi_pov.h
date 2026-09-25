@@ -46,6 +46,7 @@ struct GdxsvMultiPovPlayback {
 	bool menu_open = false;		  // the host's pause menu is up
 	uint32_t seek_generation = 0; // bumped per seek
 	int64_t seek_target = 0;	  // key message index the host seeked to
+	int32_t seek_round = 0;		  // round the host jumped to with SetRound, 0 for other seeks
 
 	// Replay options toggled on the host.
 	bool show_ally_hp = false;

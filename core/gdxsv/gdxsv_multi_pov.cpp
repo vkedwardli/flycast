@@ -24,7 +24,7 @@
 #include "types.h"
 
 constexpr uint32_t kMagic = 0x4D505634;	 // "MPV4"
-constexpr uint32_t kVersion = 2;
+constexpr uint32_t kVersion = 3;
 
 // The replay payload follows the header at this offset.
 constexpr size_t kPayloadOffset = 4096;
@@ -81,6 +81,7 @@ struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> menu_open;
 	std::atomic<uint32_t> seek_generation;
 	std::atomic<int64_t> seek_target;
+	std::atomic<int32_t> seek_round;
 	std::atomic<uint32_t> show_ally_hp;
 	std::atomic<uint32_t> key_display;
 	std::atomic<uint32_t> skip_ms_selection;
@@ -408,6 +409,7 @@ void gdxsv_multi_pov_publish_playback(const GdxsvMultiPovPlayback& state) {
 	h->paused.store(state.paused ? 1u : 0u, std::memory_order_relaxed);
 	h->menu_open.store(state.menu_open ? 1u : 0u, std::memory_order_relaxed);
 	h->seek_target.store(state.seek_target, std::memory_order_relaxed);
+	h->seek_round.store(state.seek_round, std::memory_order_relaxed);
 	h->show_ally_hp.store(state.show_ally_hp ? 1u : 0u, std::memory_order_relaxed);
 	h->key_display.store(state.key_display ? 1u : 0u, std::memory_order_relaxed);
 	h->skip_ms_selection.store(state.skip_ms_selection ? 1u : 0u, std::memory_order_relaxed);
@@ -423,6 +425,7 @@ bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out) {
 	if (h->playback_published.load(std::memory_order_acquire) == 0) return false;
 	out.seek_generation = h->seek_generation.load(std::memory_order_acquire);
 	out.seek_target = h->seek_target.load(std::memory_order_relaxed);
+	out.seek_round = h->seek_round.load(std::memory_order_relaxed);
 	out.position = h->position.load(std::memory_order_relaxed);
 	out.speed = h->speed.load(std::memory_order_relaxed);
 	out.paused = h->paused.load(std::memory_order_relaxed) != 0;
