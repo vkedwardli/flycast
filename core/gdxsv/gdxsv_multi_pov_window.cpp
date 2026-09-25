@@ -1,6 +1,8 @@
 // Platform-independent part of the 4-player replay grid.
 #include "gdxsv_multi_pov_window.h"
 
+#include <optional>
+
 #include "log/LogManager.h"
 #include "types.h"
 
@@ -17,10 +19,16 @@ static bool g_guest_topmost = false;
 
 // Host: the first tick turns the full-size window into a quadrant.
 static bool g_host_placed = false;
+static std::optional<GdxsvMultiPovWindowState> g_host_window_restore;
 
 // Host: full-screen grid, and the quadrant to restore when leaving it.
 static bool g_fullscreen = false;
 static GdxsvMultiPovRect g_fullscreen_restore;
+
+static void SaveHostWindow() {
+	if (!g_host_window_restore)
+		g_host_window_restore = gdxsv_multi_pov_window_get_state();
+}
 
 static bool FitsWithin(const GdxsvMultiPovRect& inner, const GdxsvMultiPovRect& outer) {
 	if (outer.w <= 0 || outer.h <= 0) return true;
@@ -41,6 +49,7 @@ static GdxsvMultiPovRect HostGridArea() {
 }
 
 static void TickHost() {
+	SaveHostWindow();
 	GdxsvMultiPovHostWindow hw;
 
 	if (g_fullscreen) {
@@ -135,6 +144,7 @@ bool gdxsv_multi_pov_toggle_fullscreen() {
 	// Guests have no controls of their own.
 	if (role == GdxsvMultiPovRole::Guest) return true;
 
+	SaveHostWindow();
 	if (g_fullscreen) {
 		LeaveFullscreen();
 		NOTICE_LOG(COMMON, "multi-pov: grid left full screen");
@@ -154,9 +164,12 @@ void gdxsv_multi_pov_window_tick() {
 	if (!gdxsv_multi_pov_window_available()) return;
 
 	if (role == GdxsvMultiPovRole::None) {
-		// Session over: give a full-screen host its window back, and lay the
-		// next session's grid out afresh.
+		// Session over: undo the temporary grid layout on the UI thread.
 		if (g_fullscreen) LeaveFullscreen();
+		if (g_host_window_restore) {
+			gdxsv_multi_pov_window_restore_state(*g_host_window_restore);
+			g_host_window_restore.reset();
+		}
 		g_host_placed = false;
 		return;
 	}
