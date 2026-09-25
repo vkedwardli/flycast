@@ -839,6 +839,10 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 		multi_pov_seek_generation_ = st.seek_generation;
 		if (0 < st.seek_round)
 			ui_commands_.emplace_back(ReplayCtrlCommand::SetRound, st.seek_round);
+		// Paused, the game reads one more input after a jump lands (see
+		// StepFrameBackward), so aim one short of the host's frame.
+		else if (st.paused && ctrl_pause_)
+			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target) - 1);
 		else
 			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target));
 		return;
@@ -858,15 +862,17 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	// Paused on both: walk to the host's frame. A step forward moves the host
 	// by one, inside kMultiPovSeekSlack, so it is never published as a seek.
 	// This also lines up a guest that paused a frame or two off the host.
+	// Only once the next input is waiting in recv_buf_: a step or jump bumps
+	// key_msg_count_ a frame after it runs, and walking in between overshoots.
 	const auto pending = [this](ReplayCtrlCommand::Command c) {
 		return ui_commands_.contains(c) || ctrl_commands_.contains(c);
 	};
-	if (st.paused && ctrl_pause_ && !ctrl_step_frame_ && !pending(ReplayCtrlCommand::TogglePause) &&
+	if (st.paused && ctrl_pause_ && !ctrl_step_frame_ && !recv_buf_.empty() && !pending(ReplayCtrlCommand::TogglePause) &&
 		!pending(ReplayCtrlCommand::StepFrame) && !pending(ReplayCtrlCommand::JumpToKeyMsg)) {
 		if (key_msg_count_ < st.seek_target)
 			ui_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
 		else if (st.seek_target < key_msg_count_)
-			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target));
+			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target) - 1);
 	}
 }
 
