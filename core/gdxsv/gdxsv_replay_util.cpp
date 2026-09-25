@@ -108,9 +108,9 @@ size_t local_replay_page = 0;
 std::string selected_replay_file;
 std::string broken_replay_path;
 
-std::string search_user_id;
-std::string search_user_name;
-std::string search_pilot_name;
+std::vector<std::string> search_user_ids;
+std::vector<std::string> search_user_names;
+std::vector<std::string> search_pilot_names;
 std::string search_lobby_id;
 unsigned int search_no_of_players;
 std::string search_battle_code;
@@ -118,6 +118,54 @@ int search_ranking = -1;
 std::string search_disk;
 bool search_reverse;
 int search_used_ms = -1;
+
+struct PlayerFilterRequest {
+	enum Field { None, ID, HN, PN } field = None;
+	std::string value;
+};
+PlayerFilterRequest pending_player_filter;
+bool select_server_tab = false;
+
+// Matches maxReplayPlayerFilters in the server's replay API.
+constexpr size_t kMaxPlayerFilters = 4;
+
+const char* player_filter_disabled_hint(const std::vector<std::string>& filters, const std::string& value) {
+	if (value.empty())
+		return "Empty values cannot be used as filters.";
+	if (std::find(filters.begin(), filters.end(), value) != filters.end())
+		return "This filter is already applied.";
+	if (filters.size() >= kMaxPlayerFilters)
+		return "Up to four filters per field. Remove one to add another.";
+	return nullptr;
+}
+
+bool add_player_filter(std::vector<std::string>& filters, const std::string& value) {
+	if (player_filter_disabled_hint(filters, value) != nullptr)
+		return false;
+	filters.push_back(value);
+	return true;
+}
+
+int filtered_replay_pov(const std::vector<proto::BattleLogUser>& users) {
+	const auto name_matches = [](const std::string& name, const std::vector<std::string>& filters) {
+		return std::any_of(filters.begin(), filters.end(), [&](const std::string& filter) {
+			return ImStristr(name.c_str(), nullptr, filter.c_str(), nullptr) != nullptr;
+		});
+	};
+	// Different filters may identify different participants. Prefer the first
+	// matching slot, using exact IDs and partial names like the filter UI.
+	for (size_t i = 0; i < users.size(); ++i) {
+		const auto& user = users[i];
+		if (std::find(search_user_ids.begin(), search_user_ids.end(), user.user_id()) != search_user_ids.end() ||
+			name_matches(user.user_name(), search_user_names) || name_matches(user.pilot_name(), search_pilot_names))
+			return static_cast<int>(i);
+	}
+	return users.empty() ? -1 : 0;
+}
+
+std::string replay_api_url(const char* path) {
+	return config::loadStr("gdxsv", "ReplayApiUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi") + path;
+}
 
 std::shared_future<std::vector<UserEntry>> fetch_user_entry_future_;
 int fetch_user_entry_http_status;
@@ -230,7 +278,7 @@ void textCentered(const std::string& text) {
 };
 
 void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force_index, int& user_index,
-							  const std::vector<proto::BattleLogUser>& users) {
+							  const std::vector<proto::BattleLogUser>& users, bool server_tab) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 2.0f * scaling);
 
 	if (is_renpo) {
@@ -243,6 +291,7 @@ void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force
 
 	for (int i : force_index) {
 		if (i != force_index.front()) ImGui::SameLine();
+		const auto& user = users[user_index];
 		auto pos = ImGui::GetCursorPos();
 		if (ImGui::Selectable(("##pov_" + std::to_string(user_index)).c_str(), (pov_index == user_index), 0, ScaledVec2(180, 90))) {
 			if (pov_index == user_index) {
@@ -251,12 +300,37 @@ void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force
 				pov_index = user_index;
 			}
 		}
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+			ImGui::SetTooltip(server_tab ? "Right-click to copy or filter" : "Right-click to copy or filter on Server");
+		if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight)) {
+			auto field_menu = [server_tab](const char* name, PlayerFilterRequest::Field field, const std::string& value,
+										 const std::vector<std::string>& filters) {
+				const std::string label = std::string(name) + ": " + (value.empty() ? "(empty)" : value) + "###" + name;
+				if (ImGui::BeginMenu(label.c_str())) {
+					if (ImGui::MenuItem("Copy"))
+						ImGui::SetClipboardText(value.c_str());
+					const std::string filter_label = std::string("Filter by ") + name + (server_tab ? "" : " (Server)");
+					const char* disabled_hint = player_filter_disabled_hint(filters, value);
+					if (ImGui::MenuItem(filter_label.c_str(), nullptr, false, disabled_hint == nullptr)) {
+						pending_player_filter = {field, value};
+						select_server_tab = true;
+					}
+					if (disabled_hint != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+						ImGui::SetTooltip("%s", disabled_hint);
+					ImGui::EndMenu();
+				}
+			};
+			field_menu("ID", PlayerFilterRequest::ID, user.user_id(), search_user_ids);
+			field_menu("HN", PlayerFilterRequest::HN, user.user_name(), search_user_names);
+			field_menu("PN", PlayerFilterRequest::PN, user.pilot_name(), search_pilot_names);
+			ImGui::EndPopup();
+		}
 		ImGui::SetCursorPos(ImVec2(pos.x, pos.y));
 		ImGui::BeginChild(ImGui::GetID(("gdxsv_replay_file_detail_renpo_" + std::to_string(i)).c_str()), ScaledVec2(180, 90), true,
 						  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
-		textCentered("ID: " + users[user_index].user_id());
-		textCentered("HN: " + users[user_index].user_name());
-		textCentered("PN: " + users[user_index].pilot_name());
+		textCentered("ID: " + user.user_id());
+		textCentered("HN: " + user.user_name());
+		textCentered("PN: " + user.pilot_name());
 		ImGui::EndChild();
 		user_index++;
 	}
@@ -266,7 +340,7 @@ void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force
 	ImGui::PopStyleVar();
 }
 
-void gdxsv_replay_draw_players(const std::vector<proto::BattleLogUser>& users) {
+void gdxsv_replay_draw_players(const std::vector<proto::BattleLogUser>& users, bool server_tab) {
 	std::vector<int> renpo_index, zeon_index;
 	for (int i = 0; i < users.size(); i++) {
 		if (users[i].team() == 1) renpo_index.push_back(i);
@@ -274,35 +348,51 @@ void gdxsv_replay_draw_players(const std::vector<proto::BattleLogUser>& users) {
 	}
 	int user_index = 0;
 
-	gdxsv_replay_draw_forces(true, renpo_index, user_index, users);
-	gdxsv_replay_draw_forces(false, zeon_index, user_index, users);
+	gdxsv_replay_draw_forces(true, renpo_index, user_index, users, server_tab);
+	gdxsv_replay_draw_forces(false, zeon_index, user_index, users, server_tab);
 }
 
 void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& game_disk, const int& users_size,
 							const std::string& close_reason, const time_t& start_time, const time_t& end_time,
-							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst,
+							const std::vector<proto::BattleLogUser>& users, const std::string& replay_dst, bool server_tab,
 							int play_count = -1, const std::string& filename = {}) {
 	const bool playable = "dc" + std::to_string(gdxsv.Disk()) == game_disk;
 
-	// Player cards + Replay button first
-	gdxsv_replay_draw_players(users);
+	// Player cards + replay actions first
+	gdxsv_replay_draw_players(users, server_tab);
 
 	ImGui::NewLine();
 
 	{
-		// 4-player replay plays every POV at once, so there is no POV to select.
-		const bool four_screen = config::GdxReplayFourScreen && users_size == 4;
-		const bool pov_selected = (pov_index == -1);
-		ImGui::BeginDisabled((pov_selected && !four_screen) || !playable);
+		const ImVec2 button_size = ScaledVec2(300, 50);
+		const bool side_by_side = ImGui::GetContentRegionAvail().x >= button_size.x * 2 + ImGui::GetStyle().ItemSpacing.x;
+		auto replay_button = [&](const char* label, int pov, bool four_screen, const char* disabled_hint) {
+			std::string button_label = !playable ? std::string("Load ") + disk_display_name(game_disk) + " to replay"
+				: disabled_hint != nullptr ? disabled_hint : label;
+			// Keep each action's ID stable as the selected player or hint changes.
+			button_label += four_screen ? "###replay-four-screen" : "###replay-single-screen";
+			ImGui::BeginDisabled(!playable || disabled_hint != nullptr);
+			if (ImGui::ButtonEx(button_label.c_str(), button_size))
+				gdxsv_start_replay(replay_dst, pov, four_screen);
+			ImGui::EndDisabled();
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+				if (!playable)
+					ImGui::SetTooltip("Load %s to play this replay.", disk_display_name(game_disk));
+				else if (disabled_hint != nullptr)
+					ImGui::SetTooltip("%s", disabled_hint);
+			}
+		};
 
-		const char* label = four_screen  ? ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)"
-						  : pov_selected ? ICON_FA_ARROW_POINTER "  Select a player"
-										 : ICON_FA_PLAY "  Replay";
-		if (ImGui::ButtonEx(label, ScaledVec2(240, 50))) {
-			gdxsv_start_replay(replay_dst, four_screen ? 0 : pov_index);
-		}
-
-		ImGui::EndDisabled();
+		const bool pov_selected = 0 <= pov_index && pov_index < users_size;
+		char replay_label[64];
+		snprintf(replay_label, sizeof(replay_label), ICON_FA_PLAY "  Replay %dP", pov_index + 1);
+		replay_button(replay_label, pov_index, false,
+			pov_selected ? nullptr : ICON_FA_ARROW_POINTER "  Select a Player");
+		if (side_by_side)
+			ImGui::SameLine();
+		// Four-screen playback does not require a selected player.
+		replay_button(ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)", 0, true,
+			users_size == 4 ? nullptr : ICON_FA_TABLE_CELLS_LARGE "  4-player battles only");
 
 		if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
 			ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
@@ -341,14 +431,6 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
 	OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
-	ImGui::BeginDisabled(users_size != 4);
-	OptionCheckbox("4-player replay", config::GdxReplayFourScreen,
-				   "Play the replay from all four points of view at once, in a 2x2 grid of screens");
-	ImGui::EndDisabled();
-	if (users_size != 4) {
-		ImGui::SameLine();
-		ImGui::TextDisabled("(4-player battles only)");
-	}
 }
 
 void draw_round_detail(const ReplayEntry& entry) {
@@ -581,7 +663,7 @@ void gdxsv_replay_local_tab() {
 					const auto& entry = entries[i];
 					if (draw_replay_entry(entry, i, entry.filename == selected_replay_file)) {
 						selected_replay_file = entry.filename;
-						pov_index = -1;
+						pov_index = 0;
 					}
 				}
 			}
@@ -620,7 +702,7 @@ void gdxsv_replay_local_tab() {
 			const auto& entry = *selected;
 			if (entry.readable) {
 				gdxsv_replay_draw_info(entry.battle_code, entry.disk, static_cast<int>(entry.users.size()),
-					entry.close_reason, entry.start_unix, entry.end_unix, entry.users, entry.replay_url,
+					entry.close_reason, entry.start_unix, entry.end_unix, entry.users, entry.replay_url, false,
 					entry.play_count, entry.filename);
 				draw_round_detail(entry);
 			} else {
@@ -710,45 +792,42 @@ void fetch_replay_json() {
 		return;
 	}
 
-	const auto future_fn = []() -> std::vector<ReplayEntry> {
+	// Snapshot the query on the UI thread; the worker does not read filter state.
+	std::string url = replay_api_url("/replay?");
+	url += "page=" + http::urlEncode(std::to_string(entry_paging));
+	for (const auto& value : search_user_ids)
+		url += "&user_id=" + http::urlEncode(value);
+	for (const auto& value : search_user_names)
+		url += "&user_name=" + http::urlEncode("%" + value + "%");
+	for (const auto& value : search_pilot_names)
+		url += "&pilot_name=" + http::urlEncode("%" + value + "%");
+	if (!search_lobby_id.empty()) {
+		url += "&lobby_id=" + http::urlEncode(search_lobby_id);
+	}
+	if (search_no_of_players != 0) {
+		url += "&players=" + http::urlEncode(std::to_string(search_no_of_players));
+	}
+	if (!search_battle_code.empty()) {
+		url += "&battle_code=" + http::urlEncode(search_battle_code);
+	}
+	if (search_ranking != -1) {
+		url += "&aggregate=" + http::urlEncode(std::to_string(search_ranking));
+	}
+	if (!search_disk.empty()) {
+		url += "&disk=" + http::urlEncode(search_disk);
+	}
+	if (search_reverse) {
+		url += "&reverse=" + http::urlEncode(std::to_string(1));
+	}
+	if (search_used_ms != -1) {
+		url += "&used_ms=" + http::urlEncode(std::to_string(search_used_ms));
+	}
+
+	const auto future_fn = [url]() -> std::vector<ReplayEntry> {
 		std::vector<ReplayEntry> entries{};
 		std::vector<u8> dl;
 		std::string content_type;
 		http::init();
-		std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay?";
-
-		url += "page=" + http::urlEncode(std::to_string(entry_paging));
-		if (!search_user_id.empty()) {
-			url += "&user_id=" + http::urlEncode(search_user_id);
-		}
-		if (!search_user_name.empty()) {
-			url += "&user_name=" + http::urlEncode("%" + search_user_name + "%");
-		}
-		if (!search_pilot_name.empty()) {
-			url += "&pilot_name=" + http::urlEncode("%" + search_pilot_name + "%");
-		}
-		if (!search_lobby_id.empty()) {
-			url += "&lobby_id=" + http::urlEncode(search_lobby_id);
-		}
-		if (search_no_of_players != 0) {
-			url += "&players=" + http::urlEncode(std::to_string(search_no_of_players));
-		}
-		if (!search_battle_code.empty()) {
-			url += "&battle_code=" + http::urlEncode(search_battle_code);
-		}
-		if (search_ranking != -1) {
-			url += "&aggregate=" + http::urlEncode(std::to_string(search_ranking));
-		}
-		if (!search_disk.empty()) {
-			url += "&disk=" + http::urlEncode(search_disk);
-		}
-		if (search_reverse) {
-			url += "&reverse=" + http::urlEncode(std::to_string(1));
-		}
-		if (search_used_ms != -1) {
-			url += "&used_ms=" + http::urlEncode(std::to_string(search_used_ms));
-		}
-
 		fetch_replay_entry_http_status = http::get(url, dl, content_type);
 		if (fetch_replay_entry_http_status != 200) {
 			ERROR_LOG(COMMON, "version check failure: %s", url.c_str());
@@ -866,7 +945,7 @@ void fetch_user_json() {
 		std::vector<u8> dl;
 		std::string content_type;
 		http::init();
-		std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/user?";
+		std::string url = replay_api_url("/user?");
 
 		std::string loginkey = config::loadStr("gdxsv", "loginkey", "");
 		std::vector<u8> e_loginkey(loginkey.size());
@@ -903,21 +982,46 @@ void fetch_new_results(bool reset_page = true) {
 
 void fetch_target_page() { fetch_new_results(false); }
 
+void draw_add_player_filter_button(std::vector<std::string>& filters, const std::string& value) {
+	const char* disabled_hint = player_filter_disabled_hint(filters, value);
+	ImGui::SameLine();
+	ImGui::BeginDisabled(disabled_hint != nullptr);
+	if (ImGui::Button("Add Filter") && add_player_filter(filters, value))
+		fetch_new_results();
+	ImGui::EndDisabled();
+	if (disabled_hint != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", disabled_hint);
+}
+
 template <typename Callable>
 void draw_filter_label(const std::string& label, const std::string& value, Callable on_click) {
-	static char filter_user_id_buf[100] = {0};
-	snprintf(filter_user_id_buf, sizeof(filter_user_id_buf), u8"%s = %s  ×", label.c_str(), value.c_str());
+	const std::string text = label + " = " + value + u8"  ×";
+	const float width = ImGui::CalcTextSize(text.c_str(), nullptr, true).x + ImGui::GetStyle().FramePadding.x * 2;
 
 	ImGui::SameLine();
+	if (ImGui::GetContentRegionAvail().x < width)
+		ImGui::NewLine();
 	ImGui::GetStyle().FrameRounding = 5.0f * scaling;
-	if (ImGui::Button(
-			filter_user_id_buf,
-			ImVec2(ImGui::CalcTextSize(filter_user_id_buf, NULL, true).x + ImGui::GetStyle().FramePadding.x * 2 - 5.0f * scaling, 0))) {
+	if (ImGui::Button(text.c_str(), ImVec2(width, 0))) {
 		on_click();
 		fetch_new_results();
 	}
 	ImGui::GetStyle().FrameRounding = 0.0f;
 };
+
+void draw_filter_label_list(const std::string& label, std::vector<std::string>& values) {
+	ImGui::PushID(label.c_str());
+	for (size_t i = 0; i < values.size();) {
+		bool removed = false;
+		draw_filter_label(label, values[i], [&]() {
+			values.erase(values.begin() + i);
+			removed = true;
+		});
+		if (!removed)
+			++i;
+	}
+	ImGui::PopID();
+}
 
 void draw_filter_label_string(const std::string& label, std::string& value) {
 	if (!value.empty()) {
@@ -1047,7 +1151,7 @@ void gdxsv_replay_live_tab() {
 		} else {
 			// Same blue-renpo / red-zeon cards the replay detail uses, and the
 			// same pov_index, so picking a view works identically in both.
-			gdxsv_replay_draw_players(selected->users);
+			gdxsv_replay_draw_players(selected->users, false);
 
 			ImGui::NewLine();
 			{
@@ -1161,15 +1265,11 @@ void gdxsv_replay_server_tab() {
 				if (ImGui::InputText("##user_id_input", user_id_buf, IM_ARRAYSIZE(user_id_buf),
 									 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
 									 TextFilters::UppercaseAlpha)) {
-					search_user_id = std::string(user_id_buf);
-					fetch_new_results();
+					if (add_player_filter(search_user_ids, user_id_buf))
+						fetch_new_results();
 				}
 
-				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
-					search_user_id = std::string(user_id_buf);
-					fetch_new_results();
-				}
+				draw_add_player_filter_button(search_user_ids, user_id_buf);
 
 				break;
 			}
@@ -1180,15 +1280,11 @@ void gdxsv_replay_server_tab() {
 				if (ImGui::InputText("##user_name_input", user_name_buf, IM_ARRAYSIZE(user_name_buf),
 									 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
 									 TextFilters::FullWidthAlphaNum)) {
-					search_user_name = std::string(user_name_buf);
-					fetch_new_results();
+					if (add_player_filter(search_user_names, user_name_buf))
+						fetch_new_results();
 				}
 
-				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
-					search_user_name = std::string(user_name_buf);
-					fetch_new_results();
-				}
+				draw_add_player_filter_button(search_user_names, user_name_buf);
 
 				break;
 			}
@@ -1196,18 +1292,14 @@ void gdxsv_replay_server_tab() {
 			{
 				static char pilot_name_buf[100] = {0};
 				ImGui::SameLine();
-				if (ImGui::InputText("##user_name_input", pilot_name_buf, IM_ARRAYSIZE(pilot_name_buf),
+				if (ImGui::InputText("##pilot_name_input", pilot_name_buf, IM_ARRAYSIZE(pilot_name_buf),
 									 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
 									 TextFilters::FullWidthAlphaNum)) {
-					search_pilot_name = std::string(pilot_name_buf);
-					fetch_new_results();
+					if (add_player_filter(search_pilot_names, pilot_name_buf))
+						fetch_new_results();
 				}
 
-				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
-					search_pilot_name = std::string(pilot_name_buf);
-					fetch_new_results();
-				}
+				draw_add_player_filter_button(search_pilot_names, pilot_name_buf);
 
 				break;
 			}
@@ -1337,9 +1429,9 @@ void gdxsv_replay_server_tab() {
 
 		ImGui::Dummy(ImVec2(0, 0));	 // Newline
 
-		draw_filter_label_string("User ID", search_user_id);
-		draw_filter_label_string("User Name", search_user_name);
-		draw_filter_label_string("Pilot Name", search_pilot_name);
+		draw_filter_label_list("User ID", search_user_ids);
+		draw_filter_label_list("User Name", search_user_names);
+		draw_filter_label_list("Pilot Name", search_pilot_names);
 		draw_filter_label_string("Lobby ID", search_lobby_id);
 		draw_filter_label_int("Players", search_no_of_players);
 		draw_filter_label_string("Battle Code", search_battle_code);
@@ -1373,7 +1465,7 @@ void gdxsv_replay_server_tab() {
 					for (int i = 0; i < entries.size(); ++i) {
 						if (draw_replay_entry(entries[i], i, i == selected_replay_entry_index)) {
 							selected_replay_entry_index = i;
-							pov_index = -1;
+							pov_index = filtered_replay_pov(entries[i].users);
 						}
 					}
 					ImGui::PopStyleVar();
@@ -1428,7 +1520,7 @@ void gdxsv_replay_server_tab() {
 			battle_code = battle_code.substr(0, battle_code.find(".pb"));
 
 			gdxsv_replay_draw_info(battle_code, entry.disk, (int)entry.users.size(), "", entry.start_unix, 0, entry.users,
-								   entry.replay_url, entry.play_count);
+								   entry.replay_url, true, entry.play_count);
 			draw_round_detail(entry);
 		}
 	}
@@ -1531,13 +1623,13 @@ static void gdxsv_notify_replay_played(const std::string& replay_file) {
 		std::string content_type;
 		auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::system_clock::now().time_since_epoch()).count();
-		std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
+		std::string url = replay_api_url("/replay_played?battle_code=")
 			+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
 		http::get(url, dl, content_type);
 	}).detach();
 }
 
-void gdxsv_start_replay(const std::string& replay_file, int pov) {
+void gdxsv_start_replay(const std::string& replay_file, int pov, bool four_screen) {
 	if (gdxsv.IsSaveStateAllowed()) {
 		dc_savestate(90);
 	}
@@ -1545,10 +1637,7 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
 		// 4-player replay: host it, or fall back to single-screen playback.
 		std::vector<uint8_t> hosted_replay;
-		const bool four_screen =
-			gdxsv_multi_pov_four_screen_requested() && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay);
-
-		if (four_screen) {
+		if (four_screen && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay)) {
 			dc_loadstate(99);
 			if (gdxsv.StartReplayBuffer(hosted_replay, 0)) {
 				gui_state = GuiState::Closed;
@@ -1586,6 +1675,22 @@ void gdxsv_end_replay(std::string error) {
 }
 
 void gdxsv_replay_select_dialog() {
+	// Apply between frames, before drawing references into the old result.
+	// Wait for any in-flight query so replacing its future cannot block the UI.
+	if (pending_player_filter.field != PlayerFilterRequest::None &&
+		(!fetch_replay_entry_future_.valid() || future_is_ready(fetch_replay_entry_future_))) {
+		bool added = false;
+		switch (pending_player_filter.field) {
+			case PlayerFilterRequest::ID: added = add_player_filter(search_user_ids, pending_player_filter.value); break;
+			case PlayerFilterRequest::HN: added = add_player_filter(search_user_names, pending_player_filter.value); break;
+			case PlayerFilterRequest::PN: added = add_player_filter(search_pilot_names, pending_player_filter.value); break;
+			case PlayerFilterRequest::None: break;
+		}
+		pending_player_filter = {};
+		if (added)
+			fetch_new_results();
+	}
+
 	centerNextWindow();
 	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
 
@@ -1612,7 +1717,9 @@ void gdxsv_replay_select_dialog() {
 			ImGui::EndTabItem();
 		}
 
-		if (ImGui::BeginTabItem(ICON_FA_GLOBE "  Server")) {
+		const ImGuiTabItemFlags server_flags = select_server_tab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+		select_server_tab = false;
+		if (ImGui::BeginTabItem(ICON_FA_GLOBE "  Server", nullptr, server_flags)) {
 			gdxsv_replay_server_tab();
 			ImGui::EndTabItem();
 		}

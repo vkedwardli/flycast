@@ -106,7 +106,7 @@ void gdxsv_multi_pov_compute_grid(const GdxsvMultiPovRect& group, GdxsvMultiPovR
 
 // ---- orchestration ----------------------------------------------------
 
-// The user ticked "4-player replay" (never true in a guest).
+// ReplayFourScreen config for command-line launches (never true in a guest).
 bool gdxsv_multi_pov_four_screen_requested();
 
 // Host: reads `replay_source` (path or URL), publishes it and spawns the
