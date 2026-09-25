@@ -349,6 +349,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 		ImGui::SameLine();
 		ImGui::TextDisabled("(4-player battles only)");
 	}
+	OptionCheckbox("Projectile View", config::GdxProjectileView, "Debug: list the projectiles in play (DC2)");
 }
 
 void draw_round_detail(const ReplayEntry& entry) {

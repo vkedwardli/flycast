@@ -540,6 +540,7 @@ extern Option<bool> GdxReplayShowAllyHP;
 extern Option<bool> GdxReplayKeyDisplay;
 extern Option<bool> GdxReplaySkipMsSelection;
 extern Option<bool> GdxReplayFourScreen;
+extern Option<bool> GdxProjectileView;
 
 // Network
 

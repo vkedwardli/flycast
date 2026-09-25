@@ -71,6 +71,7 @@ void Gdxsv::DisplayOSD() {
 	rollback_net_.DisplayOSD();
 	replay_net_.DisplayOSD();
 	key_display_.DisplayOSD();
+	projectile_view_.DisplayOSD();
 }
 
 const char *Gdxsv::NetModeString() const {

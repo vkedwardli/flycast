@@ -9,6 +9,7 @@
 #include "gdxsv_backend_tcp.h"
 #include "gdxsv_backend_udp.h"
 #include "gdxsv_key_display.h"
+#include "gdxsv_projectile_view.h"
 #include "network/miniupnp.h"
 #include "types.h"
 
@@ -103,6 +104,7 @@ class Gdxsv {
 	GdxsvBackendReplay replay_net_;
 	GdxsvBackendRollback rollback_net_;
 	GdxsvKeyDisplay key_display_;
+	GdxsvProjectileView projectile_view_;
 };
 
 extern Gdxsv gdxsv;
