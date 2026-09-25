@@ -178,6 +178,8 @@ void GdxsvBackendReplay::Reset() {
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 	multi_pov_system_move_ = false;
+	multi_pov_round_jump_ = false;
+	multi_pov_seek_round_ = 0;
 	multi_pov_start_barrier_pending_ = false;
 	multi_pov_start_barrier_done_ = false;
 	timeline_revision_ = 0;
@@ -743,7 +745,15 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	if (seeking_) return;
 
 	const int64_t moved = static_cast<int64_t>(key_msg_count_) - multi_pov_published_frame_;
-	if (multi_pov_system_move_) {
+	if (multi_pov_round_jump_) {
+		// Ahead of the system move: with SkipMsSelection the briefing skip
+		// that follows SetRound runs in the same frame and arms it.
+		multi_pov_round_jump_ = false;
+		multi_pov_seek_round_ = start_msg_count_;
+		++multi_pov_seek_generation_;
+		NOTICE_LOG(COMMON, "multi-pov: round jump %d -> round %d, generation %u", multi_pov_published_frame_,
+				   start_msg_count_, multi_pov_seek_generation_);
+	} else if (multi_pov_system_move_) {
 		// The replay is moving the position itself (round change, briefing
 		// skip) and every screen does the same on its own. The move lasts as
 		// long as the system commands at the front of the queue do.
@@ -754,6 +764,7 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 			multi_pov_system_move_ = false;
 	} else if (0 <= multi_pov_published_frame_ && (moved < 0 || kMultiPovSeekSlack < moved)) {
 		++multi_pov_seek_generation_;
+		multi_pov_seek_round_ = 0;
 		NOTICE_LOG(COMMON, "multi-pov: seek %d -> %d, generation %u", multi_pov_published_frame_, key_msg_count_,
 				   multi_pov_seek_generation_);
 	}
@@ -766,6 +777,7 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	st.menu_open = pause_menu_opend_;
 	st.seek_generation = multi_pov_seek_generation_;
 	st.seek_target = key_msg_count_;
+	st.seek_round = multi_pov_seek_round_;
 	st.show_ally_hp = config::GdxReplayShowAllyHP;
 	st.key_display = config::GdxReplayKeyDisplay;
 	st.skip_ms_selection = config::GdxReplaySkipMsSelection;
@@ -779,6 +791,11 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 // as long as it is alive.
 void GdxsvBackendReplay::WaitForMultiPovHost() {
 	if (!multi_pov_guest_ || seeking_ || takeover_) return;
+	// A jump back to the host is queued: it runs after this, so holding here
+	// would wait for the host to reach a position the guest is leaving.
+	if (ui_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) || ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) ||
+		ui_commands_.contains(ReplayCtrlCommand::SetRound) || ctrl_commands_.contains(ReplayCtrlCommand::SetRound))
+		return;
 	const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
 	for (int i = 0;; ++i) {
 		GdxsvMultiPovPlayback st;
@@ -819,7 +836,14 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	// landed yet would otherwise be applied at the position being left.
 	if (st.seek_generation != multi_pov_seek_generation_) {
 		multi_pov_seek_generation_ = st.seek_generation;
-		ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target));
+		if (0 < st.seek_round)
+			ui_commands_.emplace_back(ReplayCtrlCommand::SetRound, st.seek_round);
+		// Paused, the game reads one more input after a jump lands (see
+		// StepFrameBackward), so aim one short of the host's frame.
+		else if (st.paused && ctrl_pause_)
+			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target) - 1);
+		else
+			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target));
 		return;
 	}
 
@@ -833,6 +857,22 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	if (st.speed != ctrl_play_speed_ && !ui_commands_.contains(ReplayCtrlCommand::SetSpeed) &&
 		!ctrl_commands_.contains(ReplayCtrlCommand::SetSpeed))
 		ui_commands_.emplace_back(ReplayCtrlCommand::SetSpeed, st.speed);
+
+	// Paused on both: walk to the host's frame. A step forward moves the host
+	// by one, inside kMultiPovSeekSlack, so it is never published as a seek.
+	// This also lines up a guest that paused a frame or two off the host.
+	// Only once the next input is waiting in recv_buf_: a step or jump bumps
+	// key_msg_count_ a frame after it runs, and walking in between overshoots.
+	const auto pending = [this](ReplayCtrlCommand::Command c) {
+		return ui_commands_.contains(c) || ctrl_commands_.contains(c);
+	};
+	if (st.paused && ctrl_pause_ && !ctrl_step_frame_ && !recv_buf_.empty() && !pending(ReplayCtrlCommand::TogglePause) &&
+		!pending(ReplayCtrlCommand::StepFrame) && !pending(ReplayCtrlCommand::JumpToKeyMsg)) {
+		if (key_msg_count_ < st.seek_target)
+			ui_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
+		else if (st.seek_target < key_msg_count_)
+			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target) - 1);
+	}
 }
 
 void GdxsvBackendReplay::OnNextFrameInternal() {
@@ -1391,6 +1431,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				recv_buf_.clear();
 				gdxsv.key_display_.Clear();
 				target_round_ = 0;
+				if (multi_pov_host_) multi_pov_round_jump_ = true;
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SaveFirstFrame);
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SendStartMsg);
 				if (config::GdxReplaySkipMsSelection && !live_mode_) {
@@ -1956,6 +1997,8 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 	multi_pov_system_move_ = false;
+	multi_pov_round_jump_ = false;
+	multi_pov_seek_round_ = 0;
 	multi_pov_start_barrier_pending_ = false;
 	multi_pov_start_barrier_done_ = false;
 

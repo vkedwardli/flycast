@@ -316,6 +316,10 @@ class GdxsvBackendReplay {
 	// Host: the replay is moving the position itself (round change, briefing
 	// skip), which every screen does on its own, so it is not a seek.
 	bool multi_pov_system_move_ = false;
+	// Host: a SetRound landed and is published as a round jump, which a guest
+	// replays as SetRound: a seek cannot cross a round boundary.
+	bool multi_pov_round_jump_ = false;
+	int32_t multi_pov_seek_round_ = 0;
 
 	// The start barrier is armed at the first StartMsg and taken at the next
 	// frame boundary outside a seek.

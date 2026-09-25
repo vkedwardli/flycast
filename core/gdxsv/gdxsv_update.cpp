@@ -323,6 +323,9 @@ std::shared_future<bool> GdxsvUpdate::StartSelfUpdate() {
 			return false;
 		}
 
+#if defined(__APPLE__) && !defined(TARGET_IPHONE)
+		return InstallMacUpdate(tmp_dir + "/" + DefaultFlycastName, executable_path);
+#else
 		const auto executable_dir = executable_path.substr(0, get_last_slash_pos(executable_path));
 		const auto new_version_path = executable_dir + "/" + GetFlycastFileNameWithVersion(latest.version);
 
@@ -331,19 +334,6 @@ std::shared_future<bool> GdxsvUpdate::StartSelfUpdate() {
 			return false;
 		}
 
-#if defined(__APPLE__)
-		// Move macOS current executable to Trash, rename new version to original
-		auto current_version = std::string(GIT_VERSION).erase(0, 6);
-		auto trash_path = std::string(getenv("HOME")) + "/.Trash/" + GetFlycastFileNameWithVersion(current_version);
-
-		while (file_exists(trash_path.c_str())) {
-			trash_path = trash_path.substr(0, trash_path.length() - 4) + "_.app";
-		}
-
-		if (nowide::rename(executable_path.c_str(), trash_path.c_str()) == 0) {
-			nowide::rename(new_version_path.c_str(), executable_path.c_str());
-		}
-#else
 		if (get_file_name(executable_path) == DefaultFlycastName) {
 			// overwrite the binary
 			const auto old_version_path = executable_dir + "/" + GetFlycastFileNameWithVersion("old");
@@ -354,9 +344,9 @@ std::shared_future<bool> GdxsvUpdate::StartSelfUpdate() {
 			nowide::rename(executable_path.c_str(), old_version_path.c_str());
 			nowide::rename(new_version_path.c_str(), executable_path.c_str());
 		}
-#endif
 
 		return true;
+#endif
 	};
 
 	return std::async(std::launch::async, update_fn).share();
