@@ -5,6 +5,8 @@
 void input_sdl_init();
 void input_sdl_handle();
 void input_sdl_quit();
+// nullptr before the window is created or in a headless run.
+SDL_Window *sdl_get_window();
 bool sdl_queue_open_file(const char *path);
 void sdl_window_create();
 void sdl_window_destroy();

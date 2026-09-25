@@ -13,6 +13,10 @@
 #include <nowide/cstdio.hpp>
 #include "gdxsv_custom_texture_source.h"
 #include "gdxsv_gui_settings.h"
+#include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_window.h"
+#include "gdxsv_save_state.h"
+#include "emulator.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_update.h"
 #include "gdxsv_custom_texture_update.h"
@@ -39,6 +43,10 @@ std::atomic<int> gdxsv_frame_period_trim_us{0};
 
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
+bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov_guest_pov(); }
+
+bool gdxsv_emu_toggle_fullscreen() { return gdxsv_multi_pov_toggle_fullscreen(); }
+
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
 
 bool gdxsv_is_online() { return gdxsv.IsOnline(); }
@@ -57,7 +65,11 @@ void gdxsv_emu_start() {
 		const auto spectate = config::loadStr("gdxsv", "spectate", "");
 		const auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
 
-		if (!replay.empty() || !spectate.empty()) {
+		// A 4-player replay guest gets the replay from the host in
+		// gdxsv_emu_loadstate; it boots from the same slot-99 savestate.
+		const bool multi_pov_guest = 0 <= gdxsv_multi_pov_guest_pov();
+
+		if (!replay.empty() || !spectate.empty() || multi_pov_guest) {
 			// Both resume from the shared slot-99 bootstrap savestate;
 			// gdxsv_emu_loadstate picks which of the two to start from the
 			// same config once the state is loaded.
@@ -140,6 +152,20 @@ void gdxsv_emu_end_frame() {
 	}
 }
 
+// A guest closes when its host is closed or killed. Must run on the UI
+// thread: dc_exit() joins the emulation thread.
+static void gdxsv_multi_pov_tick() {
+	if (gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::Guest) return;
+	if (!gdxsv_multi_pov_host_gone()) return;
+	NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
+	gdxsv_multi_pov_close();
+	// The savestate reset lifts memwatch's page protection before the unload
+	// writes into guest memory from this thread.
+	emu.stop();
+	gdxsv_save_state.Reset();
+	dc_exit();
+}
+
 void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
@@ -150,6 +176,9 @@ void gdxsv_emu_mainui_loop() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookMainUiLoop();
 	}
+	// Window calls must happen on the UI thread.
+	gdxsv_multi_pov_window_tick();
+	gdxsv_multi_pov_tick();
 }
 
 void gdxsv_emu_rpc() {
@@ -177,6 +206,19 @@ void gdxsv_emu_loadstate(int slot) {
 
 		if (!replay.empty() && slot == 99) {
 			auto replay_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
+			// 4-player replay from the command line (gdxsv:ReplayFourScreen=yes):
+			// host it, or fall back to a single screen.
+			if (gdxsv_multi_pov_four_screen_requested() && !gdxsv_headless()) {
+				std::vector<uint8_t> hosted;
+				if (gdxsv_multi_pov_begin_host_session(replay, hosted)) {
+					if (gdxsv.StartReplayBuffer(hosted, 0)) {
+						NOTICE_LOG(COMMON, "multi-pov: hosting %s from the command line", replay.c_str());
+						return;
+					}
+					ERROR_LOG(COMMON, "multi-pov: could not start the hosted replay; closing the session");
+					gdxsv_multi_pov_close();
+				}
+			}
 			if (!gdxsv.StartReplayFile(replay.c_str(), replay_pov - 1) && gdxsv_headless()) {
 				// The replay could not be loaded (missing, corrupt, or an
 				// unreadable old format): fail the headless run instead of
@@ -189,6 +231,19 @@ void gdxsv_emu_loadstate(int slot) {
 		if (!spectate.empty() && slot == 99) {
 			auto spectate_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
 			gdxsv.StartLiveSpectate(spectate.c_str(), spectate_pov - 1);
+		}
+
+		// 4-player replay guest: the replay comes from the host.
+		const int multi_pov = gdxsv_multi_pov_guest_pov();
+		if (0 <= multi_pov && slot == 99) {
+			std::vector<u8> buf;
+			if (gdxsv_multi_pov_begin_guest_session(buf) && gdxsv.StartReplayBuffer(buf, multi_pov)) {
+				NOTICE_LOG(COMMON, "multi-pov: guest %dP playing from the host's replay", multi_pov + 1);
+			} else {
+				ERROR_LOG(COMMON, "multi-pov: guest %dP could not start; closing this screen", multi_pov + 1);
+				gdxsv_multi_pov_close();
+				dc_exit();
+			}
 		}
 
 		auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");

@@ -18,6 +18,7 @@
 
 #include "dirent.h"
 #include "gdxsv.h"
+#include "gdxsv_multi_pov.h"
 #include "json.hpp"
 #include "libs.h"
 #ifdef _WIN32
@@ -289,11 +290,16 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	ImGui::NewLine();
 
 	{
-		bool pov_selected = (pov_index == -1);
-		ImGui::BeginDisabled(pov_selected || !playable);
+		// 4-player replay plays every POV at once, so there is no POV to select.
+		const bool four_screen = config::GdxReplayFourScreen && users_size == 4;
+		const bool pov_selected = (pov_index == -1);
+		ImGui::BeginDisabled((pov_selected && !four_screen) || !playable);
 
-		if (ImGui::ButtonEx(pov_selected ? ICON_FA_ARROW_POINTER "  Select a player" : ICON_FA_PLAY "  Replay", ScaledVec2(240, 50))) {
-			gdxsv_start_replay(replay_dst, pov_index);
+		const char* label = four_screen  ? ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)"
+						  : pov_selected ? ICON_FA_ARROW_POINTER "  Select a player"
+										 : ICON_FA_PLAY "  Replay";
+		if (ImGui::ButtonEx(label, ScaledVec2(240, 50))) {
+			gdxsv_start_replay(replay_dst, four_screen ? 0 : pov_index);
 		}
 
 		ImGui::EndDisabled();
@@ -335,6 +341,14 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
 	OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
+	ImGui::BeginDisabled(users_size != 4);
+	OptionCheckbox("4-player replay", config::GdxReplayFourScreen,
+				   "Play the replay from all four points of view at once, in a 2x2 grid of screens");
+	ImGui::EndDisabled();
+	if (users_size != 4) {
+		ImGui::SameLine();
+		ImGui::TextDisabled("(4-player battles only)");
+	}
 }
 
 void draw_round_detail(const ReplayEntry& entry) {
@@ -1501,36 +1515,56 @@ void gdxsv_start_live_spectate(const std::string& battle_code, int pov) {
 	}
 }
 
+// Fire-and-forget: notify server of replay play (HTTP replays only)
+static void gdxsv_notify_replay_played(const std::string& replay_file) {
+	if (replay_file.find("http") != 0) return;
+	const auto pos = replay_file.find_last_of("/");
+	if (pos == std::string::npos) return;
+	std::string battle_code = replay_file.substr(pos + 1);
+	const auto dot = battle_code.find(".pb");
+	if (dot != std::string::npos) {
+		battle_code = battle_code.substr(0, dot);
+	}
+	std::thread([battle_code]() {
+		http::init();
+		std::vector<u8> dl;
+		std::string content_type;
+		auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch()).count();
+		std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
+			+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
+		http::get(url, dl, content_type);
+	}).detach();
+}
+
 void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	if (gdxsv.IsSaveStateAllowed()) {
 		dc_savestate(90);
 	}
 
 	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+		// 4-player replay: host it, or fall back to single-screen playback.
+		std::vector<uint8_t> hosted_replay;
+		const bool four_screen =
+			gdxsv_multi_pov_four_screen_requested() && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay);
+
+		if (four_screen) {
+			dc_loadstate(99);
+			if (gdxsv.StartReplayBuffer(hosted_replay, 0)) {
+				gui_state = GuiState::Closed;
+				gdxsv_notify_replay_played(replay_file);
+			} else {
+				gdxsv_multi_pov_close();
+				dc_loadstate(90);
+				broken_replay_path = replay_file;
+			}
+			return;
+		}
+
 		dc_loadstate(99);
 		if (gdxsv.StartReplayFile(replay_file.c_str(), pov)) {
 			gui_state = GuiState::Closed;
-			// Fire-and-forget: notify server of replay play (HTTP replays only)
-			if (replay_file.find("http") == 0) {
-				auto pos = replay_file.find_last_of("/");
-				if (pos != std::string::npos) {
-					std::string battle_code = replay_file.substr(pos + 1);
-					auto dot = battle_code.find(".pb");
-					if (dot != std::string::npos) {
-						battle_code = battle_code.substr(0, dot);
-					}
-					std::thread([battle_code]() {
-						http::init();
-						std::vector<u8> dl;
-						std::string content_type;
-						auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
-							std::chrono::system_clock::now().time_since_epoch()).count();
-						std::string url = "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/replay_played?battle_code="
-							+ http::urlEncode(battle_code) + "&_t=" + std::to_string(ts);
-						http::get(url, dl, content_type);
-					}).detach();
-				}
-			}
+			gdxsv_notify_replay_played(replay_file);
 		} else {
 			dc_loadstate(90);
 			broken_replay_path = replay_file;

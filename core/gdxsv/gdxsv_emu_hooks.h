@@ -73,6 +73,13 @@ bool gdxsv_is_using_memwatch();
 // null renderer. Meant for automated runs on machines without a display.
 bool gdxsv_headless();
 
+// True in a 4-player replay guest (a screen spawned and driven by a host).
+bool gdxsv_is_multi_pov_guest();
+
+// Alt+Enter / F11. True when a 4-player replay session consumed the key; the
+// caller must then not toggle its own full-screen state.
+bool gdxsv_emu_toggle_fullscreen();
+
 // Exit status the process should end with. gdxsv sets it from local test
 // results so a harness can tell a finished match from a broken one.
 void gdxsv_set_exit_code(int code);

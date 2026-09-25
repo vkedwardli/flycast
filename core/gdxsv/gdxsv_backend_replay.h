@@ -80,6 +80,13 @@ class GdxsvBackendReplay {
 	void RenderTakeoverAlignment(const UiState& ui, u16 current_input);
 	void RenderTakeoverCountdown(const UiState& ui);
 	void UpdateControlBarVisibility(const UiState& ui);
+
+	// 4-player replay: the host publishes its playback state every frame and
+	// the guests follow it with the same control commands the user would give.
+	void PublishMultiPovPlayback();
+	void FollowMultiPovHost();
+	// Guest: blocks while more than a couple of frames ahead of the host.
+	void WaitForMultiPovHost();
 	void RenderControlBar(const UiState& ui);
 	void RenderLoadingHud(const UiState& ui);
 	void GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const;
@@ -300,6 +307,24 @@ class GdxsvBackendReplay {
 	GdxsvSpectateSync spectate_sync_;
 	int sync_subframe_ = 0;
 	int sync_max_wait_ms_ = 2;
+
+	// ---- 4-player replay ----
+	bool multi_pov_host_ = false;
+	bool multi_pov_guest_ = false;
+	bool MultiPov() const { return multi_pov_host_ || multi_pov_guest_; }
+
+	// Host: the position last published; a jump from it becomes a seek the
+	// guests follow. Guest: the last seek generation applied.
+	int multi_pov_published_frame_ = -1;
+	uint32_t multi_pov_seek_generation_ = 0;
+	// Host: the replay is moving the position itself (round change, briefing
+	// skip), which every screen does on its own, so it is not a seek.
+	bool multi_pov_system_move_ = false;
+
+	// The start barrier is armed at the first StartMsg and taken at the next
+	// frame boundary outside a seek.
+	bool multi_pov_start_barrier_pending_ = false;
+	bool multi_pov_start_barrier_done_ = false;
 
 	bool takeover_ = false;
 	int takeover_saved_frame_ = -1;

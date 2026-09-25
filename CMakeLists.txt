@@ -1874,6 +1874,11 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_replay_util.h
 		core/gdxsv/gdxsv_save_state.cpp
 		core/gdxsv/gdxsv_save_state.h
+		core/gdxsv/gdxsv_multi_pov.cpp
+		core/gdxsv/gdxsv_multi_pov.h
+		core/gdxsv/gdxsv_multi_pov_launch.cpp
+		core/gdxsv/gdxsv_multi_pov_window.cpp
+		core/gdxsv/gdxsv_multi_pov_window.h
 		core/gdxsv/gdxsv_spectate_sync.cpp
 		core/gdxsv/gdxsv_spectate_sync.h
 		core/gdxsv/gdxsv_spectator_downlink.cpp
@@ -1908,6 +1913,17 @@ if(APPLE)
 			${ASSETS})
 	source_group("Resources" FILES ${ASSETS})
 	set_source_files_properties(${ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+endif()
+
+# 4-player replay window backend
+if(WIN32 AND NOT WINDOWS_STORE)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_win.cpp)
+elseif(APPLE AND NOT IOS)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_apple.mm)
+elseif(UNIX AND NOT APPLE AND NOT ANDROID AND NOT NINTENDO_SWITCH)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_sdl.cpp)
+else()
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_none.cpp)
 endif()
 ## End of gdxsv
 

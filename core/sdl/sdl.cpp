@@ -399,6 +399,9 @@ void input_sdl_handle()
 							&& ((event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT))
 								|| (event.key.keysym.sym == SDLK_F11 && (event.key.keysym.mod & (KMOD_ALT | KMOD_CTRL | KMOD_SHIFT | KMOD_GUI)) == 0)))
 					{
+						// gdxsv: 4-player replay handles full screen as a grid
+						if (gdxsv_emu_toggle_fullscreen())
+							break;
 						if (window_fullscreen)
 						{
 							SDL_SetWindowFullscreen(window, 0);
@@ -1025,6 +1028,11 @@ static int suspendEventFilter(void *userdata, SDL_Event *event)
 }
 #endif
 
+SDL_Window *sdl_get_window()
+{
+	return window;
+}
+
 void sdl_window_create()
 {
 	if (SDL_WasInit(SDL_INIT_VIDEO) == 0)
@@ -1065,7 +1073,8 @@ void sdl_window_create()
 void sdl_window_destroy()
 {
 #ifndef __SWITCH__
-	if (window != nullptr && !settings.naomi.slave && settings.naomi.drivingSimSlave == 0)
+	// A 4-player replay guest is placed by the grid; don't save its geometry.
+	if (window != nullptr && !settings.naomi.slave && settings.naomi.drivingSimSlave == 0 && !gdxsv_is_multi_pov_guest())
 	{
 		get_window_state();
 		config::saveInt("window", "left", windowPos.x);

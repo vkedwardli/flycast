@@ -996,6 +996,17 @@ bool Gdxsv::StartReplayFile(const char *path, int pov) {
 	return false;
 }
 
+bool Gdxsv::StartReplayBuffer(const std::vector<u8> &buf, int pov) {
+	replay_net_.Reset();
+
+	if (replay_net_.StartBuffer(buf, pov)) {
+		netmode_ = NetMode::Replay;
+		return true;
+	}
+
+	return false;
+}
+
 bool Gdxsv::StartLiveSpectate(const char *battle_code, int pov) {
 	replay_net_.Reset();
 
