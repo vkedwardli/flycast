@@ -101,6 +101,8 @@ void GdxsvBackendRollback::Reset() {
 	recv_delay_ = 0;
 	port_ = 0;
 	recv_buf_.clear();
+	slowdown_stall_frames_.clear();
+	slowdown_last_frame_ = -1;
 	lbs_tx_reader_.Clear();
 	matching_.Clear();
 	report_.Clear();
@@ -378,10 +380,12 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 		NOTICE_LOG(COMMON, "RandomInput Seed=%d", seed + me);
 		ggpo::randomInput(true, seed + me, 0x0004 | 0x0400 | 0x0200 | 0x0010 | 0x0040);
 	}
-	DummyRuleData[6] = 1;
-	DummyRuleData[7] = 0;
-	DummyRuleData[8] = 1;
-	DummyRuleData[9] = 0;
+	// Team vitals (Renpo, Zeon), little endian. VITAL=600 for a full-length battle.
+	const int vital = getenv("VITAL") ? atoi(getenv("VITAL")) : 1;
+	DummyRuleData[6] = vital & 0xff;
+	DummyRuleData[7] = (vital >> 8) & 0xff;
+	DummyRuleData[8] = vital & 0xff;
+	DummyRuleData[9] = (vital >> 8) & 0xff;
 
 	proto::P2PMatching matching;
 	matching.set_battle_code("0123456");
@@ -582,6 +586,14 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
 	const int skipFrameCount = ggpo::getSkippedFrames(frame);
+	if (frame != slowdown_last_frame_) {
+		// First poll of this frame, or the start of a rollback pass: stalls from here on are decided again.
+		slowdown_last_frame_ = frame;
+		slowdown_stall_frames_.erase(slowdown_stall_frames_.lower_bound(frame), slowdown_stall_frames_.end());
+		while (!slowdown_stall_frames_.empty() && *slowdown_stall_frames_.begin() < frame - 600) {
+			slowdown_stall_frames_.erase(slowdown_stall_frames_.begin());
+		}
+	}
 	const auto appendKeyMsg1Inputs = [&]() {
 		u64 inputs = 0;
 		for (int i = 0; i < matching_.player_count(); ++i) {
@@ -736,6 +748,12 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame remaining=%d", frame, tsFrames - 1);
 			} else if (0 < skipFrameCount && gdxsv_ReadMem16(DataStopCounter) < skipFrameCount + 1) {
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame replaying", frame);
+			} else if (frame % 2 == 1 && skipFrameCount == 0 && gdxsv.slowdown_.StallFrame(frame)) {
+				// Slowdown: this frame's input is dropped and the game waits; the next frame delivers.
+				// Odd frames only: timesync skips (frame % 10 == 0, one peer) never land on them,
+				// so every peer takes this decision on the same frames.
+				slowdown_stall_frames_.insert(frame);
+				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: slowdown stall", frame);
 			} else {
 				appendKeyMsg1Inputs();
 			}
@@ -826,6 +844,12 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	}
 
 	if (0 < skipFrameCount && skipFrameCount + 1 == gdxsv_ReadMem16(DataStopCounter)) {
+		appendKeyMsg1Inputs();
+	}
+
+	// After a slowdown stall the game does not ask again, it waits (DataStopCounter 1 -> 2), like after a
+	// timesync skip. A rollback pass redoes the stall decision of each frame it replays.
+	if (skipFrameCount == 0 && slowdown_stall_frames_.count(frame - 1) && gdxsv_ReadMem16(DataStopCounter) == 2) {
 		appendKeyMsg1Inputs();
 	}
 

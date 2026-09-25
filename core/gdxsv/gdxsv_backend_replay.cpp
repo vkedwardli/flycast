@@ -1959,6 +1959,10 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 		return 0;
 	}
 
+	if (gdxsv.slowdown_.Stalling() && !seeking_) {
+		return 0;
+	}
+
 	int n = std::min<int>(recv_buf_.size(), size);
 	for (int i = 0; i < n; ++i) {
 		gdxsv_WriteMem8(addr + i, recv_buf_.front());
@@ -2753,6 +2757,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 		OptionCheckbox("Projectile View", config::GdxProjectileView, "Debug: list the projectiles in play (DC2)");
+		OptionCheckbox("Slowdown", config::GdxSlowdown, "Experimental: drop to 30fps while many projectiles are in play, like the arcade (DC2)");
 
 		// Key Display and Skip MS Selection do nothing during Live Spectate, so
 		// they are not offered there rather than sitting inert.

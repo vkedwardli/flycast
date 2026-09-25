@@ -187,6 +187,8 @@ Option<bool> GdxReplayKeyDisplay("ReplayKeyDisplay", true, "gdxsv");
 Option<bool> GdxReplaySkipMsSelection("ReplaySkipMsSelection", true, "gdxsv");
 Option<bool> GdxReplayFourScreen("ReplayFourScreen", false, "gdxsv");
 Option<bool> GdxProjectileView("ProjectileView", false, "gdxsv");
+Option<bool> GdxSlowdown("Slowdown", false, "gdxsv");
+Option<float> GdxSlowdownThreshold("SlowdownThreshold", 7.1f, "gdxsv");
 
 // Network
 
