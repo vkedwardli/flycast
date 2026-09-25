@@ -32,6 +32,7 @@
 #include "stdclass.h"
 
 #include <sstream>
+#include <locale>
 #include <future>
 #include <thread>
 #include <algorithm>
@@ -875,6 +876,8 @@ void fetch_user_json() {
 		unsigned hash = 2166136261U;
 		for (const unsigned char e : e_loginkey) hash = hash * 16777619U ^ static_cast<unsigned>(e);
 		std::ostringstream hashed_loginkey_s;
+		// Account keys must be plain hex, without locale-specific separators.
+		hashed_loginkey_s.imbue(std::locale::classic());
 		hashed_loginkey_s << std::setfill('0') << std::setw(8) << std::hex << hash;
 
 		url += "login_key=" + http::urlEncode(hashed_loginkey_s.str());

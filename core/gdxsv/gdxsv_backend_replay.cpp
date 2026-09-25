@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <locale>
 #include <sstream>
 #include <ctime>
 #include <thread>
@@ -2186,6 +2187,7 @@ bool GdxsvBackendReplay::Start() {
 	NOTICE_LOG(COMMON, "patch_size = %d", log_file_.patches_size());
 	NOTICE_LOG(COMMON, "inputs_size = %d", log_file_.inputs_size());
 	std::ostringstream ss;
+	ss.imbue(std::locale::classic());
 	for (const int a : log_file_.start_msg_indexes()) ss << a << " ";
 	NOTICE_LOG(COMMON, "start_msg_indexes = %s", ss.str().c_str());
 	ss.str("");
