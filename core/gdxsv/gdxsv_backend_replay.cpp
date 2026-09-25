@@ -107,20 +107,24 @@ u16 replayMcsInput(const proto::BattleLogFile& log_file, int frame, int player) 
 	return u16(log_file.inputs(frame) >> (player * 16));
 }
 
-std::string formatMcsInput(u16 input) {
-	if (input == 0) {
-		return "Neutral";
+void drawTakeoverInput(u16 target, u16 current) {
+	const ImVec4 matched(0.4f, 0.9f, 0.5f, 1.0f);
+	const ImVec4 missing(1.0f, 0.8f, 0.3f, 1.0f);
+	const ImVec4 extra(1.0f, 1.0f, 1.0f, 1.0f);
+	ImGui::TextUnformatted("Input:");
+	if (target == 0) {
+		ImGui::SameLine();
+		ImGui::TextColored(current == 0 ? matched : missing, "Neutral");
 	}
 
-	std::string text;
 	auto append = [&](u16 code, const char* name) {
-		if ((input & code) == 0) {
+		if (((target | current) & code) == 0)
 			return;
-		}
-		if (!text.empty()) {
-			text += " + ";
-		}
-		text += name;
+		ImGui::SameLine();
+		if (ImGui::CalcTextSize(name).x > ImGui::GetContentRegionAvail().x)
+			ImGui::NewLine();
+		const ImVec4 color = (target & code) ? (current & code ? matched : missing) : extra;
+		ImGui::TextColored(color, "%s", name);
 	};
 
 	append(McsKeyCode::UP, "Up");
@@ -133,9 +137,6 @@ std::string formatMcsInput(u16 input) {
 	append(McsKeyCode::Y, "Y");
 	append(McsKeyCode::LT, "LT");
 	append(McsKeyCode::RT, "RT");
-	append(McsKeyCode::START, "Start");
-
-	return text;
 }
 }  // namespace
 
@@ -195,14 +196,11 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_bar_dragging_ = false;
 	ctrl_bar_drag_target_frame_ = -1;
 	ctrl_input_release_pending_ = false;
-	takeover_start_down_ = false;
 	settings.gdxsv.replayModeActive = false;
 	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
-	takeover_aligning_ = false;
-	takeover_skip_input_matching_ = false;
 	takeover_target_input_ = 0;
 	takeover_input_buf_.clear();
 	gdxsv_save_state.Reset();
@@ -253,8 +251,6 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	// A 4-player replay guest has no controls of its own.
 	if (State::LbsStartBattleFlow <= ui.state && !ui.pauseMenuOpen && !gdxsv_is_multi_pov_guest()) {
 		auto input = mapleInputState[0];
-		// Preserve a held retry press when the matching menu opens.
-		takeover_start_down_ = (~input.kcode & DC_BTN_START) != 0;
 		// Map analog stick to d-pad (fullAxes are 16-bit, >> 8 to match convertInput thresholds)
 		if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
 		if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_RIGHT;
@@ -1041,9 +1037,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		}
 
 		if (ctrl.cmd == ReplayCtrlCommand::TogglePauseMenu) {
-			if (takeover_aligning_) {
-				CancelPendingTakeover();
-			} else if (takeover_countdown_ == 0) {
+			if (takeover_countdown_ == 0) {
 				pause_menu_opend_ = !pause_menu_opend_;
 				if (pause_menu_opend_) {
 					if (!recv_buf_.empty()) {
@@ -1421,13 +1415,13 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			takeover_saved_frame_ = key_msg_count_;
-			BeginTakeoverAlignment(replayMcsInput(log_file_, takeover_saved_frame_, pov_));
+			BeginTakeoverCountdown(replayMcsInput(log_file_, takeover_saved_frame_, pov_));
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
 			ctrl_play_speed_ = 0;
 			recv_buf_.clear();
 			SDL_ShowCursor(SDL_ENABLE);
-			NOTICE_LOG(COMMON, "TakeOver alignment at key_msg_count_:%d", key_msg_count_);
+			NOTICE_LOG(COMMON, "TakeOver countdown at key_msg_count_:%d", key_msg_count_);
 			ctrl_commands_.pop_front();
 		}
 
@@ -1441,8 +1435,6 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				takeover_input_buf_.pop_front();
 			}
 			takeover_ = true;
-			takeover_aligning_ = false;
-			takeover_skip_input_matching_ = false;
 			takeover_target_input_ = 0;
 			settings.gdxsv.replayModeActive = false;
 			pause_menu_opend_ = false;
@@ -1458,7 +1450,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			recv_buf_.clear();
-			BeginTakeoverAlignment(replayMcsInput(log_file_, takeover_saved_frame_, pov_));
+			BeginTakeoverCountdown(replayMcsInput(log_file_, takeover_saved_frame_, pov_));
 			settings.gdxsv.replayModeActive = true;
 			pause_menu_opend_ = true;
 			ctrl_pause_ = false;
@@ -1473,8 +1465,6 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			RebuildKeyDisplay();
 			recv_buf_.clear();
 			takeover_ = false;
-			takeover_aligning_ = false;
-			takeover_skip_input_matching_ = false;
 			takeover_countdown_ = 0;
 			takeover_target_input_ = 0;
 			takeover_input_buf_.clear();
@@ -1656,8 +1646,6 @@ void GdxsvBackendReplay::PublishUiState() {
 	ui.loading = ctrl_loading_ || (live_mode_ && state_ != State::End &&
 		((live_initial_catchup_ && start_msg_count_ > 0) || ui.playbackFrame > ui.inputCount));
 	ui.takeover = takeover_;
-	ui.takeoverAligning = takeover_aligning_;
-	ui.takeoverSkipInputMatching = takeover_skip_input_matching_;
 	ui.takeoverCountdown = takeover_countdown_;
 	ui.takeoverTargetInput = takeover_target_input_;
 	ui.liveMode = live_mode_;
@@ -1724,39 +1712,14 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 		case ReplayCtrlCommand::ExitReplay:
 			Stop();
 			break;
-		case ReplayCtrlCommand::CancelTakeover:
-			CancelPendingTakeover();
-			break;
-		case ReplayCtrlCommand::SkipTakeoverAlignment:
-			// A queued input sample may have already started the matching countdown.
-			if (live_mode_ || !pause_menu_opend_ || takeover_skip_input_matching_ ||
-				(!takeover_aligning_ && takeover_countdown_ == 0)) break;
-			takeover_skip_input_matching_ = true;
-			takeover_aligning_ = false;
-			takeover_countdown_ = 60;
-			takeover_input_buf_.clear();
-			break;
 		case ReplayCtrlCommand::TakeoverInput: {
-			// RetryTakeover keeps takeover_ true while waiting for matching input.
-			if (live_mode_ || !pause_menu_opend_) break;
+			// Matching is advisory. Every sample advances the countdown, including
+			// neutral or different inputs, on both the first attempt and retries.
+			if (live_mode_ || !pause_menu_opend_ || takeover_countdown_ == 0) break;
 			const u16 input = static_cast<u16>(cmd.arg1) & ~McsKeyCode::START;
-			if (takeover_aligning_) {
-				if (input == takeover_target_input_) {
-					takeover_aligning_ = false;
-					takeover_countdown_ = 60;
-					takeover_input_buf_.clear();
-				}
-			} else if (takeover_countdown_ > 0) {
-				if (!takeover_skip_input_matching_ && input != takeover_target_input_) {
-					takeover_countdown_ = 0;
-					takeover_aligning_ = true;
-					takeover_input_buf_.clear();
-				} else {
-					takeover_input_buf_.push_back(input);
-					if (--takeover_countdown_ == 0)
-						ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
-				}
-			}
+			takeover_input_buf_.push_back(input);
+			if (--takeover_countdown_ == 0)
+				ctrl_commands_.emplace_back(ReplayCtrlCommand::StartTakeover);
 			break;
 		}
 		case ReplayCtrlCommand::SetRound:
@@ -1827,8 +1790,6 @@ void GdxsvBackendReplay::Stop() {
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
 	takeover_countdown_ = 0;
-	takeover_aligning_ = false;
-	takeover_skip_input_matching_ = false;
 	takeover_target_input_ = 0;
 	takeover_input_buf_.clear();
 	SDL_ShowCursor(SDL_ENABLE);
@@ -1870,28 +1831,11 @@ void GdxsvBackendReplay::Stop() {
 	}
 }
 
-void GdxsvBackendReplay::BeginTakeoverAlignment(u16 target_input) {
-	takeover_countdown_ = 0;
-	takeover_aligning_ = true;
-	// Each attempt starts with input matching enabled.
-	takeover_skip_input_matching_ = false;
-	// START controls takeover, rather than participating in input matching.
+void GdxsvBackendReplay::BeginTakeoverCountdown(u16 target_input) {
+	takeover_countdown_ = 60;
+	// START retries takeover; it is not part of the input guide.
 	takeover_target_input_ = target_input & ~McsKeyCode::START;
 	takeover_input_buf_.clear();
-}
-
-void GdxsvBackendReplay::CancelPendingTakeover() {
-	takeover_ = false;
-	takeover_aligning_ = false;
-	takeover_skip_input_matching_ = false;
-	takeover_countdown_ = 0;
-	takeover_target_input_ = 0;
-	takeover_input_buf_.clear();
-	takeover_saved_frame_ = -1;
-	settings.aica.muteAudio = false;
-	settings.gdxsv.replayModeActive = true;
-	pause_menu_opend_ = true;
-	SDL_ShowCursor(SDL_ENABLE);
 }
 
 void GdxsvBackendReplay::Open() {
@@ -2619,29 +2563,20 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 	ImGuiWindowFlags window_flags =
 		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
 		ImGuiWindowFlags_NoSavedSettings;
-	if (ui.takeoverCountdown > 0 || ui.takeoverAligning) {
+	if (ui.takeoverCountdown > 0) {
 		window_flags |= ImGuiWindowFlags_NoNav;
 	}
 	ImGui::Begin("##gdxsv-replay-pause", NULL, window_flags);
 
-	const u16 current_input = liveTakeoverMcsInput();
-	const bool start_down = (current_input & McsKeyCode::START) != 0;
-	const bool start_pressed = start_down && !takeover_start_down_;
-	takeover_start_down_ = start_down;
-
-	if (ui.takeoverCountdown > 0 || ui.takeoverAligning) {
+	if (ui.takeoverCountdown > 0) {
 		ImGui::SetNextFrameWantCaptureKeyboard(false);
-		// Do not turn a held skip press into RetryTakeover when the menu closes.
-		if (start_down)
+		const u16 current_input = liveTakeoverMcsInput();
+		// Require a fresh START press to retry once the countdown finishes.
+		if (current_input & McsKeyCode::START)
 			ctrl_input_release_pending_ = true;
 		const u16 matching_input = current_input & ~McsKeyCode::START;
 		ui_commands_.emplace_back(ReplayCtrlCommand::TakeoverInput, matching_input);
-		if (start_pressed)
-			ui_commands_.emplace_back(ReplayCtrlCommand::SkipTakeoverAlignment);
-		if (ui.NeedsTakeoverAlignment(matching_input))
-			RenderTakeoverAlignment(ui, matching_input);
-		else
-			RenderTakeoverCountdown(ui);
+		RenderTakeoverCountdown(ui, matching_input);
 		ImGui::End();
 		return;
 	}
@@ -2790,25 +2725,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 	ImGui::End();
 }
 
-void GdxsvBackendReplay::RenderTakeoverAlignment(const UiState& ui, u16 current_input) {
-	ImGui::TextUnformatted("Match replay input");
-	ImGui::Separator();
-	ImGui::Text("Replay: %s", formatMcsInput(ui.takeoverTargetInput).c_str());
-	ImGui::Text("Current: %s", formatMcsInput(current_input).c_str());
-	ImGui::Dummy(ScaledVec2(0, 8));
-	if (ImGui::Button(ICON_FA_FORWARD "  Skip Matching (START)", ScaledVec2(300, 40))) {
-		ui_commands_.emplace_back(ReplayCtrlCommand::SkipTakeoverAlignment);
-	}
-	if (ImGui::Button(ICON_FA_XMARK "  Cancel", ScaledVec2(300, 40))) {
-		ui_commands_.emplace_back(ReplayCtrlCommand::CancelTakeover);
-	}
-	ImGui::Dummy(ScaledVec2(0, 8));
-	ImGui::PushTextWrapPos(0.0f);
-	ImGui::TextDisabled("During Takeover, press START to retry, or select \"Retry Takeover\" from the pause menu.");
-	ImGui::PopTextWrapPos();
-}
-
-void GdxsvBackendReplay::RenderTakeoverCountdown(const UiState& ui) {
+void GdxsvBackendReplay::RenderTakeoverCountdown(const UiState& ui, u16 current_input) {
 	float progress = 1.0f - (float)ui.takeoverCountdown / 60.0f;
 	float radius = 30.0f * ImGui::GetIO().FontGlobalScale;
 
@@ -2843,6 +2760,12 @@ void GdxsvBackendReplay::RenderTakeoverCountdown(const UiState& ui) {
 		ImGui::Text("Get Ready!");
 	}
 	ImGui::Dummy(ScaledVec2(0, 10));
+	ImGui::Separator();
+	drawTakeoverInput(ui.takeoverTargetInput, current_input);
+	ImGui::Dummy(ScaledVec2(0, 8));
+	ImGui::PushTextWrapPos(0.0f);
+	ImGui::TextDisabled("Matching is optional. During Takeover, press START to retry.");
+	ImGui::PopTextWrapPos();
 }
 
 void GdxsvBackendReplay::GetRoundReplayBounds(int& roundStart, int& roundEnd, int& totalRounds) const {
