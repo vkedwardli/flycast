@@ -243,6 +243,7 @@ class GdxsvBackendReplay {
 	bool ctrl_bar_dragging_ = false;
 	int ctrl_bar_drag_target_frame_ = -1;
 	bool ctrl_input_release_pending_ = false;
+	bool takeover_start_down_ = false;
 
 	// ---- Live Spectate ----
 	// Replays a match that is still being played: live_downlink_ feeds log_file_
