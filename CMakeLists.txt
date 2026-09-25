@@ -1913,6 +1913,9 @@ if(APPLE)
 			${ASSETS})
 	source_group("Resources" FILES ${ASSETS})
 	set_source_files_properties(${ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+	if(NOT IOS)
+		target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_update_apple.mm)
+	endif()
 endif()
 
 # 4-player replay window backend

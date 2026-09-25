@@ -30,6 +30,9 @@ class GdxsvUpdate {
 	static std::string GetFlycastFileNameWithVersion(const std::string& version);
 	static std::string GetExecutablePath();
 	static std::string GetTempDir();
+#if defined(__APPLE__) && !defined(TARGET_IPHONE)
+	static bool InstallMacUpdate(const std::string& source_path, const std::string& app_path);
+#endif
 
 	std::shared_future<LatestVersionInfo> fetch_latest_version_future_;
 	std::vector<uint8_t> download_buf_;
