@@ -1,73 +1,50 @@
 #pragma once
 #include "gdxsv_multi_pov.h"
 
-// Window control for the 4-player replay grid: what makes four OS windows
-// behave as one.
+// Window control for the 4-player replay grid: the host's window is the
+// top-left quadrant, the grid is twice its size, and the guests take the other
+// three quadrants.
 //
-// The host's window is the one the user interacts with. Everything else is
-// derived from it: the grid covers twice the host's width and height, the
-// guests take the other three quadrants, and when the host is maximized the
-// grid becomes the display's work area so the four tile it exactly.
+// The per-platform functions below (Win32, Cocoa, SDL for Linux, or a stub
+// that reports unavailable) work in the window's content rect, in desktop
+// coordinates with the origin at the top-left of the primary display.
 
-// The per-platform half. One implementation per platform - Win32, Cocoa and
-// SDL for Linux - selected at build time; a platform with no desktop windows
-// at all (Android, Switch, UWP) links a version that reports unavailable, so
-// the policy above never has to know which it is.
-//
-// Rectangles are the window's *content* area in desktop coordinates, with the
-// origin at the top-left of the primary display: the one convention all three
-// platforms can be pinned to, and the one the grid math is written in.
-
-// False when this build or this run has no window to move (headless, or a
-// platform without desktop windows). Everything else is only called when this
-// is true.
+// False when there is no window to move (headless, or a platform without
+// desktop windows).
 bool gdxsv_multi_pov_window_available();
 
 GdxsvMultiPovRect gdxsv_multi_pov_window_get_frame();
 
-// Moves and resizes without raising or focusing: a follower must never steal
-// the keyboard from the screen the user is driving.
+// Moves and resizes without raising or focusing the window.
 void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect);
 
 bool gdxsv_multi_pov_window_is_maximized();
-
-// Leaves the maximized state, keeping the window on the same display. The
-// host does this before taking its own quadrant - a maximized window cannot
-// also be a quarter of the screen.
 void gdxsv_multi_pov_window_unmaximize();
 
-// Usable area of the display the window is on: the whole screen less the task
-// bar, dock, menu bar or panel. This is what "maximized" tiles.
+// The display's area less task bar, dock or menu bar.
 GdxsvMultiPovRect gdxsv_multi_pov_window_work_area();
 
-// The whole display the window is on, task bar and all. This is what the
-// full-screen grid tiles.
+// The whole display.
 GdxsvMultiPovRect gdxsv_multi_pov_window_display_area();
 
-// Keeps the window above every other one. The desktop only hides its task bar
-// for a single window that covers the display, and a quadrant does not, so
-// the four windows of a full-screen grid are held on top instead.
+// Keeps the window above all others (the task bar would otherwise cover the
+// bottom row of a full-screen grid).
 void gdxsv_multi_pov_window_set_topmost(bool topmost);
 
-// Guests drop their decorations so the grid reads as one window.
 void gdxsv_multi_pov_window_set_borderless(bool borderless);
 
-// What this window's frame adds around its client area: the title bar and the
-// borders, in pixels per side.
+// The window frame around the content area, in pixels per side.
 struct GdxsvMultiPovInsets {
 	int32_t left = 0, top = 0, right = 0, bottom = 0;
 };
 GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets();
 
-// Runs every frame on the UI thread (window calls are main-thread-only on
-// macOS and Windows alike): the host publishes where the grid is, the guests
-// put themselves in it. A no-op outside a 4-screen session.
+// Runs every frame on the UI thread: the host publishes the grid, the guests
+// place themselves in it. No-op outside a session.
 void gdxsv_multi_pov_window_tick();
 
-// Alt+Enter in a 4-screen session. On the host, toggles the grid between its
-// window layout and full screen: four borderless quadrants tiling the whole
-// display, on top of everything else. Returns true when the key was taken -
-// on a guest too, which has no controls of its own - so the caller does not
-// put this one window into full screen by itself. False outside a session.
+// Alt+Enter / F11 in a session: the host toggles the grid between its window
+// layout and full screen (four borderless quadrants over the whole display).
+// Returns true when the key was consumed, including on a guest. False outside
+// a session.
 bool gdxsv_multi_pov_toggle_fullscreen();
-

@@ -16,9 +16,8 @@ class GdxsvSpectateSync {
 	void Join(const std::string& group);
 	bool Active() const { return slot_ != nullptr; }
 
-	// Publishes the frame this instance has reached.
-	// `catching_up`: this instance is seeking or otherwise not playing, so the
-	// others should not hold themselves to its position.
+	// Publishes the frame this instance has reached. `catching_up`: seeking or
+	// otherwise not playing, so the others do not wait for it.
 	void Publish(int32_t frame, bool catching_up);
 
 	// How far ahead of the slowest live peer this instance is, in position

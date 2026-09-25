@@ -73,15 +73,11 @@ bool gdxsv_is_using_memwatch();
 // null renderer. Meant for automated runs on machines without a display.
 bool gdxsv_headless();
 
-// True in a 4-player replay guest: a screen spawned and driven by a host
-// instance. A guest is placed where the grid says, so it must not write its
-// window geometry back to the config file the host and every later run share.
+// True in a 4-player replay guest (a screen spawned and driven by a host).
 bool gdxsv_is_multi_pov_guest();
 
-// Alt+Enter / F11. In a 4-player replay the four screens go full screen as
-// one grid rather than this window alone; returns true when that happened (or
-// the key was swallowed on a guest) and the caller must not toggle its own
-// full-screen state. False outside a session.
+// Alt+Enter / F11. True when a 4-player replay session consumed the key; the
+// caller must then not toggle its own full-screen state.
 bool gdxsv_emu_toggle_fullscreen();
 
 // Exit status the process should end with. gdxsv sets it from local test

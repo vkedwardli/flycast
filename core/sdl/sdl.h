@@ -5,9 +5,7 @@
 void input_sdl_init();
 void input_sdl_handle();
 void input_sdl_quit();
-// The window this process is showing, or nullptr before it is created or in
-// a headless run. Lets code outside core/sdl (e.g. the 4-player replay grid,
-// which has to move the window) reach it without another global.
+// nullptr before the window is created or in a headless run.
 SDL_Window *sdl_get_window();
 bool sdl_queue_open_file(const char *path);
 void sdl_window_create();

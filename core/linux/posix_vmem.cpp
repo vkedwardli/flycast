@@ -131,10 +131,8 @@ static int allocate_shared_filemem(unsigned size)
 
 	// if shmem does not work (or using OSX) fallback to a regular file on disk
 	if (fd < 0) {
-		// One name per process: instances sharing a data dir (the 4-player
-		// replay's guests start within milliseconds of each other) could
-		// otherwise both open the file before either unlinks it, and run on
-		// one shared RAM.
+		// One name per process: instances sharing a data dir (4-player replay)
+		// could otherwise open the same file before either unlinks it.
 		std::string path = get_writable_data_path("dcnzorz_mem_" + std::to_string(getpid()));
 		fd = open(path.c_str(), O_CREAT|O_RDWR|O_TRUNC, S_IRWXU|S_IRWXG|S_IRWXO);
 		unlink(path.c_str());

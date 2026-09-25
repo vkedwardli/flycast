@@ -65,10 +65,8 @@ void gdxsv_emu_start() {
 		const auto spectate = config::loadStr("gdxsv", "spectate", "");
 		const auto rbk_test = config::loadStr("gdxsv", "rbk_test", "");
 
-		// A 4-player replay guest was spawned by a host that already holds the
-		// replay, so it has no source of its own to name here - it resumes
-		// from the same slot-99 bootstrap and picks the bytes up in
-		// gdxsv_emu_loadstate.
+		// A 4-player replay guest gets the replay from the host in
+		// gdxsv_emu_loadstate; it boots from the same slot-99 savestate.
 		const bool multi_pov_guest = 0 <= gdxsv_multi_pov_guest_pov();
 
 		if (!replay.empty() || !spectate.empty() || multi_pov_guest) {
@@ -154,26 +152,15 @@ void gdxsv_emu_end_frame() {
 	}
 }
 
-// The four screens are one window, so they leave together: when the host is
-// closed or killed, its guests close too rather than being left behind on the
-// desktop with no way to drive them.
-//
-// This has to run on the UI thread, which is why it is called from
-// gdxsv_emu_mainui_loop and not from the per-frame hook: dc_exit() unloads the
-// game, and Emulator::stop() waits on the emulation thread's future to finish
-// (Emulator::checkStatus). Called from gdxsv_emu_next_frame - which runs on
-// that very thread whenever threaded rendering is on, i.e. by default - the
-// guest would have waited on itself and hung with its window frozen instead of
-// closing. gdxsv_backend_rollback exits from OnMainUiLoop for the same reason.
+// A guest closes when its host is closed or killed. Must run on the UI
+// thread: dc_exit() joins the emulation thread.
 static void gdxsv_multi_pov_tick() {
 	if (gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::Guest) return;
 	if (!gdxsv_multi_pov_host_gone()) return;
 	NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
 	gdxsv_multi_pov_close();
-	// Stopped first, and the replay's savestates dropped with it: they keep
-	// memwatch's page protection up, and the unload's reset writes into guest
-	// memory from this thread, where a protected page is a fault that nothing
-	// handles.
+	// The savestate reset lifts memwatch's page protection before the unload
+	// writes into guest memory from this thread.
 	emu.stop();
 	gdxsv_save_state.Reset();
 	dc_exit();
@@ -189,8 +176,7 @@ void gdxsv_emu_mainui_loop() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookMainUiLoop();
 	}
-	// Window calls have to happen on the UI thread on Windows and macOS alike,
-	// and this is that thread.
+	// Window calls must happen on the UI thread.
 	gdxsv_multi_pov_window_tick();
 	gdxsv_multi_pov_tick();
 }
@@ -220,10 +206,8 @@ void gdxsv_emu_loadstate(int slot) {
 
 		if (!replay.empty() && slot == 99) {
 			auto replay_pov = config::loadInt("gdxsv", "ReplayPOV", 1);
-			// 4-player replay from the command line (gdxsv:replay= with
-			// gdxsv:ReplayFourScreen=yes): this process hosts, exactly as the
-			// replay browser's "Replay (4 screens)" button would have it, and
-			// falls back to a single screen if the session cannot come up.
+			// 4-player replay from the command line (gdxsv:ReplayFourScreen=yes):
+			// host it, or fall back to a single screen.
 			if (gdxsv_multi_pov_four_screen_requested() && !gdxsv_headless()) {
 				std::vector<uint8_t> hosted;
 				if (gdxsv_multi_pov_begin_host_session(replay, hosted)) {
@@ -249,8 +233,7 @@ void gdxsv_emu_loadstate(int slot) {
 			gdxsv.StartLiveSpectate(spectate.c_str(), spectate_pov - 1);
 		}
 
-		// 4-player replay guest: everything comes from the host - the replay
-		// bytes included - so nothing is read from disk or the network here.
+		// 4-player replay guest: the replay comes from the host.
 		const int multi_pov = gdxsv_multi_pov_guest_pov();
 		if (0 <= multi_pov && slot == 99) {
 			std::vector<u8> buf;

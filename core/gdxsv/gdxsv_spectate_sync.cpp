@@ -118,12 +118,9 @@ struct Slot {
 	std::atomic<int64_t> heartbeat_us;
 	std::atomic<int32_t> frame;
 	std::atomic<int32_t> pid;
-	// "I am not playing, I am getting back to where you are" - a seek, a
-	// takeover, a live client draining its buffer. Published by the instance
-	// itself because distance cannot tell the two apart: a peer 20 seconds
-	// behind is either mid-seek, and waiting for it would freeze the group
-	// through the whole of it, or simply slower than the rest, which is
-	// exactly the case the group sync exists to close.
+	// Seeking, taking over or draining a live buffer: not a position to hold
+	// the group to. Published by the instance itself, since distance cannot
+	// tell a seeking peer from a slow one.
 	std::atomic<uint32_t> catching_up;
 };
 
@@ -201,7 +198,6 @@ int32_t GdxsvSpectateSync::LeadOverSlowest(int32_t frame) const {
 		const int64_t hb = h->slots[i].heartbeat_us.load(std::memory_order_acquire);
 		if (hb == 0 || kSlotStaleUs < now - hb) continue;
 		++peers;
-		// Catching up: not a position to hold the group to.
 		if (h->slots[i].catching_up.load(std::memory_order_acquire) != 0) continue;
 		const int32_t f = h->slots[i].frame.load(std::memory_order_acquire);
 		slowest = std::min(slowest, f);
@@ -225,12 +221,6 @@ bool GdxsvSpectateSync::WaitForPeers(int32_t frame, int max_wait_ms) {
 			const int64_t hb = h->slots[i].heartbeat_us.load(std::memory_order_acquire);
 			if (hb == 0 || kSlotStaleUs < now - hb) continue;
 			++peers;
-			// Catching up: waiting for it would freeze everyone else for the
-			// whole of its catch-up, so run free until it says it is playing
-			// again. Distance used to stand in for this, and it cost the
-			// group the one case it is for: four screens of the same replay
-			// where one is simply slower drift apart, and the moment the gap
-			// passes the threshold the sync gives up on them for good.
 			if (h->slots[i].catching_up.load(std::memory_order_acquire) != 0) continue;
 			const int32_t f = h->slots[i].frame.load(std::memory_order_acquire);
 			slowest = std::min(slowest, f);

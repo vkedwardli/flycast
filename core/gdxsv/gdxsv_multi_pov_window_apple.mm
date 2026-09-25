@@ -1,12 +1,6 @@
-// macOS backend for the 4-player replay grid.
-//
-// Cocoa rather than SDL because of the coordinate system: AppKit measures from
-// the bottom-left of the primary screen and talks in frame rects (title bar
-// included), while the grid is written in top-left desktop coordinates over
-// content rects. Doing that conversion here, once, against the real NSWindow
-// is what keeps the quadrants exact - and visibleFrame is the only honest
-// answer for "the area a maximized window covers" with the menu bar and the
-// Dock in the way.
+// macOS backend for the 4-player replay grid. Cocoa rather than SDL: AppKit
+// uses bottom-left frame rects, the grid top-left content rects, and the
+// conversion is done here against the real NSWindow.
 #include "gdxsv_multi_pov_window.h"
 
 #import <AppKit/AppKit.h>
@@ -33,8 +27,7 @@ static NSWindow* CocoaWindow() {
 	return info.info.cocoa.window;
 }
 
-// The primary screen is the one AppKit measures everything else from: its
-// frame has origin (0,0) and its height is the flip axis.
+// AppKit measures from the primary screen, whose height is the flip axis.
 static CGFloat PrimaryHeight() {
 	NSArray<NSScreen*>* screens = [NSScreen screens];
 	if (screens.count == 0) return 0;
@@ -55,10 +48,8 @@ static NSRect ToCocoa(const GdxsvMultiPovRect& r) {
 	return NSMakeRect(r.x, PrimaryHeight() - (r.y + r.h), r.w, r.h);
 }
 
-// Set from the moment the host asks to leave full screen until its quadrant
-// has held against AppKit's restore of the pre-full-screen frame, which lands
-// at the end of the exit and would otherwise shrink the grid back to where it
-// was before the user went full screen.
+// Leaving full screen: AppKit restores the pre-full-screen frame at the end of
+// the exit, so the host keeps re-applying its quadrant until it holds.
 static bool g_leaving_fullscreen = false;
 static int g_settled_ticks = 0;
 static constexpr int kSettleTicks = 30;
@@ -75,15 +66,11 @@ void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect) {
 	NSWindow* win = CocoaWindow();
 	if (win == nil || rect.w <= 0 || rect.h <= 0) return;
 
-	// setFrame: moves without ordering the window front, so a follower does
-	// not take focus from the screen the user is driving.
+	// setFrame: moves without ordering the window front.
 	const NSRect content = ToCocoa(rect);
 	[win setFrame:[win frameRectForContentRect:content] display:YES];
 
 	if (g_leaving_fullscreen && (win.styleMask & NSWindowStyleMaskFullScreen) == 0) {
-		// Out of full screen, but AppKit restores the pre-full-screen frame at
-		// the end of the exit, after our frame has gone in. Done once the
-		// quadrant has held for a while.
 		if (FromCocoa([win contentRectForFrameRect:win.frame]) == rect) {
 			if (++g_settled_ticks >= kSettleTicks) g_leaving_fullscreen = false;
 		} else {
@@ -95,11 +82,8 @@ void gdxsv_multi_pov_window_set_frame(const GdxsvMultiPovRect& rect) {
 bool gdxsv_multi_pov_window_is_maximized() {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return false;
-	// Green-button zoom and full screen both mean "take the whole display" to
-	// the user, so both put the grid into its tiled layout.
+	// Zoom and full screen both tile the grid.
 	if ((win.styleMask & NSWindowStyleMaskFullScreen) != 0) return true;
-	// Still on the way out of full screen: stay "maximized" so the host keeps
-	// laying the grid out until its quadrant sticks.
 	if (g_leaving_fullscreen) return true;
 	return win.isZoomed;
 }
@@ -109,8 +93,7 @@ void gdxsv_multi_pov_window_unmaximize() {
 	if (win == nil) return;
 
 	if ((win.styleMask & NSWindowStyleMaskFullScreen) != 0) {
-		// Leaving full screen is animated and takes a moment. Asked once: a
-		// second toggle while the first is under way would go back in.
+		// Animated; asked once, or a second toggle would go back in.
 		if (!g_leaving_fullscreen) [win toggleFullScreen:nil];
 		g_leaving_fullscreen = true;
 		g_settled_ticks = 0;
@@ -128,8 +111,6 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	if (screen == nil) screen = [NSScreen mainScreen];
 	if (screen == nil) return {};
 
-	// visibleFrame, not frame: the menu bar and the Dock are not ours to tile
-	// over.
 	return FromCocoa(screen.visibleFrame);
 }
 
@@ -141,7 +122,6 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_display_area() {
 	if (screen == nil) screen = [NSScreen mainScreen];
 	if (screen == nil) return {};
 
-	// frame, not visibleFrame: full screen covers the menu bar and the Dock.
 	return FromCocoa(screen.frame);
 }
 
@@ -160,8 +140,6 @@ GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
 	const NSRect frame = [win frameRectForContentRect:content];
 	out.left = static_cast<int32_t>(std::lround(NSMinX(content) - NSMinX(frame)));
 	out.right = static_cast<int32_t>(std::lround(NSMaxX(frame) - NSMaxX(content)));
-	// Cocoa measures from the bottom, the grid from the top: the title bar is
-	// what sits above NSMaxY(content).
 	out.top = static_cast<int32_t>(std::lround(NSMaxY(frame) - NSMaxY(content)));
 	out.bottom = static_cast<int32_t>(std::lround(NSMinY(content) - NSMinY(frame)));
 	return out;

@@ -1915,9 +1915,7 @@ if(APPLE)
 	set_source_files_properties(${ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()
 
-# 4-player replay needs one window backend, and exactly one: the three desktop
-# platforms each have a real implementation, everything else gets the one that
-# reports the grid unavailable.
+# 4-player replay window backend
 if(WIN32 AND NOT WINDOWS_STORE)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_win.cpp)
 elseif(APPLE AND NOT IOS)

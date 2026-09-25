@@ -81,15 +81,11 @@ class GdxsvBackendReplay {
 	void RenderTakeoverCountdown(const UiState& ui);
 	void UpdateControlBarVisibility(const UiState& ui);
 
-	// 4-player replay: playback is host-driven. The host publishes where it
-	// is every frame; a guest turns that into the same control commands the
-	// user would have given, so all four screens show the same moment and the
-	// guests never negotiate a position of their own.
+	// 4-player replay: the host publishes its playback state every frame and
+	// the guests follow it with the same control commands the user would give.
 	void PublishMultiPovPlayback();
 	void FollowMultiPovHost();
-	// Guest: holds this frame until the host's published position is within
-	// reach, so a host that stops - its window held by the title bar, say -
-	// stops the other three with it instead of being left behind.
+	// Guest: blocks while more than a couple of frames ahead of the host.
 	void WaitForMultiPovHost();
 	void RenderControlBar(const UiState& ui);
 	void RenderLoadingHud(const UiState& ui);
@@ -313,24 +309,20 @@ class GdxsvBackendReplay {
 	int sync_max_wait_ms_ = 2;
 
 	// ---- 4-player replay ----
-	// Latched at Start so the per-frame and per-widget paths do not have to
-	// ask the session what this process is.
 	bool multi_pov_host_ = false;
 	bool multi_pov_guest_ = false;
+	bool MultiPov() const { return multi_pov_host_ || multi_pov_guest_; }
 
-	// Host: the playback position last published, used to spot a
-	// discontinuity - any jump, round change or step backward - and turn it
-	// into a seek the guests replay. Guest: the last seek generation applied.
+	// Host: the position last published; a jump from it becomes a seek the
+	// guests follow. Guest: the last seek generation applied.
 	int multi_pov_published_frame_ = -1;
 	uint32_t multi_pov_seek_generation_ = 0;
-	// Set while the position is being moved by the replay itself - a round
-	// change, the skip into a briefing - rather than by the user, so the next
-	// publish does not read that move as a seek. See PublishMultiPovPlayback.
+	// Host: the replay is moving the position itself (round change, briefing
+	// skip), which every screen does on its own, so it is not a seek.
 	bool multi_pov_system_move_ = false;
 
 	// The start barrier is armed at the first StartMsg and taken at the next
-	// frame boundary, so the four screens leave the same playback position
-	// rather than the same point in their own boot. See OnNextFrameInternal.
+	// frame boundary outside a seek.
 	bool multi_pov_start_barrier_pending_ = false;
 	bool multi_pov_start_barrier_done_ = false;
 

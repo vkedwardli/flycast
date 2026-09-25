@@ -1,10 +1,5 @@
-// Win32 backend for the 4-player replay grid.
-//
-// Native rather than through SDL because of one thing SDL cannot express: a
-// follower has to be moved without being activated. SDL_SetWindowPosition
-// raises and focuses; SetWindowPos with SWP_NOACTIVATE | SWP_NOZORDER does
-// not, which is what keeps the keyboard on the screen the user is driving
-// while the other three are dragged along.
+// Win32 backend for the 4-player replay grid. Native rather than SDL so a
+// guest can be moved without being activated (SWP_NOACTIVATE).
 #include "gdxsv_multi_pov_window.h"
 
 #ifndef NOMINMAX
@@ -21,8 +16,7 @@ HWND getNativeHwnd();
 
 static HWND Hwnd() { return gdxsv_headless() ? nullptr : getNativeHwnd(); }
 
-// The window rect that produces the wanted client rect. Flycast's window has
-// no menu bar, so bMenu is FALSE.
+// The window rect that produces the wanted client rect.
 static RECT ClientToWindowRect(HWND hwnd, const GdxsvMultiPovRect& client) {
 	RECT r{client.x, client.y, client.x + client.w, client.y + client.h};
 	const DWORD style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_STYLE));
@@ -64,8 +58,7 @@ bool gdxsv_multi_pov_window_is_maximized() {
 void gdxsv_multi_pov_window_unmaximize() {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return;
-	// SW_RESTORE rather than ShowWindow(SW_SHOWNORMAL): it keeps the window on
-	// the display it was maximized on, which is the one the grid belongs to.
+	// SW_RESTORE keeps the window on the display it was maximized on.
 	ShowWindow(hwnd, SW_RESTORE);
 }
 
@@ -79,7 +72,6 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
 	info.cbSize = sizeof(info);
 	if (!GetMonitorInfo(monitor, &info)) return out;
 
-	// rcWork, not rcMonitor: the taskbar is not ours to tile over.
 	out.x = info.rcWork.left;
 	out.y = info.rcWork.top;
 	out.w = info.rcWork.right - info.rcWork.left;
@@ -115,8 +107,7 @@ GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return out;
 
-	// AdjustWindowRectEx on an empty rect: what comes back is the frame alone,
-	// negative on the sides the frame grows outwards.
+	// AdjustWindowRectEx on an empty rect yields the frame alone.
 	RECT r{0, 0, 0, 0};
 	const DWORD style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_STYLE));
 	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_EXSTYLE));

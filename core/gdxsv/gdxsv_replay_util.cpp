@@ -108,7 +108,6 @@ size_t local_replay_page = 0;
 std::string selected_replay_file;
 std::string broken_replay_path;
 
-
 std::string search_user_id;
 std::string search_user_name;
 std::string search_pilot_name;
@@ -291,8 +290,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	ImGui::NewLine();
 
 	{
-		// Four screens play every POV at once, so there is nothing to select:
-		// the 1P instance hosts and the other three follow it.
+		// 4-player replay plays every POV at once, so there is no POV to select.
 		const bool four_screen = config::GdxReplayFourScreen && users_size == 4;
 		const bool pov_selected = (pov_index == -1);
 		ImGui::BeginDisabled((pov_selected && !four_screen) || !playable);
@@ -1545,26 +1543,17 @@ void gdxsv_start_replay(const std::string& replay_file, int pov) {
 	}
 
 	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
-		// 4-player replay: this instance is the host. It reads the replay
-		// once, hands the bytes to the three guests it spawns, and plays 1P
-		// itself. Anything that stops the session from coming up - not a
-		// four-player battle, no shared memory - falls back to ordinary
-		// single-screen playback rather than failing the replay.
+		// 4-player replay: host it, or fall back to single-screen playback.
 		std::vector<uint8_t> hosted_replay;
 		const bool four_screen =
 			gdxsv_multi_pov_four_screen_requested() && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay);
 
 		if (four_screen) {
-			// The host plays 1P from the bytes it already published and, like
-			// its guests, fast-forwards to the start barrier and waits there
-			// for the others.
 			dc_loadstate(99);
 			if (gdxsv.StartReplayBuffer(hosted_replay, 0)) {
 				gui_state = GuiState::Closed;
 				gdxsv_notify_replay_played(replay_file);
 			} else {
-				// Nothing is going to play, so do not leave three guests
-				// waiting on a host that never starts.
 				gdxsv_multi_pov_close();
 				dc_loadstate(90);
 				broken_replay_path = replay_file;

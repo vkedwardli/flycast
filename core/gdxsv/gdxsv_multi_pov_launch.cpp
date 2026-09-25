@@ -1,6 +1,5 @@
-// Host and guest orchestration for 4-player replay: who reads the replay, who
-// is spawned with what, and the one barrier they all line up at before the
-// first frame. The transport itself is in gdxsv_multi_pov.cpp.
+// Host/guest orchestration for 4-player replay: loading the replay, spawning
+// the guests and the start barrier. The transport is in gdxsv_multi_pov.cpp.
 #include <algorithm>
 #include <iterator>
 #include <cstdio>
@@ -19,25 +18,19 @@
 #include "stdclass.h"
 #include "types.h"
 
-// How long any screen waits at the start barrier for the others. A guest
-// starts a whole process and loads a savestate while the host is already
-// playing, so this has to cover a startup. Generous on purpose: the cost of
-// waiting too long is a slow start, the cost of waiting too little is a
-// screen that misses the barrier and plays on its own.
+// How long a screen waits at the start barrier. A guest has a whole process
+// start ahead of it, so this has to cover that.
 constexpr int kStartBarrierMs = 180 * 1000;
 
-// How long a guest waits for the host to publish the payload. The host writes
-// it before spawning anyone, so this only has to cover the mapping itself.
+// How long a guest waits for the host's replay payload.
 constexpr int kReplayFetchMs = 30 * 1000;
 
-// Config keys the host passes to a guest on the command line. Transient (see
-// setTransient in cfg/cl.cpp), so a guest never writes them to the config
-// file and an ordinary later run is unaffected.
+// Config keys the host passes to a guest on the command line (transient, never
+// written to the config file).
 constexpr char kSessionKey[] = "MultiPovSession";
 constexpr char kScreenKey[] = "MultiPovScreen";
 
-// Set once by the host when it spawns: how many guests the barrier should
-// expect. Only meaningful in the host process.
+// Host only: how many guests the barrier should expect.
 static int g_spawned_guests = 0;
 
 static std::string SessionId() { return config::loadStr("gdxsv", kSessionKey, ""); }
@@ -68,8 +61,6 @@ static bool ReadLocalFile(const std::string& path, std::vector<uint8_t>& out) {
 	return true;
 }
 
-// The host is the only process that ever touches the replay source, local or
-// remote. Everything else is handed the bytes.
 static bool LoadReplaySource(const std::string& source, std::vector<uint8_t>& out) {
 	if (source.compare(0, 4, "http") == 0) {
 		http::init();
@@ -86,8 +77,6 @@ static bool LoadReplaySource(const std::string& source, std::vector<uint8_t>& ou
 	return ReadLocalFile(source, out);
 }
 
-// Four screens only make sense for a four-player battle; anything else falls
-// back to ordinary single-screen playback rather than opening blank windows.
 static bool IsFourPlayerBattle(const std::vector<uint8_t>& replay) {
 	proto::BattleLogFile log;
 	if (!log.ParseFromArray(replay.data(), static_cast<int>(replay.size()))) {
@@ -101,10 +90,8 @@ static bool IsFourPlayerBattle(const std::vector<uint8_t>& replay) {
 	return true;
 }
 
-// Where the grid goes when it starts. Flycast only writes the window geometry
-// out when it closes, so this is the last known placement rather than the
-// live one; the window layer repositions the grid from the host's real rect
-// once it is up.
+// Where the grid starts, from the saved window geometry. The window layer
+// re-lays it out from the host's real rect once it is up.
 static GdxsvMultiPovRect InitialGroupRect() {
 	GdxsvMultiPovRect group;
 	group.w = std::max(320, config::loadInt("window", "width", 1280)) * 2;
@@ -117,17 +104,14 @@ static GdxsvMultiPovRect InitialGroupRect() {
 static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMultiPovRect& quadrant) {
 	const std::string session = std::string("gdxsv:") + kSessionKey + "=" + session_id;
 	const std::string screen_arg = std::string("gdxsv:") + kScreenKey + "=" + std::to_string(screen);
-	// The existing per-frame group barrier (GdxsvSpectateSync) keeps the four
-	// on the same frame once they are running; the session id names the group.
+	// GdxsvSpectateSync keeps the four on the same frame; the session id names the group.
 	const std::string sync_group = "gdxsv:SpectateSyncGroup=" + session_id;
 	const std::string pov = "gdxsv:ReplayPOV=" + std::to_string(screen + 1);
 	const std::string left = "window:left=" + std::to_string(quadrant.x);
 	const std::string top = "window:top=" + std::to_string(quadrant.y);
 	const std::string width = "window:width=" + std::to_string(quadrant.w);
 	const std::string height = "window:height=" + std::to_string(quadrant.h);
-	// A guest is a quadrant, whatever the user's own window was doing last
-	// time. Without these it would come up maximized or full screen and sit on
-	// top of the grid.
+	// A guest is a quadrant whatever the user's own window was last time.
 	const std::string maximized = "window:maximized=no";
 	const std::string fullscreen = "window:fullscreen=no";
 	const std::string content = settings.content.path;
@@ -145,11 +129,8 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 		"-config", fullscreen.c_str(),
 		content.c_str(),
 #ifdef __APPLE__
-		// After a Flycast crash AppKit asks at launch whether to reopen its
-		// windows, and a guest sits in that alert with no log and no screen
-		// until someone clicks it. A guest has no windows worth restoring.
-		// After the content path, where Flycast stops reading options and
-		// AppKit still picks the pair up.
+		// After a crash AppKit asks whether to reopen windows, and a guest
+		// would sit in that alert. Must come after the content path.
 		"-ApplePersistenceIgnoreState", "YES",
 #endif
 	};
@@ -158,8 +139,6 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 }
 
 void gdxsv_multi_pov_compute_grid(const GdxsvMultiPovRect& group, GdxsvMultiPovRect out[kGdxsvMultiPovScreens]) {
-	// Halves, with the remainder going to the right and bottom cells so the
-	// four add back up to the group exactly.
 	const int32_t left_w = group.w / 2;
 	const int32_t top_h = group.h / 2;
 	const int32_t right_w = group.w - left_w;
@@ -172,13 +151,9 @@ void gdxsv_multi_pov_compute_grid(const GdxsvMultiPovRect& group, GdxsvMultiPovR
 }
 
 bool gdxsv_multi_pov_four_screen_requested() {
-	// A guest is told what it is; it must never read the checkbox and try to
-	// start a session of its own.
 	if (0 < ScreenArg()) return false;
 	return config::GdxReplayFourScreen.get();
 }
-
-int gdxsv_multi_pov_spawned_guest_count() { return g_spawned_guests; }
 
 int gdxsv_multi_pov_guest_pov() {
 	const int screen = ScreenArg();
@@ -201,8 +176,7 @@ bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::v
 	const std::string session_id = gdxsv_multi_pov_new_session_id();
 	if (!gdxsv_multi_pov_host_create(session_id, replay_out)) return false;
 
-	// The host plays 1P and joins the same frame-sync group it puts the
-	// guests in, so all four are held together once they are running.
+	// The host joins the same frame-sync group as its guests.
 	config::setTransient("gdxsv", "SpectateSyncGroup", session_id);
 
 	GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];
@@ -240,4 +214,3 @@ void gdxsv_multi_pov_wait_at_start_barrier() {
 			break;
 	}
 }
-

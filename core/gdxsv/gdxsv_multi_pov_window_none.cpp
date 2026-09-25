@@ -1,10 +1,5 @@
-// Fallback backend for targets with no desktop windows to arrange - Android,
-// the Switch, UWP. 4-player replay spawns desktop processes and tiles their
-// windows, neither of which those platforms have, so the grid reports itself
-// unavailable and the feature simply never engages there.
-//
-// This is not a placeholder for Windows, Linux or macOS: each of those has a
-// real implementation alongside this file.
+// Backend for targets without desktop windows (Android, Switch, UWP): the grid
+// reports itself unavailable.
 #include "gdxsv_multi_pov_window.h"
 
 bool gdxsv_multi_pov_window_available() { return false; }

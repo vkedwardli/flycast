@@ -54,8 +54,6 @@ class Gdxsv {
 	std::shared_future<std::pair<bool, std::string>> PublicIPv6() const { return public_ipv6_; }
 	void NotifyWanPort() const;
 	bool StartReplayFile(const char* path, int pov);
-	// Plays a replay that is already in memory. Used by 4-player replay: the
-	// host reads the file once and every screen starts from those bytes.
 	bool StartReplayBuffer(const std::vector<u8>& buf, int pov);
 	bool StartLiveSpectate(const char* battle_code, int pov);
 	void StopReplay();
