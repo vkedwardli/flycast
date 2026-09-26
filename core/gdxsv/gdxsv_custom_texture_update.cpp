@@ -1,5 +1,7 @@
 #include "gdxsv_custom_texture_update.h"
 
+#include <locale>
+#include <sstream>
 #include <xxhash.h>
 #include "json.hpp"
 #include "libs.h"
@@ -144,6 +146,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 
 			{
 				std::stringstream ss;
+				ss.imbue(std::locale::classic());
 				ss.width(16);
 				ss.fill('0');
 				ss << std::hex << XXH64(download_buf_.data(), download_buf_.size(), 0);
@@ -275,6 +278,7 @@ std::string GdxsvCustomTexutreUpdate::ComputeXXHash(std::string path) {
 
 	if (ok) {
 		std::stringstream ss;
+		ss.imbue(std::locale::classic());
 		ss.width(16);
 		ss.fill('0');
 		ss << std::hex << XXH64_digest(state);

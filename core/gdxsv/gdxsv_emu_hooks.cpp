@@ -2,6 +2,7 @@
 #include <cstdlib>
 
 #include <chrono>
+#include <locale>
 #include <regex>
 #include <thread>
 #include <sstream>
@@ -361,6 +362,7 @@ void gdxsv_crash_append_tag(const std::string& logfile, std::vector<http::PostFi
 	if (machine_id.length()) {
 		const auto digest = XXH64(machine_id.c_str(), machine_id.size(), 37);
 		std::stringstream ss;
+		ss.imbue(std::locale::classic());
 		ss << std::hex << digest;
 		post_fields.emplace_back("sentry[tags][machine_id]", ss.str().c_str());
 	}
