@@ -36,12 +36,10 @@ u8 DummyRuleData[] = {0x03, 0x02, 0x03, 0x00, 0x00, 0x01, 0x58, 0x02, 0x58, 0x02
 constexpr u16 ExInputNone = 0;
 constexpr u16 ExInputWaitStart = 1;
 constexpr u16 ExInputWaitLoadEnd = 2;
-// Flag bits ORed into exInput, apart from the wait values above (older clients never set them).
-// Slowdown: peer 0 decides it from its own view of the battle and sends it as input, so GGPO
-// syncs the decision like any input. Every peer stalls the same frames; nobody else needs the
-// same weights, threshold or version. It only runs when every peer is ready for it.
-constexpr u16 ExInputSlowdownReady = 0x4000;  // this peer stalls on the slowdown flag
-constexpr u16 ExInputSlowdownOn = 0x8000;	  // peer 0: the battle is slowed down now
+// Slowdown flag bits ORed into exInput (older clients never set them). Peer 0 decides and GGPO syncs
+// the decision like any input, so the other peers need neither the same weights nor the same version.
+constexpr u16 ExInputSlowdownReady = 0x4000;  // this peer can stall; slowdown runs only if every peer can
+constexpr u16 ExInputSlowdownOn = 0x8000;	  // peer 0: slowed down now
 constexpr u16 ExInputFlags = ExInputSlowdownReady | ExInputSlowdownOn;
 
 // maple input to mcs pad input
@@ -595,7 +593,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	const int skipFrameCount = ggpo::getSkippedFrames(frame);
 	if (!ggpo::isInRollback()) {
 		u16 flags = 0;
-		if (GdxsvSlowdown::InBattle()) {
+		if (GdxsvProjectileView::InBattle()) {
 			flags |= ExInputSlowdownReady;
 			if (matching_.peer_id() == 0 && gdxsv.slowdown_.LocalSlow()) flags |= ExInputSlowdownOn;
 		}
@@ -869,7 +867,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	}
 
 	// After a slowdown stall the game does not ask again, it waits (DataStopCounter 1 -> 2), like after a
-	// timesync skip. A rollback pass redoes the stall decision of each frame it replays.
+	// timesync skip.
 	if (skipFrameCount == 0 && slowdown_stall_frames_.count(frame - 1) && gdxsv_ReadMem16(DataStopCounter) == 2) {
 		appendKeyMsg1Inputs();
 	}

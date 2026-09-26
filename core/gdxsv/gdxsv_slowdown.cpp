@@ -11,18 +11,14 @@
 namespace {
 constexpr u8 kWeaponClass = 0x11;
 constexpr u8 kEffectClass = 0x13;
-// MS destroyed: 22-29 class 0x13 kind 25 objects (the debris) appear 10-16 vblanks after its HP reaches 0
-// and last ~1.5s (97 of 98 spawns in replay 1790270343703 were right after a kill). Counted per object,
-// so the load fades as the debris goes and two explosions weigh double.
+// Debris of a destroyed MS: 22-29 objects for ~1.5s right after the kill.
 constexpr u8 kMsExplosionKind = 25;
-// Hit spark: class 0x13 kind 10, no owner, ~2s. Came with 29/32 shot hits in the same replay;
-// melee hits show it too, sometimes.
+// Spark of a hit (mostly shots, sometimes melee), ~2s.
 constexpr u8 kHitSparkKind = 10;
 }  // namespace
 
-// Weapon objects (class 0x11) by kind, measured with a pool + ammo probe on 5 replays.
-// Explosions of bazooka shells and crackers are kind 6 objects of their own, so they get
-// the blast weights of ANALYSIS.md 2.2.1 instead of a fixed lifetime after the shot.
+// Kinds found by matching pool spawns with ammo drops and kills (replays and rbk_test).
+// Every counted object weighs the same, so a burst of N objects weighs N times its weight.
 int GdxsvSlowdown::Classify(const GdxsvProjectileView::Entry& e) {
 	if (e.cls == kEffectClass && e.kind == kHitSparkKind) return HitSpark;
 	if (e.cls == kEffectClass && e.kind == kMsExplosionKind) return MsExplosion;
@@ -30,25 +26,25 @@ int GdxsvSlowdown::Classify(const GdxsvProjectileView::Entry& e) {
 	switch (e.kind) {
 		case 1:	 // beam rifles, Z'Gok arm beams
 		case 4:	 // Dom chest beam
-		case 8:	 // Gogg diffuse beam, 12 objects per shot
+		case 8:	 // Gogg diffuse beam, 12 per shot
 			return Beam;
-		case 2:	 // vulcans, machine guns, Acguy and Z'Gok shots (the arcade fit counts Z'Gok missiles as gun)
+		case 2:	 // vulcans, machine guns, Acguy, Z'Gok and Guntank missiles
 			return Gun;
-		case 28:  // Gogg torpedo, 2 per shot
-			return Missile;
-		case 26:  // Gyan needle missiles, types 00-09: 10 per shot (rbk_test probe)
-			return NeedleMissile;
-		case 14:  // Gouf heat rod: type 00 is the rod, held all battle; type 01 is the 8-object burst while it is used
-			return e.type == 0x01 ? HeatRod : -1;
-		case 3:	 // cannon shells (Guntank types 03/04, Guncannon, GT Gundam); no blast object
+		case 3:	 // cannon shells (Guntank, Guncannon, GT Gundam)
 			return Cannon;
 		case 5:	 // bazooka shells (Char's Zaku, Dom)
 			return Bazooka;
+		case 6:	 // blasts: bazooka, cracker, torpedo, Gyan sub
+			return Blast;
 		case 7:	  // Char's Zaku cracker
 		case 29:  // Zaku cracker
 			return Cracker;
-		case 6:	 // blast: bazooka shell, cracker (type 0a), torpedo, Gyan sub
-			return Blast;
+		case 14:  // Gouf heat rod: type 00 is the rod itself, held all battle; type 01 is the 8-object burst
+			return e.type == 0x01 ? HeatRod : -1;
+		case 26:  // Gyan needle missiles, 10 per shot
+			return NeedleMissile;
+		case 28:  // Gogg torpedo, 2 per shot
+			return Missile;
 		default:
 			return -1;
 	}
@@ -75,62 +71,24 @@ bool GdxsvSlowdown::Measure(std::vector<GdxsvProjectileView::Entry>& scratch, Lo
 	return true;
 }
 
-bool GdxsvSlowdown::InBattle() { return GdxsvProjectileView::InBattle(); }
-
 void GdxsvSlowdown::OnVBlank() {
-	// Rollback: the stall is decided in gdxsv_backend_rollback.cpp; count what was synced.
 	if (ggpo::active()) {
+		// Rollback stalls in gdxsv_backend_rollback.cpp; here only the debug view's load.
 		if (ggpo::isInRollback()) return;
-		if (!InBattle()) {
-			if (in_battle_) EndBattle();
-			return;
-		}
-		in_battle_ = true;
-		if (config::GdxProjectileView) Measure(entries_, load_);  // the debug view shows this peer's own load
-		CountVBlank(synced_slow_);
+		in_battle_ = GdxsvProjectileView::InBattle();
+		if (in_battle_ && config::GdxProjectileView) Measure(entries_, load_);
 		return;
 	}
-
-	if (!config::GdxSlowdown || !gdxsv.IsReplaying() || !Measure(entries_, load_)) {
-		if (in_battle_) EndBattle();
-		return;
-	}
-	in_battle_ = true;
-
-	// Over the threshold the game runs at 30fps: every other vblank delivers no input.
-	const bool slow = config::GdxSlowdownThreshold <= load_.value;
-	stalling_ = slow && !stalling_;
-	CountVBlank(slow);
+	in_battle_ = config::GdxSlowdown && gdxsv.IsReplaying() && Measure(entries_, load_);
+	// Over the threshold every other vblank delivers no input.
+	stalling_ = in_battle_ && config::GdxSlowdownThreshold <= load_.value && !stalling_;
 }
 
 bool GdxsvSlowdown::LocalSlow() {
-	if (!config::GdxSlowdown || !Measure(entries_, load_)) return false;
-	return config::GdxSlowdownThreshold <= load_.value;
-}
-
-void GdxsvSlowdown::CountVBlank(bool slow) {
-	battle_vblanks_++;
-	slow_vblanks_ += slow;
-	slow_runs_ += slow && !slow_;
-	slow_ = slow;
-}
-
-void GdxsvSlowdown::EndBattle() {
-	if (0 < battle_vblanks_) {
-		NOTICE_LOG(COMMON, "slowdown: battle %d vblanks, 30fps %.1f%% (%d runs, avg %.2fs), threshold %.2f", battle_vblanks_,
-				   100.f * slow_vblanks_ / battle_vblanks_, slow_runs_, slow_runs_ ? slow_vblanks_ / 60.f / slow_runs_ : 0.f,
-				   config::GdxSlowdownThreshold.get());
-	}
-	in_battle_ = false;
-	stalling_ = false;
-	synced_slow_ = false;
-	load_ = Load{};
-	battle_vblanks_ = slow_vblanks_ = slow_runs_ = 0;
-	slow_ = false;
+	return config::GdxSlowdown && Measure(entries_, load_) && config::GdxSlowdownThreshold <= load_.value;
 }
 
 void GdxsvSlowdown::DisplayOSD() {
-	// Debug view, with the projectile list: hidden option gdxsv:ProjectileView.
 	if (!config::GdxProjectileView || !in_battle_) return;
 
 	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 8, 8), ImGuiCond_Always, ImVec2(1, 0));
@@ -138,20 +96,16 @@ void GdxsvSlowdown::DisplayOSD() {
 	ImGui::Begin("##gdxsv_slowdown", nullptr,
 				 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
 					 ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
-	// Rollback: the synced state (peer 0's decision); the load shown is this peer's own view.
+	// Rollback shows peer 0's synced decision next to this peer's own load.
 	const bool slow = ggpo::active() ? synced_slow_ : config::GdxSlowdownThreshold <= load_.value;
 	ImGui::TextColored(slow ? ImVec4(1, 0.4f, 0.4f, 1) : ImVec4(1, 1, 1, 1), "Slowdown load %5.2f / %.2f  %s", load_.value,
 					   config::GdxSlowdownThreshold.get(), slow ? "30fps" : "60fps");
-	if (0 < battle_vblanks_) {
-		ImGui::Text("30fps %4.1f%% of battle, %d runs", 100.f * slow_vblanks_ / battle_vblanks_, slow_runs_);
-	}
 	for (int c = 0; c < NumCategories; c++) {
 		if (load_.counts[c] == 0) continue;
 		ImGui::Text("  %-14s %3d x %.2f", CategoryName(c), load_.counts[c], Weight(c));
 	}
 
-	// Weapon objects no category counts, to find what is missing. Held weapons (kind 0, and the
-	// heat rod itself: kind 14 type 00) are left out on purpose.
+	// Weapon objects that nothing counts, to spot new ones. Held weapons (kind 0, heat rod type 00) are skipped.
 	std::map<std::tuple<int, int, int>, int> missing;  // (kind, type, owner MS) -> count
 	if (GdxsvProjectileView::Collect(osd_entries_, false)) {
 		for (const auto& e : osd_entries_) {
