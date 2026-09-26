@@ -120,12 +120,9 @@ std::string search_disk;
 bool search_reverse;
 int search_used_ms = -1;
 
-struct PlayerFilterRequest {
-	enum Field { None, ID, HN, PN } field = None;
-	std::string value;
-};
-PlayerFilterRequest pending_player_filter;
 bool select_server_tab = false;
+
+void fetch_new_results(bool reset_page = true);
 
 // Matches maxReplayPlayerFilters in the server's replay API.
 constexpr size_t kMaxPlayerFilters = 4;
@@ -173,6 +170,11 @@ int fetch_user_entry_http_status;
 
 std::shared_future<std::vector<ReplayEntry>> fetch_replay_entry_future_;
 int fetch_replay_entry_http_status;
+bool replay_results_dirty = false;
+
+bool replay_results_ready() {
+	return !replay_results_dirty && future_is_ready(fetch_replay_entry_future_);
+}
 
 // One in-progress battle from /lbs/status, joining active_games with the
 // battle_users that belong to it.
@@ -304,16 +306,16 @@ void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
 			ImGui::SetTooltip(server_tab ? "Right-click to copy or filter" : "Right-click to copy or filter on Server");
 		if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight)) {
-			auto field_menu = [server_tab](const char* name, PlayerFilterRequest::Field field, const std::string& value,
-										 const std::vector<std::string>& filters) {
+			auto field_menu = [server_tab](const char* name, const std::string& value, std::vector<std::string>& filters) {
 				const std::string label = std::string(name) + ": " + (value.empty() ? "(empty)" : value) + "###" + name;
 				if (ImGui::BeginMenu(label.c_str())) {
 					if (ImGui::MenuItem("Copy"))
 						ImGui::SetClipboardText(value.c_str());
 					const std::string filter_label = std::string("Filter by ") + name + (server_tab ? "" : " (Server)");
 					const char* disabled_hint = player_filter_disabled_hint(filters, value);
-					if (ImGui::MenuItem(filter_label.c_str(), nullptr, false, disabled_hint == nullptr)) {
-						pending_player_filter = {field, value};
+					if (ImGui::MenuItem(filter_label.c_str(), nullptr, false, disabled_hint == nullptr) &&
+						add_player_filter(filters, value)) {
+						fetch_new_results();
 						select_server_tab = true;
 					}
 					if (disabled_hint != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
@@ -321,9 +323,9 @@ void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force
 					ImGui::EndMenu();
 				}
 			};
-			field_menu("ID", PlayerFilterRequest::ID, user.user_id(), search_user_ids);
-			field_menu("HN", PlayerFilterRequest::HN, user.user_name(), search_user_names);
-			field_menu("PN", PlayerFilterRequest::PN, user.pilot_name(), search_pilot_names);
+			field_menu("ID", user.user_id(), search_user_ids);
+			field_menu("HN", user.user_name(), search_user_names);
+			field_menu("PN", user.pilot_name(), search_pilot_names);
 			ImGui::EndPopup();
 		}
 		ImGui::SetCursorPos(ImVec2(pos.x, pos.y));
@@ -790,7 +792,7 @@ void parse_user_json(const std::vector<u8>& json_string, std::vector<UserEntry>&
 }
 
 void fetch_replay_json() {
-	if (fetch_replay_entry_future_.valid()) {
+	if (replay_results_dirty || fetch_replay_entry_future_.valid()) {
 		return;
 	}
 
@@ -975,13 +977,15 @@ void fetch_user_json() {
 	fetch_user_entry_future_ = std::async(std::launch::async, future_fn).share();
 }
 
-void fetch_new_results(bool reset_page = true) {
+void fetch_new_results(bool reset_page) {
 	if (reset_page) {
 		entry_paging = 0;
 		snprintf(page_buf, sizeof(page_buf), "%d", 1);
 	}
 	selected_replay_entry_index = -1;
-	fetch_replay_entry_future_ = std::shared_future<std::vector<ReplayEntry>>();
+	// Keep the current future alive until it finishes and drawing is over.
+	// Further filter edits accumulate in the query, not in a single pending slot.
+	replay_results_dirty = true;
 }
 
 void fetch_target_page() { fetch_new_results(false); }
@@ -1239,7 +1243,7 @@ void gdxsv_replay_server_tab() {
 	ImGui::PopItemWidth();
 
 	{
-		DisabledScope loading_scope(!future_is_ready(fetch_replay_entry_future_));
+		DisabledScope loading_scope(!replay_results_ready());
 
 		switch (filter_selected) {
 			case 0:	 // User ID
@@ -1454,7 +1458,9 @@ void gdxsv_replay_server_tab() {
 		ImGui::BeginChild(ImGui::GetID("gdxsv_replay_server_list"), ImVec2(0, ImGui::GetContentRegionAvail().y - 40.f * scaling), true,
 						  ImGuiWindowFlags_DragScrolling);
 		{
-			if (!fetch_replay_entry_future_.valid()) {
+			if (replay_results_dirty) {
+				ImGui::Text("Loading...");
+			} else if (!fetch_replay_entry_future_.valid()) {
 				fetch_replay_json();
 			} else if (!future_is_ready(fetch_replay_entry_future_)) {
 				ImGui::Text("Loading...");
@@ -1481,7 +1487,7 @@ void gdxsv_replay_server_tab() {
 		ImGui::EndChild();
 
 		{
-			DisabledScope loading_scope(!future_is_ready(fetch_replay_entry_future_));
+			DisabledScope loading_scope(!replay_results_ready());
 			{
 				{
 					DisabledScope scope(entry_paging == 0);
@@ -1502,7 +1508,7 @@ void gdxsv_replay_server_tab() {
 						fetch_target_page();
 					}
 					ImGui::SameLine();
-					DisabledScope scope(future_is_ready(fetch_replay_entry_future_) && fetch_replay_entry_future_.get().size() < 100);
+					DisabledScope scope(replay_results_ready() && fetch_replay_entry_future_.get().size() < 100);
 					if (ImGui::Button(ICON_FA_CHEVRON_RIGHT "  Next Page")) {
 						entry_paging++;
 						snprintf(page_buf, sizeof(page_buf), "%d", entry_paging + 1);
@@ -1517,7 +1523,7 @@ void gdxsv_replay_server_tab() {
 	ImGui::SameLine();
 	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_server_detail"), ImVec2(0, 0), true, ImGuiWindowFlags_DragScrolling);
 	{
-		if (selected_replay_entry_index != -1) {
+		if (replay_results_ready() && selected_replay_entry_index != -1) {
 			const auto& entries = fetch_replay_entry_future_.get();
 			const auto& entry = entries[selected_replay_entry_index];
 			std::string battle_code = entry.replay_url.substr(entry.replay_url.find_last_of("/") + 1);
@@ -1679,20 +1685,12 @@ void gdxsv_end_replay(std::string error) {
 }
 
 void gdxsv_replay_select_dialog() {
-	// Apply between frames, before drawing references into the old result.
-	// Wait for any in-flight query so replacing its future cannot block the UI.
-	if (pending_player_filter.field != PlayerFilterRequest::None &&
+	// Discard outdated results between frames, once the old request is done.
+	// The next fetch snapshots all current filters; outdated results stay hidden.
+	if (replay_results_dirty &&
 		(!fetch_replay_entry_future_.valid() || future_is_ready(fetch_replay_entry_future_))) {
-		bool added = false;
-		switch (pending_player_filter.field) {
-			case PlayerFilterRequest::ID: added = add_player_filter(search_user_ids, pending_player_filter.value); break;
-			case PlayerFilterRequest::HN: added = add_player_filter(search_user_names, pending_player_filter.value); break;
-			case PlayerFilterRequest::PN: added = add_player_filter(search_pilot_names, pending_player_filter.value); break;
-			case PlayerFilterRequest::None: break;
-		}
-		pending_player_filter = {};
-		if (added)
-			fetch_new_results();
+		fetch_replay_entry_future_ = {};
+		replay_results_dirty = false;
 	}
 
 	centerNextWindow();
