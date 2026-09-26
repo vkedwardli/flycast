@@ -1047,7 +1047,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		BeginSilentSeek();
 		int skipped_frame = 0;
 		for (; skipped_frame < ctrl_play_speed_ && can_run_silent_replay_frame(); skipped_frame++) {
-			RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < ctrl_play_speed_);
+			RunSilentSeekFrame(config::GdxSkipRenderingHack);
 			regular_save_state();
 			if (need_cancel()) break;
 		}
@@ -1157,7 +1157,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 					int frames_run = 0;
 					BeginSilentSeek();
 					while (key_msg_count_ < goal) {
-						RunSilentSeekFrame(config::GdxSkipRenderingHack && key_msg_count_ + 1 < goal);
+						RunSilentSeekFrame(config::GdxSkipRenderingHack);
 						regular_save_state();
 						frames_run++;
 						if (need_cancel() || frames_run > 1000) break;
@@ -1211,8 +1211,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			BeginSilentSeekWithAudioReset();
 			int frames_run = 0;
 			while (key_msg_count_ < target_key_msg_count && can_run_silent_replay_frame()) {
-				const bool skip_rendering = config::GdxSkipRenderingHack && key_msg_count_ + 1 < target_key_msg_count;
-				RunSilentSeekFrame(skip_rendering);
+				RunSilentSeekFrame(config::GdxSkipRenderingHack);
 				regular_save_state();
 				frames_run++;
 				if (need_cancel()) break;
@@ -1289,7 +1288,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				}
 				if (!can_run_silent_replay_frame() || (live_catch_up && !live_seek_unfinished()))
 					break;
-				RunSilentSeekFrame(config::GdxSkipRenderingHack && skipped_frame + 1 < skip_frames);
+				RunSilentSeekFrame(config::GdxSkipRenderingHack);
 				++skipped_frame;
 				regular_save_state();
 				if (need_cancel()) break;
@@ -1378,7 +1377,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 					}
 					BeginSilentSeek();
 					while (key_msg_count_ < target_frame) {
-						RunSilentSeekFrame(config::GdxSkipRenderingHack && key_msg_count_ + 1 < target_frame);
+						RunSilentSeekFrame(config::GdxSkipRenderingHack);
 						regular_save_state();
 						if (need_cancel()) break;
 					}

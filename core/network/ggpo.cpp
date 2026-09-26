@@ -351,7 +351,7 @@ static bool advance_frame(int)
 		emu.run();
 	}
 
-	settings.gdxsv.skipRenderingAddr = (config::GdxSkipRenderingHack && frame + 1 < seekToFrame) ? settings.gdxsv.skipRenderingBaseAddr : 0;
+	settings.gdxsv.skipRenderingAddr = config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
 	emu.run();
 	ggpo_advance_frame(ggpoSession);
 
