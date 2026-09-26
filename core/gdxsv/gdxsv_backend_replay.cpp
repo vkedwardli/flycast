@@ -2800,7 +2800,6 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 		ImGui::Separator();
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
-		OptionCheckbox("Slowdown", config::GdxSlowdown, "Experimental: drop to 30fps while many projectiles are in play, like the arcade (DC2)");
 
 		// Key Display and Skip MS Selection do nothing during Live Spectate, so
 		// they are not offered there rather than sitting inert.
