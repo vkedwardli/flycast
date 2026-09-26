@@ -36,6 +36,13 @@ u8 DummyRuleData[] = {0x03, 0x02, 0x03, 0x00, 0x00, 0x01, 0x58, 0x02, 0x58, 0x02
 constexpr u16 ExInputNone = 0;
 constexpr u16 ExInputWaitStart = 1;
 constexpr u16 ExInputWaitLoadEnd = 2;
+// Flag bits ORed into exInput, apart from the wait values above (older clients never set them).
+// Slowdown: peer 0 decides it from its own view of the battle and sends it as input, so GGPO
+// syncs the decision like any input. Every peer stalls the same frames; nobody else needs the
+// same weights, threshold or version. It only runs when every peer is ready for it.
+constexpr u16 ExInputSlowdownReady = 0x4000;  // this peer stalls on the slowdown flag
+constexpr u16 ExInputSlowdownOn = 0x8000;	  // peer 0: the battle is slowed down now
+constexpr u16 ExInputFlags = ExInputSlowdownReady | ExInputSlowdownOn;
 
 // maple input to mcs pad input
 u16 convertInput(MapleInputState input) {
@@ -586,9 +593,24 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
 	const int skipFrameCount = ggpo::getSkippedFrames(frame);
+	if (!ggpo::isInRollback()) {
+		u16 flags = 0;
+		if (GdxsvSlowdown::InBattle()) {
+			flags |= ExInputSlowdownReady;
+			if (matching_.peer_id() == 0 && gdxsv.slowdown_.LocalSlow()) flags |= ExInputSlowdownOn;
+		}
+		ggpo::setExInputFlags(flags);
+	}
+	const auto slowdownOn = [&]() -> bool {
+		for (int i = 0; i < matching_.player_count(); i++) {
+			if (!(inputState[i].exInput & ExInputSlowdownReady)) return false;
+		}
+		return inputState[0].exInput & ExInputSlowdownOn;
+	};
 	if (frame != slowdown_last_frame_) {
 		// First poll of this frame, or the start of a rollback pass: stalls from here on are decided again.
 		slowdown_last_frame_ = frame;
+		if (!ggpo::isInRollback()) gdxsv.slowdown_.SetSynced(slowdownOn());
 		slowdown_stall_frames_.erase(slowdown_stall_frames_.lower_bound(frame), slowdown_stall_frames_.end());
 		while (!slowdown_stall_frames_.empty() && *slowdown_stall_frames_.begin() < frame - 600) {
 			slowdown_stall_frames_.erase(slowdown_stall_frames_.begin());
@@ -748,10 +770,9 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame remaining=%d", frame, tsFrames - 1);
 			} else if (0 < skipFrameCount && gdxsv_ReadMem16(DataStopCounter) < skipFrameCount + 1) {
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame replaying", frame);
-			} else if (frame % 2 == 1 && skipFrameCount == 0 && gdxsv.slowdown_.StallFrame(frame)) {
+			} else if (frame % 2 == 1 && skipFrameCount == 0 && slowdownOn()) {
 				// Slowdown: this frame's input is dropped and the game waits; the next frame delivers.
-				// Odd frames only: timesync skips (frame % 10 == 0, one peer) never land on them,
-				// so every peer takes this decision on the same frames.
+				// Odd frames only: timesync skips (frame % 10 == 0, one peer) never land on them.
 				slowdown_stall_frames_.insert(frame);
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: slowdown stall", frame);
 			} else {
@@ -780,7 +801,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		auto exInput = gdxsv_ReadMem16(memExInputAddr);
 		bool ok = true;
 		for (int i = 0; i < matching_.player_count(); i++) {
-			ok &= inputState[i].exInput == exInput;
+			ok &= (inputState[i].exInput & ~ExInputFlags) == exInput;
 		}
 
 		if (ok && exInput == ExInputWaitStart) {

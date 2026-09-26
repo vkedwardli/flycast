@@ -70,10 +70,14 @@ const char* GdxsvProjectileView::MsName(int ms_id) {
 	return "?";
 }
 
+bool GdxsvProjectileView::InBattle() {
+	// Enabled(): disk_ keeps its value after another game is loaded.
+	return gdxsv.Enabled() && gdxsv.Disk() == 2 && gdxsv_ReadMem8(kPlayerWorkBase + kPlayerSceneOffset) == kSceneBattle;
+}
+
 bool GdxsvProjectileView::Collect(std::vector<Entry>& out, bool all_classes) {
 	out.clear();
-	if (gdxsv.Disk() != 2) return false;
-	if (gdxsv_ReadMem8(kPlayerWorkBase + kPlayerSceneOffset) != kSceneBattle) return false;
+	if (!InBattle()) return false;
 
 	for (u32 i = 0; i < kPoolCount; i++) {
 		const u32 addr = kPoolBase + i * kPoolStride;

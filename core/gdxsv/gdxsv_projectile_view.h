@@ -21,6 +21,8 @@ class GdxsvProjectileView {
 
 	void DisplayOSD();
 
+	// True during a DC2 battle.
+	static bool InBattle();
 	// Reads the pool. Returns false outside a battle.
 	static bool Collect(std::vector<Entry>& out, bool all_classes);
 	static const char* KindName(u8 kind);
