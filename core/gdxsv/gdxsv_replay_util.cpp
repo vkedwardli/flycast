@@ -995,12 +995,14 @@ void fetch_new_results(bool reset_page) {
 
 void fetch_target_page() { fetch_new_results(false); }
 
-void draw_add_player_filter_button(std::vector<std::string>& filters, const std::string& value) {
-	const char* disabled_hint = player_filter_disabled_hint(filters, value);
+void draw_add_player_filter_button(std::vector<std::string>& filters, char* input) {
+	const char* disabled_hint = player_filter_disabled_hint(filters, input);
 	ImGui::SameLine();
 	ImGui::BeginDisabled(disabled_hint != nullptr);
-	if (ImGui::Button("Add Filter") && add_player_filter(filters, value))
+	if (ImGui::Button("Add Filter") && add_player_filter(filters, input)) {
+		input[0] = '\0';
 		fetch_new_results();
+	}
 	ImGui::EndDisabled();
 	if (disabled_hint != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 		ImGui::SetTooltip("%s", disabled_hint);
@@ -1278,8 +1280,10 @@ void gdxsv_replay_server_tab() {
 				if (ImGui::InputText("##user_id_input", user_id_buf, IM_ARRAYSIZE(user_id_buf),
 									 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
 									 TextFilters::UppercaseAlpha)) {
-					if (add_player_filter(search_user_ids, user_id_buf))
+					if (add_player_filter(search_user_ids, user_id_buf)) {
+						user_id_buf[0] = '\0';
 						fetch_new_results();
+					}
 				}
 
 				draw_add_player_filter_button(search_user_ids, user_id_buf);
@@ -1293,8 +1297,10 @@ void gdxsv_replay_server_tab() {
 				if (ImGui::InputText("##user_name_input", user_name_buf, IM_ARRAYSIZE(user_name_buf),
 									 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
 									 TextFilters::FullWidthAlphaNum)) {
-					if (add_player_filter(search_user_names, user_name_buf))
+					if (add_player_filter(search_user_names, user_name_buf)) {
+						user_name_buf[0] = '\0';
 						fetch_new_results();
+					}
 				}
 
 				draw_add_player_filter_button(search_user_names, user_name_buf);
@@ -1308,8 +1314,10 @@ void gdxsv_replay_server_tab() {
 				if (ImGui::InputText("##pilot_name_input", pilot_name_buf, IM_ARRAYSIZE(pilot_name_buf),
 									 ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter,
 									 TextFilters::FullWidthAlphaNum)) {
-					if (add_player_filter(search_pilot_names, pilot_name_buf))
+					if (add_player_filter(search_pilot_names, pilot_name_buf)) {
+						pilot_name_buf[0] = '\0';
 						fetch_new_results();
+					}
 				}
 
 				draw_add_player_filter_button(search_pilot_names, pilot_name_buf);
