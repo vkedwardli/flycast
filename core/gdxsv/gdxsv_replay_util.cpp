@@ -369,7 +369,6 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 
 	{
 		const ImVec2 button_size = ScaledVec2(300, 50);
-		const bool side_by_side = ImGui::GetContentRegionAvail().x >= button_size.x * 2 + ImGui::GetStyle().ItemSpacing.x;
 		auto replay_button = [&](const char* label, int pov, bool four_screen, const char* disabled_hint) {
 			std::string button_label = !playable ? std::string("Load ") + disk_display_name(game_disk) + " to replay"
 				: disabled_hint != nullptr ? disabled_hint : label;
@@ -392,8 +391,6 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 		snprintf(replay_label, sizeof(replay_label), ICON_FA_PLAY "  Replay %dP", pov_index + 1);
 		replay_button(replay_label, pov_index, false,
 			pov_selected ? nullptr : ICON_FA_ARROW_POINTER "  Select a Player");
-		if (side_by_side)
-			ImGui::SameLine();
 		// Four-screen playback does not require a selected player.
 		const char* four_screen_hint = nullptr;
 		if (users_size != kGdxsvMultiPovScreens)
