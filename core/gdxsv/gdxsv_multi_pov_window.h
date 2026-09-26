@@ -25,8 +25,9 @@ struct GdxsvMultiPovWindowState {
 	GdxsvMultiPovWindowMode mode = GdxsvMultiPovWindowMode::Windowed;
 };
 
-// Save the host's presentation before tiling. Maximized/fullscreen restore
-// their mode, not the hidden windowed geometry behind it.
+// Snapshot the current presentation. Before tiling, the host replaces frame
+// with the normal window rectangle revealed by leaving maximized/fullscreen.
+// Restore that rectangle before re-entering the saved mode.
 GdxsvMultiPovWindowState gdxsv_multi_pov_window_get_state();
 void gdxsv_multi_pov_window_restore_state(const GdxsvMultiPovWindowState& state);
 
