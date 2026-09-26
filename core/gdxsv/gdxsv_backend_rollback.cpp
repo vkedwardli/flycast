@@ -1737,12 +1737,10 @@ void drawNetworkPlayerHeading(int player, const proto::BattleLogUser& user,
 							  const ggpo::NetworkStats& stats, bool connected, bool show_details) {
 	const ImVec2 pos = ImGui::GetCursorScreenPos();
 	const float width = ImGui::GetContentRegionAvail().x;
-	// Reuse the old separator's surrounding space for the player-position label.
+	// Keep the player position and ID in the separator, with both names below.
 	const float height = 1.f + ImGui::GetStyle().ItemSpacing.y * 2.f;
 	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 0.85f);
-	const std::string label = std::to_string(player + 1) + "P";
-	const ImVec2 label_size = ImGui::CalcTextSize(label.c_str());
-	const float label_x = pos.x + (width - label_size.x) * 0.5f;
+	const std::string label = std::to_string(player + 1) + "P " + user.user_id();
 	const float gap = ImGui::GetFontSize() * 0.5f;
 	const float line_y = pos.y + height * 0.5f;
 	float line_right = pos.x + width;
@@ -1756,10 +1754,23 @@ void drawNetworkPlayerHeading(int player, const proto::BattleLogUser& user,
 			ImGui::GetColorU32(msColor(connected ? stats.network.ping : 999).Value), ping.c_str());
 		line_right = ping_x - gap;
 	}
+	// Center within the space left by the detailed view's right-aligned ping.
+	ImVec2 label_size = ImGui::CalcTextSize(label.c_str());
+	const float label_width = std::max(1.f, line_right - pos.x - gap * 2.f);
+	if (label_size.x > label_width) {
+		const float font_size = ImGui::GetStyle().FontSizeBase * label_width / label_size.x;
+		ImGui::PopFont();
+		ImGui::PushFont(nullptr, font_size);
+		label_size = ImGui::CalcTextSize(label.c_str());
+	}
+	const float label_x = pos.x + (line_right - pos.x - label_size.x) * 0.5f;
 	const ImU32 line_color = ImGui::GetColorU32(ImGuiCol_Separator);
-	draw_list->AddLine(ImVec2(pos.x, line_y), ImVec2(label_x - gap, line_y), line_color);
+	// One logical point; OSD coordinates are already in framebuffer pixels.
+	const float line_thickness = settings.display.pointScale;
+	if (pos.x < label_x - gap)
+		draw_list->AddLine(ImVec2(pos.x, line_y), ImVec2(label_x - gap, line_y), line_color, line_thickness);
 	if (label_x + label_size.x + gap < line_right)
-		draw_list->AddLine(ImVec2(label_x + label_size.x + gap, line_y), ImVec2(line_right, line_y), line_color);
+		draw_list->AddLine(ImVec2(label_x + label_size.x + gap, line_y), ImVec2(line_right, line_y), line_color, line_thickness);
 	ImVec4 label_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
 	label_color.w *= 0.65f;
 	draw_list->AddText(ImVec2(label_x, pos.y + (height - label_size.y) * 0.5f),
@@ -1767,7 +1778,7 @@ void drawNetworkPlayerHeading(int player, const proto::BattleLogUser& user,
 	ImGui::PopFont();
 	ImGui::Dummy(ImVec2(width, height));
 
-	drawNetworkPlayerName(show_details ? user.user_id() : user.user_name(), !show_details);
+	drawNetworkPlayerName(user.user_name(), true);
 	drawNetworkPlayerName(user.pilot_name(), false);
 }
 
