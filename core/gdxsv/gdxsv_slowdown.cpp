@@ -15,6 +15,8 @@ constexpr u8 kEffectClass = 0x13;
 constexpr u8 kMsExplosionKind = 25;
 // Spark of a hit (mostly shots, sometimes melee), ~2s.
 constexpr u8 kHitSparkKind = 10;
+// Load at or over which the battle runs at 30fps.
+constexpr float kThreshold = 7.1f;
 }  // namespace
 
 // Kinds found by matching pool spawns with ammo drops and kills (replays and rbk_test).
@@ -79,13 +81,13 @@ void GdxsvSlowdown::OnVBlank() {
 		if (in_battle_ && config::GdxProjectileView) Measure(entries_, load_);
 		return;
 	}
-	in_battle_ = config::GdxSlowdown && gdxsv.IsReplaying() && Measure(entries_, load_);
+	in_battle_ = gdxsv.IsReplaying() && Measure(entries_, load_);
 	// Over the threshold every other vblank delivers no input.
-	stalling_ = in_battle_ && config::GdxSlowdownThreshold <= load_.value && !stalling_;
+	stalling_ = in_battle_ && kThreshold <= load_.value && !stalling_;
 }
 
 bool GdxsvSlowdown::LocalSlow() {
-	return config::GdxSlowdown && Measure(entries_, load_) && config::GdxSlowdownThreshold <= load_.value;
+	return Measure(entries_, load_) && kThreshold <= load_.value;
 }
 
 void GdxsvSlowdown::DisplayOSD() {
@@ -97,9 +99,9 @@ void GdxsvSlowdown::DisplayOSD() {
 				 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
 					 ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
 	// Rollback shows peer 0's synced decision next to this peer's own load.
-	const bool slow = ggpo::active() ? synced_slow_ : config::GdxSlowdownThreshold <= load_.value;
+	const bool slow = ggpo::active() ? synced_slow_ : kThreshold <= load_.value;
 	ImGui::TextColored(slow ? ImVec4(1, 0.4f, 0.4f, 1) : ImVec4(1, 1, 1, 1), "Slowdown load %5.2f / %.2f  %s", load_.value,
-					   config::GdxSlowdownThreshold.get(), slow ? "30fps" : "60fps");
+					   kThreshold, slow ? "30fps" : "60fps");
 	for (int c = 0; c < NumCategories; c++) {
 		if (load_.counts[c] == 0) continue;
 		ImGui::Text("  %-14s %3d x %.2f", CategoryName(c), load_.counts[c], Weight(c));

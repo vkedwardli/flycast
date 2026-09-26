@@ -540,8 +540,6 @@ extern Option<bool> GdxReplayShowAllyHP;
 extern Option<bool> GdxReplayKeyDisplay;
 extern Option<bool> GdxReplaySkipMsSelection;
 extern Option<bool> GdxProjectileView;
-extern Option<bool> GdxSlowdown;
-extern Option<float> GdxSlowdownThreshold;
 
 // Network
 

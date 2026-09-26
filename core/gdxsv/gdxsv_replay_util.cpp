@@ -436,7 +436,14 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
 	OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
-	OptionCheckbox("Slowdown", config::GdxSlowdown, "Experimental: drop to 30fps while many projectiles are in play, like the arcade (DC2)");
+	ImGui::BeginDisabled(users_size != 4);
+	OptionCheckbox("4-player replay", config::GdxReplayFourScreen,
+				   "Play the replay from all four points of view at once, in a 2x2 grid of screens");
+	ImGui::EndDisabled();
+	if (users_size != 4) {
+		ImGui::SameLine();
+		ImGui::TextDisabled("(4-player battles only)");
+	}
 }
 
 void draw_round_detail(const ReplayEntry& entry) {
