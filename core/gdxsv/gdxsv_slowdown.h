@@ -19,7 +19,7 @@ class GdxsvSlowdown {
 	void OnVBlank();
 	// Replay: true while the current vblank must not deliver input.
 	bool Stalling() const { return stalling_; }
-	// Slowdown enabled and this peer's load at or over the threshold.
+	// This peer's load at or over the threshold.
 	bool LocalSlow();
 	// Rollback: the synced state of the current frame, for the debug view.
 	void SetSynced(bool slow) { synced_slow_ = slow; }
