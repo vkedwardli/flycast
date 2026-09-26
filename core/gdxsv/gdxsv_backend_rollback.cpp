@@ -1740,7 +1740,7 @@ void drawNetworkPlayerHeading(int player, const proto::BattleLogUser& user,
 	// Keep the player position and ID in the separator, with both names below.
 	const float height = 1.f + ImGui::GetStyle().ItemSpacing.y * 2.f;
 	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 0.85f);
-	const std::string label = std::to_string(player + 1) + "P " + user.user_id();
+	const std::string label = std::to_string(player + 1) + "P  " + user.user_id();
 	const float gap = ImGui::GetFontSize() * 0.5f;
 	const float line_y = pos.y + height * 0.5f;
 	float line_right = pos.x + width;
