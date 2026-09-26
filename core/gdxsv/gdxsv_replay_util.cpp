@@ -19,6 +19,7 @@
 #include "dirent.h"
 #include "gdxsv.h"
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_window.h"
 #include "json.hpp"
 #include "libs.h"
 #ifdef _WIN32
@@ -394,8 +395,12 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 		if (side_by_side)
 			ImGui::SameLine();
 		// Four-screen playback does not require a selected player.
-		replay_button(ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)", 0, true,
-			users_size == 4 ? nullptr : ICON_FA_TABLE_CELLS_LARGE "  4-player battles only");
+		const char* four_screen_hint = nullptr;
+		if (users_size != kGdxsvMultiPovScreens)
+			four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4-player battles only";
+		else if (!gdxsv_multi_pov_window_available())
+			four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable";
+		replay_button(ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)", 0, true, four_screen_hint);
 
 		if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
 			ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
