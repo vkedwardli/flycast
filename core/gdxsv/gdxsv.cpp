@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 #include <random>
 #include <sstream>
 
@@ -54,6 +55,29 @@ bool encode_zlib_deflate(const char *data, int len, std::vector<u8> &out) {
 	return false;
 }
 
+// DC2 functions that render_current_frame (0c052244) calls only to produce output. On skip frames
+// (rollback resimulation, replay seek) the render call itself still runs, because the object draw callbacks
+// inside it update state that game logic reads (part/bone world positions); only these return at entry.
+// Picked by profiling a replay seek, and each checked to leave game RAM equal to a full render.
+static const u32 dc2RenderOnlyFuncs[] = {
+	0x0c1ab040, 0x0c1ab042,                                      // vertex transform + polygon output
+	0x0c19f910, 0x0c19fa60, 0x0c19fa90, 0x0c19fac0, 0x0c19fb00,  // model draw
+	0x0c16d504,                                                  // stage draw
+	0x0c076bb0,                                                  // MS (PlayerWork +0x78) draw callback
+	0x0c197f80, 0x0c198030, 0x0c19ac00, 0x0c19d2d0,              // per-pass view setup
+	0x0c16c880, 0x0c16c8d0,                                      // 2D pass
+};
+
+// The same functions in DC1 (render_current_frame 0c064e24), matched to DC2 by code and call structure.
+static const u32 dc1RenderOnlyFuncs[] = {
+	0x0c14b860, 0x0c14b862,                                      // vertex transform + polygon output
+	0x0c140130, 0x0c140280, 0x0c1402b0, 0x0c1402e0, 0x0c140320,  // model draw
+	0x0c115abc,                                                  // stage draw
+	0x0c08092e,                                                  // MS (PlayerWork +0x78) draw callback
+	0x0c1387a0, 0x0c138850, 0x0c13b420, 0x0c13daf0,              // per-pass view setup
+	0x0c115074, 0x0c1150c4,                                      // 2D pass
+};
+
 bool Gdxsv::InGame() const { return enabled_ && (netmode_ == NetMode::McsUdp || netmode_ == NetMode::McsRollback); }
 
 bool Gdxsv::IsOnline() const {
@@ -95,6 +119,8 @@ void Gdxsv::Reset() {
 	settings.gdxsv.disk = 0;
 	settings.gdxsv.replayModeActive = false;
 	settings.gdxsv.skipRenderingBaseAddr = 0;
+	settings.gdxsv.renderOnlyFuncs = nullptr;
+	settings.gdxsv.renderOnlyFuncCount = 0;
 
 	// Automatically add ContentPath if it is empty.
 	if (config::ContentPath.get().empty()) {
@@ -113,6 +139,14 @@ void Gdxsv::Reset() {
 	widescreen_patch_enabled_ = config::Widescreen.get() && config::WidescreenGameHacks.get();
 	settings.gdxsv.disk = disk_;
 	settings.gdxsv.skipRenderingBaseAddr = (disk_ == 1) ? 0x0c064cce : (disk_ == 2) ? 0x0c0520e2 : 0;
+	if (disk_ == 1) {
+		settings.gdxsv.renderOnlyFuncs = dc1RenderOnlyFuncs;
+		settings.gdxsv.renderOnlyFuncCount = std::size(dc1RenderOnlyFuncs);
+	}
+	else if (disk_ == 2) {
+		settings.gdxsv.renderOnlyFuncs = dc2RenderOnlyFuncs;
+		settings.gdxsv.renderOnlyFuncCount = std::size(dc2RenderOnlyFuncs);
+	}
 
 	RestoreOnlinePatch();
 

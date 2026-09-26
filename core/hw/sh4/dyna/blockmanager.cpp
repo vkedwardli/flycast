@@ -52,15 +52,46 @@ static DynarecCodeEntryPtr DYNACALL bm_GetCode(u32 addr)
 	return rv;
 }
 
+// gdxsv: on skip frames (rollback resimulation, replay seek) the game's render call still runs, because
+// object draw callbacks inside it update state that game logic reads. Only the disk's output-only functions
+// (settings.gdxsv.renderOnlyFuncs) return at their entry, from the render call until it returns.
+// Without a list the whole render call is skipped.
+static u32 gdxsvRenderReturn;
+
+static bool gdxsvIsRenderOnlyFunc(u32 addr)
+{
+	for (u32 i = 0; i < settings.gdxsv.renderOnlyFuncCount; i++)
+		if (settings.gdxsv.renderOnlyFuncs[i] == addr)
+			return true;
+	return false;
+}
+
 // addr must be a virtual address
 // This returns an executable address
 DynarecCodeEntryPtr DYNACALL bm_GetCodeByVAddr(u32 addr)
 {
-	// Hack: skip bsr render_current_frame during rollback
-	if (addr == settings.gdxsv.skipRenderingAddr) {
-		Sh4cntx.pc += 4;
-		Sh4cntx.cycle_counter -= 1000000;
-		addr = Sh4cntx.pc;
+	if (settings.gdxsv.skipRenderingAddr == 0) {
+		if (gdxsvRenderReturn != 0)
+			gdxsvRenderReturn = 0;
+	}
+	else if (settings.gdxsv.renderOnlyFuncCount == 0) {
+		// Hack: skip bsr render_current_frame during rollback
+		if (addr == settings.gdxsv.skipRenderingAddr) {
+			Sh4cntx.pc += 4;
+			Sh4cntx.cycle_counter -= 1000000;
+			addr = Sh4cntx.pc;
+		}
+	}
+	else if (addr == settings.gdxsv.skipRenderingAddr) {
+		gdxsvRenderReturn = addr + 4;
+	}
+	else if (gdxsvRenderReturn != 0) {
+		if (gdxsvIsRenderOnlyFunc(addr)) {
+			Sh4cntx.pc = Sh4cntx.pr;
+			addr = Sh4cntx.pc;
+		}
+		if (addr == gdxsvRenderReturn)
+			gdxsvRenderReturn = 0;
 	}
 
 	if (!mmu_enabled())

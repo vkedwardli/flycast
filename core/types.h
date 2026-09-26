@@ -224,6 +224,8 @@ struct settings_t
 		bool replayModeActive;      // Runtime replay mode flag used by platform/UI code
 		u32 skipRenderingAddr;      // Active skip address (0 = disabled)
 		u32 skipRenderingBaseAddr;  // Pre-computed based on disk (set once at init)
+		const u32 *renderOnlyFuncs; // Output-only functions skipped while the render call runs on skip frames
+		u32 renderOnlyFuncCount;    // 0 = skip the whole render call instead
 		float audioScale;           // Extra output gain 0..1 (0 = none); 4-player replay
 	} gdxsv;
 
