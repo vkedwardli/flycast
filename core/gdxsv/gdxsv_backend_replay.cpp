@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <locale>
 #include <sstream>
 #include <ctime>
 #include <thread>
@@ -1948,6 +1949,10 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 		return 0;
 	}
 
+	if (gdxsv.slowdown_.Stalling() && !seeking_) {
+		return 0;
+	}
+
 	int n = std::min<int>(recv_buf_.size(), size);
 	for (int i = 0; i < n; ++i) {
 		gdxsv_WriteMem8(addr + i, recv_buf_.front());
@@ -2134,6 +2139,7 @@ bool GdxsvBackendReplay::Start() {
 	NOTICE_LOG(COMMON, "patch_size = %d", log_file_.patches_size());
 	NOTICE_LOG(COMMON, "inputs_size = %d", log_file_.inputs_size());
 	std::ostringstream ss;
+	ss.imbue(std::locale::classic());
 	for (const int a : log_file_.start_msg_indexes()) ss << a << " ";
 	NOTICE_LOG(COMMON, "start_msg_indexes = %s", ss.str().c_str());
 	ss.str("");
@@ -2744,6 +2750,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 		ImGui::Separator();
 
 		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
+		OptionCheckbox("Slowdown", config::GdxSlowdown, "Experimental: drop to 30fps while many projectiles are in play, like the arcade (DC2)");
 
 		// Key Display and Skip MS Selection do nothing during Live Spectate, so
 		// they are not offered there rather than sitting inert.

@@ -41,6 +41,7 @@ bool inRollback;
 bool skipInputOccurred;
 std::unordered_map<int, int> skippedFrames;
 u16 localExInput;
+u16 localExInputFlags;
 std::atomic<int> timeSyncFrames;
 
 static void getLocalInput(MapleInputState inputState[4])
@@ -911,7 +912,7 @@ bool nextFrame()
 
 		if (useExInput)
 		{
-			inputs.exInput = localExInput;
+			inputs.exInput = localExInput | localExInputFlags;
 		}
 		if (gdxsv_enabled()) {
 			if (lt2[0] >= 64) inputs.kcode |= DC_BTN_A | DC_BTN_X;
@@ -1224,6 +1225,7 @@ void gdxsvStartSession(const char* sessionCode, int me,
 	inputBlockCount.fill(0);
 	useExInput = true;
 	localExInput = 0;
+	localExInputFlags = 0;
 	analogAxes = 2;
 	inputSize = sizeof(kcode[0]) + sizeof(Inputs::exInput) + analogAxes;
 	NOTICE_LOG(NETWORK, "inputSize:%d", inputSize);

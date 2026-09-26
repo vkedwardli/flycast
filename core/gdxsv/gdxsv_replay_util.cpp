@@ -32,6 +32,7 @@
 #include "stdclass.h"
 
 #include <sstream>
+#include <locale>
 #include <future>
 #include <thread>
 #include <algorithm>
@@ -431,6 +432,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
 	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
 	OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
+	OptionCheckbox("Slowdown", config::GdxSlowdown, "Experimental: drop to 30fps while many projectiles are in play, like the arcade (DC2)");
 }
 
 void draw_round_detail(const ReplayEntry& entry) {
@@ -954,6 +956,8 @@ void fetch_user_json() {
 		unsigned hash = 2166136261U;
 		for (const unsigned char e : e_loginkey) hash = hash * 16777619U ^ static_cast<unsigned>(e);
 		std::ostringstream hashed_loginkey_s;
+		// Account keys must be plain hex, without locale-specific separators.
+		hashed_loginkey_s.imbue(std::locale::classic());
 		hashed_loginkey_s << std::setfill('0') << std::setw(8) << std::hex << hash;
 
 		url += "login_key=" + http::urlEncode(hashed_loginkey_s.str());
