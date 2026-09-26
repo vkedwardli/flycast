@@ -350,6 +350,7 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 		ImGui::SameLine();
 		ImGui::TextDisabled("(4-player battles only)");
 	}
+	OptionCheckbox("Slowdown", config::GdxSlowdown, "Experimental: drop to 30fps while many projectiles are in play, like the arcade (DC2)");
 }
 
 void draw_round_detail(const ReplayEntry& entry) {

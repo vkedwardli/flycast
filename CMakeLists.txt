@@ -1863,6 +1863,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_https_latency.h
 		core/gdxsv/gdxsv_key_display.cpp
 		core/gdxsv/gdxsv_key_display.h
+		core/gdxsv/gdxsv_projectile_view.cpp
+		core/gdxsv/gdxsv_projectile_view.h
+		core/gdxsv/gdxsv_slowdown.cpp
+		core/gdxsv/gdxsv_slowdown.h
 		core/gdxsv/gdxsv_network.cpp
 		core/gdxsv/gdxsv_network.h
 		core/gdxsv/juice_helper.c
