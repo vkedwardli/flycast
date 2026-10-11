@@ -15,6 +15,11 @@ public:
 	virtual bool init() = 0;
 	virtual u32 push(const void *data, u32 frames, bool wait) = 0;
 	virtual void term() {}
+	// False means the backend needs reopening to discard queued output.
+	virtual bool flush() { return false; }
+	// Four-view output refills its queue after a seek or an underrun before
+	// resuming playback. Other output paths retain their normal latency.
+	virtual void setPrebuffering(bool enabled) {}
 
 	// Frames queued for output and the most the queue holds, for audio rate
 	// control. False if the backend cannot tell.
@@ -68,6 +73,8 @@ void InitAudio();
 void TermAudio();
 void FlushAudio();
 void WriteSample(s16 right, s16 left);
+void SetMultiPovAudio(bool enabled);
+void FinishMultiPovAudioFrame(int64_t position, uint32_t seek_generation, bool audible, uint32_t timeline = 0);
 
 void StartAudioRecording(bool eight_khz);
 u32 RecordAudio(void *buffer, u32 samples);

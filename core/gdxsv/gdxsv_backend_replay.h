@@ -2,6 +2,7 @@
 #include <chrono>
 
 #include "gdxsv_spectate_sync.h"
+#include "gdxsv_multi_pov_audio.h"
 
 #include "gdxsv.pb.h"
 #include "gdxsv_replay_ui.h"
@@ -18,6 +19,8 @@
 // never runs that lobby-connect flow, so it has nothing to read it from.
 constexpr int kGdxsvLbsPort = 9876;
 
+struct GdxsvMultiPovPlayback;
+
 // Mock network implementation to replay local battle log
 class GdxsvBackendReplay {
    friend class GdxsvReplayInputTest;
@@ -29,6 +32,7 @@ class GdxsvBackendReplay {
 	void OnMainUiLoop();
 	void OnEndOfFrame();
 	void OnNextFrame();
+	bool BeforeFrame();
 	bool OnOpenMenu();
 	void DisplayOSD();
 	bool Seeking() const { return seeking_; }
@@ -87,6 +91,9 @@ class GdxsvBackendReplay {
 	// the guests follow it with the same control commands the user would give.
 	void PublishMultiPovPlayback();
 	void FollowMultiPovHost();
+	void ApplyMultiPovPlayback(const GdxsvMultiPovPlayback& state);
+	void CompleteMultiPovAudioSeek();
+	void AlignPausedGuestAudio();
 	// Guest: blocks while more than a couple of frames ahead of the host.
 	void WaitForMultiPovHost();
 	void RenderControlBar(const UiState& ui);
@@ -180,6 +187,29 @@ class GdxsvBackendReplay {
 			for (const auto& cmd : cmds_) {
 				if (cmd.cmd == c) {
 					return true;
+				}
+			}
+			return false;
+		}
+		bool cancelsAudioRecovery(bool live, bool from_ui) {
+			std::lock_guard lock(mtx_);
+			for (const auto& cmd : cmds_) {
+				switch (cmd.cmd) {
+				case ReplayCtrlCommand::JumpToKeyMsg:
+				case ReplayCtrlCommand::SetRound:
+				case ReplayCtrlCommand::NextRound:
+				case ReplayCtrlCommand::StepFrameBackward:
+				case ReplayCtrlCommand::SeekForward:
+				case ReplayCtrlCommand::SeekBackward:
+				case ReplayCtrlCommand::ExitReplay:
+					return true;
+				case ReplayCtrlCommand::FollowLive:
+					if (live) return true;
+					break;
+				case ReplayCtrlCommand::SeekToBriefing:
+					if (from_ui) return true;
+					break;
+				default: break;
 				}
 			}
 			return false;
@@ -332,6 +362,33 @@ class GdxsvBackendReplay {
 	// guests follow. Guest: the last seek generation applied.
 	int multi_pov_published_frame_ = -1;
 	uint32_t multi_pov_seek_generation_ = 0;
+	// Guests adopt the audio epoch only after the queued seek has landed.
+	uint32_t multi_pov_audio_seek_generation_ = 0;
+	uint32_t multi_pov_audio_seek_subframe_ = 0;
+	uint32_t multi_pov_seek_sync_subframe_ = 0;
+	bool multi_pov_audio_recovery_ = false;
+	GdxsvMultiPovSeekRecovery multi_pov_seek_recovery_;
+	bool multi_pov_speed_audio_ = false;
+	bool multi_pov_speed_burst_ = false;
+	// Audio needs distinct positions even through a long pause; the visual
+	// sync subframe saturates after 1023 frames without a new input.
+	uint32_t multi_pov_audio_subframe_ = 0;
+	bool multi_pov_input_pending_ = false;
+	std::chrono::steady_clock::time_point multi_pov_input_wait_start_ {};
+	bool multi_pov_audio_discontinuity_ = false;
+	bool multi_pov_audio_rebase_ = false;
+	std::chrono::steady_clock::time_point multi_pov_next_host_check_ {};
+	bool multi_pov_recovery_host_gone_ = false;
+	bool AudioRecoveryCancelled() {
+		return ui_commands_.cancelsAudioRecovery(live_mode_, true) || ctrl_commands_.cancelsAudioRecovery(live_mode_, false);
+	}
+	void ResetAudioPosition();
+	void RestorePlaybackSettings(bool stopping);
+	uint32_t AudioTimeline() const {
+		return uint32_t(start_msg_count_) * 2 +
+				(multi_pov_start_barrier_done_ && !multi_pov_start_barrier_pending_ ? 1 : 0);
+	}
+	int64_t AudioPosition() const { return gdxsv_multi_pov_audio_position(key_msg_count_, multi_pov_audio_subframe_); }
 	// Host: the replay is moving the position itself (round change, briefing
 	// skip), which every screen does on its own, so it is not a seek.
 	bool multi_pov_system_move_ = false;

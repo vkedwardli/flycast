@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 
 // Keeps several spectator instances on one machine playing the same frame.
@@ -33,7 +34,9 @@ class GdxsvSpectateSync {
 	// Returns true if the group synced up, false if it gave up: alone, every
 	// peer catching up, or the deadline passed. Playback continues either way
 	// - a spectator must never hang.
-	bool WaitForPeers(int32_t frame, int max_wait_ms);
+	// Optional maintenance runs during the wait, so audio queues can release
+	// old frames without making a lagging producer wait for video to catch up.
+	bool WaitForPeers(int32_t frame, int max_wait_ms, const std::function<void()>& maintenance = {});
 
    private:
 	void* map_ = nullptr;

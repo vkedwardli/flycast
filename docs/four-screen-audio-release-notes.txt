@@ -1,0 +1,18 @@
+Four-screen replay audio
+
+MultiPovMixVolume replaces the advanced MultiPovVolume override in emu.cfg.
+Old manually configured MultiPovVolume values are ignored. The new default is
+100% of the averaged active streams, with Flycast's master volume still applied.
+Set MultiPovMixVolume in the [gdxsv] section to override the four-screen level.
+
+The host buffers three displayed frames (about 50 ms): three emulated packets
+at 1x, six at 2x, and nine at 3x. It mixes all viewpoints at the same replay
+position, covering video sync's two-frame tolerance plus PCM publication at
+each speed, without waiting on a missing guest. Guest queues hold 16 packets,
+and changing speed preserves the timing of already buffered audio.
+
+Full guest queues no longer stall playback while the pause menu is open.
+One-second jumps use the same audio recovery as larger seeks. Offline
+four-screen replays synchronize the first resumed briefing input across
+viewpoints, including at 2x/3x, and natural round changes retain the buffered
+audio tail.

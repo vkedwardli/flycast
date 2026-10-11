@@ -18,6 +18,8 @@ class SDLAudioBackend : AudioBackend
 	uint32_t *sample_buffer;
 	unsigned sample_buffer_size = 0;
 	unsigned sample_count = 0;
+	bool prebuffering = false;
+	bool priming = false;
 	SDL_AudioCVT audioCvt;
 
 	SDL_AudioDeviceID recorddev {};
@@ -34,14 +36,21 @@ class SDLAudioBackend : AudioBackend
 		unsigned oslen = len / sizeof(uint32_t);
 		unsigned islen = backend->needs_resampling ? std::ceil(oslen / backend->audioCvt.len_ratio) : oslen;
 
-		if (backend->sample_count < islen)
+		// Start with enough PCM to leave the adaptive resampler's target
+		// headroom after a callback. Waiting for real samples takes a few
+		// frames; rebuilding that headroom at 0.5% would take seconds.
+		const unsigned target = std::min(backend->sample_buffer_size,
+				std::max(islen, (backend->sample_buffer_size + islen) / 2));
+		if ((backend->priming && backend->sample_count < target) || backend->sample_count < islen)
 		{
+			backend->priming = backend->prebuffering;
 			// No data, just output a bit of silence for the underrun
 			memset(stream, 0, len);
 			backend->stream_mutex.unlock();
 			backend->read_wait.Set();
 			return;
 		}
+		backend->priming = false;
 
 		if (!backend->needs_resampling) {
 			// Just copy bytes for this case.
@@ -81,6 +90,7 @@ public:
 		sample_buffer_size = std::max<u32>(SAMPLE_COUNT * 2, config::AudioBufferSize);
 		sample_buffer = new uint32_t[sample_buffer_size]();
 		sample_count = 0;
+		prebuffering = priming = false;
 
 		// Support 44.1KHz (native) but also upsampling to 48KHz
 		SDL_AudioSpec wav_spec, out_spec;
@@ -155,6 +165,22 @@ public:
 		queued = sample_count;
 		capacity = sample_buffer_size;
 		return true;
+	}
+
+	bool flush() override
+	{
+		std::lock_guard<std::mutex> _(stream_mutex);
+		sample_count = 0;
+		priming = prebuffering;
+		read_wait.Set();
+		return true;
+	}
+
+	void setPrebuffering(bool enabled) override
+	{
+		std::lock_guard<std::mutex> _(stream_mutex);
+		if (prebuffering != enabled) priming = enabled;
+		prebuffering = enabled;
 	}
 
 	void term() override

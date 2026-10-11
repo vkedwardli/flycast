@@ -1,7 +1,11 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
+#include "gdxsv_multi_pov_audio.h"
+
+constexpr int kGdxsvMultiPovSyncSubFrames = 1024; // ~17s before the visual subframe saturates
 
 // 4-player replay: one replay watched from all four POVs at once, as four
 // Flycast processes in a 2x2 grid ([1P, 2P] / [3P, 4P]).
@@ -15,8 +19,6 @@
 // what it receives (the bootstrap header, inputs, round state and close)
 // through the session as it arrives. The session outlives a battle: the host
 // publishes the next one and the guests follow.
-
-constexpr int kGdxsvMultiPovScreens = 4;
 
 enum class GdxsvMultiPovRole {
 	None,	// ordinary single-screen playback
@@ -45,13 +47,17 @@ struct GdxsvMultiPovHostWindow {
 
 // Playback state, published by the host every frame and followed by the guests.
 struct GdxsvMultiPovPlayback {
-	int64_t position = 0;		  // key_msg_count * kSyncSubFrames + subframe
+	int64_t position = 0;		  // key_msg_count * kGdxsvMultiPovSyncSubFrames + subframe
 	int32_t speed = 0;			  // replay speed index
 	bool paused = false;
 	bool menu_open = false;		  // the host's pause menu is up
 	uint32_t seek_generation = 0; // bumped per seek
 	int64_t seek_target = 0;	  // key message index the host seeked to
 	int32_t seek_round = 0;		  // round the host jumped to with SetRound, 0 for other seeks
+	uint32_t seek_audio_subframe = 0; // frame within the landed seek's input index
+	uint32_t audio_timeline = 0;
+	bool audio_recovering = false; // guests that landed hold at the same boundary
+	int64_t audio_position = 0; // full counter, including pauses beyond 1023 frames
 
 	// Replay options toggled on the host.
 	bool show_ally_hp = false;
@@ -127,6 +133,26 @@ void gdxsv_multi_pov_read_guest_windows(int64_t out[kGdxsvMultiPovScreens]);
 
 // Guest: the host closed the session or its process is gone.
 bool gdxsv_multi_pov_host_gone();
+
+// Guests relay frame audio; only the host opens an output device. Returns the
+// mixed sample count on the host, zero on guests/outside a session.
+void gdxsv_multi_pov_audio_enable(bool enabled);
+void gdxsv_multi_pov_audio_audible(bool audible);
+// Host: reset delayed PCM. Guest: invalidate its queued PCM without changing read.
+void gdxsv_multi_pov_audio_reset();
+// Host: release older packets during visual synchronization, keeping the
+// current and future frames available for their own mixes.
+void gdxsv_multi_pov_audio_drain(int64_t position, uint32_t seek_generation, uint32_t timeline = 0);
+void gdxsv_multi_pov_audio_seek_ready(uint32_t seek_generation);
+// Publish a requested input; true once every active screen requested it.
+bool gdxsv_multi_pov_input_ready(int input, uint32_t seek_generation, uint32_t timeline);
+// One nonblocking recovery poll before a frame. False means keep holding;
+// true means ready, stalled, disconnected, or cancelled by a live UI command.
+bool gdxsv_multi_pov_audio_poll_seek(int64_t position, uint32_t seek_generation, uint32_t timeline,
+		int stall_ms, GdxsvMultiPovSeekRecovery& recovery, bool cancelled);
+uint32_t gdxsv_multi_pov_audio_frame(int64_t position, uint32_t seek_generation,
+		const GdxsvMultiPovAudioSample* samples, uint32_t count,
+		GdxsvMultiPovAudioSample* mixed, uint32_t timeline = 0);
 
 // ---- grid geometry ----------------------------------------------------
 

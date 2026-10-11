@@ -19,6 +19,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <new>
 #include <thread>
 
 #include "gdxsv.pb.h"
@@ -26,10 +27,11 @@
 #include "types.h"
 
 constexpr uint32_t kMagic = 0x4D505634;	 // "MPV4"
-constexpr uint32_t kVersion = 4;
+constexpr uint32_t kVersion = 14;
 
 // The replay payload follows the header at this offset.
-constexpr size_t kPayloadOffset = 4096;
+constexpr size_t kAudioOffset = 4096;
+constexpr size_t kPayloadOffset = (kAudioOffset + sizeof(GdxsvMultiPovAudioQueue) * kGdxsvMultiPovScreens + 4095) & ~size_t(4095);
 
 // Sanity cap on the replay size read from a header another process wrote.
 constexpr uint64_t kMaxReplayBytes = 256ull * 1024 * 1024;
@@ -90,6 +92,7 @@ struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> go;
 
 	std::atomic<int32_t> guest_pid[kGdxsvMultiPovScreens];
+	std::atomic<uint32_t> audio_active_mask; // each screen updates its own bit
 
 	// Playback, written by the host every frame.
 	std::atomic<int64_t> position;
@@ -131,9 +134,23 @@ struct GdxsvMultiPovHeader {
 	std::atomic<uint32_t> feed_rounds_size;
 	std::atomic<int32_t> feed_inputs;
 	std::atomic<uint32_t> feed_backlog;
+	std::atomic<uint32_t> audio_timeline; // host round/barrier epoch
+	std::atomic<uint32_t> seek_audio_subframe;
+	std::atomic<uint32_t> audio_recovering;
+	std::atomic<int64_t> audio_position;
+	std::atomic<int64_t> audio_played_position; // delayed frame already consumed; -1 while priming
+	std::atomic<uint32_t> audio_played_timeline;
+	GdxsvMultiPovInputBarrier input_barrier;
 };
 
-static_assert(sizeof(GdxsvMultiPovHeader) <= kPayloadOffset, "header must fit before the payload");
+// Publish the position before its timeline. A guest acquiring a new timeline
+// then sees that timeline's cutoff, never the previous round's larger counter.
+static void PublishAudioCutoff(GdxsvMultiPovHeader* h, int64_t position, uint32_t timeline) {
+	h->audio_played_position.store(position, std::memory_order_relaxed);
+	h->audio_played_timeline.store(timeline, std::memory_order_release);
+}
+
+static_assert(sizeof(GdxsvMultiPovHeader) <= kAudioOffset, "header must fit before the audio queues");
 
 // Windows: a named section backed by the paging file, so nothing is written
 // to disk and it goes when the last process unmaps it. The guests are the
@@ -265,6 +282,9 @@ struct GdxsvMultiPovSession {
 };
 
 static GdxsvMultiPovSession g_session;
+static GdxsvMultiPovAudioDelay audioDelay;
+static GdxsvMultiPovAudioGain audioMixGain;
+static std::chrono::steady_clock::time_point audioNextProcessCheck;
 
 static bool HostAlive(const GdxsvMultiPovHeader* h) {
 	if (h->host_closed.load(std::memory_order_acquire) != 0) return false;
@@ -298,6 +318,10 @@ static bool CreateHostSession(const std::string& session_id, size_t size) {
 
 	GdxsvMultiPovHeader* h = g_session.header();
 	std::memset(m, 0, kPayloadOffset);
+	// Construct the atomics and packets in the shared mapping before publishing it.
+	new (&h->input_barrier) GdxsvMultiPovInputBarrier();
+	for (int i = 0; i < kGdxsvMultiPovScreens; ++i)
+		new (g_session.at(kAudioOffset) + i * sizeof(GdxsvMultiPovAudioQueue)) GdxsvMultiPovAudioQueue();
 	h->version.store(kVersion, std::memory_order_relaxed);
 	h->total_size.store(size, std::memory_order_relaxed);
 	h->host_pid.store(CurrentPid(), std::memory_order_relaxed);
@@ -583,6 +607,10 @@ bool gdxsv_multi_pov_host_wait_for_guests(int expected_guests, int timeout_ms) {
 void gdxsv_multi_pov_publish_playback(const GdxsvMultiPovPlayback& state) {
 	GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return;
+	if (h->seek_generation.load(std::memory_order_relaxed) != state.seek_generation) {
+		audioDelay.reset();
+		PublishAudioCutoff(h, -1, state.audio_timeline);
+	}
 	h->position.store(state.position, std::memory_order_relaxed);
 	h->speed.store(state.speed, std::memory_order_relaxed);
 	h->paused.store(state.paused ? 1u : 0u, std::memory_order_relaxed);
@@ -594,6 +622,10 @@ void gdxsv_multi_pov_publish_playback(const GdxsvMultiPovPlayback& state) {
 	h->skip_ms_selection.store(state.skip_ms_selection ? 1u : 0u, std::memory_order_relaxed);
 	h->volume.store(state.volume, std::memory_order_relaxed);
 	h->live_following.store(state.live_following ? 1u : 0u, std::memory_order_relaxed);
+	h->seek_audio_subframe.store(state.seek_audio_subframe, std::memory_order_relaxed);
+	h->audio_timeline.store(state.audio_timeline, std::memory_order_relaxed);
+	h->audio_recovering.store(state.audio_recovering ? 1u : 0u, std::memory_order_relaxed);
+	h->audio_position.store(state.audio_position, std::memory_order_release);
 	// Last, so a guest that sees the generation sees the target with it.
 	h->seek_generation.store(state.seek_generation, std::memory_order_release);
 	h->playback_published.store(1, std::memory_order_release);
@@ -606,6 +638,10 @@ bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out) {
 	out.seek_generation = h->seek_generation.load(std::memory_order_acquire);
 	out.seek_target = h->seek_target.load(std::memory_order_relaxed);
 	out.seek_round = h->seek_round.load(std::memory_order_relaxed);
+	out.seek_audio_subframe = h->seek_audio_subframe.load(std::memory_order_relaxed);
+	out.audio_timeline = h->audio_timeline.load(std::memory_order_relaxed);
+	out.audio_recovering = h->audio_recovering.load(std::memory_order_acquire) != 0;
+	out.audio_position = h->audio_position.load(std::memory_order_acquire);
 	out.position = h->position.load(std::memory_order_relaxed);
 	out.speed = h->speed.load(std::memory_order_relaxed);
 	out.paused = h->paused.load(std::memory_order_relaxed) != 0;
@@ -668,6 +704,225 @@ bool gdxsv_multi_pov_host_gone() {
 	const GdxsvMultiPovHeader* h = g_session.header();
 	if (h == nullptr) return false;
 	return !HostAlive(h);
+}
+
+void gdxsv_multi_pov_audio_enable(bool enabled) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.screen < 0) return;
+	const uint32_t bit = 1u << g_session.screen;
+	if (enabled) h->audio_active_mask.fetch_or(bit, std::memory_order_acq_rel);
+	else h->audio_active_mask.fetch_and(~bit, std::memory_order_acq_rel);
+	gdxsv_multi_pov_audio_audible(false);
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	queues[g_session.screen].ready_epoch.store(0, std::memory_order_release);
+	if (g_session.role == GdxsvMultiPovRole::Host) {
+		audioDelay.reset();
+		audioMixGain = {};
+		audioNextProcessCheck = {};
+		h->audio_recovering.store(0, std::memory_order_release);
+		PublishAudioCutoff(h, -1, h->audio_timeline.load(std::memory_order_relaxed));
+		for (int i = 1; i < kGdxsvMultiPovScreens; ++i) queues[i].discard();
+	}
+}
+
+void gdxsv_multi_pov_audio_audible(bool audible) {
+	if (g_session.header() == nullptr || g_session.role != GdxsvMultiPovRole::Host) return;
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	queues[g_session.screen].audible.store(audible ? 1u : 0u, std::memory_order_release);
+}
+
+void gdxsv_multi_pov_audio_reset() {
+	auto* h = g_session.header();
+	if (h == nullptr) return;
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	if (g_session.role == GdxsvMultiPovRole::Guest) queues[g_session.screen].resetProducer();
+	else if (g_session.role == GdxsvMultiPovRole::Host) {
+		audioDelay.reset();
+		PublishAudioCutoff(h, -1, h->audio_timeline.load(std::memory_order_relaxed));
+		for (int i = 1; i < kGdxsvMultiPovScreens; ++i) queues[i].discard();
+	}
+}
+
+void gdxsv_multi_pov_audio_drain(int64_t position, uint32_t seek_generation, uint32_t timeline) {
+	const GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return;
+	const uint64_t epoch = gdxsv_multi_pov_audio_epoch(h->live_seq.load(std::memory_order_acquire) / 2, seek_generation);
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	if (const auto* buffered = audioDelay.oldest(); buffered != nullptr &&
+			buffered->epoch == epoch) {
+		position = buffered->position;
+		timeline = buffered->timeline;
+	}
+	for (int i = 1; i < kGdxsvMultiPovScreens; ++i) queues[i].discardBefore(epoch, position, timeline);
+}
+
+void gdxsv_multi_pov_audio_seek_ready(uint32_t seek_generation) {
+	const GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Guest) return;
+	const uint32_t battle = h->live.load(std::memory_order_acquire) ? g_session.feed_generation
+			: h->live_seq.load(std::memory_order_acquire) / 2;
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	queues[g_session.screen].ready_epoch.store(gdxsv_multi_pov_audio_epoch(battle, seek_generation), std::memory_order_release);
+}
+
+bool gdxsv_multi_pov_input_ready(int input, uint32_t seek_generation, uint32_t timeline) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.screen < 0) return true;
+	h->input_barrier.publish(g_session.screen, input, seek_generation, timeline);
+	const uint32_t active = h->audio_active_mask.load(std::memory_order_acquire);
+	return h->input_barrier.ready(input, seek_generation, timeline, active);
+}
+
+bool gdxsv_multi_pov_audio_poll_seek(int64_t position, uint32_t seek_generation, uint32_t timeline,
+		int stall_ms, GdxsvMultiPovSeekRecovery& recovery, bool cancelled) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Host) return true;
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	const uint64_t epoch = gdxsv_multi_pov_audio_epoch(h->live_seq.load(std::memory_order_acquire) / 2, seek_generation);
+	const auto now = std::chrono::steady_clock::now();
+	if (recovery.start == std::chrono::steady_clock::time_point{}) recovery.start = now;
+	gdxsv_multi_pov_audio_audible(false);
+	if (h->host_closed.load(std::memory_order_acquire) || cancelled) {
+		h->audio_recovering.store(0, std::memory_order_release);
+		NOTICE_LOG(AUDIO, "multi-pov audio: seek %u recovery cancelled", seek_generation);
+		return true;
+	}
+	const bool check_process = now >= recovery.next_process_check;
+	if (check_process) recovery.next_process_check = now + std::chrono::milliseconds(64);
+	uint32_t pending = h->audio_active_mask.load(std::memory_order_acquire) & ~1u;
+	for (int i = 1; i < kGdxsvMultiPovScreens; ++i) {
+		if (!(pending & (1u << i))) continue;
+		queues[i].discardBefore(epoch, position, timeline);
+		if (queues[i].ready_epoch.load(std::memory_order_acquire) == epoch) pending &= ~(1u << i);
+		else if (check_process && !ProcessAlive(h->guest_pid[i].load(std::memory_order_acquire))) {
+			h->audio_active_mask.fetch_and(~(1u << i), std::memory_order_acq_rel);
+			pending &= ~(1u << i);
+		}
+	}
+	const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - recovery.start).count();
+	if (pending == 0) {
+		h->audio_recovering.store(0, std::memory_order_release);
+		NOTICE_LOG(AUDIO, "multi-pov audio: seek %u ready after %lld ms", seek_generation, (long long)elapsed);
+		return true;
+	}
+	const uint32_t stalled = recovery.progress.stalled(queues, pending, elapsed, stall_ms);
+	if (stalled != 0) {
+		h->audio_recovering.store(0, std::memory_order_release);
+		WARN_LOG(AUDIO, "multi-pov audio: seek %u recovery stalled for %d ms, guest mask %x", seek_generation, stall_ms, stalled);
+		return true;
+	}
+	// A guest can keep emulating without ever applying its queued jump. Allow
+	// ordinary long seeks, but cap the total hold even while progress continues.
+	if (recovery.expired(now)) {
+		h->audio_recovering.store(0, std::memory_order_release);
+		WARN_LOG(AUDIO, "multi-pov audio: seek %u recovery timed out after %lld ms, guest mask %x",
+				seek_generation, (long long)elapsed, pending);
+		return true;
+	}
+	return false;
+}
+
+uint32_t gdxsv_multi_pov_audio_frame(int64_t position, uint32_t seek_generation,
+		const GdxsvMultiPovAudioSample* samples, uint32_t count, GdxsvMultiPovAudioSample* mixed, uint32_t timeline) {
+	GdxsvMultiPovHeader* h = g_session.header();
+	if (h == nullptr || g_session.screen < 0 || count > kMultiPovAudioSamples) return 0;
+	auto* queues = reinterpret_cast<GdxsvMultiPovAudioQueue*>(g_session.at(kAudioOffset));
+	if (g_session.role == GdxsvMultiPovRole::Host) {
+		h->audio_timeline.store(timeline, std::memory_order_release);
+		gdxsv_multi_pov_audio_audible(count != 0);
+	}
+	// A guest still finishing the previous live battle must not relabel that
+	// battle's PCM with a newly published host generation.
+	const uint32_t battle = g_session.role == GdxsvMultiPovRole::Guest && h->live.load(std::memory_order_acquire)
+			? g_session.feed_generation : h->live_seq.load(std::memory_order_acquire) / 2;
+	const uint64_t epoch = gdxsv_multi_pov_audio_epoch(battle, seek_generation);
+	// Static: this runs only on the emulation thread; avoid large stack frames.
+	static GdxsvMultiPovAudioPacket packets[kGdxsvMultiPovScreens];
+	auto& own = packets[g_session.screen];
+	own.epoch = epoch;
+	own.position = position;
+	own.count = count;
+	own.timeline = timeline;
+	if (count != 0) std::memcpy(own.samples, samples, count * sizeof(*samples));
+	if (g_session.role == GdxsvMultiPovRole::Guest) {
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2);
+		queues[g_session.screen].frame_progress.fetch_add(1, std::memory_order_release);
+		const auto late = [&]() {
+			// The acquire pairs with seek publication: a new generation must
+			// be read before its new position, especially on a backward jump.
+			const uint32_t host_seek = h->seek_generation.load(std::memory_order_acquire);
+			const uint64_t host_epoch = gdxsv_multi_pov_audio_epoch(h->live_seq.load(std::memory_order_acquire) / 2, host_seek);
+			const uint32_t played_timeline = h->audio_played_timeline.load(std::memory_order_acquire);
+			return gdxsv_multi_pov_audio_is_late(epoch, position, host_epoch,
+					h->audio_played_position.load(std::memory_order_relaxed), timeline, played_timeline);
+		};
+		if (late()) return 0;
+		auto next_host_check = std::chrono::steady_clock::time_point{};
+		while (!queues[g_session.screen].push(own)) {
+			const auto now = std::chrono::steady_clock::now();
+			if (now >= next_host_check) {
+				if (!HostAlive(h)) return 0;
+				next_host_check = now + std::chrono::milliseconds(64);
+			}
+			// The host cannot consume a later input while its menu holds the
+			// game. Drop full-queue PCM instead of slowing guest emulation;
+			// ordinary producer/consumer overlap gets at most two milliseconds.
+			if (late() || count == 0 || h->menu_open.load(std::memory_order_acquire) ||
+					(position >> 32) > (h->audio_position.load(std::memory_order_acquire) >> 32) ||
+					!queues[0].audible.load(std::memory_order_acquire) ||
+					now >= deadline) return 0;
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		return 0;
+	}
+	// Pausing and opening the menu stop the extra emulated frames, even when
+	// the selected playback speed is still 2x or 3x.
+	const int speed = h->paused.load(std::memory_order_relaxed) || h->menu_open.load(std::memory_order_relaxed)
+			? 0 : h->speed.load(std::memory_order_relaxed);
+	const auto* delayed = audioDelay.push(own, speed);
+	if (delayed == nullptr) {
+		const auto* first = audioDelay.oldest();
+		if (!audioDelay.primed) PublishAudioCutoff(h, -1, first->timeline);
+		for (int i = 1; i < kGdxsvMultiPovScreens; ++i)
+			queues[i].discardBefore(first->epoch, first->position, first->timeline);
+		return 0;
+	}
+	own.copyFrom(*delayed);
+	if (own.count == 0) {
+		for (int i = 1; i < kGdxsvMultiPovScreens; ++i) queues[i].discardThrough(own.epoch, own.position, own.timeline);
+		PublishAudioCutoff(h, own.position, own.timeline);
+		return 0;
+	}
+	uint32_t mask = 1;
+	uint32_t pending = 0;
+	uint32_t active = h->audio_active_mask.load(std::memory_order_acquire);
+	// Refresh participation periodically without checking processes per frame.
+	const auto now = std::chrono::steady_clock::now();
+	if (now >= audioNextProcessCheck) {
+		audioNextProcessCheck = now + std::chrono::milliseconds(64);
+		for (int i = 1; i < kGdxsvMultiPovScreens; ++i)
+			if ((active & (1u << i)) &&
+					!ProcessAlive(h->guest_pid[i].load(std::memory_order_acquire)))
+				h->audio_active_mask.fetch_and(~(1u << i), std::memory_order_acq_rel);
+		active = h->audio_active_mask.load(std::memory_order_acquire);
+	}
+	for (int i = 1; i < kGdxsvMultiPovScreens; ++i) {
+		if ((active & (1u << i)) && h->guest_pid[i].load(std::memory_order_acquire) > 0) pending |= 1u << i;
+	}
+	// Every active guest is tried on every frame. A missed frame cannot latch
+	// a stream out of the mix, and lag inside the buffer costs no host wait.
+	gdxsv_multi_pov_collect_audio(queues, own.epoch, own.position, packets, active, pending, mask, own.timeline);
+	PublishAudioCutoff(h, own.position, own.timeline);
+	gdxsv_multi_pov_mix_audio(packets, mask, mixed, own.count,
+			h->audio_active_mask.load(std::memory_order_acquire), &audioMixGain);
+	static uint32_t frame_count = 0, incomplete = 0;
+	if (mask != kMultiPovAudioMask) ++incomplete;
+	if (++frame_count % 300 == 0) {
+		NOTICE_LOG(AUDIO, "multi-pov audio: input %lld subframe %u, mask %x, incomplete %u/300, one output clock",
+				   (long long)(own.position >> 32), uint32_t(own.position), mask, incomplete);
+		incomplete = 0;
+	}
+	return own.count;
 }
 
 // ---- live feed ----------------------------------------------------------

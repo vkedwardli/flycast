@@ -300,6 +300,10 @@ void Gdxsv::HookNextFrame() {
 	}
 }
 
+bool Gdxsv::HookBeforeFrame() {
+	return netmode_ != NetMode::Replay || replay_net_.BeforeFrame();
+}
+
 void Gdxsv::HookMainUiLoop() {
 	if (!enabled_) return;
 

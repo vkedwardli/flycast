@@ -60,7 +60,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `ReplayApiUrl` | lobby API | where replays are listed and fetched |
 | `LiveApiUrl` | lobby API | where live battles are listed (`/status`) |
 | `LiveBufferFrames` | 30 | spectating: frames kept behind the live edge (10 to 3600) |
-| `MultiPovVolume` | 50 | four-screen replay: volume of each instance, 0 to 100 |
+| `MultiPovMixVolume` | 100 | four-screen replay: volume of the averaged active streams, 0 to 100 |
 | `SpectateSyncGroup` | empty | instances with the same name play the same frame (four-screen replay sets it) |
 | `SyncMaxWaitMs` | 2 | longest such a sync stalls a frame, 0 to 200 ms |
 | `SyncStartTime` | 0 | Unix time to wait for before loading the start state |
@@ -72,6 +72,10 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `headless_loadstate` | no | headless: start from the lobby save state |
 | `headless_probe_frames` | 0 | headless: exit after N vblanks |
 | `borderless` | no | borderless window |
+
+`MultiPovMixVolume` scales the averaged mix in addition to Flycast's master
+volume: `100` adds no further attenuation, `50` halves the mixed amplitude,
+and `0` mutes it. Old `MultiPovVolume` overrides are ignored.
 
 ## Environment variables
 

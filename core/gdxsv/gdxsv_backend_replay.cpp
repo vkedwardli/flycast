@@ -141,7 +141,23 @@ void drawTakeoverInput(u16 target, u16 current) {
 }
 }  // namespace
 
+void GdxsvBackendReplay::RestorePlaybackSettings(bool stopping) {
+	SetMultiPovAudio(false);
+	if (stopping || MultiPov()) {
+		settings.gdxsv.audioRateControl = false;
+		config::FixedFrequency.load();
+		config::LimitFPS.load();
+	}
+	if (MultiPov()) {
+		settings.gdxsv.audioScale = 0.f;
+		settings.input.fastForwardMode = false;
+	}
+	// A guest's volume followed the host's; back to the config file's.
+	if (multi_pov_guest_) config::AudioVolume.load();
+}
+
 void GdxsvBackendReplay::Reset() {
+	RestorePlaybackSettings(false);
 	live_downlink_.Stop();
 	live_mode_ = false;
 	live_session_ = false;
@@ -169,6 +185,12 @@ void GdxsvBackendReplay::Reset() {
 	key_msg_count_ = 0;
 	start_msg_count_ = 0;
 	briefing_start_frame_ = 0;
+	multi_pov_audio_subframe_ = 0;
+	multi_pov_input_pending_ = false;
+	multi_pov_input_wait_start_ = {};
+	multi_pov_audio_rebase_ = false;
+	multi_pov_next_host_check_ = {};
+	multi_pov_recovery_host_gone_ = false;
 	briefing_start_frame_round_ = 0;
 	recv_delay_ = 0;
 	end_of_frame_ = false;
@@ -185,6 +207,13 @@ void GdxsvBackendReplay::Reset() {
 	multi_pov_guest_ = false;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+	multi_pov_audio_seek_generation_ = 0;
+	multi_pov_audio_seek_subframe_ = 0;
+	multi_pov_seek_sync_subframe_ = 0;
+	multi_pov_audio_recovery_ = false;
+	multi_pov_audio_discontinuity_ = false;
+	multi_pov_speed_audio_ = false;
+	multi_pov_speed_burst_ = false;
 	multi_pov_system_move_ = false;
 	multi_pov_round_jump_ = false;
 	multi_pov_seek_round_ = 0;
@@ -266,7 +295,11 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 
 	// A 4-player replay guest has no controls of its own.
 	if (State::LbsStartBattleFlow <= ui.state && !ui.pauseMenuOpen && !gdxsv_is_multi_pov_guest()) {
-		auto input = mapleInputState[0];
+		// Recovery can poll controls without emulating another Maple update.
+		// Keep the same source afterwards, so a stale Maple snapshot cannot
+		// release and then retrigger a key held across the recovery boundary.
+		auto input = multi_pov_host_
+				? liveInputState() : mapleInputState[0];
 		// Map analog stick to d-pad (fullAxes are 16-bit, >> 8 to match convertInput thresholds)
 		if ((input.fullAxes[0] >> 8) + 128 <= 128 - 0x20) input.kcode &= ~DC_DPAD_LEFT;
 		if ((input.fullAxes[0] >> 8) + 128 >= 128 + 0x20) input.kcode &= ~DC_DPAD_RIGHT;
@@ -420,7 +453,8 @@ void GdxsvBackendReplay::OnEndOfFrame() {
 }
 
 void GdxsvBackendReplay::BeginSilentSeek() {
-	settings.aica.muteAudio = true;
+	if (multi_pov_host_ && !multi_pov_speed_audio_) gdxsv_multi_pov_audio_audible(false);
+	settings.aica.muteAudio = !multi_pov_speed_audio_;
 	rend_enable_renderer(false);
 	seeking_ = true;
 	// A burst right after normal playback inherits a stale end_of_frame_=true
@@ -445,8 +479,8 @@ void GdxsvBackendReplay::EndSilentSeek() {
 }
 
 void GdxsvBackendReplay::BeginSilentSeekWithAudioReset() {
-	FlushAudio();
 	TermAudio();
+	FlushAudio(); // reset local PCM without reopening a device we just closed
 	BeginSilentSeek();
 }
 
@@ -566,7 +600,7 @@ constexpr int kPacingRecoverMargin = 5;
 // long drops the frame rate and everybody hears it.
 constexpr int kSyncMaxWaitPerFrameMs = 2;
 
-// Sync position = key_msg_count_ * kSyncSubFrames + frames run since that input.
+// Sync position = key_msg_count_ * kGdxsvMultiPovSyncSubFrames + frames run since that input.
 //
 // key_msg_count_ is comparable across instances but freezes outside battle,
 // leaving nothing to sync on through the scenes where drift is most
@@ -594,8 +628,6 @@ constexpr int kLiveCatchUpFastSeekMargin = 270;
 // An exact full final packet, or a round transition, may have no short tail.
 // Silence is a bounded startup fallback, not proof of the server's live edge.
 constexpr auto kLiveInitialQuietWait = std::chrono::seconds(1);
-
-constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 
 // The game takes an input every frame or so, and at most about 430 frames
 // apart in normal play (measured over real 5-round battles, MS selection
@@ -774,6 +806,23 @@ void GdxsvBackendReplay::OnNextFrame() {
 	PublishUiState();
 	// After the frame, so a seek that ran within it is published as landed.
 	PublishMultiPovPlayback();
+	CompleteMultiPovAudioSeek();
+}
+
+void GdxsvBackendReplay::CompleteMultiPovAudioSeek() {
+	// During a queued rewind, PCM still belongs to the old position/epoch.
+	// Nested seek frames stay silent, and only the completed jump adopts the
+	// host epoch. An old, later position can never block the new epoch's queue.
+	if (multi_pov_guest_ && !seeking_ &&
+			!ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) &&
+			!ctrl_commands_.contains(ReplayCtrlCommand::SetRound) &&
+			!ctrl_commands_.contains(ReplayCtrlCommand::SeekToBriefing) &&
+			multi_pov_audio_seek_generation_ != multi_pov_seek_generation_) {
+		multi_pov_audio_seek_generation_ = multi_pov_seek_generation_;
+		multi_pov_audio_subframe_ = multi_pov_audio_seek_subframe_;
+		sync_subframe_ = multi_pov_seek_sync_subframe_;
+		gdxsv_multi_pov_audio_seek_ready(multi_pov_audio_seek_generation_);
+	}
 }
 
 // Host: publishes the playback state. A seek is detected from the position
@@ -782,6 +831,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	if (!multi_pov_host_) return;
 	if (seeking_) return;
+	const uint32_t previous_generation = multi_pov_seek_generation_;
 
 	const int64_t moved = static_cast<int64_t>(key_msg_count_) - multi_pov_published_frame_;
 	if (multi_pov_round_jump_) {
@@ -792,6 +842,11 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 		++multi_pov_seek_generation_;
 		NOTICE_LOG(COMMON, "multi-pov: round jump %d -> round %d, generation %u", multi_pov_published_frame_,
 				   start_msg_count_, multi_pov_seek_generation_);
+	} else if (multi_pov_audio_discontinuity_) {
+		++multi_pov_seek_generation_;
+		multi_pov_seek_round_ = 0;
+		NOTICE_LOG(COMMON, "multi-pov: restored seek %d -> %d, generation %u", multi_pov_published_frame_,
+				key_msg_count_, multi_pov_seek_generation_);
 	} else if (multi_pov_system_move_) {
 		// The replay is moving the position itself (round change, briefing
 		// skip) and every screen does the same on its own. The move lasts as
@@ -801,22 +856,33 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 		if (!queued || (next.cmd != ReplayCtrlCommand::SaveFirstFrame && next.cmd != ReplayCtrlCommand::SendStartMsg &&
 						next.cmd != ReplayCtrlCommand::SeekToBriefing))
 			multi_pov_system_move_ = false;
-	} else if (0 <= multi_pov_published_frame_ && (moved < 0 || kMultiPovSeekSlack < moved)) {
+	} else if (0 <= multi_pov_published_frame_ && (moved < 0 || kMultiPovSeekSlack <= moved)) {
 		++multi_pov_seek_generation_;
 		multi_pov_seek_round_ = 0;
 		NOTICE_LOG(COMMON, "multi-pov: seek %d -> %d, generation %u", multi_pov_published_frame_, key_msg_count_,
 				   multi_pov_seek_generation_);
 	}
+	multi_pov_audio_discontinuity_ = false;
 	multi_pov_published_frame_ = key_msg_count_;
+	if (previous_generation != multi_pov_seek_generation_)
+		multi_pov_audio_seek_subframe_ = multi_pov_audio_subframe_;
+	if (previous_generation != multi_pov_seek_generation_ && !(live_mode_ && live_following_)) {
+		multi_pov_audio_recovery_ = true;
+		multi_pov_seek_recovery_ = {};
+	}
 
 	GdxsvMultiPovPlayback st;
-	st.position = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+	st.position = static_cast<int64_t>(key_msg_count_) * kGdxsvMultiPovSyncSubFrames + sync_subframe_;
 	st.speed = ctrl_play_speed_;
 	st.paused = ctrl_pause_;
 	st.menu_open = pause_menu_opend_;
 	st.seek_generation = multi_pov_seek_generation_;
 	st.seek_target = key_msg_count_;
 	st.seek_round = multi_pov_seek_round_;
+	st.seek_audio_subframe = multi_pov_audio_seek_subframe_;
+	st.audio_timeline = AudioTimeline();
+	st.audio_recovering = multi_pov_audio_recovery_;
+	st.audio_position = AudioPosition();
 	st.show_ally_hp = config::GdxReplayShowAllyHP;
 	st.key_display = config::GdxReplayKeyDisplay;
 	st.skip_ms_selection = config::GdxReplaySkipMsSelection;
@@ -824,6 +890,8 @@ void GdxsvBackendReplay::PublishMultiPovPlayback() {
 	// Only while live: after the close the rest plays as a replay, and the
 	// viewer's seeks no longer clear live_following_.
 	st.live_following = live_mode_ && live_following_;
+	// Announce only after the host lands, as before. Hold its next playback
+	// frame while guests finish, so it cannot run hundreds of frames ahead.
 	gdxsv_multi_pov_publish_playback(st);
 }
 
@@ -838,10 +906,13 @@ void GdxsvBackendReplay::WaitForMultiPovHost() {
 	if (ui_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) || ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) ||
 		ui_commands_.contains(ReplayCtrlCommand::SetRound) || ctrl_commands_.contains(ReplayCtrlCommand::SetRound))
 		return;
-	const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+	const int64_t pos = static_cast<int64_t>(key_msg_count_) * kGdxsvMultiPovSyncSubFrames + sync_subframe_;
 	for (int i = 0;; ++i) {
 		GdxsvMultiPovPlayback st;
 		if (!gdxsv_multi_pov_read_playback(st)) return;
+		// The menu stops input delivery on every screen. A batch already read
+		// before it opened can leave a guest ahead; keep its frames running.
+		if (st.menu_open) return;
 		if (pos <= st.position + kMultiPovHostLeadSlack) return;
 		if (st.seek_generation != multi_pov_seek_generation_) return;  // a jump is coming
 		if (i % 64 == 0 && gdxsv_multi_pov_host_gone()) return;
@@ -860,6 +931,10 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 
 	GdxsvMultiPovPlayback st;
 	if (!gdxsv_multi_pov_read_playback(st)) return;
+	ApplyMultiPovPlayback(st);
+}
+
+void GdxsvBackendReplay::ApplyMultiPovPlayback(const GdxsvMultiPovPlayback& st) {
 
 	// Replay options and volume are the host's.
 	if (config::GdxReplayShowAllyHP != st.show_ally_hp) config::GdxReplayShowAllyHP.set(st.show_ally_hp);
@@ -879,6 +954,9 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	// copy. Once the host leaves the edge, the guests follow it as in a replay.
 	if (live_session_ && st.live_following) {
 		multi_pov_seek_generation_ = st.seek_generation;
+		// Live followers seek independently. Commit the new audio epoch here,
+		// retaining our own frame counters rather than stale offline-seek data.
+		multi_pov_audio_seek_generation_ = st.seek_generation;
 		if (!live_following_ && !ui_commands_.contains(ReplayCtrlCommand::FollowLive))
 			ui_commands_.emplace_back(ReplayCtrlCommand::FollowLive);
 		return;
@@ -888,6 +966,8 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	// landed yet would otherwise be applied at the position being left.
 	if (st.seek_generation != multi_pov_seek_generation_) {
 		multi_pov_seek_generation_ = st.seek_generation;
+		multi_pov_audio_seek_subframe_ = st.seek_audio_subframe;
+		multi_pov_seek_sync_subframe_ = st.position % kGdxsvMultiPovSyncSubFrames;
 		if (0 < st.seek_round)
 			ui_commands_.emplace_back(ReplayCtrlCommand::SetRound, st.seek_round);
 		// Paused, the game reads one more input after a jump lands (see
@@ -920,11 +1000,74 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	};
 	if (st.paused && ctrl_pause_ && !ctrl_step_frame_ && !recv_buf_.empty() && !pending(ReplayCtrlCommand::TogglePause) &&
 		!pending(ReplayCtrlCommand::StepFrame) && !pending(ReplayCtrlCommand::JumpToKeyMsg)) {
-		if (key_msg_count_ < st.seek_target)
+		if (key_msg_count_ < st.seek_target) {
+			multi_pov_audio_rebase_ = true;
 			ui_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
-		else if (st.seek_target < key_msg_count_)
+		} else if (st.seek_target < key_msg_count_)
 			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target) - 1);
 	}
+}
+
+void GdxsvBackendReplay::ResetAudioPosition() {
+	multi_pov_audio_subframe_ = 0;
+	multi_pov_input_pending_ = false;
+	multi_pov_input_wait_start_ = {};
+	sync_subframe_ = 0;
+	// Host savestate restores publish a new seek epoch. Guest-local jumps
+	// invalidate their own packets even when the host's epoch stays unchanged.
+	multi_pov_audio_discontinuity_ = multi_pov_host_;
+	multi_pov_audio_rebase_ = multi_pov_guest_ && ctrl_pause_;
+	if (MultiPov()) gdxsv_multi_pov_audio_reset();
+}
+
+void GdxsvBackendReplay::AlignPausedGuestAudio() {
+	if (!multi_pov_guest_ || !multi_pov_audio_rebase_ || seeking_) return;
+	if (!ctrl_pause_) {
+		multi_pov_audio_rebase_ = false;
+		return;
+	}
+	GdxsvMultiPovPlayback host;
+	if (ctrl_step_frame_ || ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) ||
+			!gdxsv_multi_pov_read_playback(host) || !host.paused || host.audio_recovering ||
+			host.seek_generation != multi_pov_audio_seek_generation_ || host.audio_timeline != AudioTimeline() ||
+			(host.audio_position >> 32) != key_msg_count_) return;
+	// A paused correction or host seek resets the counter while the host's paused
+	// audio keeps advancing. Once the prefetched input has caught up, relay
+	// the next host frame instead of discarding this guest forever as late.
+	multi_pov_audio_subframe_ = uint32_t(host.audio_position) + 1;
+	multi_pov_audio_rebase_ = false;
+}
+
+bool GdxsvBackendReplay::BeforeFrame() {
+	if (multi_pov_guest_ && !seeking_ &&
+			multi_pov_audio_seek_generation_ == multi_pov_seek_generation_) {
+		GdxsvMultiPovPlayback st;
+		if (gdxsv_multi_pov_read_playback(st) && st.audio_recovering &&
+				st.seek_generation == multi_pov_audio_seek_generation_ &&
+				ui_commands_.empty() && !ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg) &&
+				!ctrl_commands_.contains(ReplayCtrlCommand::SetRound) &&
+				!ctrl_commands_.contains(ReplayCtrlCommand::SeekToBriefing)) {
+			const auto now = std::chrono::steady_clock::now();
+			if (now >= multi_pov_next_host_check_) {
+				multi_pov_next_host_check_ = now + std::chrono::milliseconds(64);
+				multi_pov_recovery_host_gone_ = gdxsv_multi_pov_host_gone();
+			}
+			if (multi_pov_recovery_host_gone_) return true;
+			// A guest that landed early must not run ahead while its peers seek,
+			// including scenes where the game is not consuming replay inputs.
+			spectate_sync_.Publish(static_cast<int32_t>(st.position), true);
+			return false;
+		}
+	}
+	if (!multi_pov_audio_recovery_ || seeking_) return true;
+	// A complete frame has already published its position and sent its PCM.
+	// The UI now runs normally, including in nonthreaded rendering; no events
+	// or control handlers are reentered halfway through a frame.
+	const bool done = gdxsv_headless() || gdxsv_multi_pov_audio_poll_seek(
+			AudioPosition() + 1, multi_pov_seek_generation_, AudioTimeline(), 2000,
+			multi_pov_seek_recovery_, !emu.running() || AudioRecoveryCancelled());
+	if (done) multi_pov_audio_recovery_ = false;
+	return done;
 }
 
 void GdxsvBackendReplay::OnNextFrameInternal() {
@@ -935,8 +1078,11 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (multi_pov_start_barrier_pending_ && !seeking_) {
 		multi_pov_start_barrier_pending_ = false;
 		gdxsv_multi_pov_wait_at_start_barrier();
+		FlushAudio();
+		multi_pov_audio_subframe_ = 0;
 		settings.input.fastForwardMode = false;
 	}
+	if (MultiPov()) ++multi_pov_audio_subframe_;
 
 	// One sync point for every scene, here rather than in the delivery path
 	// because outside battle no input is delivered - which is exactly where the
@@ -949,35 +1095,45 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (spectate_sync_.Active()) {
 		// Advances while key_msg_count_ is frozen, so there is still something
 		// to sync on outside battle.
-		if (sync_subframe_ < kSyncSubFrames - 1) ++sync_subframe_;
+		if (sync_subframe_ < kGdxsvMultiPovSyncSubFrames - 1) ++sync_subframe_;
 
-		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
+		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kGdxsvMultiPovSyncSubFrames + sync_subframe_;
 
 		// Travelling through this position rather than playing it.
 		const bool catching_up = takeover_ || seeking_ || (live_mode_ && live_catching_up_);
+		const bool menu_held = MultiPov() && pause_menu_opend_;
 
 		// Heartbeat unconditionally, sync only when eligible. Publishing
 		// only from inside WaitForPeers lets a catching-up instance go stale
 		// and lose its slot.
-		spectate_sync_.Publish(static_cast<int32_t>(pos), catching_up);
+		spectate_sync_.Publish(static_cast<int32_t>(pos), catching_up || menu_held);
 
 		// Runs in every scene. This never speeds anything up - it only holds
 		// back an instance that is ahead, which while production is stalled is
 		// indistinguishable from waiting for data.
-		if (!catching_up) {
+		if (!catching_up && !menu_held) {
 			// Offline replay: past the allowed lead, wait for the others in
 			// earnest. See kSyncCatchUpWaitMs. So do the four screens of a
 			// live battle: they play one relayed feed, so the leader has the
 			// same data as the slowest and waiting cannot starve it.
 			int wait_ms = sync_max_wait_ms_;
 			if (!live_mode_ || MultiPov()) {
-				const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
+				const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kGdxsvMultiPovSyncSubFrames;
 				if (kSyncHoldLeadFrames < lead_frames) wait_ms = std::max(wait_ms, kSyncCatchUpWaitMs);
 				static int lead_log_counter = 0;
 				if (live_mode_ && ++lead_log_counter % 600 == 0)
 					NOTICE_LOG(COMMON, "spectate sync: live frame %d, lead %d frames", key_msg_count_, lead_frames);
 			}
-			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), wait_ms);
+			std::function<void()> drain_audio;
+			if (multi_pov_host_) {
+				const int64_t audio_position = AudioPosition();
+				const uint32_t generation = multi_pov_seek_generation_;
+				const uint32_t timeline = AudioTimeline();
+				drain_audio = [audio_position, generation, timeline]() {
+					gdxsv_multi_pov_audio_drain(audio_position, generation, timeline);
+				};
+			}
+			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), wait_ms, drain_audio);
 		}
 	}
 	WaitForMultiPovHost();
@@ -989,9 +1145,9 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	//
 	// Offline replay only. In live mode the pacing controller owns the trim -
 	// the buffer target has to win over group alignment, or playback starves.
-	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_) {
-		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
-		const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
+	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_ && !(MultiPov() && pause_menu_opend_)) {
+		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kGdxsvMultiPovSyncSubFrames + sync_subframe_;
+		const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kGdxsvMultiPovSyncSubFrames;
 		const int excess = lead_frames - kSyncHoldLeadFrames;
 		gdxsv_frame_period_trim_us = excess <= 0 ? 0 : std::min(excess * kSyncTrimUsPerFrame, kSyncTrimMaxUs);
 
@@ -999,6 +1155,17 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		static int sync_log_counter = 0;
 		if (++sync_log_counter % 600 == 0)
 			NOTICE_LOG(COMMON, "spectate sync: frame %d, lead %d frames", key_msg_count_, lead_frames);
+	}
+
+	if (MultiPov()) {
+		// Send the frame that just ran before a control command can seek or
+		// run silent frames. Otherwise faster playback discards audible PCM.
+		AlignPausedGuestAudio();
+		PublishMultiPovPlayback();
+		FinishMultiPovAudioFrame(AudioPosition(),
+				multi_pov_guest_ ? multi_pov_audio_seek_generation_ : multi_pov_seek_generation_, (!seeking_ || multi_pov_speed_audio_) &&
+				(!multi_pov_guest_ || multi_pov_audio_seek_generation_ == multi_pov_seek_generation_) &&
+				!settings.input.fastForwardMode && !settings.aica.muteAudio, AudioTimeline());
 	}
 
 	if (!end_of_frame_) return;
@@ -1099,6 +1266,10 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	}
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
+		// The host keeps one audible frame per speed burst. Guests must relay
+		// every frame in that burst because their burst boundaries can differ.
+		multi_pov_speed_audio_ = multi_pov_guest_;
+		multi_pov_speed_burst_ = true;
 		BeginSilentSeek();
 		int skipped_frame = 0;
 		for (; skipped_frame < ctrl_play_speed_ && can_run_silent_replay_frame(); skipped_frame++) {
@@ -1107,6 +1278,8 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			if (need_cancel()) break;
 		}
 		EndSilentSeek();
+		multi_pov_speed_audio_ = false;
+		multi_pov_speed_burst_ = false;
 
 		// Stop at the target buffer, not at the live edge, and not merely
 		// because this burst ran out of data. With kLiveCatchUpThreshold this
@@ -1205,6 +1378,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				if (loaded) {
 					settings.aica.muteAudio = true;
 					key_msg_count_ = load_frame;
+					ResetAudioPosition();
 					recv_buf_.clear();
 					recv_delay_ = 0;
 					int frames_run = 0;
@@ -1244,11 +1418,14 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			GetRoundReplayBounds(roundStart, roundEnd, totalRounds);
 
 			const int load_frame = gdxsv_save_state.FindSavedFrameAtOrBefore(target_key_msg_count);
-			if (load_frame >= 0 && load_frame != key_msg_count_ &&
+			const bool guest_seek_pending = multi_pov_guest_ &&
+					multi_pov_audio_seek_generation_ != multi_pov_seek_generation_;
+			if (load_frame >= 0 && ((guest_seek_pending && load_frame == key_msg_count_) || (load_frame != key_msg_count_ &&
 				((key_msg_count_ < target_key_msg_count && key_msg_count_ < load_frame) ||
-				 (target_key_msg_count < key_msg_count_ && load_frame <= target_key_msg_count))) {
+				 (target_key_msg_count < key_msg_count_ && load_frame <= target_key_msg_count))))) {
 				if (gdxsv_save_state.LoadState(load_frame)) {
 					key_msg_count_ = load_frame;
+					ResetAudioPosition();
 					loaded_frame = load_frame;
 					recv_buf_.clear();
 					recv_delay_ = 0;
@@ -1418,6 +1595,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				const int load_frame = gdxsv_save_state.FindSavedFrameAtOrBefore(target_frame);
 				if (load_frame >= roundStart && gdxsv_save_state.LoadState(load_frame)) {
 					key_msg_count_ = load_frame;
+					ResetAudioPosition();
 					recv_buf_.clear();
 					recv_delay_ = 0;
 					if (key_msg_count_ == roundStart) {
@@ -1468,6 +1646,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 					NOTICE_LOG(COMMON, "Live round %d counters: %s", round, complete ? "restored" : "incomplete");
 				}
 				key_msg_count_ = log_file_.start_msg_indexes(round - 1);
+				ResetAudioPosition();
 				start_msg_count_ = round;
 				briefing_start_frame_ = 0;
 				briefing_start_frame_round_ = 0;
@@ -1525,6 +1704,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		if (ctrl.cmd == ReplayCtrlCommand::StartTakeover) {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
+			ResetAudioPosition();
 			RebuildKeyDisplay();
 			recv_buf_.clear();
 			const int delay = config::GdxMinDelay.get();
@@ -1544,6 +1724,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		if (ctrl.cmd == ReplayCtrlCommand::RetryTakeover) {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
+			ResetAudioPosition();
 			RebuildKeyDisplay();
 			settings.aica.muteAudio = true;
 			recv_buf_.clear();
@@ -1559,6 +1740,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 		if (ctrl.cmd == ReplayCtrlCommand::ReturnToReplay) {
 			gdxsv_save_state.LoadState(takeover_saved_frame_);
 			key_msg_count_ = takeover_saved_frame_;
+			ResetAudioPosition();
 			RebuildKeyDisplay();
 			recv_buf_.clear();
 			takeover_ = false;
@@ -1899,16 +2081,8 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 }
 
 void GdxsvBackendReplay::Stop() {
+	RestorePlaybackSettings(true);
 	live_initial_catchup_ = false;
-	config::FixedFrequency.load();
-	config::LimitFPS.load();
-	settings.gdxsv.audioRateControl = false;
-	if (MultiPov()) {
-		settings.gdxsv.audioScale = 0.f;
-		settings.input.fastForwardMode = false;
-	}
-	// A guest's volume followed the host's; back to the config file's.
-	if (multi_pov_guest_) config::AudioVolume.load();
 	// Closing the session tells the guests to quit. A live session may go on
 	// to the next battle, so gdxsv_end_replay decides.
 	if (multi_pov_host_ && !live_session_) {
@@ -2023,6 +2197,7 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 	if (gdxsv.slowdown_.Stalling() && !seeking_) {
 		return 0;
 	}
+	if (multi_pov_input_pending_ && recv_buf_.empty()) DeliverKeyMsgBatch();
 
 	int n = std::min<int>(recv_buf_.size(), size);
 	for (int i = 0; i < n; ++i) {
@@ -2061,9 +2236,8 @@ bool GdxsvBackendReplay::Start() {
 		config::FixedFrequency.override(0);
 	} else {
 		config::FixedFrequency.override(2);
-		// As in the online battle. With audio sync on top of the fixed
-		// frequency, Live Spectate came out of each loading screen ~2s further
-		// behind the players and never made it up.
+		// Pacing and live catch-up must not block on the audio device. Correct
+		// device-clock drift on the final output, including the four-view mix.
 		config::LimitFPS.override(false);
 		settings.gdxsv.audioRateControl = true;
 	}
@@ -2075,8 +2249,17 @@ bool GdxsvBackendReplay::Start() {
 	// 4-player replay
 	multi_pov_host_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Host;
 	multi_pov_guest_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Guest;
+	multi_pov_input_pending_ = false;
+	multi_pov_input_wait_start_ = {};
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+	multi_pov_audio_seek_generation_ = 0;
+	multi_pov_audio_seek_subframe_ = 0;
+	multi_pov_seek_sync_subframe_ = 0;
+	multi_pov_audio_recovery_ = false;
+	multi_pov_audio_discontinuity_ = false;
+	multi_pov_speed_audio_ = false;
+	multi_pov_speed_burst_ = false;
 	multi_pov_system_move_ = false;
 	multi_pov_round_jump_ = false;
 	multi_pov_seek_round_ = 0;
@@ -2088,10 +2271,11 @@ bool GdxsvBackendReplay::Start() {
 		// Every screen fast-forwards (silently: fast-forward mutes the AICA)
 		// to the start barrier, where the four line up.
 		settings.input.fastForwardMode = true;
-		// Four screens play the same sound, so each plays at MultiPovVolume
-		// percent. On the output, not on aica.Volume: the four processes
-		// share one config file.
-		settings.gdxsv.audioScale = std::clamp(config::loadInt("gdxsv", "MultiPovVolume", 50), 0, 100) / 100.f;
+		// MultiPovMixVolume controls the average of all four viewpoints, with
+		// headroom for shared sounds. aica.Volume also follows the host.
+		settings.gdxsv.audioScale = std::clamp(config::loadInt("gdxsv", "MultiPovMixVolume", 100), 0, 100) / 100.f;
+		SetMultiPovAudio(!gdxsv_headless());
+		NOTICE_LOG(AUDIO, "multi-pov audio: four frame-aligned streams, host output only");
 	}
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
@@ -2449,6 +2633,26 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		// batch on top - the next poll after the bytes drain gets a fresh one.
 		return;
 	}
+	// Briefing resumes input requests at a different vblank for each POV.
+	// Hold the first resumed batch until every screen has requested it, while
+	// still running frames and audio. Never gate normal battle intake, seeks,
+	// live catch-up, or paused controls. Retry from OnSockRead after the game
+	// has consumed the request, instead of waiting for its next ForceMsg timer.
+	// Extra 2x/3x frames reuse the silent-seek runner but still belong to
+	// ordinary playback, so their briefing requests need this barrier too.
+	if (MultiPov() && !live_session_ && (!seeking_ || multi_pov_speed_burst_) && !ctrl_pause_ && !pause_menu_opend_) {
+		const bool ready = gdxsv_multi_pov_input_ready(key_msg_count_,
+				multi_pov_guest_ ? multi_pov_audio_seek_generation_ : multi_pov_seek_generation_, AudioTimeline());
+		if (!ready && IsInBriefing() && multi_pov_audio_subframe_ > 3) {
+			const auto now = std::chrono::steady_clock::now();
+			if (!multi_pov_input_pending_) multi_pov_input_wait_start_ = now;
+			multi_pov_input_pending_ = true;
+			// An unresponsive screen cannot hold input indefinitely.
+			if (now - multi_pov_input_wait_start_ < std::chrono::milliseconds(350)) return;
+		}
+	}
+	multi_pov_input_pending_ = false;
+	multi_pov_input_wait_start_ = {};
 	gdxsv.maxlag_ = 0;
 
 	for (int i = 0; i < log_file_.users_size(); ++i) {
@@ -2476,6 +2680,7 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 	if (key_msg_count_ < log_file_.inputs_size()) {
 		++key_msg_count_;
 		sync_subframe_ = 0;
+		multi_pov_audio_subframe_ = 0;
 
 		if (key_msg_count_ == log_file_.inputs_size() && !takeover_) {
 			// Live Spectate: hold at the live edge instead of stopping -
@@ -2542,6 +2747,7 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		}
 
 		start_msg_count_++;
+		multi_pov_audio_subframe_ = 0;
 		NOTICE_LOG(COMMON, "StartMsg key_msg_count %d", key_msg_count_);
 
 		// 4-player replay: the guests reach this round on their own, so the

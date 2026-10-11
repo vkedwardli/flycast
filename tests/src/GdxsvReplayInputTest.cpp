@@ -3,6 +3,7 @@
 #include "cfg/option.h"
 #include "emulator.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_multi_pov.h"
 #include "gdxsv/libs.h"
 #include "gtest/gtest.h"
 #include "imgui.h"
@@ -22,6 +23,7 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	}
 
 	void TearDown() override {
+		if (test_session_) gdxsv_multi_pov_close();
 		config::ThreadedRendering = threaded_rendering_;
 #ifdef _WIN32
 		config::JoystickPolling = joystick_polling_;
@@ -39,6 +41,48 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	std::deque<u8>& Reply() { return replay_.recv_buf_; }
 	void DeliverDirectly() { replay_.DeliverKeyMsgBatch(); }
 	void SetPlaybackFrame(int frame) { replay_.key_msg_count_ = frame; }
+	void PrepareGuestAudioSeek(Command::Command command) {
+		replay_.multi_pov_guest_ = true;
+		replay_.seeking_ = false;
+		replay_.multi_pov_seek_generation_ = 2;
+		replay_.multi_pov_audio_seek_generation_ = 1;
+		replay_.ctrl_commands_.emplace_back(command, 10);
+	}
+	void CompleteAudioSeek() { replay_.CompleteMultiPovAudioSeek(); }
+	void PreparePausedCorrection() {
+		replay_.multi_pov_guest_ = true;
+		replay_.seeking_ = false;
+		replay_.ctrl_pause_ = true;
+		replay_.ctrl_commands_.clear();
+		replay_.ResetAudioPosition();
+	}
+	void AlignPausedAudio() { replay_.AlignPausedGuestAudio(); }
+	void ClearControlCommands() { replay_.ctrl_commands_.clear(); }
+	void SetSeeking(bool seeking) { replay_.seeking_ = seeking; }
+	void SetSeekSubframes(uint32_t audio, uint32_t video) {
+		replay_.multi_pov_audio_subframe_ = 900;
+		replay_.sync_subframe_ = 800;
+		replay_.multi_pov_audio_seek_subframe_ = audio;
+		replay_.multi_pov_seek_sync_subframe_ = video;
+	}
+	void ExpectSeekSubframes(uint32_t audio, uint32_t video) {
+		EXPECT_EQ(replay_.multi_pov_audio_subframe_, audio);
+		EXPECT_EQ(replay_.sync_subframe_, video);
+	}
+	uint32_t AudioSeekGeneration() const { return replay_.multi_pov_audio_seek_generation_; }
+	void ApplyHost(const GdxsvMultiPovPlayback& state) { replay_.ApplyMultiPovPlayback(state); }
+	void UseLiveGuest() { replay_.multi_pov_guest_ = true; replay_.live_session_ = true; }
+	void CreateTestSession() {
+		test_session_ = gdxsv_multi_pov_host_create(gdxsv_multi_pov_new_session_id(), {1});
+		ASSERT_TRUE(test_session_);
+	}
+	void PrepareReadyGuest() {
+		replay_.multi_pov_guest_ = true;
+		replay_.seeking_ = false;
+		replay_.multi_pov_seek_generation_ = 2;
+		replay_.multi_pov_audio_seek_generation_ = 2;
+	}
+	bool BeforeFrame() { return replay_.BeforeFrame(); }
 	void SetPlaybackSpeed(int speed) { replay_.ctrl_play_speed_ = speed; }
 	void SetPaused(bool paused) { replay_.ctrl_pause_ = paused; }
 	void SetFollowing(bool following) { replay_.live_following_ = following; }
@@ -81,10 +125,41 @@ class GdxsvReplayInputTest : public ::testing::Test {
 		replay_.ui_commands_.emplace_back(cmd, arg);
 		replay_.ProcessUiCommands();
 	}
+	void QueueRecoveryUi(Command::Command cmd) { replay_.ui_commands_.emplace_back(cmd); }
+	void QueueSystemRoundControls() {
+		replay_.ctrl_commands_.emplace_back(Command::SaveFirstFrame);
+		replay_.ctrl_commands_.emplace_back(Command::SendStartMsg);
+		replay_.ctrl_commands_.emplace_back(Command::SeekToBriefing);
+	}
+	bool RecoveryCancelledByUi() { return replay_.AudioRecoveryCancelled(); }
+	size_t PendingUiCommands() { return replay_.ui_commands_.size(); }
+	void ClearUiCommands() { replay_.ui_commands_.clear(); }
 	void RunMainUiInput(u32 buttons) {
 		mapleInputState[0].kcode = ~buttons;
 		replay_.PublishUiState();
 		replay_.OnMainUiLoop();
+		replay_.ProcessUiCommands();
+	}
+	void UseMultiPovHostControls() { replay_.multi_pov_host_ = true; }
+	uint32_t PublishMove(int previous, int current) {
+		replay_.multi_pov_published_frame_ = previous;
+		replay_.key_msg_count_ = current;
+		replay_.PublishMultiPovPlayback();
+		return replay_.multi_pov_seek_generation_;
+	}
+	uint32_t ResetAndPublishAudioAtSameInput() {
+		replay_.multi_pov_published_frame_ = replay_.key_msg_count_;
+		replay_.ResetAudioPosition();
+		replay_.PublishMultiPovPlayback();
+		return replay_.multi_pov_seek_generation_;
+	}
+	void RunRecoveryInput(u32 buttons, bool return_to_ui = false) {
+		const u32 previous = kcode[0];
+		kcode[0] = ~buttons;
+		replay_.PublishUiState();
+		replay_.OnMainUiLoop();
+		if (return_to_ui) replay_.OnMainUiLoop();
+		kcode[0] = previous;
 		replay_.ProcessUiCommands();
 	}
 	void PrepareAutoRecovery() {
@@ -192,6 +267,7 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	static constexpr u64 SecondInput = 0x0080004000200010ULL;
 
  private:
+	bool test_session_ = false;
 	GdxsvBackendReplay replay_;
 	const bool threaded_rendering_ = config::ThreadedRendering;
 #ifdef _WIN32
@@ -203,6 +279,310 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	const float audio_fade_ = settings.aica.audioFade;
 	const int frame_period_trim_ = gdxsv_frame_period_trim_us;
 };
+
+TEST_F(GdxsvReplayInputTest, GuestAudioKeepsOldEpochUntilTimelineOrRoundSeekLands) {
+	for (auto command : {Command::JumpToKeyMsg, Command::SetRound, Command::SeekToBriefing}) {
+		PrepareGuestAudioSeek(command);
+		CompleteAudioSeek();
+		EXPECT_EQ(AudioSeekGeneration(), 1u);
+		ClearControlCommands();
+		SetSeeking(true);
+		CompleteAudioSeek();
+		EXPECT_EQ(AudioSeekGeneration(), 1u);
+		SetSeeking(false);
+		CompleteAudioSeek();
+		EXPECT_EQ(AudioSeekGeneration(), 2u);
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, RecoveryRetainsOrdinaryControlsAndCancelsForASeekBehindThem) {
+	for (auto command : {Command::TogglePause, Command::TogglePauseMenu, Command::SetSpeed,
+			Command::NextSpeed, Command::ResumePlayback, Command::StepFrame}) {
+		QueueRecoveryUi(command);
+		EXPECT_FALSE(RecoveryCancelledByUi());
+	}
+	EXPECT_EQ(PendingUiCommands(), 6u);
+	QueueRecoveryUi(Command::JumpToKeyMsg);
+	EXPECT_TRUE(RecoveryCancelledByUi());
+	EXPECT_EQ(PendingUiCommands(), 7u); // scanning never consumes the controls
+	for (auto command : {Command::JumpToKeyMsg, Command::SetRound, Command::NextRound,
+			Command::StepFrameBackward, Command::SeekForward, Command::SeekBackward,
+			Command::SeekToBriefing, Command::FollowLive, Command::ExitReplay}) {
+		ClearUiCommands();
+		QueueRecoveryUi(Command::SetSpeed);
+		QueueRecoveryUi(command);
+		EXPECT_TRUE(RecoveryCancelledByUi());
+		EXPECT_EQ(PendingUiCommands(), 2u);
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, PausedLocalCorrectionRebasesOnceAfterPrefetchReachesTheHost) {
+	CreateTestSession();
+	SetPlaybackFrame(49);
+	PreparePausedCorrection();
+	GdxsvMultiPovPlayback host;
+	host.paused = true;
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 2000);
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(0, 0); // the corrective jump has not prefetched input 50
+	SetPlaybackFrame(50);
+	host.audio_recovering = true;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(0, 0);
+	host.audio_recovering = false;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(2001, 0); // use the full audio counter, not visual 1023
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 2200);
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(2001, 0); // ordinary frames advance their own counter
+}
+
+TEST_F(GdxsvReplayInputTest, RecoveryCancelsForASeekAlreadyMovedToTheControlQueue) {
+	SetOffline();
+	QueueUi(Command::JumpToKeyMsg, 100);
+	EXPECT_EQ(PendingUiCommands(), 0u);
+	EXPECT_EQ(PendingControlCommand().cmd, Command::JumpToKeyMsg);
+	EXPECT_TRUE(RecoveryCancelledByUi());
+	ClearControlCommands();
+	EXPECT_FALSE(RecoveryCancelledByUi());
+}
+
+TEST_F(GdxsvReplayInputTest, RoundStartupCommandsCannotCancelTheirOwnRecovery) {
+	QueueSystemRoundControls();
+	EXPECT_FALSE(RecoveryCancelledByUi());
+	QueueRecoveryUi(Command::TogglePause);
+	EXPECT_FALSE(RecoveryCancelledByUi());
+	QueueRecoveryUi(Command::SeekForward);
+	EXPECT_TRUE(RecoveryCancelledByUi());
+	ClearUiCommands();
+	QueueRecoveryUi(Command::SeekToBriefing);
+	EXPECT_TRUE(RecoveryCancelledByUi());
+}
+
+TEST_F(GdxsvReplayInputTest, GuestLandingAfterRecoveryExpiredRetainsItsActualSeekCounters) {
+	CreateTestSession();
+	PrepareGuestAudioSeek(Command::JumpToKeyMsg);
+	SetPlaybackFrame(50);
+	SetSeekSubframes(17, 19);
+	GdxsvMultiPovPlayback host;
+	host.seek_generation = 2;
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 1700);
+	host.position = 50 * kGdxsvMultiPovSyncSubFrames + 700;
+	host.audio_recovering = false;
+	gdxsv_multi_pov_publish_playback(host);
+	ClearControlCommands();
+	CompleteAudioSeek();
+	EXPECT_EQ(AudioSeekGeneration(), 2u);
+	ExpectSeekSubframes(17, 19); // never relabel old scene audio as the host's live frame
+}
+
+TEST_F(GdxsvReplayInputTest, OneSecondForwardMoveStartsSeekRecoveryAtTheExactBoundary) {
+	CreateTestSession();
+	UseMultiPovHostControls();
+	SetOffline();
+	SetSeeking(false);
+	EXPECT_EQ(PublishMove(100, 159), 0u);
+	EXPECT_EQ(PublishMove(100, 160), 1u);
+	GdxsvMultiPovPlayback host;
+	ASSERT_TRUE(gdxsv_multi_pov_read_playback(host));
+	EXPECT_TRUE(host.audio_recovering);
+	EXPECT_EQ(host.seek_target, 160);
+}
+
+TEST_F(GdxsvReplayInputTest, UnpausedGuestDoesNotRelabelBriefingAudioWithHostCounters) {
+	CreateTestSession();
+	PreparePausedCorrection();
+	SetPaused(false);
+	SetPlaybackFrame(50);
+	GdxsvMultiPovPlayback host;
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 2000);
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(0, 0);
+}
+
+TEST_F(GdxsvReplayInputTest, OfflineFollowLiveDoesNotCancelRecoveryOrConsumeOtherControls) {
+	SetOffline();
+	QueueRecoveryUi(Command::FollowLive);
+	QueueRecoveryUi(Command::SetSpeed);
+	EXPECT_FALSE(RecoveryCancelledByUi());
+	EXPECT_EQ(PendingUiCommands(), 2u);
+	QueueRecoveryUi(Command::SeekForward);
+	EXPECT_TRUE(RecoveryCancelledByUi());
+	EXPECT_EQ(PendingUiCommands(), 3u);
+}
+
+TEST_F(GdxsvReplayInputTest, HostPausedSeekRebasesAfterTheNewEpochLandsAndPrefetchCatchesUp) {
+	CreateTestSession();
+	PrepareGuestAudioSeek(Command::JumpToKeyMsg);
+	SetSeekSubframes(17, 19);
+	SetPlaybackFrame(49);
+	PreparePausedCorrection(); // new host generation is still pending here
+	CompleteAudioSeek();
+	ASSERT_EQ(AudioSeekGeneration(), 2u);
+	GdxsvMultiPovPlayback host;
+	host.paused = true;
+	host.seek_generation = 2;
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 2000);
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(17, 19);
+	SetPlaybackFrame(50);
+	host.audio_recovering = true;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(17, 19);
+	host.audio_recovering = false;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(2001, 19);
+}
+
+TEST_F(GdxsvReplayInputTest, PausedForwardCorrectionRebasesAfterItWalksToTheHost) {
+	CreateTestSession();
+	PreparePausedCorrection();
+	SetPlaybackFrame(50);
+	GdxsvMultiPovPlayback host;
+	host.paused = true;
+	host.seek_target = 50;
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 100);
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio(); // consume the previous correction's rebase
+	ExpectSeekSubframes(101, 0);
+	Reply().push_back(0); // next replay input has been prefetched
+	host.seek_target = 51;
+	host.audio_position = gdxsv_multi_pov_audio_position(51, 150);
+	gdxsv_multi_pov_publish_playback(host);
+	ApplyHost(host);
+	EXPECT_EQ(PendingUiCommands(), 1u);
+	ClearUiCommands();
+	SetPlaybackFrame(51); // the corrective step has landed
+	AlignPausedAudio();
+	ExpectSeekSubframes(151, 0);
+}
+
+TEST_F(GdxsvReplayInputTest, PausedCorrectionCannotAdoptADifferentSeekOrRound) {
+	CreateTestSession();
+	SetPlaybackFrame(50);
+	PreparePausedCorrection();
+	GdxsvMultiPovPlayback host;
+	host.paused = true;
+	host.audio_position = gdxsv_multi_pov_audio_position(50, 2000);
+	host.seek_generation = 1;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(0, 0);
+	host.seek_generation = 0;
+	host.audio_timeline = 2;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(0, 0);
+	host.audio_timeline = 0;
+	gdxsv_multi_pov_publish_playback(host);
+	AlignPausedAudio();
+	ExpectSeekSubframes(2001, 0);
+}
+
+TEST_F(GdxsvReplayInputTest, LiveFollowerKeepsItsOwnCountersWhenHostEpochChanges) {
+	UseLiveGuest();
+	SetSeeking(false);
+	SetFollowing(true);
+	SetSeekSubframes(17, 19); // stale values from an earlier offline seek
+	GdxsvMultiPovPlayback host;
+	host.live_following = true;
+	host.position = 120 * kGdxsvMultiPovSyncSubFrames + 1;
+	host.seek_audio_subframe = 1;
+	for (uint32_t generation : {2u, 3u, 4u}) {
+		host.seek_generation = generation;
+		ApplyHost(host);
+		CompleteAudioSeek();
+		EXPECT_EQ(AudioSeekGeneration(), generation);
+		ExpectSeekSubframes(900, 800);
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, ReadyGuestHoldsWithoutAdvancingUntilHostReleasesRecovery) {
+	CreateTestSession();
+	PrepareReadyGuest();
+	SetSeekSubframes(17, 19);
+	GdxsvMultiPovPlayback host;
+	host.seek_generation = 2;
+	host.audio_recovering = true;
+	gdxsv_multi_pov_publish_playback(host);
+	for (int poll = 0; poll < 300; ++poll) {
+		EXPECT_FALSE(BeforeFrame());
+		ExpectSeekSubframes(900, 800);
+	}
+	host.audio_recovering = false;
+	gdxsv_multi_pov_publish_playback(host);
+	EXPECT_TRUE(BeforeFrame());
+	host.audio_recovering = true;
+	host.seek_generation = 3; // a new jump must still reach FollowMultiPovHost
+	gdxsv_multi_pov_publish_playback(host);
+	EXPECT_TRUE(BeforeFrame());
+}
+
+TEST_F(GdxsvReplayInputTest, BackwardRoundPublishesItsTimelineWithTheNewSeek) {
+	CreateTestSession();
+	UseMultiPovHostControls();
+	SetSeeking(false);
+	SetFollowing(false);
+	SetPlaybackFrame(30);
+	SetRoundCount(5);
+	ResetAndPublishAudioAtSameInput();
+	GdxsvMultiPovPlayback host;
+	ASSERT_TRUE(gdxsv_multi_pov_read_playback(host));
+	EXPECT_EQ(host.audio_timeline, 10u);
+	SetRoundCount(2);
+	ResetAndPublishAudioAtSameInput();
+	ASSERT_TRUE(gdxsv_multi_pov_read_playback(host));
+	EXPECT_EQ(host.seek_generation, 2u);
+	EXPECT_EQ(host.audio_timeline, 4u);
+	EXPECT_TRUE(host.audio_recovering);
+}
+
+TEST_F(GdxsvReplayInputTest, GuestAdoptsTheLandedSubframesOnlyAfterTheSeekCompletes) {
+	PrepareGuestAudioSeek(Command::JumpToKeyMsg);
+	SetSeekSubframes(1, 2);
+	CompleteAudioSeek();
+	ExpectSeekSubframes(900, 800);
+	ClearControlCommands();
+	CompleteAudioSeek();
+	ExpectSeekSubframes(1, 2);
+}
+
+TEST_F(GdxsvReplayInputTest, RecoveryControlsUseFreshInputWithoutEmulatingAnotherFrame) {
+	PrepareFrameControl();
+	UseMultiPovHostControls();
+	mapleInputState[0].kcode = ~0u;
+	SetPlaybackFrame(100);
+	for (bool threaded : {false, true}) {
+		SCOPED_TRACE(threaded);
+		config::ThreadedRendering = threaded;
+		ClearControlCommands();
+		RunRecoveryInput(0);
+		RunRecoveryInput(DC_DPAD_UP, true);
+		ASSERT_EQ(PendingControlCommand().cmd, Command::NextSpeed);
+		EXPECT_EQ(PendingControlCommand().arg1, 1);
+		EXPECT_EQ(PendingControlCommands(), 1u);
+		EXPECT_EQ(InputIndex(), 100);
+		EXPECT_EQ(mapleInputState[0].kcode, ~0u);
+		RunRecoveryInput(0);
+	}
+}
+
+TEST_F(GdxsvReplayInputTest, RestoringTheSameInputStillStartsANewAudioEpoch) {
+	PrepareFrameControl();
+	UseMultiPovHostControls();
+	SetPlaybackFrame(100);
+	EXPECT_EQ(ResetAndPublishAudioAtSameInput(), 1u);
+	EXPECT_EQ(ResetAndPublishAudioAtSameInput(), 2u);
+	EXPECT_EQ(InputIndex(), 100);
+}
 
 TEST_F(GdxsvReplayInputTest, ManualActionsDetachAndCancelAutomaticSpeed) {
 	PrepareFrameControl();

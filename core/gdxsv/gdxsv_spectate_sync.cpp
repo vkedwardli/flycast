@@ -249,15 +249,20 @@ int32_t GdxsvSpectateSync::LeadOverSlowest(int32_t frame) const {
 	return std::max(0, frame - slowest);
 }
 
-bool GdxsvSpectateSync::WaitForPeers(int32_t frame, int max_wait_ms) {
+bool GdxsvSpectateSync::WaitForPeers(int32_t frame, int max_wait_ms, const std::function<void()>& maintenance) {
 	if (slot_ == nullptr) return false;
 
 	Publish(frame, false);
 
 	Header* h = static_cast<Header*>(map_);
 	const int64_t deadline = NowUs() + static_cast<int64_t>(max_wait_ms) * 1000;
+	int64_t next_maintenance = 0;
 	for (;;) {
 		const int64_t now = NowUs();
+		if (maintenance && now >= next_maintenance) {
+			maintenance();
+			next_maintenance = now + 1000;
+		}
 		int peers = 0;
 		int32_t slowest = INT32_MAX;
 		for (int i = 0; i < kMaxSlots; ++i) {

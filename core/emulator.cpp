@@ -1017,6 +1017,10 @@ void Emulator::start()
 				try {
 					while (state == Running || singleStep || stepRangeTo != 0)
 					{
+						if (!gdxsv_emu_before_frame()) {
+							std::this_thread::sleep_for(std::chrono::milliseconds(1));
+							continue;
+						}
 						if (!singleStep && stepRangeTo == 0)
 							emu.getSh4Executor()->Start(); // gdxsv: fix blackout on threaded rendering
 						startTime = sh4_sched_now64();
@@ -1084,6 +1088,10 @@ bool Emulator::render()
 		}
 		if (state != Running)
 			return false;
+		if (!gdxsv_emu_before_frame()) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			return false;
+		}
 		run();
 		return true;
 	}

@@ -39,6 +39,9 @@ void gdxsv_emu_end_frame();
 
 void gdxsv_emu_next_frame();
 
+// Polled before entering SH4. False holds replay recovery at a frame boundary.
+bool gdxsv_emu_before_frame();
+
 void gdxsv_emu_mainui_loop();
 
 void gdxsv_emu_rpc();

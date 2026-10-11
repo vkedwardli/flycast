@@ -165,10 +165,11 @@ static void gdxsv_multi_pov_tick() {
 	if (gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::Guest) return;
 	if (gdxsv_multi_pov_host_gone()) {
 		NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
-		gdxsv_multi_pov_close();
 		// The savestate reset lifts memwatch's page protection before the unload
 		// writes into guest memory from this thread.
 		emu.stop();
+		// The emulation thread may still be reading a shared audio queue.
+		gdxsv_multi_pov_close();
 		gdxsv_save_state.Reset();
 		dc_exit();
 		return;
@@ -197,6 +198,10 @@ void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
+}
+
+bool gdxsv_emu_before_frame() {
+	return !gdxsv.Enabled() || gdxsv.HookBeforeFrame();
 }
 
 void gdxsv_emu_mainui_loop() {

@@ -44,6 +44,7 @@ class Gdxsv {
 	void HookEndOfFrame();
 	void HookStateRestored();
 	void HookNextFrame();
+	bool HookBeforeFrame();
 	void HandleRPC();
 	void RestoreOnlinePatch();
 	void StartPingTest();
