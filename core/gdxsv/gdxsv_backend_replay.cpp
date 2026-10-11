@@ -207,6 +207,7 @@ void GdxsvBackendReplay::Reset() {
 	ctrl_bar_drag_target_frame_ = -1;
 	ctrl_input_release_pending_ = false;
 	settings.gdxsv.replayModeActive = false;
+	gdxsv.WriteWarningSoundMode(false);
 	settings.aica.audioFade = 1.0f;
 	takeover_ = false;
 	takeover_saved_frame_ = -1;
@@ -1918,6 +1919,7 @@ void GdxsvBackendReplay::Stop() {
 	gdxsv_frame_period_trim_us = 0;
 	ctrl_commands_.clear();
 	settings.gdxsv.replayModeActive = false;
+	gdxsv.WriteWarningSoundMode(false);
 	settings.gdxsv.skipRenderingAddr = 0;
 	settings.aica.muteAudio = false;
 	takeover_ = false;
@@ -2080,6 +2082,7 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_seek_round_ = 0;
 	multi_pov_start_barrier_pending_ = false;
 	multi_pov_start_barrier_done_ = false;
+	gdxsv.WriteWarningSoundMode(MultiPov());
 
 	if (MultiPov()) {
 		// Every screen fast-forwards (silently: fast-forward mutes the AICA)

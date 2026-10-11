@@ -42,6 +42,7 @@ class Gdxsv {
 	void HookVBlank();
 	void HookMainUiLoop();
 	void HookEndOfFrame();
+	void HookStateRestored();
 	void HookNextFrame();
 	void HandleRPC();
 	void RestoreOnlinePatch();
@@ -63,6 +64,7 @@ class Gdxsv {
 	void StopReplay();
 	bool StartRollbackTest(const char* param);
 	void WritePatch();
+	void WriteWarningSoundMode(bool four_screen);
 	int Disk() const { return disk_; }
 	void InvalidateWidescreenPatch() { widescreen_viewport_width_ = 0; }
 	std::string UserId() const { return user_id_; }

@@ -18,6 +18,7 @@ SECTIONS
         *(gdx.func.ws)
         *(gdx.func.stats)
         *(.rodata*)
+        *(gdx.func.sound)
     }
     . = 0x0C500000;
     gdx.cheat ALIGN(16) : {

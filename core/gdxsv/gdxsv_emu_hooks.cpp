@@ -121,7 +121,7 @@ void gdxsv_emu_reset() {
 
 void gdxsv_emu_state_restored() {
 	if (gdxsv.Enabled()) {
-		gdxsv.InvalidateWidescreenPatch();
+		gdxsv.HookStateRestored();
 	}
 }
 
@@ -217,6 +217,8 @@ void gdxsv_emu_rpc() {
 void gdxsv_emu_savestate(int slot) {
 	if (gdxsv.Enabled()) {
 		gdxsv.RestoreOnlinePatch();
+		if (gdxsv.IsSaveStateAllowed())
+			gdxsv.WriteWarningSoundMode(false);
 	}
 }
 

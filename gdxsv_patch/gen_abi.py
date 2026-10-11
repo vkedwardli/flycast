@@ -43,6 +43,8 @@ def check_declarations():
         if not (abi.ENTRY_BASE <= e.addr and e.addr + abi.ENTRY_SIZE <= abi.ENTRY_LIMIT) or e.addr % 4:
             fail(f"entry {e.name} at {e.addr:#010x} is outside the entry area or misaligned")
     for h in abi.HOOKS:
+        if h.guards and h.feature in abi.PAYLOAD_FEATURES:
+            fail(f"hook at {h.addr:#010x}: the payload installer ignores guards")
         if h.target.startswith("entry:"):
             if h.target[len("entry:"):] not in names:
                 fail(f"hook at {h.addr:#010x} targets unknown {h.target}")
@@ -149,6 +151,7 @@ def write_host_header(path):
            "namespace gdxsv_abi {",
            "enum class Kind { " + ", ".join(camel(k) for k in kinds) + " };",
            "struct Hook { int disk; u32 addr; u32 stock; const char *target; };",
+           "struct Guard { int disk; u32 addr; u32 stock; };",
            "struct Code { int disk; u32 addr; u16 stock; u16 patched; };",
            "struct Value { int disk; Kind kind; u32 addr; u32 stock; };",
            ""]
@@ -157,18 +160,22 @@ def write_host_header(path):
         out += [f'	{{{h.disk}, 0x{h.addr:08x}, 0x{h.stock:08x}, "{target_symbol(h.target)}"}},'
                 for h in abi.HOOKS if h.feature == feature]
         out.append("};")
-        out.append(f"constexpr Code {feature}_code[] = {{")
-        for c in abi.CODE:
-            if c.feature == feature:
-                out += [f"	{{{c.disk}, 0x{c.addr + 2 * i:08x}, 0x{stock:04x}, 0x{patched:04x}}},"
-                        for i, (stock, patched) in enumerate(zip(c.stock, c.patched))]
-        out.append("};")
-        out.append(f"constexpr Value {feature}_values[] = {{")
-        out += [f"	{{{v.disk}, Kind::{camel(v.kind)}, 0x{v.addr:08x}, 0x{v.stock:08x}}},"
-                for v in abi.VALUES if v.feature == feature]
-        out.append("};")
+        guards = [f"	{{{h.disk}, 0x{addr:08x}, 0x{stock:08x}}},"
+                  for h in abi.HOOKS if h.feature == feature for addr, stock in h.guards]
+        if guards:
+            out += [f"constexpr Guard {feature}_guards[] = {{", *guards, "};"]
+        code = [f"	{{{c.disk}, 0x{c.addr + 2 * i:08x}, 0x{stock:04x}, 0x{patched:04x}}},"
+                for c in abi.CODE if c.feature == feature
+                for i, (stock, patched) in enumerate(zip(c.stock, c.patched))]
+        if code:
+            out += [f"constexpr Code {feature}_code[] = {{", *code, "};"]
+        values = [f"	{{{v.disk}, Kind::{camel(v.kind)}, 0x{v.addr:08x}, 0x{v.stock:08x}}},"
+                  for v in abi.VALUES if v.feature == feature]
+        if values:
+            out += [f"constexpr Value {feature}_values[] = {{", *values, "};"]
     out += ["} // namespace gdxsv_abi", ""]
-    open(path, "w", newline="\n").write("\n".join(out))
+    with open(path, "w", newline="\n") as f:
+        f.write("\n".join(out))
 
 
 def write_released():

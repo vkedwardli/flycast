@@ -38,6 +38,7 @@ ENTRIES = [
     Entry("stats_poll", "gdx_stats_poll", "r0", 0x0C4F05C0),
     Entry("player_info32_draw", "gdx_player_info32_draw", "r0", 0x0C4F05CC),
     Entry("win_lose32_draw", "gdx_win_lose32_draw", "r0", 0x0C4F05D8),
+    Entry("warning_sound_parameter", "gdx_warning_sound_parameter", "r0", 0x0C4F05E4),
 ]
 
 # Symbols the game or the host reaches at a fixed address.
@@ -76,6 +77,7 @@ class Hook(NamedTuple):
     target: str
     legacy: Tuple[int, ...] = ()  # released values relocated to target
     repair_only: bool = False  # only relocate legacy values; the guest installs it
+    guards: Tuple[Tuple[int, int], ...] = ()  # additional (address, stock u32) checks
 
 
 class Code(NamedTuple):
@@ -96,7 +98,7 @@ class Value(NamedTuple):
     stock: int
 
 
-# Features installed with the payload. The host installs "widescreen".
+# Features installed with the payload. The host toggles the other features.
 PAYLOAD_FEATURES = ("dial", "stats")
 
 STATS_1_8_12 = {"player_info32_request": 0x0C4F1080, "win_lose32_request": 0x0C4F1090,
@@ -126,6 +128,15 @@ HOOKS: List[Hook] = [
     _stats(0x0C03E454, 0x0C02404C, "player_info32_draw", repair_only=True),
     _stats(0x0C03EC40, 0x0C02404C, "player_info32_draw", repair_only=True),
     _stats(0x0C041F8C, 0x0C02404C, "win_lose32_draw", repair_only=True),
+    # Pinned disc-2 1ST_READ.BIN SHA-256:
+    # 2b12e9191a51bdeba7b1d6fd7da0399ba28cdbca479bc42af2cd7375caeca756
+    # Only the warning wrapper's volume and pan calls load this private literal.
+    Hook("warning_sound", 2, 0x0C05AC14, 0x0C1A2650, "entry:warning_sound_parameter",
+         guards=((0x0C05AB80, 0x84E4D324),  # mov.l literal,r3; mov.b @(4,r14),r0
+                 (0x0C05AB9C, 0xF33DF322),  # fmul fr2,fr3; ftrc fr3,FPUL
+                 (0x0C05ABA0, 0x430B075A),  # sts FPUL,r7; jsr @r3
+                 (0x0C05ABA4, 0x67F2E400),  # mov #0,r4; mov.l @r15,r7
+                 (0x0C05ABAC, 0x077ED319))),  # mov.l literal,r3; mov.l @(r0,r7),r7
     Hook("widescreen", 1, 0x0C019FAC, 0x0C17EA78, "gdx_widescreen_hud_table_disk1"),
     Hook("widescreen", 1, 0x0C135E18, 0x0C135E20, "entry:ws_transition_matte"),
     Hook("widescreen", 1, 0x0C05CB50, 0x0C13EE50, "entry:ws_fade_submit"),

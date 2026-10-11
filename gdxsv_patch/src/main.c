@@ -16,6 +16,7 @@ typedef unsigned long long u64;
 #define GDXWSFUNC __attribute__((section("gdx.func.ws"), noinline))
 #define GDXSTATSDATA __attribute__((section("gdx.data.stats")))
 #define GDXSTATSFUNC __attribute__((section("gdx.func.stats"), noinline))
+#define GDXSOUNDFUNC __attribute__((section("gdx.func.sound"), noinline))
 #define GDXENTRYDATA __attribute__((section("gdx.data.entry"), no_reorder))
 
 #if DEBUG_PRINT
@@ -1069,4 +1070,17 @@ int GDXSTATSFUNC gdx_stats_poll(u16 *command) {
         return 1; // the original caller still owns receiver dispatch/completion
     }
     return 0; // consume unsolicited, superseded or duplicate extension replies
+}
+
+// Disc 2 only: the warning wrapper's private parameter-call literal points
+// here. It supplies the final SFX-option-scaled integer volume, then pan.
+// Keep integer arithmetic so the game's FPSCR/FPUL and FPU registers survive.
+// The AICA driver converts this logarithmic controller to total level, whose
+// 16 steps halve amplitude. Dividing the controller itself almost mutes it.
+// The host installs this hook only during four-screen replay and restores the
+// stock literal before disk savestates, so no saved game pointer needs this slot.
+void GDXSOUNDFUNC gdx_warning_sound_parameter(int port, int channel, int command, int value) {
+    if (command == 0x27b0)
+        value = value > 16 ? value - 16 : 0; // approximately 50% amplitude
+    ((void (*)(int, int, int, int))0x0c1a2650)(port, channel, command, value);
 }

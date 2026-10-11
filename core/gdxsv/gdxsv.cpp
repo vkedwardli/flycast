@@ -15,6 +15,7 @@
 #include "gdx_rpc.h"
 #include "gdxsv_key_display.h"
 #include "gdxsv_patch_abi.h"
+#include "gdxsv_multi_pov.h"
 #include "gdxsv_prof.h"
 #include "gdxsv_translation.h"
 #include "hw/sh4/sh4_if.h"
@@ -741,6 +742,7 @@ void Gdxsv::WritePatch() {
 		// Restore the backend flag cleared by payload initialization so guest
 		// polling can reach HandleRPC without first sending another request.
 		gdxsv_WriteMem32(symbols_["is_online"], netmode_ != NetMode::Offline);
+		WriteWarningSoundMode(IsReplaying() && gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::None);
 	}
 
 	if (disk_ == 2) {
@@ -750,6 +752,34 @@ void Gdxsv::WritePatch() {
 					   GdxsvLanguage::Language());
 #include "gdxsv_translation_patch.inc"
 		}
+	}
+}
+
+void Gdxsv::HookStateRestored() {
+	InvalidateWidescreenPatch();
+	WriteWarningSoundMode(IsReplaying() && gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::None);
+}
+
+void Gdxsv::WriteWarningSoundMode(bool four_screen) {
+	const auto patch_id = symbols_.find("patch_id");
+	const auto expected_id = symbols_.find(":patch_id");
+	if (disk_ != 2 || patch_id == symbols_.end() || expected_id == symbols_.end() ||
+			gdxsv_ReadMem32(patch_id->second) != expected_id->second) return;
+
+	// Toggle only the known warning call site after this build's payload is
+	// present. A disk savestate must keep the stock call, even after an unusual
+	// exit from replay; in-memory seek snapshots reapply the mode after loading.
+	for (const auto& guard : gdxsv_abi::warning_sound_guards)
+		if (guard.disk == disk_ && gdxsv_ReadMem32(guard.addr) != guard.stock)
+			return;
+	for (const auto& hook : gdxsv_abi::warning_sound_hooks) {
+		if (hook.disk != disk_) continue;
+		const auto target = symbols_.find(hook.target);
+		if (target == symbols_.end()) return;
+		const u32 current = gdxsv_ReadMem32(hook.addr);
+		if (current != hook.stock && current != target->second) return;
+		if (gdxsv_WriteMem32(hook.addr, four_screen ? target->second : hook.stock))
+			emu.getSh4Executor()->ResetCache();
 	}
 }
 

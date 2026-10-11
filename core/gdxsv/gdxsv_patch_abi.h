@@ -6,9 +6,20 @@
 namespace gdxsv_abi {
 enum class Kind { MatteLeft, MatteRight, FrustumLeft, FrustumRight, InfoPanelX };
 struct Hook { int disk; u32 addr; u32 stock; const char *target; };
+struct Guard { int disk; u32 addr; u32 stock; };
 struct Code { int disk; u32 addr; u16 stock; u16 patched; };
 struct Value { int disk; Kind kind; u32 addr; u32 stock; };
 
+constexpr Hook warning_sound_hooks[] = {
+	{2, 0x0c05ac14, 0x0c1a2650, "gdx_entry_warning_sound_parameter"},
+};
+constexpr Guard warning_sound_guards[] = {
+	{2, 0x0c05ab80, 0x84e4d324},
+	{2, 0x0c05ab9c, 0xf33df322},
+	{2, 0x0c05aba0, 0x430b075a},
+	{2, 0x0c05aba4, 0x67f2e400},
+	{2, 0x0c05abac, 0x077ed319},
+};
 constexpr Hook widescreen_hooks[] = {
 	{1, 0x0c019fac, 0x0c17ea78, "gdx_widescreen_hud_table_disk1"},
 	{1, 0x0c135e18, 0x0c135e20, "gdx_entry_ws_transition_matte"},
