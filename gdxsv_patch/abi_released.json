@@ -15,6 +15,26 @@
     "ws_result": [
       "0x0c4f06f4",
       "r2"
+    ],
+    "player_info32_request": [
+      "0x0c4f05a8",
+      "r0"
+    ],
+    "win_lose32_request": [
+      "0x0c4f05b4",
+      "r0"
+    ],
+    "stats_poll": [
+      "0x0c4f05c0",
+      "r0"
+    ],
+    "player_info32_draw": [
+      "0x0c4f05cc",
+      "r0"
+    ],
+    "win_lose32_draw": [
+      "0x0c4f05d8",
+      "r0"
     ]
   },
   "pinned": {
@@ -31,6 +51,9 @@
     "gdx_ppp_get_status": "0x0c4f0218",
     "gdx_dial_start_disk1": "0x0c4f0540",
     "gdx_dial_start_disk2": "0x0c4f0568",
-    "gdx_rpc": "0x0c4e0200"
+    "gdx_rpc": "0x0c4e0200",
+    "patch_id": "0x0c4e0258",
+    "gdx_widescreen_hud_table_disk1": "0x0c4e0300",
+    "gdx_widescreen_hud_table_disk2": "0x0c4e0354"
   }
 }
