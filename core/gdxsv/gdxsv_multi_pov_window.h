@@ -52,8 +52,9 @@ void gdxsv_multi_pov_window_set_topmost(bool topmost);
 
 void gdxsv_multi_pov_window_set_borderless(bool borderless);
 
-// Drops the rounded corners (and on macOS the shadow) the desktop draws
-// around the window, which would clip and spill over the neighbouring quadrants.
+// Temporarily makes the game area rectangular, with no side/bottom frame.
+// The host keeps its native draggable title bar and macOS top-corner shape.
+// False restores the host's original style and corner mask.
 void gdxsv_multi_pov_window_set_flat(bool flat);
 
 // This window, for another screen to order its own against. 0 where unused.

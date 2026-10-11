@@ -6,23 +6,124 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
 
 #include "gdxsv_emu_hooks.h"
 #include "log/LogManager.h"
 #include "sdl/sdl.h"
 #include "types.h"
+#include "imgui.h"
+#include "imgui_internal.h"
 
 // Defined in core/sdl/sdl.cpp.
 HWND getNativeHwnd();
 
 static HWND Hwnd() { return gdxsv_headless() ? nullptr : getNativeHwnd(); }
 
+static HWND flatHost;
+static constexpr UINT_PTR kFlatHostSubclass = 1;
+
+static bool WindowArranged(HWND hwnd) {
+	using IsWindowArrangedFn = BOOL(WINAPI*)(HWND);
+	static const auto isArranged = reinterpret_cast<IsWindowArrangedFn>(
+		GetProcAddress(GetModuleHandleW(L"user32.dll"), "IsWindowArranged"));
+	return isArranged != nullptr && isArranged(hwnd);
+}
+
+static UINT WindowDpi(HWND hwnd) {
+	using GetDpiForWindowFn = UINT(WINAPI*)(HWND);
+	static const auto getDpi = reinterpret_cast<GetDpiForWindowFn>(
+		GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow"));
+	if (getDpi != nullptr) {
+		const UINT dpi = getDpi(hwnd);
+		if (dpi != 0) return dpi;
+	}
+	HDC dc = GetDC(hwnd);
+	const UINT dpi = dc != nullptr ? GetDeviceCaps(dc, LOGPIXELSX) : 96;
+	if (dc != nullptr) ReleaseDC(hwnd, dc);
+	return dpi != 0 ? dpi : 96;
+}
+
+// Keep the native caption, buttons and hit testing, but extend the client
+// area over the side/bottom frame. DWM border color alone does not remove the
+// thick Win10 resize frame. Only the host is subclassed, temporarily.
+static LRESULT CALLBACK FlatHostWindowProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR) {
+	if (message == WM_NCDESTROY) {
+		RemoveWindowSubclass(hwnd, FlatHostWindowProc, id);
+		if (flatHost == hwnd) flatHost = nullptr;
+		return DefSubclassProc(hwnd, message, wp, lp);
+	}
+	const LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+	if (message == WM_NCCALCSIZE && (style & WS_CAPTION) == WS_CAPTION && !IsZoomed(hwnd)) {
+		RECT* client = wp ? &reinterpret_cast<NCCALCSIZE_PARAMS*>(lp)->rgrc[0] : reinterpret_cast<RECT*>(lp);
+		const RECT window = *client;
+		DefSubclassProc(hwnd, message, wp, lp);
+		const RECT nativeClient = *client;
+		client->left = window.left;
+		client->right = window.right;
+		client->bottom = window.bottom;
+		// Snap places the invisible resize frame outside the work area. Do not
+		// extend an otherwise visible native client edge into that frame. Use
+		// the proposed rectangle so a snap onto another monitor uses its area.
+		MONITORINFO monitor {sizeof(MONITORINFO)};
+		if (WindowArranged(hwnd) && GetMonitorInfoW(MonitorFromRect(&window, MONITOR_DEFAULTTONEAREST), &monitor)) {
+			if (window.left < monitor.rcWork.left && nativeClient.left >= monitor.rcWork.left)
+				client->left = monitor.rcWork.left;
+			if (window.right > monitor.rcWork.right && nativeClient.right <= monitor.rcWork.right)
+				client->right = monitor.rcWork.right;
+			if (window.bottom > monitor.rcWork.bottom && nativeClient.bottom <= monitor.rcWork.bottom)
+				client->bottom = monitor.rcWork.bottom;
+		}
+		return 0; // retain only the caption height calculated by Windows
+	}
+	const LRESULT result = DefSubclassProc(hwnd, message, wp, lp);
+	if (message == WM_NCHITTEST && result == HTCLIENT && (style & WS_THICKFRAME) != 0 && !IsZoomed(hwnd) &&
+			(SDL_GetWindowFlags(sdl_get_window()) & SDL_WINDOW_FULLSCREEN) == 0) {
+		// Replay controls and other ImGui interactions own their mouse input.
+		if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) return HTCLIENT;
+		// Retain resize handles inside the client edges whose visible frame
+		// was removed. Signed coordinates also work on displays left of primary.
+		RECT client;
+		if (GetClientRect(hwnd, &client)) {
+			POINT topLeft {client.left, client.top}, bottomRight {client.right, client.bottom};
+			ClientToScreen(hwnd, &topLeft);
+			ClientToScreen(hwnd, &bottomRight);
+			const int x = GET_X_LPARAM(lp), y = GET_Y_LPARAM(lp);
+			// Hit-test the rendered controls at the message's live coordinates.
+			// WantCaptureMouse alone still describes the previous UI frame when
+			// the pointer moves onto a resize strip and clicks immediately.
+			if (ImGui::GetCurrentContext() != nullptr) {
+				const ImGuiWindow* controls = ImGui::FindWindowByName("##gdxsv-replay-ctrlbar");
+				const ImVec2 display = ImGui::GetIO().DisplaySize;
+				if (controls != nullptr && (controls->Active || controls->WasActive) &&
+						client.right > 0 && client.bottom > 0 &&
+						controls->Rect().Contains(ImVec2((x - topLeft.x) * display.x / client.right,
+							(y - topLeft.y) * display.y / client.bottom))) return HTCLIENT;
+			}
+			const int extent = MulDiv(2, WindowDpi(hwnd), 96);
+			const bool left = x >= topLeft.x && x < topLeft.x + extent;
+			const bool right = x < bottomRight.x && x >= bottomRight.x - extent;
+			const bool bottom = y < bottomRight.y && y >= bottomRight.y - extent;
+			if (bottom) return left ? HTBOTTOMLEFT : right ? HTBOTTOMRIGHT : HTBOTTOM;
+			if (left) return HTLEFT;
+			if (right) return HTRIGHT;
+		}
+	}
+	return result;
+}
+
 // The window rect that produces the wanted client rect.
 static RECT ClientToWindowRect(HWND hwnd, const GdxsvMultiPovRect& client) {
 	RECT r{client.x, client.y, client.x + client.w, client.y + client.h};
-	const DWORD style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_STYLE));
-	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_EXSTYLE));
+	const DWORD style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE));
+	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
 	AdjustWindowRectEx(&r, style, FALSE, ex_style);
+	if (hwnd == flatHost) {
+		r.left = client.x;
+		r.right = client.x + client.w;
+		r.bottom = client.y + client.h;
+	}
 	return r;
 }
 
@@ -139,13 +240,14 @@ GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets() {
 
 	// AdjustWindowRectEx on an empty rect yields the frame alone.
 	RECT r{0, 0, 0, 0};
-	const DWORD style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_STYLE));
-	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtr(hwnd, GWL_EXSTYLE));
+	const DWORD style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE));
+	const DWORD ex_style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
 	if (!AdjustWindowRectEx(&r, style, FALSE, ex_style)) return out;
 	out.left = -r.left;
 	out.top = -r.top;
 	out.right = r.right;
 	out.bottom = r.bottom;
+	if (hwnd == flatHost) out.left = out.right = out.bottom = 0;
 	return out;
 }
 
@@ -153,12 +255,12 @@ void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return;
 
-	LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+	LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
 	const LONG_PTR decorations = WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
 	const LONG_PTR wanted = borderless ? (style & ~decorations) : (style | decorations);
 	if (wanted == style) return;
 
-	SetWindowLongPtr(hwnd, GWL_STYLE, wanted);
+	SetWindowLongPtrW(hwnd, GWL_STYLE, wanted);
 	// The frame only changes once the window is told to recalculate it.
 	SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
 				 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
@@ -179,6 +281,33 @@ static void SetDwmAttribute(HWND hwnd, DWORD attribute, const void* value, DWORD
 void gdxsv_multi_pov_window_set_flat(bool flat) {
 	HWND hwnd = Hwnd();
 	if (hwnd == nullptr) return;
+	if ((flat && flatHost == nullptr && gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Host) ||
+		(!flat && flatHost == hwnd)) {
+		// Capture the native restored client before extending its frame. The
+		// grid already saved the maximized state and restores it at session end.
+		// Restoring after subclass installation would include the old resize
+		// borders in the client and grow the saved normal size each session.
+		if (flat && gdxsv_multi_pov_window_is_maximized()) {
+			gdxsv_multi_pov_window_unmaximize();
+			if (gdxsv_multi_pov_window_is_maximized()) return;
+		}
+		const GdxsvMultiPovRect client = gdxsv_multi_pov_window_get_frame();
+		if (flat) {
+			if (!SetWindowSubclass(hwnd, FlatHostWindowProc, kFlatHostSubclass, 0)) {
+				WARN_LOG(COMMON, "multi-pov: cannot flatten host frame (%lu)", GetLastError());
+			} else flatHost = hwnd;
+		} else {
+			if (!RemoveWindowSubclass(hwnd, FlatHostWindowProc, kFlatHostSubclass)) {
+				WARN_LOG(COMMON, "multi-pov: cannot restore host frame (%lu)", GetLastError());
+				return;
+			}
+			flatHost = nullptr;
+		}
+		SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+		// Keep the game area's coordinates unchanged when the frame changes.
+		if (!gdxsv_multi_pov_window_is_maximized()) gdxsv_multi_pov_window_set_frame(client);
+	}
 
 	// Values from dwmapi.h, which older SDKs lack. The shadow cannot go
 	// without changing how the title bar is drawn; see

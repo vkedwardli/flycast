@@ -4,8 +4,11 @@
 #include "gdxsv_multi_pov_window.h"
 
 #import <AppKit/AppKit.h>
+#import <objc/runtime.h>
 
 #include <cmath>
+#include <cstring>
+#include <cstdlib>
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -15,16 +18,156 @@
 #include "sdl/sdl.h"
 #include "types.h"
 
+// AppKit's private _cornerMask hook keeps the real native title bar while
+// changing only the bottom corners. Copy its native image so the top corners
+// keep the exact macOS shape. The override is limited to SDLWindow and this
+// host; methods are checked at runtime and restored when the session ends.
+static NSWindow* flatHost;
+static NSImage* flatMask;
+static Class maskClass;
+static IMP savedCornerMask;
+static NSUInteger savedStyle;
+static BOOL savedShadow;
+
 static NSWindow* CocoaWindow() {
 	if (gdxsv_headless()) return nil;
 	SDL_Window* w = sdl_get_window();
 	if (w == nullptr) return nil;
-
 	SDL_SysWMinfo info;
 	SDL_VERSION(&info.version);
 	if (!SDL_GetWindowWMInfo(w, &info)) return nil;
 	if (info.subsystem != SDL_SYSWM_COCOA) return nil;
 	return info.info.cocoa.window;
+}
+
+static void SetStyleKeepingResponder(NSWindow* win, NSUInteger style) {
+	// Like SDL's SetWindowStyle: setStyleMask can change the view's responder
+	// chain, which otherwise disconnects the host's keyboard/mouse listener.
+	NSResponder* next = [win.contentView.nextResponder retain];
+	win.styleMask = style;
+	win.contentView.nextResponder = next;
+	[next release];
+}
+
+static NSImage* FlatCornerMask(id window, SEL selector) {
+	if (window == flatHost && flatMask != nil) {
+		const NSUInteger style = flatHost.styleMask;
+		if ((style & NSWindowStyleMaskTitled) == 0) return nil; // square grid fullscreen
+		if ((style & NSWindowStyleMaskFullScreen) == 0) return flatMask;
+	}
+	return savedCornerMask == nullptr ? nil :
+		reinterpret_cast<NSImage* (*)(id, SEL)>(savedCornerMask)(window, selector);
+}
+
+static void RefreshCornerMask(NSWindow* win) {
+	const SEL selector = NSSelectorFromString(@"_cornerMaskChanged");
+	if ([win respondsToSelector:selector])
+		reinterpret_cast<void (*)(id, SEL)>([win methodForSelector:selector])(win, selector);
+	[win.contentView.superview setNeedsDisplay:YES];
+	[win invalidateShadow];
+}
+
+static bool HasCornerMethod(Class cls, SEL selector, const char* resultType) {
+	Method method = class_getInstanceMethod(cls, selector);
+	if (method == nullptr || method_getNumberOfArguments(method) != 2) return false;
+	char* type = method_copyReturnType(method);
+	const bool valid = type != nullptr && std::strcmp(type, resultType) == 0;
+	std::free(type);
+	return valid;
+}
+
+static NSImage* CopyMaskWithSquareBottom(NSImage* original) {
+	NSRect rect = NSMakeRect(0, 0, original.size.width, original.size.height);
+	CGImageRef image = [original CGImageForProposedRect:&rect context:nil hints:nil];
+	if (image == nullptr || CGImageGetBitsPerComponent(image) != 8 ||
+		(CGImageGetBitsPerPixel(image) != 8 && CGImageGetBitsPerPixel(image) != 32)) return nil;
+	const size_t width = CGImageGetWidth(image), height = CGImageGetHeight(image);
+	const size_t stride = CGImageGetBytesPerRow(image), pixelSize = CGImageGetBitsPerPixel(image) / 8;
+	CFDataRef source = CGDataProviderCopyData(CGImageGetDataProvider(image));
+	if (source == nullptr) return nil;
+	CFMutableDataRef pixels = CFDataCreateMutableCopy(nullptr, 0, source);
+	CFRelease(source);
+	if (pixels == nullptr) return nil;
+	if (width == 0 || height == 0 || stride < width * pixelSize ||
+		static_cast<size_t>(CFDataGetLength(pixels)) < stride * height) {
+		CFRelease(pixels);
+		return nil;
+	}
+	UInt8* data = CFDataGetMutableBytePtr(pixels);
+	UInt8 opaque[4];
+	std::memcpy(opaque, data + (height / 2) * stride + (width / 2) * pixelSize, pixelSize);
+	// Retain every native top-cap pixel. Use the opaque centre pixel for the
+	// entire lower mask, preserving native alpha/mask encoding and colorspace.
+	const size_t topRows = static_cast<size_t>(std::lround(original.capInsets.top * height / original.size.height));
+	for (size_t y = topRows; y < height; ++y)
+		for (size_t x = 0; x < width; ++x)
+			std::memcpy(data + y * stride + x * pixelSize, opaque, pixelSize);
+	CGDataProviderRef provider = CGDataProviderCreateWithCFData(pixels);
+	CFRelease(pixels);
+	if (provider == nullptr) return nil;
+	CGImageRef copy = CGImageIsMask(image) ?
+		CGImageMaskCreate(width, height, CGImageGetBitsPerComponent(image), CGImageGetBitsPerPixel(image), stride,
+			provider, CGImageGetDecode(image), CGImageGetShouldInterpolate(image)) :
+		CGImageCreate(width, height, CGImageGetBitsPerComponent(image), CGImageGetBitsPerPixel(image), stride,
+			CGImageGetColorSpace(image), CGImageGetBitmapInfo(image), provider, CGImageGetDecode(image),
+			CGImageGetShouldInterpolate(image), CGImageGetRenderingIntent(image));
+	CGDataProviderRelease(provider);
+	if (copy == nullptr) return nil;
+	NSImage* result = [[NSImage alloc] initWithCGImage:copy size:original.size];
+	CGImageRelease(copy);
+	result.capInsets = original.capInsets;
+	result.resizingMode = original.resizingMode;
+	return result;
+}
+
+static void ApplyFlatHost() {
+	NSWindow* win = CocoaWindow();
+	if (win == nil || win != flatHost || flatMask != nil) return;
+	// Read the normal window's native mask after leaving zoom/fullscreen.
+	if (win.isZoomed || (win.styleMask & NSWindowStyleMaskFullScreen) != 0 ||
+		(SDL_GetWindowFlags(sdl_get_window()) & SDL_WINDOW_FULLSCREEN) != 0) return;
+	const SEL selector = NSSelectorFromString(@"_cornerMask");
+	Class cls = NSClassFromString(@"SDLWindow");
+	if (cls == Nil || ![win isKindOfClass:cls] || !HasCornerMethod(cls, selector, "@") ||
+		!HasCornerMethod(object_getClass(win), NSSelectorFromString(@"_cornerMaskChanged"), "v")) {
+		WARN_LOG(COMMON, "multi-pov: native corner-mask hooks unavailable; keeping native corners");
+		return;
+	}
+	NSImage* original = reinterpret_cast<NSImage* (*)(id, SEL)>([win methodForSelector:selector])(win, selector);
+	if (![original isKindOfClass:NSImage.class] ||
+		!std::isfinite(original.size.width) || !std::isfinite(original.size.height) || !std::isfinite(original.capInsets.top) ||
+		original.size.width <= 0 || original.size.height <= 0 ||
+		original.capInsets.top <= 0 || original.capInsets.top >= original.size.height) {
+		WARN_LOG(COMMON, "multi-pov: native corner mask unavailable; keeping native corners");
+		return;
+	}
+	flatMask = CopyMaskWithSquareBottom(original);
+	if (flatMask == nil) return;
+	maskClass = cls;
+	Method method = class_getInstanceMethod(cls, selector);
+	savedCornerMask = method_getImplementation(method);
+	// Add/replace only SDLWindow's implementation, leaving NSWindow and SDL's
+	// KVO instance class intact. Other SDL windows still use the original IMP.
+	class_replaceMethod(cls, selector, reinterpret_cast<IMP>(FlatCornerMask), method_getTypeEncoding(method));
+	RefreshCornerMask(win);
+}
+
+static void RestoreFlatHost() {
+	if (flatHost == nil) return;
+	NSWindow* win = flatHost;
+	if (flatMask != nil) {
+		const SEL selector = NSSelectorFromString(@"_cornerMask");
+		class_replaceMethod(maskClass, selector, savedCornerMask,
+			method_getTypeEncoding(class_getInstanceMethod(maskClass, selector)));
+		[flatMask release];
+		flatMask = nil;
+		maskClass = Nil;
+		savedCornerMask = nullptr;
+		RefreshCornerMask(win);
+	}
+	win.hasShadow = savedShadow;
+	flatHost = nil;
+	[win release];
 }
 
 // AppKit measures from the primary screen, whose height is the flip axis.
@@ -121,6 +264,11 @@ void gdxsv_multi_pov_window_unmaximize() {
 		return;
 	}
 	if (win.isZoomed) [win zoom:nil];
+	// SDL's exclusive fullscreen temporarily uses a borderless style. Save
+	// the normal caption after leaving it, before grid fullscreen can toggle.
+	if (win == flatHost && (win.styleMask & NSWindowStyleMaskTitled) != 0)
+		savedStyle = win.styleMask & ~NSWindowStyleMaskFullScreen;
+	ApplyFlatHost();
 }
 
 GdxsvMultiPovRect gdxsv_multi_pov_window_work_area() {
@@ -171,16 +319,30 @@ void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 
 	if (borderless) {
 		// Keep it resizable so AppKit still lets us set an arbitrary frame.
-		win.styleMask = NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable;
+		SetStyleKeepingResponder(win, NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable);
 	} else {
-		win.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable |
-						NSWindowStyleMaskResizable;
+		SetStyleKeepingResponder(win, win == flatHost ? savedStyle :
+			NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable |
+			NSWindowStyleMaskResizable);
 	}
+	if (win == flatHost && flatMask != nil) RefreshCornerMask(win);
 }
 
 void gdxsv_multi_pov_window_set_flat(bool flat) {
 	NSWindow* win = CocoaWindow();
 	if (win == nil) return;
+	if (!flat && flatHost != nil) {
+		RestoreFlatHost();
+		return;
+	}
+	if (flat && gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Host) {
+		if (flatHost == nil) {
+			flatHost = [win retain];
+			savedStyle = win.styleMask & ~NSWindowStyleMaskFullScreen;
+			savedShadow = win.hasShadow;
+		}
+		ApplyFlatHost();
+	}
 	win.hasShadow = !flat;
 }
 

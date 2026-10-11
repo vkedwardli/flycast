@@ -31,10 +31,10 @@ static GdxsvMultiPovRect g_fullscreen_restore;
 static void SaveHostWindow() {
 	if (!g_host_window_restore) {
 		g_host_window_restore = gdxsv_multi_pov_window_get_state();
-		gdxsv_multi_pov_window_set_flat(true);
 #ifdef USE_SDL
 		sdl_preserve_window_state(true);
 #endif
+		gdxsv_multi_pov_window_set_flat(true);
 	}
 }
 
@@ -70,6 +70,14 @@ static GdxsvMultiPovRect HostGridArea() {
 
 static void TickHost() {
 	SaveHostWindow();
+#ifdef _WIN32
+	// Leaving exclusive fullscreen can fail temporarily. Retry before placing
+	// the first quadrant, and install the flat frame only after restoring.
+	if (!g_host_placed) {
+		if (!UnmaximizeHostWindow()) return;
+		gdxsv_multi_pov_window_set_flat(true);
+	}
+#endif
 	GdxsvMultiPovHostWindow hw;
 
 	if (g_fullscreen) {
