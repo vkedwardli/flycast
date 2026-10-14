@@ -13,7 +13,6 @@ if(CCACHE_PROGRAM)
 endif()
 
 set(SENTRY_UPLOAD_URL "" CACHE STRING "Sentry upload URL")
-set(GDXSV_TEXTURE_PACK_PASS "" CACHE STRING "Gdxsv texture pack password")
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shell/cmake")
 
@@ -82,8 +81,6 @@ option(ENABLE_CTEST "Enables unit tests" OFF)
 option(ENABLE_OPROFILE "Enable OProfile" OFF)
 option(TEST_AUTOMATION "Enable test automation" OFF)
 option(ENABLE_LOG "Enable full logging" OFF)
-option(ENABLE_SLEEP_BENCHMARK "Enable sleep timing benchmark logging" OFF)
-option(GDXSV_FP_COMPAT "gdxsv: compute SH4 fmac as fmul + fadd (no fused multiply-add) on every CPU and backend so replays and netplay stay in sync" ON)
 option(ASAN "Enable address sanitizer" OFF)
 option(USE_GLES "Use GLES[3] API" OFF)
 option(USE_GLES2 "Use GLES2 API" OFF)
@@ -99,7 +96,6 @@ option(USE_DX11 "Build with Direct3D 11 support" ON)
 option(LIBRETRO "Build libretro core" OFF)
 option(USE_OPENGL "Use OpenGL API" ON)
 option(USE_VIDEOCORE "RPI: use the legacy Broadcom GLES libraries" OFF)
-option(MSVC_BREAKPAD "Windows MSVC: Build breakpad client" OFF)
 option(USE_ALSA "Build with ALSA support" ON)
 option(USE_LIBAO "Build with AO support" ON)
 option(USE_OSS "Build with OSS support" OFF)
@@ -163,7 +159,7 @@ if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
 		MATH(EXPR SEMVER_PATCH "${SEMVER_PATCH}+1")
 		string(REGEX REPLACE "[0-9]+-dev" "${SEMVER_PATCH}-dev" GIT_VERSION "${GIT_VERSION}")
 	endif()
-	
+
 	execute_process(
 		COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -320,10 +316,6 @@ if(MSVC)
 	if(WINDOWS_STORE)
 		target_compile_options(${PROJECT_NAME} PRIVATE /ZW)
 	endif()
-	target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/Zi>")
-	target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
-	target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
-	target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
 else()
 	target_compile_options(${PROJECT_NAME} PRIVATE
 		$<$<COMPILE_LANGUAGE:CXX>:-fno-strict-aliasing>
@@ -337,7 +329,6 @@ endif()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 		$<$<BOOL:${APPLE}>:GL_SILENCE_DEPRECATION>
 		$<$<BOOL:${ENABLE_LOG}>:DEBUGFAST>
-		$<$<BOOL:${ENABLE_SLEEP_BENCHMARK}>:SLEEP_BENCHMARK>
 		$<$<BOOL:${IOS}>:TARGET_IPHONE>
 		$<$<BOOL:${TARGET_MAC}>:TARGET_MAC>
 		$<$<BOOL:${IOS}>:GLES>
@@ -363,12 +354,7 @@ if(NOT "${SENTRY_UPLOAD_URL}" STREQUAL "")
 	target_compile_definitions(${PROJECT_NAME} PRIVATE SENTRY_UPLOAD="${SENTRY_UPLOAD_URL}")
 endif()
 
-if(NOT "${GDXSV_TEXTURE_PACK_PASS}" STREQUAL "")
-	target_compile_definitions(${PROJECT_NAME} PRIVATE GDXSV_TEXTURE_PACK_PASS="${GDXSV_TEXTURE_PACK_PASS}")
-endif()
-
 target_include_directories(${PROJECT_NAME} PRIVATE core core/deps core/deps/stb core/deps/json core/deps/asio/asio/include)
-
 if(LIBRETRO)
 	target_include_directories(${PROJECT_NAME} PRIVATE shell/libretro)
 endif()
@@ -388,31 +374,6 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 			target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--build-id")
 		endif()
 		target_link_libraries(${PROJECT_NAME} PUBLIC breakpad_client)
-		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
-	elseif(MSVC AND MSVC_BREAKPAD)
-		target_sources(${PROJECT_NAME} PRIVATE
-			core/deps/breakpad/src/client/windows/common/ipc_protocol.h
-			core/deps/breakpad/src/client/windows/crash_generation/crash_generation_client.h
-			core/deps/breakpad/src/client/windows/crash_generation/crash_generation_client.cc
-			core/deps/breakpad/src/client/windows/crash_generation/client_info.h
-			core/deps/breakpad/src/client/windows/crash_generation/client_info.cc
-			core/deps/breakpad/src/client/windows/common/auto_critical_section.h
-			core/deps/breakpad/src/client/windows/handler/exception_handler.h
-			core/deps/breakpad/src/client/windows/handler/exception_handler.cc
-			core/deps/breakpad/src/common/scoped_ptr.h
-			core/deps/breakpad/src/common/windows/string_utils-inl.h
-			core/deps/breakpad/src/common/windows/string_utils.cc
-			core/deps/breakpad/src/common/windows/guid_string.h
-			core/deps/breakpad/src/common/windows/guid_string.cc
-			core/deps/breakpad/src/google_breakpad/common/minidump_format.h
-			core/deps/breakpad/src/google_breakpad/common/breakpad_types.h
-		)
-		set_source_files_properties(
-			core/deps/breakpad/src/client/windows/handler/exception_handler.cc
-			core/deps/breakpad/src/client/windows/crash_generation/crash_generation_client.cc
-			PROPERTIES COMPILE_OPTIONS -DUNICODE -D_UNICODE -g
-		)
-		target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/deps/breakpad/src)
 		target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
 	elseif(APPLE AND NOT IOS)
 		target_sources(${PROJECT_NAME} PRIVATE
@@ -549,7 +510,7 @@ if(NOT LIBRETRO)
 			target_link_libraries(${PROJECT_NAME} PRIVATE ${ALSA_LIBRARIES})
 		endif()
 	endif()
-	
+
 	if(MINGW)
 		target_link_libraries(${PROJECT_NAME} PRIVATE "-static-libgcc -static-libstdc++")
 	endif()
@@ -623,7 +584,7 @@ if(NOT LIBRETRO)
 			target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
 		endif()
 	endif()
-	
+
 	find_package(ZLIB)
 	if(TARGET ZLIB::ZLIB AND NOT ANDROID AND (NOT WIN32 OR WINDOWS_STORE))
 		set(WITH_SYSTEM_ZLIB ON CACHE BOOL "Use system provided zlib library")
@@ -683,7 +644,7 @@ if(PKG_CONFIG_FOUND AND NOT ANDROID AND NOT APPLE AND NOT LIBRETRO)
 		if(LIBEVDEV_FOUND)
 			target_compile_definitions(${PROJECT_NAME} PRIVATE USE_EVDEV)
 			target_link_libraries(${PROJECT_NAME} PRIVATE PkgConfig::LIBEVDEV)
-	
+
 			pkg_check_modules(LIBUDEV IMPORTED_TARGET libudev)
 			if(LIBUDEV_FOUND)
 				target_compile_definitions(${PROJECT_NAME} PRIVATE USE_UDEV)
@@ -713,7 +674,7 @@ if(PKG_CONFIG_FOUND AND NOT ANDROID AND NOT APPLE AND NOT LIBRETRO)
 	endif()
 
 	find_package(MiniUPnPc)
-	if (MINIUPNP_FOUND)
+	if(MINIUPNP_FOUND)
 		target_include_directories(${PROJECT_NAME} PRIVATE ${MINIUPNP_INCLUDE_DIRS})
 		target_link_libraries(${PROJECT_NAME} PRIVATE ${MINIUPNP_LIBRARIES})
 	endif()
@@ -1214,14 +1175,6 @@ if("arm" IN_LIST ARCHITECTURE AND NOT APPLE)
 		core/deps/vixl/utils-vixl.cc
 		core/deps/vixl/utils-vixl.h)
 endif()
-if(GDXSV_FP_COMPAT)
-	# gdxsv: a*b+c must round twice on every host. Keep the compiler from fusing it
-	# (fmac in the interpreter and canonical, innerProduct for fipr/ftrv ...).
-	target_compile_definitions(${PROJECT_NAME} PRIVATE GDXSV_FP_COMPAT)
-	if(NOT MSVC)
-		target_compile_options(${PROJECT_NAME} PRIVATE -ffp-contract=off)
-	endif()
-endif()
 if("arm64" IN_LIST ARCHITECTURE)
 	if(MSVC)
 		target_compile_options(${PROJECT_NAME} PRIVATE "/Zc:__cplusplus")
@@ -1313,7 +1266,7 @@ if(NOT LIBRETRO)
 		core/deps/ggpo/lib/ggpo/timesync.cpp
 		core/deps/ggpo/lib/ggpo/timesync.h
 		core/deps/ggpo/lib/ggpo/ggpo_types.h
-		
+
 		core/deps/ggpo/lib/ggpo/backends/backend.h
 		core/deps/ggpo/lib/ggpo/backends/p2p.cpp
 		core/deps/ggpo/lib/ggpo/backends/p2p.h
@@ -1321,7 +1274,7 @@ if(NOT LIBRETRO)
 		core/deps/ggpo/lib/ggpo/backends/spectator.h
 		core/deps/ggpo/lib/ggpo/backends/synctest.cpp
 		core/deps/ggpo/lib/ggpo/backends/synctest.h
-		
+
 		core/deps/ggpo/lib/ggpo/network/udp_msg.h
 		core/deps/ggpo/lib/ggpo/network/udp_proto.cpp
 		core/deps/ggpo/lib/ggpo/network/udp_proto.h
@@ -1408,7 +1361,7 @@ if(NOT LIBRETRO)
 				XCODE_ATTRIBUTE_COMBINE_HIDPI_IMAGES NO
 				XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
 				XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.flyinghead.Flycast")
-				
+
 			find_library(UIKIT UIKit)
 			find_library(FOUNDATION Foundation)
 			find_library(GLKIT GLKit)
@@ -1460,7 +1413,7 @@ if(NOT LIBRETRO)
 			target_sources(${PROJECT_NAME} PRIVATE ${ASSETS})
 			source_group("Resources" FILES ${ASSETS})
 			set_source_files_properties(${ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-		
+
 			set_target_properties(${PROJECT_NAME} PROPERTIES
 				OUTPUT_NAME "Flycast"
 				MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/shell/apple/emulator-osx/MacOSXBundleInfo.plist.in
@@ -1482,7 +1435,7 @@ if(NOT LIBRETRO)
 				BUILD_WITH_INSTALL_RPATH TRUE
 				INSTALL_RPATH "@loader_path/../Frameworks"
 			)
-		
+
 			find_library(AUDIO_UNIT_LIBRARY AudioUnit)
 			find_library(FOUNDATION_LIBRARY Foundation)
 			find_library(AUDIO_TOOLBOX_LIBRARY AudioToolbox)
