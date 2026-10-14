@@ -62,7 +62,8 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Video routing | `core/wsi/gl_context.cpp`, `core/rend/dx11/dx11context.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gles.cpp`, `core/rend/gl4/gles.cpp` | Spout / Syphon output drawn and torn down with the graphics context |
 | Config | `core/cfg/cfg.cpp` | a new `emu.cfg` gets the gdxsv defaults |
 | UI | `core/ui/gui.cpp/.h`, `core/ui/settings*.cpp/.h`, `core/ui/gui_font.cpp`, `core/oslib/i18n.cpp` | gdxsv settings page, Live & Replays menu, update popup, gdxsv translations, Japanese fonts always loaded |
-| Platform info | `core/windows/winmain.cpp`, `shell/apple/emulator-osx/emulator-osx/osx-main.mm`, `SDLApplicationDelegate.mm`, `core/network/net_platform.h`, `core/network/miniupnp.cpp/.h` | machine id, connection medium (VPN), open URLs (also Linux); UDP sockets ignore ICMP port unreachable on Windows; UPnP mapping details |
+| Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |
+| Network | `core/network/net_platform.h`, `core/network/miniupnp.cpp/.h` | UDP sockets ignore ICMP port unreachable on Windows; UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | per-call URL buffers (concurrent requests mixed hosts) |
 | Textures | `core/rend/CustomTexture.cpp`, `core/rend/TexCache.cpp` | embedded and downloaded texture packs for the game (`T13306M`) |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
