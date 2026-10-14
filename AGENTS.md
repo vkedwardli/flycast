@@ -60,8 +60,8 @@ branch is `gdxsv-master`.
 - New fork files start with `// SPDX-FileCopyrightText: 2026 gdxsv
   contributors` and `// SPDX-License-Identifier: GPL-2.0-or-later`. Upstream
   files keep their header.
-- gdxsv sources are listed in the `## gdxsv` block of `CMakeLists.txt`; other
-  CMake changes stay as small as possible.
+- gdxsv sources are listed in `core/gdxsv/gdxsv.cmake` (one `include` in
+  `CMakeLists.txt`); other CMake changes stay as small as possible.
 - Third-party code changed for gdxsv (`core/deps/ggpo/`): each change listed
   in `docs/gdxsv/upstream.md`.
 
