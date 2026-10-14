@@ -58,8 +58,8 @@ public:
 	void preloadTextures(TextureCallback callback, std::atomic<bool>* stop_flag) override;
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override final;
-
-
+	
+	
 
 private:
 	bool custom_textures_available = false;
@@ -184,10 +184,7 @@ bool CustomTexture::init()
 			// The first source added has highest priority.
 			// Add your source after the default `CustomTextureSource`(data/textures/<game id> folder), so end-users can override your textures.
 			addSource(std::make_unique<CustomTextureSource>(game_id));
-			if (game_id == "T13306M") {
-				addSource(std::make_unique<GdxsvEmbedTextureSource>());
-				addSource(std::make_unique<GdxsvTexturePackSource>());
-			}
+			gdxsv_add_custom_texture_sources(*this, game_id);
 		}
 	}
 
@@ -210,20 +207,15 @@ bool CustomTexture::isPreloading() {
 	int texTotal = 0;
 	size_t loaded_size_b = 0;
 	getPreloadProgress(texLoaded, texTotal, loaded_size_b);
-
+	
 	return (texTotal > 0 && texLoaded < texTotal);
 }
 
 void CustomTexture::addSource(std::unique_ptr<BaseCustomTextureSource> source)
 {
 	BaseCustomTextureSource* ptr = source.get();
-	if (ptr == nullptr) {
-		ERROR_LOG(COMMON, "CustomTexture::addSource got nullptr");
-		return;
-	}
-
 	sources.emplace_back(std::move(source));
-
+	
 	if (initialized)
 	{
 		if (!loaderThread && ptr->shouldReplace())

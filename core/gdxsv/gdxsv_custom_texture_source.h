@@ -45,3 +45,6 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource {
 	zip_t* texp_zip = nullptr;
 	zip_source_t* texp_zip_source = nullptr;
 };
+
+// Called by CustomTexture::init after the default source: adds the gdxsv sources for DC2 (T13306M).
+void gdxsv_add_custom_texture_sources(CustomTexture& custom_texture, const std::string& game_id);
