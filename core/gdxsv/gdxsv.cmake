@@ -1,6 +1,60 @@
 # SPDX-FileCopyrightText: 2026 gdxsv contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 # gdxsv sources and their build settings, included from the top-level CMakeLists.txt.
+set(GDXSV_TEXTURE_PACK_PASS "" CACHE STRING "Gdxsv texture pack password")
+option(ENABLE_SLEEP_BENCHMARK "Enable sleep timing benchmark logging" OFF)
+option(GDXSV_FP_COMPAT "gdxsv: compute SH4 fmac as fmul + fadd (no fused multiply-add) on every CPU and backend so replays and netplay stay in sync" ON)
+option(MSVC_BREAKPAD "Windows MSVC: Build breakpad client" OFF)
+
+if(ENABLE_SLEEP_BENCHMARK)
+	target_compile_definitions(${PROJECT_NAME} PRIVATE SLEEP_BENCHMARK)
+endif()
+if(NOT "${GDXSV_TEXTURE_PACK_PASS}" STREQUAL "")
+	target_compile_definitions(${PROJECT_NAME} PRIVATE GDXSV_TEXTURE_PACK_PASS="${GDXSV_TEXTURE_PACK_PASS}")
+endif()
+if(GDXSV_FP_COMPAT)
+	# gdxsv: a*b+c must round twice on every host. Keep the compiler from fusing it
+	# (fmac in the interpreter and canonical, innerProduct for fipr/ftrv ...).
+	target_compile_definitions(${PROJECT_NAME} PRIVATE GDXSV_FP_COMPAT)
+	if(NOT MSVC)
+		target_compile_options(${PROJECT_NAME} PRIVATE -ffp-contract=off)
+	endif()
+endif()
+
+if(MSVC)
+	target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/Zi>")
+	target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
+	target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
+	target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
+endif()
+
+if(USE_BREAKPAD AND NOT LIBRETRO AND MSVC AND MSVC_BREAKPAD)
+	target_sources(${PROJECT_NAME} PRIVATE
+		core/deps/breakpad/src/client/windows/common/ipc_protocol.h
+		core/deps/breakpad/src/client/windows/crash_generation/crash_generation_client.h
+		core/deps/breakpad/src/client/windows/crash_generation/crash_generation_client.cc
+		core/deps/breakpad/src/client/windows/crash_generation/client_info.h
+		core/deps/breakpad/src/client/windows/crash_generation/client_info.cc
+		core/deps/breakpad/src/client/windows/common/auto_critical_section.h
+		core/deps/breakpad/src/client/windows/handler/exception_handler.h
+		core/deps/breakpad/src/client/windows/handler/exception_handler.cc
+		core/deps/breakpad/src/common/scoped_ptr.h
+		core/deps/breakpad/src/common/windows/string_utils-inl.h
+		core/deps/breakpad/src/common/windows/string_utils.cc
+		core/deps/breakpad/src/common/windows/guid_string.h
+		core/deps/breakpad/src/common/windows/guid_string.cc
+		core/deps/breakpad/src/google_breakpad/common/minidump_format.h
+		core/deps/breakpad/src/google_breakpad/common/breakpad_types.h
+	)
+	set_source_files_properties(
+		core/deps/breakpad/src/client/windows/handler/exception_handler.cc
+		core/deps/breakpad/src/client/windows/crash_generation/crash_generation_client.cc
+		PROPERTIES COMPILE_OPTIONS -DUNICODE -D_UNICODE -g
+	)
+	target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/deps/breakpad/src)
+	target_compile_definitions(${PROJECT_NAME} PRIVATE USE_BREAKPAD)
+endif()
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_PTHREAD)
 target_include_directories(${PROJECT_NAME} PRIVATE core/deps/protobuf-3.13.0/src)
 target_sources(${PROJECT_NAME} PRIVATE
