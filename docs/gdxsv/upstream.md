@@ -27,8 +27,6 @@ upstream ([flyinghead/flycast](https://github.com/flyinghead/flycast)
 | `gdxsv_langmod/` | translation sources (`translation.csv`, PSD textures) and their generators |
 | `core/deps/protobuf-3.13.0/` | protobuf runtime (`gdxsv.pb.cc`) |
 | `resources/i18n-gdxsv/` | UI translations of the gdxsv pages |
-| `core/sleep.cpp`, `core/sleep.h` | precise sleep for the frame limiter |
-| `core/ui/null_imgui_driver.h` | UI driver that draws nothing (headless) |
 | `tests/src/Gdxsv*.cpp`, `tests/src/test_stubs.cpp` | unit tests |
 | `tools/rbk_test/` | rollback and live spectating rigs |
 | `run.py`, `.github/workflows/run-game.yml` | several local instances; the same on a self-hosted runner |

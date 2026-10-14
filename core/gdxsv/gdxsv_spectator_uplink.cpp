@@ -6,7 +6,7 @@
 
 #include "gdxsv.pb.h"
 #include "gdxsv_network.h"
-#include "sleep.h"
+#include "gdxsv/gdxsv_sleep.h"
 #include "types.h"
 
 namespace {
@@ -242,7 +242,7 @@ void GdxsvSpectatorUplink::ThreadMain(std::string lbs_host, int lbs_port, std::s
 			}
 		}
 
-		sleep_us(1000);
+		gdxsv_sleep_us(1000);
 	}
 
 	client.Close();

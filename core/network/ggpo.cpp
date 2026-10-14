@@ -28,7 +28,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include "sleep.h"
+#include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include "gdxsv/gdxsv_prof.h"
 
@@ -599,7 +599,7 @@ static void ggpoIdleLoop() {
 			if (ggpoSession == nullptr) return;
 			ggpo_idle(ggpoSession, -1); // only pump
 		}
-		sleep_us(1000);
+		gdxsv_sleep_us(1000);
 	}
 }
 
@@ -974,7 +974,7 @@ bool nextFrame()
 		}
 		DEBUG_LOG(NETWORK, "ggpo_add_local_input prediction barrier reached");
 		loop_count++;
-		sleep_us(5 * 1000);
+		gdxsv_sleep_us(5 * 1000);
 		error = ggpo_idle(ggpoSession, 0);
 		if (error != GGPO_OK)
 		{
@@ -1071,7 +1071,7 @@ std::future<bool> startNetwork()
 					throw FlycastException("GGPO error");
 				}
 			}
-			sleep_us(20 * 1000);
+			gdxsv_sleep_us(20 * 1000);
 		}
 #ifdef SYNC_TEST
 		// save initial state (frame 0)
@@ -1403,7 +1403,7 @@ std::future<bool> gdxsvStartNetwork(const char* sessionCode, int me,
 					throw FlycastException("GGPO error");
 				}
 			}
-			sleep_us(20 * 1000);
+			gdxsv_sleep_us(20 * 1000);
 		}
 #ifdef SYNC_TEST
 		// save initial state (frame 0)

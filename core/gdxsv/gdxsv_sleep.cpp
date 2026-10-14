@@ -1,4 +1,4 @@
-#include "sleep.h"
+#include "gdxsv_sleep.h"
 
 #include <cstdio>
 #include <chrono>
@@ -37,7 +37,7 @@ static struct {
 } g_sleepBenchmark;
 #endif
 
-void sleep_benchmark_periodic_report()
+void gdxsv_sleep_benchmark_periodic_report()
 {
 #ifdef SLEEP_BENCHMARK
 	if (++g_sleepBenchmark.reportCounter < kSleepBenchmarkReportInterval)
@@ -80,7 +80,7 @@ void sleep_benchmark_periodic_report()
 #endif
 }
 
-void set_timer_resolution()
+void gdxsv_set_timer_resolution()
 {
 #if _WIN32
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
@@ -140,7 +140,7 @@ void set_timer_resolution()
 #endif
 }
 
-void reset_timer_resolution()
+void gdxsv_reset_timer_resolution()
 {
 #if _WIN32
 	ULONG actual_resolution;
@@ -148,7 +148,7 @@ void reset_timer_resolution()
 #endif
 }
 
-void sleep_us(int64_t us)
+void gdxsv_sleep_us(int64_t us)
 {
 #if _WIN32
 	LARGE_INTEGER interval;
@@ -162,7 +162,7 @@ void sleep_us(int64_t us)
 #endif
 }
 
-int64_t sleep_and_busy_wait(int64_t us)
+int64_t gdxsv_sleep_and_busy_wait(int64_t us)
 {
 	const auto t1 = std::chrono::steady_clock::now();
 
@@ -183,13 +183,13 @@ int64_t sleep_and_busy_wait(int64_t us)
 #if defined(_WIN32) || defined(__APPLE__)
 	if (2000 <= us2) {
 		sleepRequested = us2 - 1000;
-		sleep_us(sleepRequested);
+		gdxsv_sleep_us(sleepRequested);
 	}
 #else
 	// FIXME: Optimize for other platforms
 	if (4000 <= us2) {
 		sleepRequested = us2 - 2000;
-		sleep_us(sleepRequested);
+		gdxsv_sleep_us(sleepRequested);
 	}
 #endif
 

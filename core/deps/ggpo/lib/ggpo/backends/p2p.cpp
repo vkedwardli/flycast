@@ -9,7 +9,7 @@
 #include <chrono>
 #include <thread>
 
-#include "sleep.h"
+#include "gdxsv/gdxsv_sleep.h"
 
 static const int RECOMMENDATION_INTERVAL           = 90;
 static const int DEFAULT_DISCONNECT_TIMEOUT        = 5000;
@@ -188,7 +188,7 @@ Peer2PeerBackend::DoPoll(int timeout)
          }
          // XXX: this is obviously a farce...
          if (timeout)
-             sleep_us(1000);
+             gdxsv_sleep_us(1000);
       } else if (this->_num_players == 1) {
 		  CheckInitialSync();
       }

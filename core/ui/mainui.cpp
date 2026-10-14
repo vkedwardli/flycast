@@ -32,7 +32,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
-#include "sleep.h"
+#include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
 
 static bool mainui_enabled;
@@ -130,7 +130,7 @@ void mainui_loop(bool forceStart)
 	RenderType currentRenderer = config::RendererType;
 	int currentDupeFrames = config::DupeFrames;
 
-	set_timer_resolution();
+	gdxsv_set_timer_resolution();
 	std::chrono::time_point<std::chrono::steady_clock> start;
 
 	auto getElapsed = [&start]() {
@@ -146,13 +146,13 @@ void mainui_loop(bool forceStart)
 
 		auto remaining = period - getElapsed();
 		if (remaining > 0)
-			overSlept = sleep_and_busy_wait(remaining);
+			overSlept = gdxsv_sleep_and_busy_wait(remaining);
 
 		start = std::chrono::steady_clock::now();
 		if (1000 <= overSlept)
 			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
 
-		sleep_benchmark_periodic_report();
+		gdxsv_sleep_benchmark_periodic_report();
 	};
 
 	while (mainui_enabled)
@@ -214,7 +214,7 @@ void mainui_loop(bool forceStart)
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
 
-	reset_timer_resolution();
+	gdxsv_reset_timer_resolution();
 	mainui_term();
 }
 

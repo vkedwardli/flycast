@@ -22,7 +22,7 @@
 #include "context.h"
 #include "cfg/option.h"
 #include "oslib/i18n.h"
-#include "ui/null_imgui_driver.h"
+#include "gdxsv/gdxsv_null_imgui_driver.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
 
 #include "gl_context.h"
@@ -38,7 +38,7 @@ void initRenderApi(void *window, void *display)
 	{
 		// No graphics API at all: the UI draws into a driver that discards it.
 		imguiDriver.reset();
-		imguiDriver = std::make_unique<NullImGuiDriver>();
+		imguiDriver = std::make_unique<GdxsvNullImGuiDriver>();
 		return;
 	}
 #ifdef USE_VULKAN

@@ -1135,8 +1135,6 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/nullDC.cpp
 		core/serialize.cpp
 		core/serialize.h
-		core/sleep.cpp
-		core/sleep.h
 		core/stbi.h
 		core/stdclass.cpp
 		core/stdclass.h
@@ -1865,6 +1863,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_slowdown.h
 		core/gdxsv/gdxsv_network.cpp
 		core/gdxsv/gdxsv_network.h
+		core/gdxsv/gdxsv_null_imgui_driver.h
 		core/gdxsv/juice_helper.c
 		core/gdxsv/juice_helper.h
 		core/gdxsv/gdxsv_patch.inc
@@ -1875,6 +1874,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_replay_util.h
 		core/gdxsv/gdxsv_save_state.cpp
 		core/gdxsv/gdxsv_save_state.h
+		core/gdxsv/gdxsv_sleep.cpp
+		core/gdxsv/gdxsv_sleep.h
 		core/gdxsv/gdxsv_multi_pov.cpp
 		core/gdxsv/gdxsv_multi_pov.h
 		core/gdxsv/gdxsv_multi_pov_launch.cpp

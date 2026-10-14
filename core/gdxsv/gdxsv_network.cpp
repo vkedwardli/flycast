@@ -7,7 +7,7 @@
 #include <thread>
 
 #include "oslib/http_client.h"
-#include "sleep.h"
+#include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv.h"
 #include "gdxsv_https_latency.h"
 #include "juice_helper.h"
@@ -63,7 +63,7 @@ static bool run_udp_reachability_test(UdpClient &udp, int port, const std::strin
 		if (udp.RecvFrom(buf, sizeof(buf), &sender, &addrlen) > 0) {
 			if (std::string(buf, 5) == "Hello") return true;
 		}
-		sleep_us(100 * 1000);
+		gdxsv_sleep_us(100 * 1000);
 	}
 	return false;
 }
@@ -104,7 +104,7 @@ static std::string run_nat_mapping_test(UdpClient &udp, int &mapped_port) {
 					return true;
 				}
 			}
-			sleep_us(100 * 1000);
+			gdxsv_sleep_us(100 * 1000);
 		}
 		return false;
 	};
@@ -131,7 +131,7 @@ static void set_p2p_status(const std::string& status, bool first = false) {
 		auto now = std::chrono::steady_clock::now();
 		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_p2p_update).count();
 		if (elapsed < 500) {
-			sleep_us((500 - elapsed) * 1000);
+			gdxsv_sleep_us((500 - elapsed) * 1000);
 		}
 		last_p2p_update = std::chrono::steady_clock::now();
 	}
@@ -142,7 +142,7 @@ static void wait_p2p_status() {
 	auto now = std::chrono::steady_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_p2p_update).count();
 	if (elapsed < 500) {
-		sleep_us((500 - elapsed) * 1000);
+		gdxsv_sleep_us((500 - elapsed) * 1000);
 	}
 }
 
@@ -1054,7 +1054,7 @@ void UdpPingPong::Start(uint32_t session_id, uint8_t peer_id, int port, int dura
 				break;
 			}
 
-			sleep_us(1000);
+			gdxsv_sleep_us(1000);
 		}
 
 		PrintRttMatrix();
