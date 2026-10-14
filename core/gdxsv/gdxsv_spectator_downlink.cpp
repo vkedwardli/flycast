@@ -5,7 +5,7 @@
 #include <thread>
 
 #include "gdxsv_network.h"
-#include "sleep.h"
+#include "gdxsv/gdxsv_sleep.h"
 #include "types.h"
 
 namespace {
@@ -66,7 +66,7 @@ bool GdxsvSpectatorDownlink::WaitForBootstrap(proto::BattleLogFile *out, int tim
 				return true;
 			}
 		}
-		sleep_us(2000);
+		gdxsv_sleep_us(2000);
 	}
 	return false;
 }
@@ -300,7 +300,7 @@ void GdxsvSpectatorDownlink::ThreadMain(std::string lbs_host, int lbs_port, std:
 			last_subscribe_ms = now_ms;
 		}
 
-		sleep_us(1000);
+		gdxsv_sleep_us(1000);
 	}
 
 	client.Close();

@@ -2,7 +2,7 @@
 // Part of Flycast; distributed under the GNU GPL v2 or later, see the
 // repository LICENSE.
 #pragma once
-#include "imgui_driver.h"
+#include "ui/imgui_driver.h"
 #include <string>
 #include <unordered_map>
 
@@ -10,7 +10,7 @@
 // API behind it: the font atlas is built on the CPU so ImGui frames can be
 // produced, textures get stable fake ids so callers that cache them behave
 // as they do with a real driver, and nothing is ever drawn.
-class NullImGuiDriver final : public ImGuiDriver
+class GdxsvNullImGuiDriver final : public ImGuiDriver
 {
 public:
 	void newFrame() override
