@@ -222,6 +222,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_gui_settings.cpp
 		core/gdxsv/gdxsv_gui_settings.h
 		core/gdxsv/gdxsv_https_latency.h
+		core/gdxsv/gdxsv_input.cpp
+		core/gdxsv/gdxsv_input_hooks.h
 		core/gdxsv/gdxsv_key_display.cpp
 		core/gdxsv/gdxsv_key_display.h
 		core/gdxsv/gdxsv_projectile_view.cpp
