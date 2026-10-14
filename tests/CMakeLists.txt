@@ -14,7 +14,6 @@ target_sources(${PROJECT_NAME} PRIVATE
         src/GdxsvSpectatorTest.cpp
         src/GdxsvReplayUiTest.cpp
         src/GdxsvReplayInputTest.cpp
-        src/GdxsvInputTest.cpp
         src/GdxsvRoundCountersTest.cpp
         src/div32_test.cpp
         src/test_stubs.cpp

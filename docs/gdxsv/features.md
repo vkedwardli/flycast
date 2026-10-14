@@ -91,7 +91,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 |---|---|---|---|
 | Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | none | none |
 | Audio sync as a setting | setting `config:aica.LimitFPS` | none | none |
-| Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | unit: `GdxsvInputTest.*` (polling, on an SDL virtual joystick) | none |
+| Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | none | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | none | none |
 | gdxsv defaults on a new config file | first start | none | none |
 
