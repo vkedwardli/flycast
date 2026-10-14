@@ -1307,7 +1307,7 @@ void gdxsv_replay_live_tab() {
 					ImGui::PopStyleColor();
 				} else if (ImGui::Selectable(row.c_str(), entry.battle_code == selected_live_battle_code, 0, ImVec2(0, 0))) {
 					selected_live_battle_code = entry.battle_code;
-					pov_index = -1;
+					pov_index = 0;
 				}
 
 				// Viewer count, right-aligned on the lobby line. Drawn straight
@@ -1352,11 +1352,13 @@ void gdxsv_replay_live_tab() {
 
 			ImGui::NewLine();
 			{
+				const ImVec2 button_size = ScaledVec2(300, 50);
 				const bool playable = ("dc" + std::to_string(gdxsv.Disk())) == selected->disk;
-				ImGui::BeginDisabled(pov_index == -1 || !playable);
-				if (ImGui::ButtonEx(pov_index == -1 ? ICON_FA_ARROW_POINTER "  Select a player###live-single-screen"
-													: ICON_FA_TOWER_BROADCAST "  Watch Live###live-single-screen",
-									ScaledVec2(240, 50))) {
+				const bool pov_selected = 0 <= pov_index && pov_index < static_cast<int>(selected->users.size());
+				char live_label[64];
+				snprintf(live_label, sizeof(live_label), ICON_FA_TOWER_BROADCAST "  Watch %dP###live-single-screen", pov_index + 1);
+				ImGui::BeginDisabled(!pov_selected || !playable);
+				if (ImGui::ButtonEx(pov_selected ? live_label : ICON_FA_ARROW_POINTER "  Select a Player###live-single-screen", button_size)) {
 					gdxsv_start_live_spectate(selected->battle_code, pov_index);
 				}
 				ImGui::EndDisabled();
@@ -1367,12 +1369,11 @@ void gdxsv_replay_live_tab() {
 					four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4-player battles only";
 				else if (!gdxsv_multi_pov_window_available())
 					four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable";
-				ImGui::SameLine();
 				ImGui::BeginDisabled(!playable || four_screen_hint != nullptr);
 				const std::string four_screen_label =
-					std::string(four_screen_hint != nullptr ? four_screen_hint : ICON_FA_TABLE_CELLS_LARGE "  Watch Live (4 screens)") +
+					std::string(four_screen_hint != nullptr ? four_screen_hint : ICON_FA_TABLE_CELLS_LARGE "  Watch (4 screens)") +
 					"###live-four-screen";
-				if (ImGui::ButtonEx(four_screen_label.c_str(), ScaledVec2(300, 50))) {
+				if (ImGui::ButtonEx(four_screen_label.c_str(), button_size)) {
 					gdxsv_start_live_spectate(selected->battle_code, 0, true);
 				}
 				ImGui::EndDisabled();
