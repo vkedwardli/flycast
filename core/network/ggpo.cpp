@@ -32,6 +32,7 @@
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include "gdxsv/gdxsv_input_hooks.h"
 #include "gdxsv/gdxsv_prof.h"
+#include "gdxsv/gdxsv_ggpo_hooks.h"
 
 void UpdateInputState();
 
@@ -110,8 +111,6 @@ static void getLocalInput(MapleInputState inputState[4])
 // #define SYNC_TEST 1
 
 #include <xxhash.h>
-#include <nowide/cstdio.hpp>
-#include "stdclass.h"
 
 namespace ggpo
 {
@@ -178,43 +177,6 @@ struct MemPages
 static std::unordered_map<int, MemPages> deltaStates;
 static int lastSavedFrame = -1;
 
-// gdxsv: per-frame log of GGPO saved states (gdxsv:hashlog=yes). Each line is
-// "frame state_hash state_len". Every saved frame is logged, rollbacks
-// included, so a frame number can appear more than once; the last line for a
-// frame is the state the session settled on. The test harness reads the frame
-// numbers to measure how far a local match progressed; state_hash is a cheap
-// per-frame fingerprint of what GGPO saves (CPU and peripherals, not memory:
-// rollback tracks memory by page).
-static FILE *hashLogFile;
-
-static void closeHashLog()
-{
-	if (hashLogFile != nullptr)
-	{
-		fclose(hashLogFile);
-		hashLogFile = nullptr;
-	}
-}
-
-static void openHashLog()
-{
-	closeHashLog();
-	if (config::loadBool("gdxsv", "hashlog", false))
-	{
-		std::string path = get_writable_data_path("hashlog.txt");
-		hashLogFile = nowide::fopen(path.c_str(), "w");
-		if (hashLogFile == nullptr)
-			WARN_LOG(NETWORK, "Can't open hash log %s", path.c_str());
-		else
-			NOTICE_LOG(NETWORK, "State hash log: %s", path.c_str());
-	}
-}
-
-static void logSavedState(int frame, const unsigned char *buffer, int len)
-{
-	if (hashLogFile != nullptr)
-		fprintf(hashLogFile, "%d %08x %d\n", frame, XXH32(buffer, len, 7), len);
-}
 static int seekToFrame = -1;
 static int totalRollbackFrames;
 static int totalTimeSync;
@@ -467,7 +429,7 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 	*checksum = XXH32(*buffer, *len, 7);
 	//*checksum = XXH3_64bits(*buffer, usedSize);
 #endif
-	logSavedState(frame, *buffer, *len);
+	gdxsv_ggpo_state_saved(frame, *buffer, *len);
 	memwatch::protect();
 	if (frame > 0)
 	{
@@ -615,7 +577,7 @@ void startSession(int localPort, int localPlayerNum)
 	cb.on_event        = on_event;
 	cb.log_game_state  = log_game_state;
 	cb.on_message      = on_message;
-	openHashLog();
+	gdxsv_ggpo_session_start();
 	testLog = getenv("GGPO_TEST_LOG") != nullptr;
 	disconnect_flags = 0;
 	inputBlockCount.fill(0);
@@ -750,7 +712,7 @@ void stopSession()
 	ggpo_close_session(ggpoSession);
 	ggpoSession = nullptr;
 	skippedFrames.clear();
-	closeHashLog();
+	gdxsv_ggpo_session_stop();
 	disconnect_flags = 0;
 	miniupnp.Term();
 	totalRollbackFrames = 0;
@@ -1257,7 +1219,7 @@ void gdxsvStartSession(const char* sessionCode, int me,
 	cb.on_event        = on_event;
 	cb.log_game_state  = log_game_state;
 	cb.on_message      = on_message;
-	openHashLog();
+	gdxsv_ggpo_session_start();
 	testLog = getenv("GGPO_TEST_LOG") != nullptr;
 	memset(playerHandles, 0, sizeof(playerHandles));
 	disconnect_flags = 0;
