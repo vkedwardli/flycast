@@ -19,6 +19,7 @@
 #include "settings.h"
 #include "gui.h"
 #include "wsi/context.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 enum RenderAPI {
 	OpenGL,
@@ -218,33 +219,7 @@ void gui_settings_video()
     	}
     	ImGui::Unindent();
 #endif
-
-		OptionCheckbox(T("AudioSync"), config::LimitFPS, T("Limit frame rate by audio. Minimize audio glitch"));
-
-		bool fixedFrequency = config::FixedFrequency != 0;
-		ImGui::Checkbox(T("Fixed frequency"), &fixedFrequency);
-		ImGui::SameLine();
-		ShowHelpMarker(T("Limit frame rate by CPU Sleep and Busy-Wait. Minimize input glitch"));
-		if (fixedFrequency) {
-			if (!config::FixedFrequency) config::FixedFrequency = 2;
-
-			ImGui::Indent();
-			ImGui::Columns(3, "fixed_frequency", false);
-			OptionRadioButton(T("Auto"), config::FixedFrequency, 1, T("Automatically sets frequency by Cable & Broadcast type"));
-			ImGui::NextColumn();
-			OptionRadioButton("59.94 Hz", config::FixedFrequency, 2, T("Native NTSC/VGA frequency"));
-			ImGui::NextColumn();
-			OptionRadioButton("60 Hz", config::FixedFrequency, 3, T("Approximate NTSC/VGA frequency"));
-			ImGui::NextColumn();
-			OptionRadioButton("50 Hz", config::FixedFrequency, 4, T("Native PAL frequency"));
-			ImGui::NextColumn();
-			OptionRadioButton("30 Hz", config::FixedFrequency, 5, T("Half NTSC/VGA frequency"));
-			ImGui::Columns(1, nullptr, false);
-			ImGui::Unindent();
-		} else {
-			config::FixedFrequency = 0;
-		}
-
+    	gdxsv_emu_settings_video();
     	OptionCheckbox(T("Show VMU In-game"), config::FloatVMUs, T("Show the VMU LCD screens while in-game"));
     	OptionCheckbox(T("Full Framebuffer Emulation"), config::EmulateFramebuffer,
     			T("Fully accurate VRAM framebuffer emulation. Helps games that directly access the framebuffer for special effects. "

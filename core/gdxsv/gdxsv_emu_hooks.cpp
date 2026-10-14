@@ -30,6 +30,7 @@
 #include "oslib/oslib.h"
 #include "oslib/http_client.h"
 #include "ui/gui_util.h"
+#include "ui/IconsFontAwesome6.h"
 #include "stdclass.h"
 #include "xxhash.h"
 
@@ -321,6 +322,17 @@ static void gui_header(const char* title) {
 	ImGui::PopStyleVar();
 }
 
+void gdxsv_emu_gui_display_commands(float buttonWidth) {
+	if (!gdxsv_enabled()) return;
+	DisabledScope scope(gdxsv_is_online());
+	if (ImGui::Button(ICON_FA_TV "  Live & Replays", ScaledVec2(buttonWidth, 50)) && !scope.isDisabled()) {
+		gui_state = GuiState::GdxsvReplay;
+	}
+	if (gdxsv_is_online() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+		ImGui::SetTooltip("Please disconnect from the Gdxsv server first.");
+	}
+}
+
 void gdxsv_emu_gui_display() {
 	if (gui_state == GuiState::Main) {
 		gdxsv_update_popup();
@@ -363,6 +375,8 @@ void gdxsv_emu_gui_display() {
 }
 
 void gdxsv_emu_settings_gdxsv_tab() { gdxsv_gui_settings_tab(); }
+
+void gdxsv_emu_settings_video() { gdxsv_gui_settings_video(); }
 
 void gdxsv_emu_apply_base_settings() { gdxsv_apply_base_settings(); }
 
