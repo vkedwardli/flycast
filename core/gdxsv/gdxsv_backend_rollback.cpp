@@ -1,4 +1,5 @@
 #include "gdxsv_backend_rollback.h"
+#include "gdxsv_config.h"
 
 #include <algorithm>
 #include <array>

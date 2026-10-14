@@ -1,4 +1,5 @@
 #include "gdxsv_emu_hooks.h"
+#include "gdxsv_config.h"
 #include <cstdlib>
 
 #include <chrono>
@@ -385,6 +386,10 @@ void gdxsv_emu_settings_video() { gdxsv_gui_settings_video(); }
 void gdxsv_emu_apply_base_settings() { gdxsv_apply_base_settings(); }
 
 const char* gdxsv_emu_settings_text_for_preparing_font() { return gdxsv_gui_settings_text_for_preparing_font(); }
+
+uint32_t gdxsv_emu_skip_rendering_addr() {
+	return config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
+}
 
 void gdxsv_gui_display_osd() {
 	gdxsv.DisplayOSD();

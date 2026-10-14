@@ -1,4 +1,5 @@
 #include "gdxsv/gdxsv_backend_replay.h"
+#include "gdxsv/gdxsv_config.h"
 
 #include "cfg/option.h"
 #include "emulator.h"

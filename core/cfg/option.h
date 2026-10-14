@@ -521,28 +521,6 @@ extern Option<bool> ProfilerDrawToGUI;
 extern Option<bool> ProfilerOutputTTY;
 extern Option<float> ProfilerFrameWarningTime;
 
-// Gdxsv
-
-extern Option<std::string> GdxLobbyServer;
-extern Option<std::string> GdxLoginKey;
-extern Option<int> GdxLanguage;
-extern Option<bool> GdxUseTexturePack;
-extern Option<int> GdxWidescreenHudLayout; // 0: stock 4:3, 1: up to 16:9, 2: viewport edges
-extern OptionString GdxTexturePackChannel;
-extern Option<int> GdxLocalPort;
-extern Option<int> GdxMinDelay;
-extern Option<bool> GdxSaveReplay;
-extern Option<bool> GdxUploadReplay;
-extern Option<std::string, false> GdxReplayPath; // empty: data/replays
-extern Option<bool> GdxSkipRenderingHack;
-extern Option<bool> GdxSlowIdleLoopHack;
-extern Option<bool> GdxReplayHideName;
-extern Option<bool> GdxReplayShowAllyHP;
-extern Option<bool> GdxReplayKeyDisplay;
-extern Option<bool> GdxReplaySkipMsSelection;
-extern Option<bool> GdxProjectileView;
-extern Option<bool> GdxLiveAutoNext;
-
 // Network
 
 extern Option<bool> NetworkEnable;

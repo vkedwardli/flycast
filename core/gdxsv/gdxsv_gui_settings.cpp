@@ -1,10 +1,13 @@
 #include "gdxsv_gui_settings.h"
 
 #include "gdxsv.h"
+#include "gdxsv_config.h"
+#include "gdxsv_emu_hooks.h"
 #include "gdxsv_network.h"
 #include "gdxsv_custom_texture_update.h"
 #include "hw/maple/maple_if.h"
 #include "imgui.h"
+#include "imgui_stdlib.h"
 #include "libs.h"
 #include "oslib/i18n.h"
 #include "ui/gui_util.h"
@@ -12,7 +15,8 @@
 using namespace i18n;
 
 // ui/settings_general.cpp. Not including ui/settings.h: its header() clashes with ours.
-void gui_replay_folder_setting();
+void manageSinglePath(const char* label, const char* popupName, config::Option<std::string, false>& pathOption,
+					  const char* helpText);
 
 inline static void header(const char* title) {
 	ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f));	// Left
@@ -22,6 +26,20 @@ inline static void header(const char* title) {
 	ImGui::EndDisabled();
 	ImGui::PopStyleVar();
 	ImGui::PopStyleVar();
+}
+
+void gdxsv_emu_settings_replay_folder() {
+	manageSinglePath(T("Replay Folder"), T("Select the replay folder"), config::GdxReplayPath,
+					 T("Folder where replay files are saved and listed, e.g. on an external drive.\nReplays already saved are "
+					   "not moved.\nIf the folder is not found, the default folder is used."));
+}
+
+void gdxsv_emu_settings_advanced() {
+	header("Gdxsv");
+	{
+		ImGui::InputText("GdxTexturePackChannel", &config::GdxTexturePackChannel.get(), ImGuiInputTextFlags_None, nullptr,
+						 nullptr);
+	}
 }
 
 void gdxsv_apply_base_settings() {
@@ -358,7 +376,7 @@ void gdxsv_gui_settings_tab()
 			T("Automatically upload the replay file after save"));
 	}
 #if !defined(__ANDROID__) && !defined(TARGET_IPHONE)
-	gui_replay_folder_setting();
+	gdxsv_emu_settings_replay_folder();
 #endif
 
 	OptionCheckbox(T("Display Network Statistics"), config::NetworkStats,

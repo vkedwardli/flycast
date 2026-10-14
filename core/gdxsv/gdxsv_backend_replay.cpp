@@ -1,4 +1,5 @@
 #include "gdxsv_backend_replay.h"
+#include "gdxsv_config.h"
 
 #include "gdxsv_multi_pov.h"
 

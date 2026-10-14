@@ -1,4 +1,5 @@
 #include "gdxsv_custom_texture_update.h"
+#include "gdxsv_config.h"
 
 #include <locale>
 #include <sstream>

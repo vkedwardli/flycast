@@ -1,4 +1,5 @@
 #include "gdxsv.h"
+#include "gdxsv_config.h"
 
 #include <xxhash.h>
 #include <zlib.h>

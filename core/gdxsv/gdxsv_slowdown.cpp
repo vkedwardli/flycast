@@ -1,4 +1,5 @@
 #include "gdxsv_slowdown.h"
+#include "gdxsv_config.h"
 
 #include <map>
 #include <tuple>
