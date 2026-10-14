@@ -411,27 +411,25 @@ void gui_plot_render_time(int width, int height)
 void gui_open_settings()
 {
 	const LockGuard lock(guiMutex);
-	if (gui_state == GuiState::Closed && !settings.naomi.slave)
+	// gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats)
+	if (gui_state == GuiState::Closed && !settings.naomi.slave && gdxsv_emu_menu_open())
 	{
-		if (gdxsv_emu_menu_open())
+		if (!ggpo::active())
 		{
-			if (!ggpo::active())
+			if (achievements::canPause())
 			{
-				if (achievements::canPause())
-				{
-					vgamepad::hide();
-					try {
-						emu.stop();
-						gui_setState(GuiState::Commands);
-					} catch (const FlycastException& e) {
-						gui_stop_game(e.what());
-					}
+				vgamepad::hide();
+				try {
+					emu.stop();
+					gui_setState(GuiState::Commands);
+				} catch (const FlycastException& e) {
+					gui_stop_game(e.what());
 				}
 			}
-			else
-			{
-				chat.toggle();
-			}
+		}
+		else
+		{
+			chat.toggle();
 		}
 	}
 	else if (gui_state == GuiState::VJoyEdit)
@@ -622,21 +620,7 @@ static void gui_display_commands()
 			if (InputText("##barcode", cardBuf, sizeof(cardBuf), ImGuiInputTextFlags_None))
 				card_reader::barcodeSetCard(cardBuf);
 		}
-
-		// GdxReplay
-		if (gdxsv_enabled())
-		{
-			DisabledScope scope(gdxsv_is_online());
-
-			if (ImGui::Button(ICON_FA_TV "  Live & Replays", ScaledVec2(buttonWidth, 50)) && !scope.isDisabled())
-			{
-				gui_state = GuiState::GdxsvReplay;
-			}
-			if (gdxsv_is_online() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-			{
-				ImGui::SetTooltip("Please disconnect from the Gdxsv server first.");
-			}
-		}
+		gdxsv_emu_gui_display_commands(buttonWidth);
 
 		ImGui::NextColumn();
 
