@@ -26,42 +26,15 @@
 #include "emulator.h"
 #include "imgui_driver.h"
 #include "profiler/fc_profiler.h"
-#include "network/ggpo.h"
 #include "oslib/i18n.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
-#include <algorithm>
 #include <chrono>
 #include <thread>
-#include "gdxsv/gdxsv_sleep.h"
-#include "gdxsv/gdxsv_emu_hooks.h"
 
 static bool mainui_enabled;
 u32 MainFrameCount;
 static bool forceReinit;
-
-int64_t get_period() {
-	const auto mode = config::FixedFrequency.get();
-	// Native NTSC/VGA
-	if (mode == 2 ||
-		(mode == 1 && (config::Cable == 0 || config::Cable == 1)) ||
-		(mode == 1 && config::Cable == 3 && (config::Broadcast == 0 || config::Broadcast == 4)))
-		return 16683; // 1/59.94
-	// Approximate VGA
-	if (mode == 3) return 16666; // 1/60
-	// PAL
-	if (mode == 4 || (mode == 1 && config::Cable == 3))
-		return 20000; // 1/50
-	// Half Native NTSC/VGA
-	if (mode == 5) return 33333; // 1/30
-	return 16683;
-}
-
-// The nominal period, plus whatever trim replay/Live Spectate is asking for.
-// The trim is zero outside those modes.
-static int64_t get_trimmed_period() {
-	const int64_t trim = gdxsv_frame_period_trim_us;
-	return std::max<int64_t>(1000, get_period() + trim);
-}
 
 bool mainui_rend_frame()
 {
@@ -128,38 +101,13 @@ void mainui_loop(bool forceStart)
 		mainui_enabled = true;
 	mainui_init();
 	RenderType currentRenderer = config::RendererType;
-	int currentDupeFrames = config::DupeFrames;
-
-	gdxsv_set_timer_resolution();
-	std::chrono::time_point<std::chrono::steady_clock> start;
-
-	auto getElapsed = [&start]() {
-		return std::chrono::duration_cast<std::chrono::microseconds>(
-			std::chrono::steady_clock::now() - start).count();
-	};
-	auto fixedFrequencyWait = [&start, &getElapsed]() {
-		if (!config::FixedFrequency || gui_is_open() || settings.input.fastForwardMode)
-			return;
-
-		const auto period = get_trimmed_period();
-		int64_t overSlept = 0;
-
-		auto remaining = period - getElapsed();
-		if (remaining > 0)
-			overSlept = gdxsv_sleep_and_busy_wait(remaining);
-
-		start = std::chrono::steady_clock::now();
-		if (1000 <= overSlept)
-			WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", overSlept);
-
-		gdxsv_sleep_benchmark_periodic_report();
-	};
+	gdxsv_emu_mainui_loop_start();
 
 	while (mainui_enabled)
 	{
 		fc_profiler::startThread("main");
-		const auto rendered = mainui_rend_frame();
 
+		const bool rendered = mainui_rend_frame();
 		if (rendered && imguiDriver != nullptr)
 		{
 			try {
@@ -168,13 +116,8 @@ void mainui_loop(bool forceStart)
 				forceReinit = true;
 			}
 		}
-		if (imguiDriver == nullptr)
+		if (imguiDriver == nullptr || gdxsv_emu_mainui_reinit_needed())
 			forceReinit = true;
-
-		if (currentDupeFrames != config::DupeFrames) {
-			forceReinit = true;
-			currentDupeFrames = config::DupeFrames;
-		}
 
 		if (config::RendererType != currentRenderer || forceReinit)
 		{
@@ -206,15 +149,12 @@ void mainui_loop(bool forceStart)
 			currentRenderer = config::RendererType;
 		}
 
-		gdxsv_emu_mainui_loop();
-
-		if (rendered)
-			fixedFrequencyWait();
+		gdxsv_emu_mainui_loop(rendered);
 
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
 
-	gdxsv_reset_timer_resolution();
+	gdxsv_emu_mainui_loop_end();
 	mainui_term();
 }
 

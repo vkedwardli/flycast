@@ -5,8 +5,8 @@
 #include <vector>
 // Functions provided to the emulator by the gdxsv module.
 
-// Signed microseconds added to the main loop's frame period (see get_period in
-// core/ui/mainui.cpp). Negative runs the emulator slightly fast, positive
+// Signed microseconds added to the main loop's frame period (see
+// gdxsv_frame_limiter.cpp). Negative runs the emulator slightly fast, positive
 // slightly slow. Replay and Live Spectate steer this to hold a target distance
 // behind the live edge without the visible hitch a whole-frame stall causes.
 // Zero everywhere else, so normal play and online battle are untouched.
@@ -39,7 +39,14 @@ void gdxsv_emu_end_frame();
 
 void gdxsv_emu_next_frame();
 
-void gdxsv_emu_mainui_loop();
+// mainui_loop: before the first frame, once per frame after the renderer
+// switch (the FixedFrequency wait when the frame was rendered), at exit.
+void gdxsv_emu_mainui_loop_start();
+void gdxsv_emu_mainui_loop(bool rendered);
+void gdxsv_emu_mainui_loop_end();
+
+// True when a setting changed that needs the graphics context recreated.
+bool gdxsv_emu_mainui_reinit_needed();
 
 void gdxsv_emu_rpc();
 

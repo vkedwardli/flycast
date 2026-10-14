@@ -13,6 +13,7 @@
 #include "stdclass.h"
 #include <nowide/cstdio.hpp>
 #include "gdxsv_custom_texture_source.h"
+#include "gdxsv_frame_limiter.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
 #include "gdxsv_multi_pov_window.h"
@@ -200,13 +201,16 @@ void gdxsv_emu_next_frame() {
 	}
 }
 
-void gdxsv_emu_mainui_loop() {
+void gdxsv_emu_mainui_loop(bool rendered) {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookMainUiLoop();
 	}
 	// Window calls must happen on the UI thread.
 	gdxsv_multi_pov_window_tick();
 	gdxsv_multi_pov_tick();
+
+	if (rendered)
+		gdxsv_frame_limiter_wait();
 }
 
 void gdxsv_emu_rpc() {

@@ -1852,6 +1852,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_backend_udp.h
 		core/gdxsv/gdxsv_emu_hooks.cpp
 		core/gdxsv/gdxsv_emu_hooks.h
+		core/gdxsv/gdxsv_frame_limiter.cpp
+		core/gdxsv/gdxsv_frame_limiter.h
 		core/gdxsv/gdxsv_gui_settings.cpp
 		core/gdxsv/gdxsv_gui_settings.h
 		core/gdxsv/gdxsv_https_latency.h
