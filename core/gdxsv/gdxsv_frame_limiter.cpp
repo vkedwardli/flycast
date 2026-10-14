@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 gdxsv contributors
+// SPDX-License-Identifier: GPL-2.0-or-later
 // FixedFrequency frame limiter for the main UI loop (mainui_loop).
 #include "gdxsv_frame_limiter.h"
 
