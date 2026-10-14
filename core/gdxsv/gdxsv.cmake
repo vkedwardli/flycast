@@ -265,6 +265,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_backend_replay.h
 		core/gdxsv/gdxsv_backend_rollback.cpp
 		core/gdxsv/gdxsv_backend_rollback.h
+		core/gdxsv/gdxsv_ggpo_hooks.cpp
+		core/gdxsv/gdxsv_ggpo_hooks.h
 		core/gdxsv/gdxsv_backend_tcp.cpp
 		core/gdxsv/gdxsv_backend_tcp.h
 		core/gdxsv/gdxsv_backend_udp.cpp
