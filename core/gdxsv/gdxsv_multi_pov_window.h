@@ -43,11 +43,12 @@ void gdxsv_multi_pov_window_unmaximize();
 // The display's area less task bar, dock or menu bar.
 GdxsvMultiPovRect gdxsv_multi_pov_window_work_area();
 
-// The whole display.
+// The whole display, excluding the notch safe-area insets on macOS 12+.
 GdxsvMultiPovRect gdxsv_multi_pov_window_display_area();
 
 // Keeps the window above all others (the task bar would otherwise cover the
 // bottom row of a full-screen grid).
+// On macOS, also auto-hides this process's menu bar and Dock; false restores them.
 void gdxsv_multi_pov_window_set_topmost(bool topmost);
 
 void gdxsv_multi_pov_window_set_borderless(bool borderless);
@@ -75,7 +76,7 @@ GdxsvMultiPovInsets gdxsv_multi_pov_window_frame_insets();
 void gdxsv_multi_pov_window_tick();
 
 // Alt+Enter / F11 in a session: the host toggles the grid between its window
-// layout and full screen (four borderless quadrants over the whole display).
+// layout and full screen (four borderless quadrants over the display area).
 // Returns true when the key was consumed, including on a guest. False outside
 // a session.
 bool gdxsv_multi_pov_toggle_fullscreen();

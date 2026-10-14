@@ -22,12 +22,14 @@
 @property(nonatomic, assign) NSWindow* game;
 @property(nonatomic, assign) SDL_Window* sdl;
 @property(nonatomic, assign) BOOL savedBorderless;
+@property(nonatomic, assign) NSWindowCollectionBehavior savedCollectionBehavior;
 @property(nonatomic, assign) BOOL gridFullscreen;
 @property(nonatomic, assign) BOOL syncingSize;
 - (void)Attach:(SDL_Window*)window native:(NSWindow*)game;
 - (void)SyncContent;
 - (void)SetGridFullscreen:(BOOL)fullscreen;
 - (void)Restore;
+- (void)RouteFullscreenMenu:(NSMenu*)menu restore:(BOOL)restore;
 + (void)FlatWindowWillClose:(NSNotification*)notification;
 @end
 
@@ -36,6 +38,9 @@ struct GdxsvMultiPovAppleWindowState {
 	GdxsvMultiPovTitleWindow* title = nil;
 	NSWindow* flatWindow = nil;
 	BOOL savedShadow = YES;
+	NSWindowCollectionBehavior savedCollectionBehavior = NSWindowCollectionBehaviorDefault;
+	NSApplicationPresentationOptions savedPresentation = NSApplicationPresentationDefault;
+	bool presentationSaved = false;
 };
 GdxsvMultiPovAppleWindowState gdxsv_window;
 }  // namespace
@@ -53,6 +58,10 @@ GdxsvMultiPovAppleWindowState gdxsv_window;
 	self.game = game;
 	self.sdl = window;
 	self.savedBorderless = (SDL_GetWindowFlags(window) & SDL_WINDOW_BORDERLESS) != 0;
+	self.savedCollectionBehavior = game.collectionBehavior;
+	game.collectionBehavior = (game.collectionBehavior & ~(NSWindowCollectionBehaviorFullScreenPrimary |
+															 NSWindowCollectionBehaviorFullScreenAuxiliary)) |
+							  NSWindowCollectionBehaviorFullScreenNone;
 	self.releasedWhenClosed = NO;
 	self.hasShadow = NO;
 	self.title = game.title;
@@ -79,6 +88,23 @@ GdxsvMultiPovAppleWindowState gdxsv_window;
 	[self orderFront:nil];
 	[game makeKeyAndOrderFront:nil];
 	[self makeMainWindow];
+	[self RouteFullscreenMenu:NSApp.mainMenu restore:NO];
+}
+
+- (void)RouteFullscreenMenu:(NSMenu*)menu restore:(BOOL)restore {
+	for (NSMenuItem* item in menu.itemArray) {
+		if (restore) {
+			if (item.target == self) item.target = nil;
+		} else if (item.action == @selector(toggleFullScreen:) && item.target == nil) {
+			item.target = self;
+		}
+		if (item.submenu != nil) [self RouteFullscreenMenu:item.submenu restore:restore];
+	}
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem*)item {
+	if (item.action == @selector(toggleFullScreen:)) return self.game != nil;
+	return [super validateMenuItem:item];
 }
 
 - (void)SyncContent {
@@ -126,6 +152,11 @@ GdxsvMultiPovAppleWindowState gdxsv_window;
 	gdxsv_multi_pov_toggle_fullscreen();
 }
 
+- (void)performZoom:(id)sender {
+	// Title-bar double-click must zoom, not invoke the green button's action.
+	[self zoom:sender];
+}
+
 - (void)SetGridFullscreen:(BOOL)fullscreen {
 	if (self.gridFullscreen == fullscreen) return;
 	self.gridFullscreen = fullscreen;
@@ -143,10 +174,12 @@ GdxsvMultiPovAppleWindowState gdxsv_window;
 
 - (void)Restore {
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
+	[self RouteFullscreenMenu:NSApp.mainMenu restore:YES];
 	const NSRect content = self.game.frame;
 	[self removeChildWindow:self.game];
 	self.delegate = nil;
 	[self close];
+	self.game.collectionBehavior = self.savedCollectionBehavior;
 	SDL_SetWindowBordered(self.sdl, self.savedBorderless ? SDL_FALSE : SDL_TRUE);
 	[self.game setFrame:[self.game frameRectForContentRect:content] display:YES];
 	[self.game makeKeyAndOrderFront:nil];
@@ -158,7 +191,9 @@ GdxsvMultiPovAppleWindowState gdxsv_window;
 - (void)GameWillClose:(NSNotification*)notification {
 	// SDL can destroy/recreate its window when switching renderers or quitting.
 	// Tear down the helper without calling back into the dying SDL window.
+	gdxsv_multi_pov_window_set_topmost(false);
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
+	[self RouteFullscreenMenu:NSApp.mainMenu restore:YES];
 	[self removeChildWindow:self.game];
 	self.delegate = nil;
 	[self close];
@@ -170,6 +205,7 @@ GdxsvMultiPovAppleWindowState gdxsv_window;
 }
 
 + (void)FlatWindowWillClose:(NSNotification*)notification {
+	gdxsv_multi_pov_window_set_topmost(false);
 	[[NSNotificationCenter defaultCenter] removeObserver:self name:NSWindowWillCloseNotification object:notification.object];
 	gdxsv_window.flatWindow = nil;
 }
@@ -311,11 +347,33 @@ GdxsvMultiPovRect gdxsv_multi_pov_window_display_area() {
 	if (screen == nil) screen = [NSScreen mainScreen];
 	if (screen == nil) return {};
 
-	return FromCocoa(screen.frame);
+	NSRect frame = screen.frame;
+	if (@available(macOS 12.0, *)) {
+		const NSEdgeInsets insets = screen.safeAreaInsets;
+		frame.origin.x += insets.left;
+		frame.origin.y += insets.bottom;
+		frame.size.width -= insets.left + insets.right;
+		frame.size.height -= insets.top + insets.bottom;
+	}
+	return FromCocoa(frame);
 }
 
 void gdxsv_multi_pov_window_set_topmost(bool topmost) {
-	NSWindow* win = CocoaWindow();
+	if (topmost) {
+		if (!gdxsv_window.presentationSaved) {
+			gdxsv_window.savedPresentation = NSApp.presentationOptions;
+			gdxsv_window.presentationSaved = true;
+		}
+		NSApplicationPresentationOptions options = gdxsv_window.savedPresentation;
+		if ((options & NSApplicationPresentationHideDock) == 0) options |= NSApplicationPresentationAutoHideDock;
+		if ((options & NSApplicationPresentationHideMenuBar) == 0) options |= NSApplicationPresentationAutoHideMenuBar;
+		NSApp.presentationOptions = options;
+	} else if (gdxsv_window.presentationSaved) {
+		NSApp.presentationOptions = gdxsv_window.savedPresentation;
+		gdxsv_window.presentationSaved = false;
+	}
+	// The tracked window is still valid during its will-close notification.
+	NSWindow* win = gdxsv_window.flatWindow != nil ? gdxsv_window.flatWindow : CocoaWindow();
 	if (win == nil) return;
 	win.level = topmost ? NSFloatingWindowLevel : NSNormalWindowLevel;
 	gdxsv_window.title.level = win.level;
@@ -348,10 +406,14 @@ void gdxsv_multi_pov_window_set_borderless(bool borderless) {
 void gdxsv_multi_pov_window_set_flat(bool flat) {
 	NSWindow* win = CocoaWindow();
 	if (!flat) {
+		gdxsv_multi_pov_window_set_topmost(false);
 		[[NSNotificationCenter defaultCenter] removeObserver:[GdxsvMultiPovTitleWindow class]
 													   name:NSWindowWillCloseNotification
 													 object:nil];
-		if (gdxsv_window.flatWindow == win) win.hasShadow = gdxsv_window.savedShadow;
+		if (gdxsv_window.flatWindow == win) {
+			win.hasShadow = gdxsv_window.savedShadow;
+			if (gdxsv_window.title == nil) win.collectionBehavior = gdxsv_window.savedCollectionBehavior;
+		}
 		GdxsvMultiPovTitleWindow* title = gdxsv_window.title;
 		gdxsv_window.title = nil;
 		[title Restore];
@@ -378,6 +440,10 @@ void gdxsv_multi_pov_window_set_flat(bool flat) {
 		[gdxsv_window.title Attach:sdl_get_window() native:win];
 	} else {
 		gdxsv_window.savedShadow = win.hasShadow;
+		gdxsv_window.savedCollectionBehavior = win.collectionBehavior;
+		win.collectionBehavior = (win.collectionBehavior & ~(NSWindowCollectionBehaviorFullScreenPrimary |
+																   NSWindowCollectionBehaviorFullScreenAuxiliary)) |
+								 NSWindowCollectionBehaviorFullScreenNone;
 		win.hasShadow = NO;
 		[[NSNotificationCenter defaultCenter] addObserver:[GdxsvMultiPovTitleWindow class]
 												 selector:@selector(FlatWindowWillClose:)
