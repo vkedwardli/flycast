@@ -52,6 +52,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_update.cpp/.h`, `gdxsv_update_apple.mm` | client self-update |
 | `gdxsv_https_latency*.cpp/.h/.mm` | HTTPS latency to each server region, per platform (`_win`, `_curl`, `_apple`) |
 | `gdxsv_prof.cpp/.h` | named timers for profiling |
+| `gdxsv_frame_limiter.cpp/.h` | FixedFrequency frame limiter of the main UI loop (period, replay trim) |
 | `gdxsv_sleep.cpp/.h` | precise sleep for the frame limiter and network threads |
 | `gdxsv_null_imgui_driver.h` | UI driver that draws nothing (headless runs) |
 | `libs.h` | guest memory access helpers |
