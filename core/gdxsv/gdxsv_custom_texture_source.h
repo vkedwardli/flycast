@@ -1,6 +1,7 @@
 #pragma once
 
 #include "zip.h"
+#include "gdxsv_config.h"
 
 // clang-format off
 #include "../rend/TexCache.h"

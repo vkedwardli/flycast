@@ -3,6 +3,7 @@
 #endif
 
 #include "gdxsv_custom_texture_source.h"
+#include "gdxsv_config.h"
 
 #include <stb_image.h>
 #include <zip.h>

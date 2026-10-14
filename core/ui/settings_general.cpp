@@ -24,6 +24,7 @@
 #include "stdclass.h"
 #include "achievements/achievements.h"
 #include "imgui_stdlib.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 static std::vector<std::string>* g_currentPathList = nullptr;
 static void managePathListCallback(std::string selection)
@@ -35,7 +36,7 @@ static void managePathListCallback(std::string selection)
     }
 }
 
-static void manageSinglePath(const char* label, const char *popupName, config::Option<std::string, false>& pathOption, const char* helpText)
+void manageSinglePath(const char* label, const char *popupName, config::Option<std::string, false>& pathOption, const char* helpText)
 {
     ImVec2 size;
     size.x = 0.0f;
@@ -76,12 +77,6 @@ static void manageSinglePath(const char* label, const char *popupName, config::O
     });
     if (openPopup)
         ImGui::OpenPopup(T(popupName));
-}
-
-void gui_replay_folder_setting()
-{
-    manageSinglePath(T("Replay Folder"), T("Select the replay folder"), config::GdxReplayPath,
-    		T("Folder where replay files are saved and listed, e.g. on an external drive.\nReplays already saved are not moved.\nIf the folder is not found, the default folder is used."));
 }
 
 static void managePathList(const char* label, const char *popupName, std::vector<std::string>& paths, const char* helpText)
@@ -470,7 +465,7 @@ void gui_settings_general()
     header(T("Custom Paths"));
 
 #if !defined(__ANDROID__)
-    gui_replay_folder_setting();
+    gdxsv_emu_settings_replay_folder();
     ImGui::Spacing();
 #endif
 

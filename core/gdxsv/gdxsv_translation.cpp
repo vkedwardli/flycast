@@ -10,6 +10,7 @@
 #endif
 
 #include "gdxsv_translation.h"
+#include "gdxsv_config.h"
 
 #include "cfg/option.h"
 #include "oslib/i18n.h"

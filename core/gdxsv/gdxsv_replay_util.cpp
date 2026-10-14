@@ -1,5 +1,6 @@
 ﻿#include "gdxsv_replay_util.h"
 #include "gdxsv_translation.h"
+#include "gdxsv_config.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>

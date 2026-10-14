@@ -1,5 +1,6 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -63,6 +64,16 @@ void gdxsv_emu_gui_display_replay();
 void gdxsv_emu_settings_gdxsv_tab();
 
 void gdxsv_emu_apply_base_settings();
+
+// Settings > General > Custom Paths and the gdxsv tab. Not on Android or iOS.
+void gdxsv_emu_settings_replay_folder();
+
+// Settings > Advanced: gdxsv debug fields.
+void gdxsv_emu_settings_advanced();
+
+// settings.gdxsv.skipRenderingAddr for a rollback frame run: the skip
+// rendering hook address, or 0 when the hack is off.
+uint32_t gdxsv_emu_skip_rendering_addr();
 
 const char* gdxsv_emu_settings_text_for_preparing_font();
 

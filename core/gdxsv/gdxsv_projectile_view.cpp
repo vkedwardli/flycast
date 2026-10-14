@@ -1,4 +1,5 @@
 #include "gdxsv_projectile_view.h"
+#include "gdxsv_config.h"
 
 #include <cstring>
 
