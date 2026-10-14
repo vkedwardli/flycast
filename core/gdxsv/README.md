@@ -25,6 +25,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | Files | What |
 |---|---|
 | `gdxsv.cpp/.h` | the `Gdxsv` object: game detection, patching, RPC, settings, backend selection |
+| `gdxsv.cmake` | gdxsv sources and build settings, included from `CMakeLists.txt` |
 | `gdxsv_emu_hooks.cpp/.h` | calls from the emulator (start, stop, frame, input, UI) into gdxsv |
 | `gdx_rpc.h` | gdx RPC request layout and codes |
 | `gdxsv_patch.inc`, `gdxsv_patch_abi.h` | SH4 patch bytes and the addresses it hooks; generated from `gdxsv_patch/` |
