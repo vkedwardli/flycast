@@ -40,26 +40,6 @@ void os_DoEvents()
 	#endif
 }
 
-void os_LaunchFromURL(const std::string& url)
-{
-    auto cmd = "xdg-open " + url;
-    auto rv = system(cmd.c_str());
-}
-
-std::string os_GetMachineID()
-{
-    //Not implemented
-    std::string empty;
-    return empty;
-}
-
-std::string os_GetConnectionMedium()
-{
-    //Not implemented
-    std::string empty;
-    return empty;
-}
-
 void common_linux_setup();
 
 // Find the user config directory.

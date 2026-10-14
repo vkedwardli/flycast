@@ -15,7 +15,6 @@
 
 #ifdef USE_BREAKPAD
 #include "client/mac/handler/exception_handler.h"
-#include "gdxsv/gdxsv_emu_hooks.h"
 #endif
 
 /* For some reaon, Apple removed setAppleMenu from the headers in 10.4,

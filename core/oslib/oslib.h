@@ -31,10 +31,6 @@ public:
 	}
 };
 
-void os_LaunchFromURL(const std::string& url);
-std::string os_GetMachineID();
-std::string os_GetConnectionMedium();
-
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif

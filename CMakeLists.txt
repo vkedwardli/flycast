@@ -1500,9 +1500,6 @@ if(NOT LIBRETRO)
 				${IOSURFACE_LIBRARY}
 				${MULTITOUCH_SUPPORT_LIBRARY})
 
-			find_library(SYSTEMCONFIGURATION_LIBRARY SystemConfiguration) #gdxsv
-			target_link_libraries(${PROJECT_NAME} PRIVATE ${SYSTEMCONFIGURATION_LIBRARY}) #gdxsv
-
 			if(USE_VULKAN)
 				set(MOLTENVK_DYLIB_PATH "${MOLTENVK_DYLIB}")
 				if(NOT MOLTENVK_DYLIB_PATH OR NOT EXISTS "${MOLTENVK_DYLIB_PATH}")
@@ -1560,7 +1557,6 @@ if(NOT LIBRETRO)
 
 			target_sources(${PROJECT_NAME} PRIVATE shell/windows/flycast.rc)
 			target_link_libraries(${PROJECT_NAME} PRIVATE dsound winmm ws2_32 wsock32 xinput9_1_0 cfgmgr32 wininet psapi setupapi)
-			target_link_libraries(${PROJECT_NAME} PRIVATE iphlpapi.lib) #gdxsv
 		endif()
 	endif()
 endif()
@@ -1872,6 +1868,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/juice_helper.c
 		core/gdxsv/juice_helper.h
 		core/gdxsv/gdxsv_patch.inc
+		core/gdxsv/gdxsv_platform.h
 		core/gdxsv/gdxsv_prof.cpp
 		core/gdxsv/gdxsv_prof.h
 		core/gdxsv/gdxsv_replay_util.cpp
@@ -1931,6 +1928,20 @@ elseif(UNIX AND NOT APPLE AND NOT ANDROID AND NOT NINTENDO_SWITCH)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_sdl.cpp)
 else()
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_none.cpp)
+endif()
+
+# Host services: machine id, connection medium, open URL
+if(WIN32)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_platform_win.cpp)
+	if(NOT WINDOWS_STORE)
+		target_link_libraries(${PROJECT_NAME} PRIVATE iphlpapi.lib)
+	endif()
+elseif(APPLE AND NOT IOS)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_platform_apple.mm)
+	find_library(SYSTEMCONFIGURATION_LIBRARY SystemConfiguration)
+	target_link_libraries(${PROJECT_NAME} PRIVATE ${SYSTEMCONFIGURATION_LIBRARY})
+elseif(UNIX AND NOT ANDROID)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_platform_linux.cpp)
 endif()
 ## End of gdxsv
 

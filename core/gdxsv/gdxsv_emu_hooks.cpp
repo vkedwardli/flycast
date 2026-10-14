@@ -16,6 +16,7 @@
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
 #include "gdxsv_multi_pov_window.h"
+#include "gdxsv_platform.h"
 #include "gdxsv_save_state.h"
 #include "emulator.h"
 #include "gdxsv_replay_util.h"
@@ -325,7 +326,7 @@ void gdxsv_emu_gui_display() {
 		gdxsv_update_popup();
 		gdxsv_texture_update_popup();
 		
-		static std::string connection_medium = os_GetConnectionMedium();
+		static std::string connection_medium = gdxsv_connection_medium();
 		wireless_warning_popup(connection_medium);
 		vpn_warning_toast(connection_medium);
 	}
@@ -409,7 +410,7 @@ void gdxsv_crash_append_tag(const std::string& logfile, std::vector<http::PostFi
 		}
 	}
 
-	const std::string machine_id = os_GetMachineID();
+	const std::string machine_id = gdxsv_machine_id();
 	if (machine_id.length()) {
 		const auto digest = XXH64(machine_id.c_str(), machine_id.size(), 37);
 		std::stringstream ss;
@@ -455,7 +456,7 @@ static void gdxsv_update_popup() {
 			ImGui::PopTextWrapPos();
 			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
 			if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
-				os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
+				gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
 				update_popup_shown = true;
 				ImGui::CloseCurrentPopup();
 			}
@@ -476,7 +477,7 @@ static void gdxsv_update_popup() {
 				}
 			} else {
 				if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
-					os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
+					gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
 					update_popup_shown = true;
 					ImGui::CloseCurrentPopup();
 				}
@@ -522,7 +523,7 @@ static void gdxsv_update_popup() {
 
 				if (ImGui::Button("Download", ScaledVec2(300, 30))) {
 					self_update_result = {};
-					os_LaunchFromURL(GdxsvUpdate::DownloadPageURL());
+					gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
 					ImGui::CloseCurrentPopup();
 				}
 			}

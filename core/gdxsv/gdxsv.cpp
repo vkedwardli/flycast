@@ -15,6 +15,7 @@
 #include "gdx_rpc.h"
 #include "gdxsv_key_display.h"
 #include "gdxsv_patch_abi.h"
+#include "gdxsv_platform.h"
 #include "gdxsv_prof.h"
 #include "gdxsv_translation.h"
 #include "hw/sh4/sh4_if.h"
@@ -370,14 +371,14 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 	ss << "git_hash=" << GIT_HASH << "\n";
 	ss << "build_date=" << BUILD_DATE << "\n";
 	ss << "disk=" << (int)disk_ << "\n";
-	ss << "wireless=" << (int)(os_GetConnectionMedium() == "Wireless") << "\n";
+	ss << "wireless=" << (int)(gdxsv_connection_medium() == "Wireless") << "\n";
 	ss << "patch_id=" << symbols_[":patch_id"] << "\n";
 	ss << "language=" << GdxsvLanguage::TextureDirectoryName() << "\n";
 	ss << "local_ip=" << lbs_net_.LocalIP() << "\n";
 	ss << "udp_port=" << config::GdxLocalPort << "\n";
 	// Understands P2PMatching.relays, so the lobby may hand out relay servers.
 	ss << "relay_server=1\n";
-	std::string machine_id = os_GetMachineID();
+	std::string machine_id = gdxsv_machine_id();
 	if (machine_id.length()) {
 		auto digest = XXH64(machine_id.c_str(), machine_id.size(), 37);
 		ss << "machine_id=" << std::hex << digest << std::dec << "\n";
