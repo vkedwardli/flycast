@@ -24,6 +24,7 @@
 #include "gdx_rpc.h"
 #include "gdxsv.h"
 #include "gdxsv_emu_hooks.h"
+#include "gdxsv_input_hooks.h"
 #include "gdxsv_translation.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_round_counters.h"
@@ -52,7 +53,7 @@ void refreshLiveInputState() {
 	if (!config::ThreadedRendering) {
 		os_UpdateInputState();
 	} else if (config::JoystickPolling) {
-		os_UpdateJoystickState();
+		gdxsv_input_update_joysticks();
 	}
 }
 
