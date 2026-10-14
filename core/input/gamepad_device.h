@@ -22,6 +22,7 @@
 #include "mapping.h"
 #include "stdclass.h"
 #include "emulator.h"
+#include "gdxsv/gdxsv_input_hooks.h"
 
 #include <unordered_map>
 #include <memory>
@@ -253,24 +254,11 @@ private:
 			digitalToAnalogState[port] |= axis;
 		else
 			digitalToAnalogState[port] &= ~axis;
-		
-		extern bool gdxsv_enabled();
-		if ( gdxsv_enabled() )
-		{
-			const u32 socd = digitalToAnalogState[port] & (NegDir | PosDir);
-			if (socd == 0 || socd == (NegDir | PosDir))
-				joystick = 0;
-			else if (socd == NegDir)
-				joystick = -32768;
-			else
-				joystick = 32767;
-		} else {
-			
+		if (gdxsv_input_digital_axis(digitalToAnalogState[port], NegDir, PosDir, joystick))
+			return;
 		rampAnalogState[port] |= NegDir;
 		if (lastAnalogUpdate == 0)
 			lastAnalogUpdate = getTimeMs();
-		
-		} // gdxsv_enabled()
 	}
 
 	s16 (&getTargetArray(DigAnalog axis))[4];
