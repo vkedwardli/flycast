@@ -1,6 +1,7 @@
 #if defined(USE_SDL)
 #include "types.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_input_hooks.h"
 #include "cfg/cfg.h"
 #include "sdl/sdl.h"
 #ifdef _WIN32
@@ -689,7 +690,7 @@ void input_sdl_handle()
 
 	// When polling mode is enabled, poll joystick state here (main thread)
 	if (config::JoystickPolling)
-		SDLGamepad::PollAllJoysticks();
+		gdxsv_input_poll_joysticks();
 }
 
 void sdlReceiveSlaveKeyboardEvent(u16 scancode, bool pressed)
