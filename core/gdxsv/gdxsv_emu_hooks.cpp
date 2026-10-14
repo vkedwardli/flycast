@@ -17,6 +17,7 @@
 #include "gdxsv_frame_limiter.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_audio.h"
 #include "gdxsv_multi_pov_viewer.h"
 #include "gdxsv_video_hooks.h"
 #include "gdxsv_platform.h"
@@ -146,6 +147,7 @@ void gdxsv_emu_reset() {
 void gdxsv_emu_state_restored() {
 	if (gdxsv.Enabled()) {
 		gdxsv.InvalidateWidescreenPatch();
+		gdxsv_multi_pov_audio_reset();
 	}
 }
 

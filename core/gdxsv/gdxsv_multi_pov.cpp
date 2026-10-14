@@ -1,4 +1,5 @@
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_audio.h"
 #include "gdxsv_multi_pov_viewer.h"
 
 #ifdef _WIN32
@@ -253,6 +254,9 @@ struct GdxsvMultiPovSession {
 	void* map_handle = nullptr;  // host on Windows: keeps the section's name
 	size_t map_size = 0;
 	std::string path;
+	void* audio_map = nullptr;
+	void* audio_handle = nullptr;
+	size_t audio_size = 0;
 
 	GdxsvMultiPovHeader* header() const { return static_cast<GdxsvMultiPovHeader*>(map); }
 	uint8_t* payload() const { return static_cast<uint8_t*>(map) + kPayloadOffset; }
@@ -303,6 +307,8 @@ static bool CreateHostSession(const std::string& session_id, size_t size) {
 	h->version.store(kVersion, std::memory_order_relaxed);
 	h->total_size.store(size, std::memory_order_relaxed);
 	h->host_pid.store(CurrentPid(), std::memory_order_relaxed);
+	if (!gdxsv_multi_pov_audio_open())
+		WARN_LOG(COMMON, "multi-pov: audio routing unavailable; continuing with separate output");
 	return true;
 }
 
@@ -432,6 +438,8 @@ bool gdxsv_multi_pov_guest_open(const std::string& session_id, int screen) {
 	g_session.map_size = static_cast<size_t>(total);
 	g_session.path = path;
 	g_session.header()->guest_pid[screen].store(CurrentPid(), std::memory_order_release);
+	if (!gdxsv_multi_pov_audio_open())
+		WARN_LOG(COMMON, "multi-pov: audio routing unavailable; continuing with separate output");
 
 	NOTICE_LOG(COMMON, "multi-pov: guest %dP joined session %s", screen + 1, session_id.c_str());
 	return true;
@@ -439,6 +447,15 @@ bool gdxsv_multi_pov_guest_open(const std::string& session_id, int screen) {
 
 void gdxsv_multi_pov_close() {
 	gdxsv_multi_pov_viewer_end();
+	gdxsv_multi_pov_audio_close();
+	UnmapSession(g_session.audio_map, g_session.audio_size);
+#ifdef _WIN32
+	if (g_session.audio_handle != nullptr) CloseHandle(static_cast<HANDLE>(g_session.audio_handle));
+#else
+	if (g_session.role == GdxsvMultiPovRole::Host && g_session.audio_map != nullptr) unlink((g_session.path + ".audio").c_str());
+#endif
+	g_session.audio_map = g_session.audio_handle = nullptr;
+	g_session.audio_size = 0;
 	if (g_session.map == nullptr) {
 		g_session.role = GdxsvMultiPovRole::None;
 		g_session.screen = -1;
@@ -469,6 +486,22 @@ void gdxsv_multi_pov_close() {
 GdxsvMultiPovRole gdxsv_multi_pov_current_role() { return g_session.role; }
 
 int gdxsv_multi_pov_screen_index() { return g_session.screen; }
+
+void* gdxsv_multi_pov_audio_map(size_t bytes) {
+	if (g_session.audio_map != nullptr) return g_session.audio_size >= bytes ? g_session.audio_map : nullptr;
+	if (g_session.map == nullptr) return nullptr;
+	const std::string path = g_session.path + ".audio";
+	size_t size = bytes;
+	void* map =
+		g_session.role == GdxsvMultiPovRole::Host ? CreateSessionMap(path, bytes, &g_session.audio_handle) : OpenSessionMap(path, &size);
+	if (map != nullptr && size < bytes) {
+		UnmapSession(map, size);
+		map = nullptr;
+	}
+	g_session.audio_map = map;
+	g_session.audio_size = map != nullptr ? size : 0;
+	return map;
+}
 
 bool gdxsv_multi_pov_fetch_replay(std::vector<uint8_t>& out, int timeout_ms) {
 	GdxsvMultiPovHeader* h = g_session.header();

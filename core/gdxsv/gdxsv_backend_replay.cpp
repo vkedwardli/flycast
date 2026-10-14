@@ -2,6 +2,7 @@
 #include "gdxsv_config.h"
 
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_audio.h"
 
 #include <nowide/cstdio.hpp>
 #include <xxhash.h>
@@ -160,6 +161,7 @@ void drawTakeoverInput(u16 target, u16 current) {
 }  // namespace
 
 void GdxsvBackendReplay::Reset() {
+	gdxsv_multi_pov_audio_reset();
 	live_downlink_.Stop();
 	live_mode_ = false;
 	live_session_ = false;
@@ -201,6 +203,7 @@ void GdxsvBackendReplay::Reset() {
 	save_converted_log_ = false;
 	multi_pov_host_ = false;
 	multi_pov_guest_ = false;
+	multi_pov_speed_burst_ = false;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 	multi_pov_system_move_ = false;
@@ -438,8 +441,8 @@ void GdxsvBackendReplay::OnEndOfFrame() {
 	emu.getSh4Executor()->Stop();
 }
 
-void GdxsvBackendReplay::BeginSilentSeek() {
-	settings.aica.muteAudio = true;
+void GdxsvBackendReplay::BeginSilentSeek(bool capture_audio) {
+	settings.aica.muteAudio = !capture_audio;
 	rend_enable_renderer(false);
 	seeking_ = true;
 	// A burst right after normal playback inherits a stale end_of_frame_=true
@@ -467,6 +470,7 @@ void GdxsvBackendReplay::EndSilentSeek() {
 void GdxsvBackendReplay::BeginSilentSeekWithAudioReset() {
 	FlushAudio();
 	TermAudio();
+	gdxsv_multi_pov_audio_reset();
 	BeginSilentSeek();
 }
 
@@ -754,6 +758,10 @@ void GdxsvBackendReplay::UpdateFramePacing() {
 }
 
 void GdxsvBackendReplay::OnNextFrame() {
+	if (MultiPov())
+		gdxsv_multi_pov_audio_frame(key_msg_count_, start_msg_count_, multi_pov_seek_generation_,
+									ctrl_pause_ || pause_menu_opend_ ? 0 : ctrl_play_speed_,
+									settings.input.fastForwardMode || settings.aica.muteAudio, pause_menu_opend_);
 	// Must run here, on the emulation thread, before the early-returns below.
 	//
 	// Thread: DeliverKeyMsgBatch reads log_file_ on the emulation thread while
@@ -1130,7 +1138,10 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	}
 
 	if (0 < ctrl_play_speed_ && !ctrl_pause_ && !pause_menu_opend_ && !need_cancel() && !takeover_) {
-		BeginSilentSeek();
+		// The host chooses which frames are audible. Guests capture the short
+		// speed burst too, since their displayed frame can be a different input.
+		multi_pov_speed_burst_ = true;
+		BeginSilentSeek(multi_pov_guest_ && gdxsv_multi_pov_audio_enabled());
 		int skipped_frame = 0;
 		for (; skipped_frame < ctrl_play_speed_ && can_run_silent_replay_frame(); skipped_frame++) {
 			RunSilentSeekFrame(config::GdxSkipRenderingHack);
@@ -1138,6 +1149,11 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			if (need_cancel()) break;
 		}
 		EndSilentSeek();
+		multi_pov_speed_burst_ = false;
+		// The speed burst is finished. Keep this screen eligible for peer
+		// synchronization while it waits for the next displayed frame.
+		if (MultiPov() && gdxsv_multi_pov_audio_enabled())
+			spectate_sync_.Publish(static_cast<int32_t>(static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_), false);
 
 		// Stop at the target buffer, not at the live edge, and not merely
 		// because this burst ran out of data. With kLiveCatchUpThreshold this
@@ -2067,6 +2083,7 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 	if (gdxsv.slowdown_.Stalling() && !seeking_) {
 		return 0;
 	}
+	if (gdxsv_multi_pov_audio_input_pending() && recv_buf_.empty()) DeliverKeyMsgBatch();
 
 	int n = std::min<int>(recv_buf_.size(), size);
 	for (int i = 0; i < n; ++i) {
@@ -2135,6 +2152,7 @@ bool GdxsvBackendReplay::Start() {
 	// 4-player replay
 	multi_pov_host_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Host;
 	multi_pov_guest_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Guest;
+	multi_pov_speed_burst_ = false;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
 	multi_pov_system_move_ = false;
@@ -2151,6 +2169,7 @@ bool GdxsvBackendReplay::Start() {
 		// percent. On the output, not on aica.Volume: the four processes
 		// share one config file.
 		settings.gdxsv.audioScale = std::clamp(config::loadInt("gdxsv", "MultiPovVolume", 50), 0, 100) / 100.f;
+		gdxsv_multi_pov_audio_start();
 	}
 
 	// Tunable so the sync harness can sweep it without a rebuild. 0 disables
@@ -2525,6 +2544,13 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		// first reply is fully delivered. Skip instead of stacking a second
 		// batch on top - the next poll after the bytes drain gets a fresh one.
 		return;
+	}
+	if (MultiPov() && !live_session_) {
+		// Hold only the resumed briefing batch. Poll again from OnSockRead so
+		// waiting never blocks frames or relies on the game's ForceMsg timer.
+		const bool wait = (!seeking_ || multi_pov_speed_burst_) && !takeover_ && !ctrl_pause_ && !pause_menu_opend_ &&
+			sync_subframe_ > 3 && IsInBriefing();
+		if (!gdxsv_multi_pov_audio_input_ready(key_msg_count_, start_msg_count_, multi_pov_seek_generation_, wait)) return;
 	}
 	gdxsv.maxlag_ = 0;
 

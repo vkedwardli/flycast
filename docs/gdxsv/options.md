@@ -67,10 +67,12 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `LatencyHost` | empty (Cloud Run regions) | `host[:port]` every region's HTTPS latency test uses instead |
 | `UpdateCheckUrl` | GitHub latest release | release JSON the startup update check reads |
 | `LiveBufferFrames` | 30 | spectating: frames kept behind the live edge (10 to 3600) |
-| `AudioRateControl` | yes | replay and spectating: audio rate control (`no`: the queue can overflow or run dry) |
+| `AudioRateControl` | yes | replay and spectating: audio rate control, including the combined four-screen output (`no`: the queue can overflow or run dry) |
 | `ReplayFixedFrequency` | 2 | windowed replay and spectating: `rend.FixedFrequency` mode (3: 60 Hz, for tests) |
 | `VideoRoutingName` | empty | override the full Syphon/Spout sender name (up to 255 UTF-8 bytes); empty preserves the ordinary sender name; unified replay assigns its guests unique names using the session and player |
-| `MultiPovVolume` | 50 | four-screen replay: volume of each instance, 0 to 100 |
+| `MultiPovAudioSync` | yes | four-screen replay: combine matching audio positions through the host's output device; instances unable to join use separate outputs |
+| `MultiPovMixVolume` | 100 | synchronized four-screen mix level, 0 to 100 percent; Flycast's master volume still applies |
+| `MultiPovVolume` | 50 | volume of each instance's separate output when audio routing is off or unavailable, 0 to 100 |
 | `SpectateSyncGroup` | empty | instances with the same name play the same frame (four-screen replay sets it) |
 | `SyncMaxWaitMs` | 2 | longest such a sync stalls a frame, 0 to 200 ms |
 | `SyncStartTime` | 0 | Unix time to wait for before loading the start state |
