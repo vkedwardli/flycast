@@ -387,3 +387,9 @@ u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height)
 bool GdxsvTexturePackSource::isTextureReplaced(u32 hash) {
 	return texture_map.find(hash) != texture_map.end();
 }
+
+void gdxsv_add_custom_texture_sources(CustomTexture& custom_texture, const std::string& game_id) {
+	if (game_id != "T13306M") return;
+	custom_texture.addSource(std::make_unique<GdxsvEmbedTextureSource>());
+	custom_texture.addSource(std::make_unique<GdxsvTexturePackSource>());
+}
