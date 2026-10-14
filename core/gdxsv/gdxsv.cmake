@@ -354,6 +354,7 @@ endif()
 # 4-player replay window backend
 if(WIN32 AND NOT WINDOWS_STORE)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_win.cpp)
+	target_link_libraries(${PROJECT_NAME} PRIVATE comctl32)
 elseif(APPLE AND NOT IOS)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_apple.mm)
 elseif(UNIX AND NOT APPLE AND NOT ANDROID AND NOT NINTENDO_SWITCH)
