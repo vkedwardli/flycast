@@ -16,6 +16,25 @@
 #include <sys/ioctl.h>
 #endif
 
+#ifdef _WIN32
+#ifndef SIO_UDP_CONNRESET
+#define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+#endif
+#ifndef SIO_UDP_NETRESET
+#define SIO_UDP_NETRESET _WSAIOW(IOC_VENDOR, 11)
+#endif
+#endif
+
+// Windows reports an ICMP port unreachable as WSAECONNRESET on the next recvfrom; ignore it.
+static void set_udp_connreset(sock_t fd) {
+#ifdef _WIN32
+	BOOL bNewBehavior = FALSE;
+	DWORD dwBytesReturned = 0;
+	WSAIoctl(fd, SIO_UDP_CONNRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytesReturned, NULL, NULL);
+	WSAIoctl(fd, SIO_UDP_NETRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytesReturned, NULL, NULL);
+#endif
+}
+
 static std::vector<std::string> v4_urls = {"https://api.ipify.org", "https://ipv4.seeip.org"};
 
 static std::vector<std::string> v6_urls = {"https://api64.ipify.org", "https://api.seeip.org"};
