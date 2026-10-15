@@ -109,27 +109,39 @@ class Ctx:
         return path
 
     def probe(self, name: str, rom: str, script: str, params: dict, frames: int,
-              config: Optional[List[str]] = None, loadstate: bool = True, timeout: float = 180) -> Probe:
+              config: Optional[List[str]] = None, loadstate: bool = True, timeout: float = 180,
+              window: bool = False) -> Probe:
         """Run one headless instance for `frames` vblanks (gdxsv:headless_probe_frames exits it)
-        with lua/<script>; with loadstate it resumes the game's slot-99 lobby savestate."""
+        with lua/<script>; with loadstate it resumes the game's slot-99 lobby savestate.
+        window=True: a normal window and a cold boot, killed once the script is done."""
         from . import assets
         d = os.path.join(self.out, name)
         os.makedirs(self.out, exist_ok=True)
         lua = write_lua(os.path.join(self.out, name + ".lua"), script, params)
-        cfg = [f"gdxsv:headless_probe_frames={frames}"] + list(config or [])
-        if loadstate:
+        cfg = [f"gdxsv:headless_probe_frames={frames}", "log:Verbosity=3", "log:LogToFile=1"] + list(config or [])
+        if loadstate and not window:
             cfg.append("gdxsv:headless_loadstate=yes")
-        state = assets.state_dir(rom) if loadstate else None
+        state = assets.state_dir(rom) if loadstate and not window else None
         t0 = time.time()
-        inst = emu.launch(self.exe, rom, d, config=cfg, state_dir=state, lua=lua)
+        inst = emu.launch(self.exe, rom, d, config=cfg, state_dir=state, lua=lua, headless=not window)
         timed_out = False
-        try:
-            inst.proc.wait(timeout)
-        except Exception:
-            timed_out = True
+        e2e_log = os.path.join(d, "e2e.log")
+        while inst.poll() is None:
+            if time.time() - t0 > timeout:
+                timed_out = True
+                break
+            if window and os.path.isfile(e2e_log):
+                with open(e2e_log, encoding="utf-8", errors="replace") as f:
+                    s = f.read()
+                if "E2E done=" in s or "E2E error=" in s:
+                    break
+            time.sleep(0.2)
+        rc = inst.poll()
+        if rc is None:
             inst.kill()
             inst.proc.wait(10)
-        p = Probe(inst, inst.poll(), timed_out, time.time() - t0)
+            rc = 0 if window and not timed_out else inst.poll()
+        p = Probe(inst, rc, timed_out, time.time() - t0)
         inst.remove_exe()
         return p
 
