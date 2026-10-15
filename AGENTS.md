@@ -29,7 +29,7 @@ game images, save states, keys or other proprietary console or game data.
 - `gdxsv_patch/` - SH4 network payload of the game and its build.
 - `gdxsv_langmod/` - Translation sources and generators.
 - `tests/` - Unit tests (googletest).
-- `tests/gdxsv/rollback/` - Rollback and live spectating rigs.
+- `gdxsv_tests/rollback/` - Rollback and live spectating rigs.
 
 ## Commands
 
@@ -145,7 +145,7 @@ Follow the names already in `core/gdxsv/`:
   your own checks while working, then drop them. Exception: fine-grained
   behavior an e2e test cannot reproduce (GGPO, packet loss or reordering,
   races, RAM edge cases) stays in `tests/src/Gdxsv*Test.cpp`.
-- Rig scripts live in `tests/gdxsv/rollback/`, added in the feature's PR. No copies
+- Rig scripts live in `gdxsv_tests/rollback/`, added in the feature's PR. No copies
   elsewhere. No game, BIOS, save state or machine paths in them.
 - `docs/gdxsv/features.md`: per feature, how to enable, test command, pass
   criterion, control. Updated in the feature's PR; "no test" is stated.

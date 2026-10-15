@@ -78,7 +78,7 @@ protected:
    int                   _disconnect_timeout;
    int                   _disconnect_notify_start;
    bool                  _disconnect_without_rollback;
-   int                   _test_log;       /* GGPO_TEST_LOG: count relay forwards for tests/gdxsv/rollback */
+   int                   _test_log;       /* GGPO_TEST_LOG: count relay forwards for gdxsv_tests/rollback */
    int                   _relay_forwards;
    struct RelayServer {
       sockaddr_storage addr;                  /* where this peer sends */
