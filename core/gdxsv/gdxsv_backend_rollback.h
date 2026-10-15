@@ -98,7 +98,7 @@ class GdxsvBackendRollback {
 	int battle_end_frame_ = -1;
 	int disconnect_frame_ = 0;
 
-	// GGPO_TEST_LOG: log scene changes for tools/rbk_test.
+	// GGPO_TEST_LOG: log scene changes for tests/gdxsv/rollback.
 	bool test_log_ = false;
 	int last_scene_ = -1;
 

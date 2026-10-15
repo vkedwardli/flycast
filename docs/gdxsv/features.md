@@ -19,7 +19,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Location | Tests |
 |---|---|
 | `tests/src/Gdxsv*.cpp` | unit tests (`flycast_tests`, built with `-DBUILD_TESTING=ON`; CI does not run them) |
-| `tools/rbk_test/` | `run_suite.py` (rollback cases A1 to D8), `live_rig.py`, `fake_live_lbs.py`, `fuzz.py`; setup and pass criteria in its `README.md` |
+| `tests/gdxsv/rollback/` | `run_suite.py` (rollback cases A1 to D8), `live_rig.py`, `fake_live_lbs.py`, `fuzz.py`; setup and pass criteria in its `README.md` |
 | repository root | `run.py` (several local instances side by side) |
 
 ## Online play
@@ -72,7 +72,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 |---|---|---|---|
 | Uplink: one battle peer streams its confirmed inputs to the lobby | lobby battle | `live_rig.py`: lobby's recording equals that peer's replay | none |
 | Spectator: download, catch up, follow live | Live tab, or `gdxsv:spectate=CODE` | `live_rig.py`: each spectator's state per step equals the replay played offline; unit: `GdxsvSpectator.*` | none |
-| Live auto-next (watch the next live battle) | setting `LiveAutoNext` | `fake_live_lbs.py` (by hand, see `tools/rbk_test/README.md`) | none |
+| Live auto-next (watch the next live battle) | setting `LiveAutoNext` | `fake_live_lbs.py` (by hand, see `tests/gdxsv/rollback/README.md`) | none |
 
 ## Game and presentation
 
@@ -104,6 +104,6 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | CI build (macOS, Linux, Windows MinGW) | every push and PR | the workflow itself | none |
 | Headless mode (no window, no graphics API) | `gdxsv:headless=yes` | most rollback cases run headless | none |
 | Boot probe for patch checks | `gdxsv:headless_loadstate=yes`, `gdxsv:headless_probe_frames=N` | none | none |
-| Per-frame state hash log | `gdxsv:hashlog=yes` | read by `tools/rbk_test` (`rbk_lib.py`) | none |
+| Per-frame state hash log | `gdxsv:hashlog=yes` | read by `tests/gdxsv/rollback` (`rbk_lib.py`) | none |
 | `run.py` (several instances, replay, spectate, rollback test) and the `RunGame` workflow | `python run.py <function>` | none | none |
 | Fixed host address of guest RAM on Windows (lower 28 bits equal the guest address) | always | none | none |
