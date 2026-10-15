@@ -189,6 +189,7 @@ public:
 		return 1;
 	}
 
+	// gdxsv: queue level for the replay and spectating audio rate control
 	bool getQueueLevel(u32& queued, u32& capacity) override
 	{
 		const int size = BUFSIZE;

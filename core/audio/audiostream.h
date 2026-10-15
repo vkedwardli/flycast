@@ -16,7 +16,7 @@ public:
 	virtual u32 push(const void *data, u32 frames, bool wait) = 0;
 	virtual void term() {}
 
-	// Frames queued for output and the most the queue holds, for audio rate
+	// gdxsv: frames queued for output and the most the queue holds, for audio rate
 	// control. False if the backend cannot tell.
 	virtual bool getQueueLevel(u32& queued, u32& capacity) { return false; }
 
@@ -66,7 +66,7 @@ private:
 
 void InitAudio();
 void TermAudio();
-void FlushAudio();
+void FlushAudio(); // gdxsv: drops queued samples on a replay seek
 void WriteSample(s16 right, s16 left);
 
 void StartAudioRecording(bool eight_khz);
@@ -89,6 +89,7 @@ class RingBuffer
 	}
 
 public:
+	// gdxsv: queue level for the backends' getQueueLevel
 	u32 size() { return readSize(); }
 	u32 capacity() const { return buffer.empty() ? 0 : (u32)buffer.size() - 1; }
 

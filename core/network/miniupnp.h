@@ -25,7 +25,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <algorithm>
 #include <mutex>
 
 class MiniUPnP
@@ -35,16 +34,15 @@ public:
 		lanAddress[0] = 0;
 		memset(&urls, 0, sizeof(urls));
 		memset(&data, 0, sizeof(data));
-		memset(&lastError, 0, sizeof(lastError));
+		lastError[0] = 0; // gdxsv: error text for the P2P status
 	}
 	bool Init();
 	void Term();
 	bool AddPortMapping(int port, bool tcp);
+	// gdxsv: port-mapping check, addresses and last error for the P2P status
 	bool CheckPortMapping(int port, bool tcp);
-	bool isMapped(int port, bool tcp) { return std::find(mappedPorts.begin(), mappedPorts.end(),
-		std::make_pair(std::to_string(port), tcp)) != mappedPorts.end(); }
 	const char *localAddress() const { return lanAddress; }
-	const char *externalAddress() const { return wanAddress; }
+	const char *externalAddress() const { return ""; } // not queried from the router
 	const char *getLastError() const { return lastError; }
 	bool isInitialized() const { return initialized; }
 
@@ -52,8 +50,7 @@ private:
 	UPNPUrls urls;
 	IGDdatas data;
 	char lanAddress[32];
-	char wanAddress[32];
-	char lastError[256];
+	char lastError[256]; // gdxsv
 	std::vector<std::pair<std::string, bool>> mappedPorts;
 	bool initialized = false;
 	std::mutex mutex;
@@ -67,7 +64,8 @@ public:
 	bool Init() { return true; }
 	void Term() {}
 	bool AddPortMapping(int port, bool tcp) { return true; }
-	bool CheckPortMapping(int port, bool tcp);
+	// gdxsv: P2P status
+	bool CheckPortMapping(int port, bool tcp) { return false; }
 	const char *localAddress() const { return ""; }
 	const char *externalAddress() const { return ""; }
 	const char *getLastError() const { return ""; }

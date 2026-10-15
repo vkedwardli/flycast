@@ -4,6 +4,7 @@
 #include <mutex>
 #include <set>
 
+#include "gdxsv_ggpo.h"
 #include "gdxsv_network.h"
 #include "network/ggpo.h"
 #include "gdxsv_spectator_uplink.h"
@@ -104,6 +105,6 @@ class GdxsvBackendRollback {
 	// Network stats copied on the emulation thread for the OSD. The UI thread must not call into GGPO: the emu
 	// thread can hold the GGPO lock for seconds (prediction barrier while a peer drops), freezing the window.
 	std::mutex net_stat_mutex_;
-	std::array<ggpo::NetworkStats, 4> net_stats_{};
+	std::array<GdxsvGgpoNetworkStats, 4> net_stats_{};
 	std::array<bool, 4> net_connected_{};
 };
