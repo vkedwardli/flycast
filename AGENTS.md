@@ -91,7 +91,8 @@ Follow the names already in `core/gdxsv/`:
   `core/gdxsv/` also calls) lives in `core/gdxsv/`; the upstream file gets
   an `#include` of a hook header and a guarded call.
 - A change of a few lines that reads naturally where it is (a condition, a
-  flag test, a value) stays inline in the upstream file. Never add a
+  flag test, a value) stays inline in the upstream file, marked and listed
+  (below). Never add a
   function or a file only to move a few lines out of an upstream file: the
   reader then has to jump to see a few lines.
 - Hook headers (`core/gdxsv/gdxsv_<area>_hooks.h`, `gdxsv_emu_hooks.h` for
@@ -110,8 +111,12 @@ Follow the names already in `core/gdxsv/`:
 - No gdxsv feature active = upstream behavior. A changed default is listed in
   `docs/gdxsv/features.md` and has a setting to turn it off.
 - Patches at fixed guest addresses check the game (product id or disc).
-- Every changed upstream file is in `docs/gdxsv/upstream.md` with why, in
-  the same PR.
+- Every changed spot in an upstream file is marked where it is: a line that
+  names gdxsv (a `gdxsv_` call or include) marks itself; any other change
+  carries a `// gdxsv: <why>` comment on or above it, a removed line one at
+  its place.
+- Every changed spot is listed in `docs/gdxsv/upstream.md` (file, function,
+  what and why), in the same PR.
 
 ### Code
 
