@@ -415,6 +415,9 @@ static bool trim_prefix(const std::string& s, const std::string& prefix, std::st
 }
 
 void gdxsv_crash_append_tag(const std::string& logfile, std::vector<http::PostField>& post_fields) {
+	const std::string config_path = get_writable_config_path("emu.cfg");
+	if (file_exists(config_path)) post_fields.emplace_back("emu.cfg", config_path, "text/plain");
+
 	if (file_exists(logfile)) {
 		nowide::ifstream ifs(logfile);
 		if (ifs.is_open()) {

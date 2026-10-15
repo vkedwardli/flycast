@@ -22,7 +22,6 @@
 #include <mutex>
 #include <xxhash.h>
 
-
 #ifdef _OPENMP
 #include <omp.h>
 #endif

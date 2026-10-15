@@ -1333,7 +1333,6 @@ bool OpenGLRenderer::Render()
 		drawOSD();
 		renderVideoRouting();
 	}
-	
 	renderVideoRouting();
 	restoreCurrentFramebuffer();
 
