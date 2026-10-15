@@ -230,7 +230,6 @@ struct settings_t
 		bool audioRateControl;      // Resample output to the rate the emulator actually runs at; replay
 	} gdxsv;
 
-	bool disableRenderer;
 	bool raHardcoreMode;
 };
 

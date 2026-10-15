@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "gdxsv.pb.h"
-#include "network/net_platform.h"
 #include "types.h"
+#include "network/net_platform.h"
 
 enum class P2PStatus {
 	Testing,
