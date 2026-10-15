@@ -107,6 +107,7 @@ void mainui_loop(bool forceStart)
 	{
 		fc_profiler::startThread("main");
 
+		// gdxsv: gdxsv_emu_mainui_loop gets whether a frame was rendered
 		const bool rendered = mainui_rend_frame();
 		if (rendered && imguiDriver != nullptr)
 		{

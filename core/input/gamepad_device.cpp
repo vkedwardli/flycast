@@ -357,6 +357,7 @@ bool GamepadDevice::detectAxis(u32 code, int value)
 //
 bool GamepadDevice::gamepad_axis_input(u32 code, int value)
 {
+	// gdxsv: last raw value per axis, the start point of axis detection (triggers that rest away from 0)
 	lastRawAxisValues[code] = value;
 	if (detectAxis(code, value))
 		return true;
@@ -773,6 +774,7 @@ void GamepadDevice::detectInput(bool combo, input_detected_cb input_changed)
 	_detection_start_time = getTimeMs() + 200;
 	detectionInputs.clear();
 	detectingAxes.clear();
+	// gdxsv: detection starts from the axes' current values
 	for (const auto& [code, value] : lastRawAxisValues)
 		detectingAxes.emplace(code, value);
 }

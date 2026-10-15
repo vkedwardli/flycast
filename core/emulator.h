@@ -51,7 +51,7 @@ enum class Event {
 	VBlank,
 	Network,
 	DiskChange,
-	GGPOGameEnd,
+	GGPOGameEnd, // gdxsv: a rollback or replay session ended
 	LocaleChange,
 	max = LocaleChange
 };

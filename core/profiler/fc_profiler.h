@@ -5,7 +5,7 @@
 #include "types.h"
 #include <vector>
 #include <string>
-#include <cstring>
+#include <cstring> // gdxsv: memset; no longer included through implot 0.18
 #include <chrono>
 #include <thread>
 #include <mutex>
