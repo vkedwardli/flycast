@@ -2,6 +2,9 @@
 -- to the lobby server and on to the plaza map; the case checks the lobby's log.
 -- E2E_PARAMS.battle: then enter lobby 2 (a training lobby), force-start with the chat
 -- message "あ", pick a mobile suit and log "battle=1" once the battle scene is reached.
+-- E2E_PARAMS.chat = false: enter, but leave the force start to another client;
+-- chat_delay: vblanks after the entry before the chat (until the other client's entry,
+-- which cancels a running countdown).
 -- Menu paths from gdxsv-reveng tools/dc2_lobby.py.
 
 local B = e2e.BTN
@@ -38,7 +41,10 @@ function main()
   run(LOGIN)
   if not E2E_PARAMS.battle then return end
   run(LOBBY)
-  run(CHAT)
+  if E2E_PARAMS.chat ~= false then
+    e2e.wait(E2E_PARAMS.chat_delay or 0)
+    run(CHAT)
+  end
   -- The server's countdown runs in wall time: wait for the scenes, not a frame count.
   if not e2e.wait_until(function() return scene() == 0x0102 end, 12000) then
     e2e.log("battle", 0)

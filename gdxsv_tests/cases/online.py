@@ -1,12 +1,16 @@
 """Online features against a local gdxsv lobby (lib/servers.py)."""
 
 import os
+import re
+import threading
 
 from lib import assets, servers
 from lib.case import Skip, case, result
 
 LOGIN_KEY = "E2ETEST1"
 USER = ("E2E001", "e2e")  # user id, handle name the lobby lists for LOGIN_KEY
+LOGIN_KEY2 = "E2ETEST3"  # the second client of the two-player cases
+USER2 = ("E2E002", "e2e2")
 BOOT = 300  # vblanks of cold boot before the network menu savestate is loaded
 LOGIN_FRAMES = 4400  # boot, the menu path in lua/login.lua, and the lobby's plaza messages
 BATTLE_FRAMES = 40000  # upper bound; the script ends 300 vblanks into the battle
@@ -14,6 +18,14 @@ BATTLE_FRAMES = 40000  # upper bound; the script ends 300 vblanks into the battl
 
 def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True, mcs_region: str = ""):
     """Disc 2 logs in from the network menu savestate; returns (probe, lobby log, fake HTTP requests)."""
+    probes, lbs, reqs = session(ctx, tag, [(tag, client_key, {"battle": battle})],
+                                force_start=force_start, mcs_region=mcs_region)
+    return probes[0], lbs, reqs
+
+
+def session(ctx, tag: str, clients: list, force_start: bool = True, mcs_region: str = ""):
+    """clients = (name, gdxsv:loginkey, lua/login.lua params) run at once against one lobby;
+    returns ([probe per client], lobby log, fake HTTP requests)."""
     rom = ctx.rom("dc2")
     exe = servers.server_exe()
     if exe is None:
@@ -22,18 +34,26 @@ def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: boo
     if states is None:
         raise Skip("no network menu savestate (GDXSV_LOGIN_STATE)")
     lobby = servers.Lobby(exe, os.path.join(ctx.out, tag + "_lbs"))
-    lobby.init([(servers.server_login_key(LOGIN_KEY),) + USER])
+    lobby.init([(servers.server_login_key(LOGIN_KEY),) + USER, (servers.server_login_key(LOGIN_KEY2),) + USER2])
     servers.add_training_lobby(lobby.db, force_start=force_start, mcs_region=mcs_region)
+    probes = [None] * len(clients)
     with servers.FakeHttp() as http:
-        cfg = http.config() + [f"gdxsv:loginkey={client_key}", "config:rend.ThreadedRendering=no"]
+        def run(i, name, key, params):
+            battle = params.get("battle", False)
+            cfg = http.config() + [f"gdxsv:loginkey={key}", "config:rend.ThreadedRendering=no"]
+            probes[i] = ctx.probe(name, rom, "login.lua", {"boot": BOOT, "slot": assets.LOGIN_SLOT, **params},
+                                  frames=BATTLE_FRAMES if battle else LOGIN_FRAMES, config=cfg, loadstate=False,
+                                  states=states, timeout=900, until_done=battle)
         lobby.start()
         try:
-            p = ctx.probe(tag, rom, "login.lua", {"boot": BOOT, "slot": assets.LOGIN_SLOT, "battle": battle},
-                          frames=BATTLE_FRAMES if battle else LOGIN_FRAMES, config=cfg, loadstate=False,
-                          states=states, timeout=900, until_done=battle)
+            threads = [threading.Thread(target=run, args=(i,) + c) for i, c in enumerate(clients)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
         finally:
             lobby.stop()
-        return p, lobby.log(), list(http.requests)
+        return probes, lobby.log(), list(http.requests)
 
 
 def checks(p, lbs: str, requests: list) -> list:
@@ -111,3 +131,42 @@ def battle_checks(p, lbs: str, rollback: bool) -> list:
         {"what": "UDP backend logged in to the battle",
          "ok": "gdxsv_backend_udp" in log and f"user_id:{USER[0]}" in log},
     ]
+
+
+def pair(ctx, tag: str, second_enters: bool = True):
+    """Two clients, two users, one P2P lobby: the first one waits for the second's entry, then
+    force-starts. second_enters=False: the second only logs in."""
+    first = {"battle": True, "chat_delay": 900, "in_battle": 600}
+    second = {"battle": True, "chat": False, "in_battle": 600} if second_enters else {}
+    return session(ctx, tag, [(tag + "a", LOGIN_KEY, first), (tag + "b", LOGIN_KEY2, second)], mcs_region="p2p")
+
+
+def pair_checks(probes, lbs: str) -> list:
+    c = [{"what": "lobby sent the P2P matching to both",
+          "ok": lbs.count("Command: lbsP2PMatching, Direction: ServerToClient") >= 2}]
+    for name, p in zip("ab", probes):
+        log = p.log
+        c += [
+            {"what": f"{name}: probe ran", "ok": p.clean, **p.facts()},
+            {"what": f"{name}: battle scene reached", "ok": p.e2e.get("battle") == "1"},
+            {"what": f"{name}: GGPO session of two peers", "ok": "StartGGPOSession" in log and "Peer count 2" in log},
+            {"what": f"{name}: the other peer answered", "ok": re.search(r"Peer\d [\d.]+ms IP:", log) is not None},
+            {"what": f"{name}: battle loaded on the rollback backend", "ok": "LoadEndMsg" in log},
+        ]
+    return c
+
+
+@case("O4", "two clients, P2P lobby: a rollback battle between two real peers (local gdxsv)")
+def online_rollback_pair(ctx):
+    probes, lbs, _ = pair(ctx, "O4")
+    return result(pair_checks(probes, lbs))
+
+
+@case("O4c", "O4 with the second client not entering: a one-peer battle, the pair checks fail", control_of="O4")
+def online_rollback_pair_control(ctx):
+    probes, lbs, _ = pair(ctx, "O4c", second_enters=False)
+    c = pair_checks([probes[0], probes[0]], lbs)
+    a = {x["what"]: x["ok"] for x in c}
+    return result([{"what": "a: battle reached", "ok": a["a: probe ran"] and a["a: battle scene reached"]},
+                   {"what": "two-peer checks fail", "ok": not a["lobby sent the P2P matching to both"]
+                    and not a["a: GGPO session of two peers"] and not a["a: the other peer answered"]}], detail=c)
