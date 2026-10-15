@@ -3,10 +3,6 @@
 #pragma once
 #include "types.h"
 
-// Called by the SH4 block decoder after it sets a block's cycle count.
-// Slow idle loop hack: the game's idle loop block costs more cycles.
-void gdxsv_sh4_block_cycles(u32 addr, u32& guest_cycles);
-
 // Skip-frame rendering: on skip frames (rollback resimulation, replay seek) the game's render call still runs,
 // because object draw callbacks inside it update state that game logic reads. Only the disk's output-only
 // functions (settings.gdxsv.renderOnlyFuncs) return at their entry, from the render call until it returns.

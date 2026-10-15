@@ -1,8 +1,7 @@
 #include "audiostream.h"
 #include "cfg/option.h"
 #include "emulator.h"
-
-#include <algorithm>
+#include "gdxsv/gdxsv_audio_hooks.h"
 
 static void registerForEvents();
 
@@ -50,83 +49,24 @@ AudioBackend *AudioBackend::getBackend(const std::string& slug)
 	return nullptr;
 }
 
-// Audio rate control, for replay. It runs without audio sync, as the online
-// battle does, so the emulator's sample rate drifts from the device's 44.1kHz
-// with the playback pacing, and the queue overflows or runs dry - either one
-// clicks. Resampling by up to 0.5% to hold the queue near half full absorbs
-// that without an audible pitch change (RetroArch's dynamic rate control).
-namespace {
-constexpr double kRateMaxCorrection = 0.005;
-// Smoothing per push (~12ms). The SDL2 device takes 1024 frames per callback,
-// so the queue level is a sawtooth of that size.
-constexpr double kQueueAlpha = 0.05;
-
-struct RateControl
+static void pushFrame(s16 r, s16 l)
 {
-	bool active = false;
-	SoundFrame prev {};
-	double phase = 0.0;	// position of the next output frame after prev, in input frames
-	double step = 1.0;	// input frames per output frame
-	double queueLevel = 0.5;
-};
-RateControl rateControl;
-}
+	Buffer[writePtr].r = r;
+	Buffer[writePtr].l = l;
 
-static void updateRate()
-{
-	RateControl& rc = rateControl;
-	u32 queued, capacity;
-	if (currentBackend == nullptr || !currentBackend->getQueueLevel(queued, capacity) || capacity == 0)
-		return;
-	rc.queueLevel += kQueueAlpha * (std::min<double>(1.0, (double)queued / capacity) - rc.queueLevel);
-	rc.step = 1.0 / (1.0 + kRateMaxCorrection * (1.0 - 2.0 * rc.queueLevel));
-}
-
-static void pushFrame(const SoundFrame& frame)
-{
-	Buffer[writePtr] = frame;
 	if (++writePtr == SAMPLE_COUNT)
 	{
 		if (currentBackend != nullptr)
 			currentBackend->push(Buffer, SAMPLE_COUNT, config::LimitFPS);
 		writePtr = 0;
-		if (rateControl.active)
-			updateRate();
+		gdxsv_audio_pushed(currentBackend);
 	}
 }
 
 void WriteSample(s16 r, s16 l)
 {
-	float vol = config::AudioVolume.dbPower() * settings.aica.audioFade;
-	if (0.f < settings.gdxsv.audioScale && settings.gdxsv.audioScale < 1.f)
-		vol *= settings.gdxsv.audioScale;
-	SoundFrame frame;
-	frame.r = r * vol;
-	frame.l = l * vol;
-
-	RateControl& rc = rateControl;
-	if (rc.active != settings.gdxsv.audioRateControl) {
-		rc = {};
-		rc.active = settings.gdxsv.audioRateControl;
-		rc.prev = frame;
-	}
-	if (!rc.active) {
-		pushFrame(frame);
-		return;
-	}
-
-	// Linear interpolation between the previous input frame and this one.
-	while (rc.phase < 1.0)
-	{
-		const float t = (float)rc.phase;
-		SoundFrame out;
-		out.l = (s16)(rc.prev.l + (frame.l - rc.prev.l) * t);
-		out.r = (s16)(rc.prev.r + (frame.r - rc.prev.r) * t);
-		pushFrame(out);
-		rc.phase += rc.step;
-	}
-	rc.phase -= 1.0;
-	rc.prev = frame;
+	const float vol = config::AudioVolume.dbPower() * gdxsv_audio_gain();
+	gdxsv_audio_write(r * vol, l * vol, pushFrame);
 }
 
 void InitAudio()

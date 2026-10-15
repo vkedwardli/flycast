@@ -5,18 +5,7 @@
 #include <algorithm>
 #include <iterator>
 
-#include "gdxsv_config.h"
 #include "hw/sh4/sh4_if.h"
-
-void gdxsv_sh4_block_cycles(u32 addr, u32& guest_cycles) {
-	if (!config::GdxSlowIdleLoopHack) return;
-	if (settings.gdxsv.disk == 1 && addr == 0x0c2317fa) {
-		guest_cycles = 1448;
-	}
-	if (settings.gdxsv.disk == 2 && addr == 0x0c2ccdba) {
-		guest_cycles = 1448;
-	}
-}
 
 static u32 renderReturn;
 

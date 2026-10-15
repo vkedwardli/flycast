@@ -372,7 +372,7 @@ extern Option<int, false> UITheme;          // 0 -> Dark, 1 -> Light, 2 -> Dream
 
 // Sound
 
-extern Option<bool> LimitFPS;
+extern Option<bool> LimitFPS; // gdxsv: an option, not a constant
 extern Option<bool> DSPEnabled;
 extern Option<int> AudioBufferSize;	//In samples ,*4 for bytes
 extern Option<bool> AutoLatency;
@@ -474,7 +474,7 @@ extern Option<bool> ThreadedRendering;
 extern Option<bool> DupeFrames;
 extern Option<bool> NativeDepthInterpolation;
 extern Option<bool> EmulateFramebuffer;
-extern Option<int> FixedFrequency;
+extern Option<int> FixedFrequency; // gdxsv: fixed frame rate limiter
 extern Option<bool> FixUpscaleBleedingEdge;
 extern Option<bool> CustomGpuDriver;
 extern Option<bool> FramePacing;
@@ -560,6 +560,7 @@ extern std::array<std::array<Option<int>, 2>, 4> NetworkExpansionDevices;
 extern Option<bool> PerGameVmu;
 #ifdef _WIN32
 extern Option<bool, false> UseRawInput;
+// gdxsv: XInput and DirectInput switches; joystick polling from the emulation thread
 extern Option<bool, false> UseXInput;
 extern Option<bool, false> UseDirectInput;
 extern Option<bool, false> JoystickPolling;

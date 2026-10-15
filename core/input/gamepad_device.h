@@ -274,7 +274,7 @@ private:
 	bool _is_registered = false;
 	u32 digitalToAnalogState[4];
 	std::unordered_map<DreamcastKey, int> lastAxisValue[4];
-	std::unordered_map<u32, int> lastRawAxisValues;
+	std::unordered_map<u32, int> lastRawAxisValues; // gdxsv: start point of axis detection
 	bool perGameMapping = false;
 	bool instanceMapping = false;
 

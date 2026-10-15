@@ -9,6 +9,7 @@ shell/apple/emulator-ios/OpenMP/OpenMP.xcframework
 .vs/
 .vscode/
 out/
+# gdxsv: Visual Studio resource editor files
 *.aps
 
 # JetBrains IDES

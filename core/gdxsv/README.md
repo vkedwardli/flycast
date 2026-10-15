@@ -27,8 +27,9 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv.cpp/.h` | the `Gdxsv` object: game detection, patching, RPC, settings, backend selection |
 | `gdxsv.cmake` | gdxsv sources and build settings, included from `CMakeLists.txt` |
 | `gdxsv_config.cpp/.h` | gdxsv options (`config::Gdx*`, `[gdxsv]` in emu.cfg) |
-| `gdxsv_sh4_hooks.cpp/.h` | calls from the SH4 dynarec and block manager (slow idle loop hack; output-only functions skipped on skip frames, block-link gate) |
+| `gdxsv_sh4_hooks.cpp/.h` | calls from the SH4 dynarec and block manager (output-only functions skipped on skip frames, block-link gate) |
 | `gdxsv_emu_hooks.cpp/.h` | calls from the emulator (start, stop, frame, input, UI) into gdxsv |
+| `gdxsv_audio.cpp`, `gdxsv_audio_hooks.h` | calls from the audio stream: replay gain and fade, audio rate control |
 | `gdx_rpc.h` | gdx RPC request layout and codes |
 | `gdxsv_patch.inc`, `gdxsv_patch_abi.h` | SH4 patch bytes and the addresses it hooks; generated from `gdxsv_patch/` |
 | `gdxsv.pb.cc/.h` | protobuf messages shared with the server (generated) |
@@ -38,7 +39,8 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_backend_tcp.cpp/.h` | TCP backend: the lobby (LBS) connection |
 | `gdxsv_backend_udp.cpp/.h` | UDP backend: MCS over UDP |
 | `gdxsv_backend_rollback.cpp/.h` | rollback backend: GGPO session for a battle |
-| `gdxsv_ggpo_hooks.cpp/.h` | called from `core/network/ggpo.cpp`: per-frame state hash log (`gdxsv:hashlog`) |
+| `gdxsv_ggpo.cpp/.h` | gdxsv GGPO session (up to 4 peers, relays) on top of `core/network/ggpo.cpp`; disconnect, network stats, random input |
+| `gdxsv_ggpo_hooks.cpp/.h` | called from `core/network/ggpo.cpp`: per-frame state hash log (`gdxsv:hashlog`), session state `gdxsv_ggpo_state`; `gdxsv_ggpo_upstream` gives `gdxsv_ggpo.cpp` the upstream session state |
 | `gdxsv_backend_replay.cpp/.h` | replay backend: plays a recorded battle |
 | `gdxsv_replay_util.cpp/.h`, `gdxsv_replay_ui.h` | replay files, bootstrap save state, replay UI data |
 | `gdxsv_save_state.cpp/.h` | in-memory save states for rollback |
@@ -46,7 +48,6 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_spectator_downlink.cpp/.h` | receives live inputs from LBS |
 | `gdxsv_spectate_sync.cpp/.h` | keeps spectator instances on one machine on the same frame |
 | `gdxsv_multi_pov*.cpp/.h/.mm` | 4-player replay grid: launch, window placement per platform (`_win`, `_sdl`, `_apple`, `_none`) |
-| `gdxsv_sdl.cpp/.h` | SDL hints, window flags and headless display size called from `core/sdl/sdl.cpp` |
 | `gdxsv_round_counters.h` | round and win counts of a battle |
 | `gdxsv_slowdown.cpp/.h` | experimental arcade slowdown in DX battles |
 | `gdxsv_projectile_view.cpp/.h` | debug overlay of DX projectiles |

@@ -284,7 +284,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 			if ((~input.kcode & replay_control_buttons) == 0) {
 				ctrl_input_release_pending_ = false;
 			}
-			gui_delayed_keys_up();
+			delayedKeysUp();
 			return;
 		}
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
@@ -360,7 +360,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 	}
 
-	gui_delayed_keys_up();
+	delayedKeysUp();
 }
 
 void GdxsvBackendReplay::UpdateReplayFlow() {
