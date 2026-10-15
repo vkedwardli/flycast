@@ -1392,7 +1392,10 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
 
-			if (target_round_ > 1) {
+			// The first round can queue two SeekToBriefing (waiting for the join, then at StartMsg).
+			// A second jump would load the state again after SendStartMsg filled recv_buf_.
+			if (ctrl_commands_.contains(ReplayCtrlCommand::SetRound) || ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg)) {
+			} else if (target_round_ > 1) {
 				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, target_round_);
 			} else if (target_frame_ != 0) {
