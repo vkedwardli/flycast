@@ -79,7 +79,7 @@ public:
 	    auto rv = pages.try_emplace(offset);
 	    if (!rv.second)
 	    {
-	      // Already saved, yet it faulted: something protected the page again
+	      // gdxsv: already saved, yet it faulted: something protected the page again
 	      // (gdxsv). Returning without unprotecting faults on the same write
 	      // forever, as the code-protection handler may consider it unprotected.
 	      static_cast<T&>(*this).unprotectMem(offset, PAGE_SIZE);

@@ -36,6 +36,7 @@ static void managePathListCallback(std::string selection)
     }
 }
 
+// gdxsv: not static, the gdxsv replay folder setting uses it
 void manageSinglePath(const char* label, const char *popupName, config::Option<std::string, false>& pathOption, const char* helpText)
 {
     ImVec2 size;

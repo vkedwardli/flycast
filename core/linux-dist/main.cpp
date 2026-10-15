@@ -255,7 +255,7 @@ int main(int argc, char* argv[])
 	INFO_LOG(BOOT, "Data dir is:   %s", get_writable_data_path("").c_str());
 
 #if defined(USE_SDL)
-	// Without a display server SDL has nothing to open; fall back to its dummy
+	// gdxsv: without a display server SDL has nothing to open; fall back to its dummy
 	// driver so headless runs (gdxsv:headless=yes) get past initialization.
 	if (getenv("SDL_VIDEODRIVER") == nullptr && getenv("DISPLAY") == nullptr && getenv("WAYLAND_DISPLAY") == nullptr)
 		setenv("SDL_VIDEODRIVER", "dummy", 1);

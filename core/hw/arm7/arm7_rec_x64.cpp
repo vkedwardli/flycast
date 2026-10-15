@@ -93,7 +93,7 @@ class Arm7Compiler : public Xbyak::CodeGenerator
 	static const u32 C_FLAG = 1 << 29;
 	static const u32 V_FLAG = 1 << 28;
 
-	// cpuid is slow: probe the host once, not for every compiled block
+	// gdxsv: cpuid is slow: probe the host once, not for every compiled block
 	static const Xbyak::util::Cpu& hostCpu() { static const Xbyak::util::Cpu c; return c; }
 	const Xbyak::util::Cpu& cpu = hostCpu();
 

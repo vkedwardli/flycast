@@ -36,7 +36,7 @@ if(APPLE)
 		set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "")
 	else()
 		set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS deployment version")
-		#set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "")
+		# gdxsv: x86_64 only
 		set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "")
 	endif()
 	set(ZLIB_LIBRARY "-lz" CACHE STRING "Use generic linker flag for Xcode to support multiple SDKs")
@@ -137,6 +137,7 @@ endif()
 
 find_package(Git)
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+	# gdxsv: version from the latest gdxsv-* tag, in semver form
 	if(MINGW AND DEFINED ENV{MSYSTEM} AND DEFINED ENV{GITHUB_ACTIONS})
 		set(GDXSV_PATTERN "gdxsv-\\*")
 	else()
@@ -171,6 +172,7 @@ else()
 	set(GIT_HASH "000000000")
 endif()
 
+# gdxsv: version and hash in the configure log
 message(GIT_VERSION="${GIT_VERSION}")
 message(GIT_HASH="${GIT_HASH}")
 
@@ -428,6 +430,7 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 					-a x86_64
 					-g ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Flycast.app.dSYM
 					$<TARGET_FILE:flycast> > ../symbols/Flycast-x64.sym
+				# gdxsv: x86_64 only, no arm64 symbols.
 				# COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad/dump_syms
 				# 	-a arm64
 				# 	-g ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Flycast.app.dSYM
@@ -443,6 +446,7 @@ if(USE_BREAKPAD AND NOT LIBRETRO)
 					-a x86_64
 					-g ${CMAKE_CURRENT_BINARY_DIR}/Flycast.app.dSYM
 					$<TARGET_FILE:flycast> > ../symbols/Flycast-x64.sym
+				# gdxsv: x86_64 only, no arm64 symbols.
 				# COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build/breakpad/dump_syms
 				# 	-a arm64
 				# 	-g ${CMAKE_CURRENT_BINARY_DIR}/Flycast.app.dSYM
@@ -555,6 +559,7 @@ if(NOT LIBRETRO)
 		if(NOT SDL2_FOUND)
 			set(SDL_TEST_ENABLED_BY_DEFAULT OFF)
 			add_subdirectory(core/deps/SDL EXCLUDE_FROM_ALL)
+			# gdxsv: SDL headers for the MSVC (clang-cl) build
 			if(MSVC)
 				target_include_directories(${PROJECT_NAME} PRIVATE "core/deps/SDL/include")
 			endif()
@@ -1113,6 +1118,7 @@ if(USE_VULKAN)
 	elseif(WIN32)
 		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 	elseif(APPLE)
+		# gdxsv: MoltenVK define kept from an upstream merge
 		target_compile_definitions(${PROJECT_NAME} PUBLIC VK_USE_PLATFORM_MACOS_MVK VK_USE_PLATFORM_METAL_EXT)
 	endif()
 
@@ -1297,6 +1303,7 @@ if(NOT LIBRETRO)
 
 	elseif(APPLE)
 		string(TIMESTAMP YEAR "%Y")
+		# gdxsv: bundle version from the gdxsv-* tag
 		string(REGEX MATCH "gdxsv-[^-]+" TAG_VERSION ${GIT_VERSION})
 		if(IOS)
 			set_property(TARGET ${PROJECT_NAME} PROPERTY XCODE_ATTRIBUTE_SWIFT_VERSION "5.0")
@@ -1391,7 +1398,7 @@ if(NOT LIBRETRO)
 
 			add_subdirectory(core/deps/Syphon)
 			target_link_libraries(${PROJECT_NAME} PRIVATE Syphon)
-			# same if else ?
+			# gdxsv: Syphon metallib copied into the app bundle (both branches identical; from an upstream merge)
 			if(${CMAKE_GENERATOR} MATCHES "^Xcode.*")
 				add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 					COMMAND ${CMAKE_COMMAND} -E copy ${SYPHON_METALLIB}
