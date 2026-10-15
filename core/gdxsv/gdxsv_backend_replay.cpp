@@ -1900,6 +1900,8 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 }
 
 void GdxsvBackendReplay::Stop() {
+	// gdxsv_tests reads how far playback got from this line.
+	NOTICE_LOG(COMMON, "replay stopped at key_msg_count_ %d of %d", key_msg_count_, log_file_.inputs_size());
 	live_initial_catchup_ = false;
 	config::FixedFrequency.load();
 	config::LimitFPS.load();
