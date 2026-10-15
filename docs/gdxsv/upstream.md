@@ -51,7 +51,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Frame hooks | `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp` | vblank and end-of-frame hooks; headless skips rendering; fast-forward counts in frame skip |
 | Rollback | `core/network/ggpo.cpp/.h` (session start and stats in `core/gdxsv/gdxsv_ggpo.cpp`, hash log in `core/gdxsv/gdxsv_ggpo_hooks.cpp`), `core/hw/pvr/elan.cpp`, `core/hw/mem/mem_watch.h`, `core/hw/maple/maple_cfg.h` | gdxsv rollback session on top of upstream GGPO; flag bits sent beside the pad input; state hash log; test logs; memory watch shared with gdxsv; a fault on an already-saved page no longer loops |
 | Determinism | `core/hw/sh4/interpr/sh4_fpu.cpp`, `core/rec-ARM/rec_arm.cpp`, `core/rec-ARM64/rec_arm64.cpp`, `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/shil_canonical.h` | `fmac` without fused multiply-add (`GDXSV_FP_COMPAT`) |
-| Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp/.h`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games); output-only game functions skipped on seek frames; slow idle loop hack; ARM7 `cpuid` probed once |
+| Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games); output-only game functions skipped on seek frames (hook call); slow idle loop hack; ARM7 `cpuid` probed once |
 | Memory | `core/windows/win_vmem.cpp`, `core/linux/posix_vmem.cpp` | Windows: fixed RAM base (host address low 28 bits = guest address); Linux: one shared-memory name per process (four-screen replay) |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade |
@@ -62,7 +62,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | UI | `core/ui/gui.cpp/.h`, `core/ui/settings*.cpp/.h`, `core/ui/gui_font.cpp`, `core/oslib/i18n.cpp` | gdxsv settings page, Live & Replays menu, update popup, gdxsv translations, Japanese fonts always loaded |
 | Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |
 | Network | `core/network/net_platform.h`, `core/network/miniupnp.cpp/.h` | UDP sockets ignore ICMP port unreachable on Windows; UPnP mapping details |
-| HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | per-call URL buffers (concurrent requests mixed hosts) |
+| HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
 | Textures | `core/rend/CustomTexture.cpp` | embedded and downloaded texture packs for the game (`T13306M`) |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
@@ -135,9 +135,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/elan.cpp` | `write_elancmd` | rollback test of the gdxsv session |
 | `core/hw/pvr/ta_ctx.cpp` |  | rollback time sync in QueueRender |
 | `core/hw/pvr/ta_ctx.cpp` | `QueueRender` | fast-forward counts in frame skip; a rollback time sync skips one render every 30 frames |
-| `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCode` | on skip frames (rollback resimulation, replay seek) the game's render call still runs, because object draw callbacks inside it update state that game logic reads. |
-| `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCodeByVAddr` | `settings.gdxsv.skipRenderingAddr`, `gdxsvRenderReturn`, `gdxsvUpdateRenderOnlyMask` |
-| `core/hw/sh4/dyna/blockmanager.h` |  | `bm_gdxsvLinkable`, `bm_gdxsvRenderReturnPtr`, `bm_gdxsvRenderOnlyMaskPtr` |
+| `core/hw/sh4/dyna/blockmanager.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
+| `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCodeByVAddr` | `gdxsv_sh4_code_addr` |
 | `core/hw/sh4/dyna/decoder.cpp` |  | slow idle loop hack |
 | `core/hw/sh4/dyna/decoder.cpp` |  | slow idle loop hack, the game's idle loop block costs more cycles |
 | `core/hw/sh4/dyna/shil_canonical.h` |  | round the product before the add (no fused multiply-add) |
@@ -195,7 +194,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/nullDC.cpp` | `dc_savestateAllowed` | `gdxsv_is_savestate_allowed` |
 | `core/nullDC.cpp` | `dc_savestate` | `gdxsv_emu_savestate` |
 | `core/nullDC.cpp` | `dc_loadstate` | `gdxsv_emu_loadstate` |
-| `core/oslib/http_client.cpp` | `init` | per-call buffers. |
+| `core/oslib/http_client.cpp` | `crackUrl` | thread_local, concurrent requests (update check, texture pack, boxart...) swapped hosts/paths |
 | `core/oslib/i18n.cpp` | `reloadLanguage` | `dictMgr->add_directory("i18n-gdxsv");` |
 | `core/oslib/oslib.cpp` | `os_UpdateInputState` | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/oslib/oslib.cpp` | `registerCrash` | `gdxsv_crash_append_log` |
@@ -203,11 +202,12 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/profiler/fc_profiler.h` |  | memset; no longer included through implot 0.18 |
 | `core/rec-ARM/rec_arm.cpp` | `Arm32Assembler::compileOp` | round the product before the add (no fused multiply-add) |
 | `core/rec-ARM64/rec_arm64.cpp` |  | round the product before the add (no fused multiply-add) |
-| `core/rec-x64/rec_x64.cpp` |  | `bm_gdxsvLinkable` |
+| `core/rec-x64/rec_x64.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
+| `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_linkable` |
 | `core/rec-x64/rec_x64.cpp` |  | fused multiply-add breaks sync of replays and netplay |
-| `core/rec-x64/rec_x64.cpp` |  | `bm_gdxsvRenderReturnPtr`, `bm_gdxsvRenderOnlyMaskPtr`, `settings.gdxsv.skipRenderingBaseAddr` |
+| `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_render_return_ptr`, `gdxsv_sh4_render_only_mask_ptr`, `settings.gdxsv.skipRenderingBaseAddr` |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | `GdxsvEmbedTextureSource`, `GdxsvTexturePackSource` |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 embedded textures and the downloaded texture pack |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `emuEventCallback` | `settings.gdxsv.replayModeActive` |

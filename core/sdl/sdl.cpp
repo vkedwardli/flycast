@@ -41,6 +41,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <optional>
+#include <tuple>
 
 static SDL_Window* window = NULL;
 static u32 windowFlags;
@@ -53,12 +54,7 @@ static std::shared_ptr<SDLKeyboardDevice> sdl_keyboard;
 static bool window_fullscreen;
 static bool window_maximized;
 static SDL_Rect windowPos { SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT };
-struct SavedWindowState {
-	SDL_Rect position;
-	bool fullscreen;
-	bool maximized;
-};
-static std::optional<SavedWindowState> preservedWindowState;
+static std::optional<std::tuple<SDL_Rect, bool, bool>> preservedWindowState;
 static bool gameRunning;
 static bool mouseCaptured;
 static std::string clipboardText;
@@ -779,7 +775,7 @@ void sdl_preserve_window_state(bool preserve)
 	else if (window != nullptr && !preservedWindowState)
 	{
 		get_window_state();
-		preservedWindowState = SavedWindowState{windowPos, window_fullscreen, window_maximized};
+		preservedWindowState = std::make_tuple(windowPos, window_fullscreen, window_maximized);
 	}
 }
 
@@ -1105,17 +1101,16 @@ void sdl_window_destroy()
 	// A 4-player replay guest is placed by the grid; don't save its geometry.
 	if (window != nullptr && !settings.naomi.slave && settings.naomi.drivingSimSlave == 0 && !gdxsv_is_multi_pov_guest())
 	{
+		get_window_state();
 		// Quitting during a replay grid must not persist its temporary quadrant.
-		// Use the pre-grid settings without starting a fullscreen animation on exit.
-		if (!preservedWindowState)
-			get_window_state();
-		const auto state = preservedWindowState.value_or(SavedWindowState{windowPos, window_fullscreen, window_maximized});
-		config::saveInt("window", "left", state.position.x);
-		config::saveInt("window", "top", state.position.y);
-		config::saveInt("window", "width", state.position.w);
-		config::saveInt("window", "height", state.position.h);
-		config::saveBool("window", "maximized", state.maximized);
-		config::saveBool("window", "fullscreen", state.fullscreen);
+		if (preservedWindowState)
+			std::tie(windowPos, window_fullscreen, window_maximized) = *preservedWindowState;
+		config::saveInt("window", "left", windowPos.x);
+		config::saveInt("window", "top", windowPos.y);
+		config::saveInt("window", "width", windowPos.w);
+		config::saveInt("window", "height", windowPos.h);
+		config::saveBool("window", "maximized", window_maximized);
+		config::saveBool("window", "fullscreen", window_fullscreen);
 	}
 #endif
 	termRenderApi();
