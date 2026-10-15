@@ -70,6 +70,9 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | O2 / O2c | full | O1, then a training lobby entry, chat force start, mobile suit select and battle: one player on the UDP backend through the local battle server (O2c: lobby without force start) | 170 s / 300 s |
 | O3 / O3c | full | as O2 in a P2P lobby (`mcs_region` `p2p`): lobby sends the P2P matching, one-peer GGPO session, battle loads on the rollback backend (O3c: O3's checks on O2's lobby) | 170 s / 170 s |
 | O4 / O4c | full | two clients (two login keys, same savestate) in one P2P lobby: both enter, one force-starts; P2P matching to both, two-peer GGPO session, each peer answers the other, both reach the battle (O4c: the second client only logs in) | 190 s / 190 s |
+| V1 / V1c | full | newest Disc 2 replay with `ReplayPOV` 2 and 4: the game stores player side POV-1 (`0x0c3d19d9`) and id POV (`0x0c391d92`) at vblank 4000 (V1c: no `ReplayPOV`, player 1) | 15 s |
+| V2 / V2c | full | `replay_target_round=4` on a 5-round replay: one jump, rounds 4 and 5 play to the last input (V2c: from round 1) | 50 s / 110 s |
+| V3 / V3c | full | `replay_target_frame=4000`: one seek landing on input 4000, then every round with the recorded winners (V3c: no target) | 110 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is
 written only when the emulator stops between frames; W1c fails with it, since the

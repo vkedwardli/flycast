@@ -58,11 +58,11 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Save a battle as a replay, upload it | settings `SaveReplay`, `UploadReplay`, `ReplayPath` | `RBK_SAVE_REPLAY` saves a local match (never uploaded) | none |
 | Replay browser: Local, Server, Live tabs | menu "Live & Replays" | none | none |
 | Play a replay file | menu, or `gdxsv:replay=FILE` | R1 (every replay format), R2: plays to the end with the recorded winners | R2c |
-| Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*` | none |
+| Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*`; V2, V3: round jump and seek at start (`replay_target_round`, `replay_target_frame`) | V2c, V3c |
 | Takeover: play on from a replay frame, retry with START | pause menu | none | none |
 | Round results kept across seeks and round jumps | always | unit: `GdxsvRoundCountersTest.*` | none |
 | Key display, Ally HP, hidden names, skip mobile suit selection | settings `ReplayKeyDisplay`, `ReplayShowAllyHP`, `ReplayHideName`, `ReplaySkipMsSelection` | none | none |
-| Point of view | `gdxsv:ReplayPOV` | none | none |
+| Point of view | `gdxsv:ReplayPOV` | V1: the game plays as the chosen player | V1c |
 | Four-screen replay: 4 processes in a 2x2 grid, kept on one frame | `gdxsv:ReplayFourScreen=yes` | none | none |
 | Audio rate control (resample up to 0.5 % to hold the queue half full) | replay and spectating without audio sync | none | none |
 | Fast seek: output-only game functions return early on seek frames | setting `SkipRenderingHack` | none | none |
