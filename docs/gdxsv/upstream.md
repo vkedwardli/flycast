@@ -51,7 +51,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Frame hooks | `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp` | vblank and end-of-frame hooks; headless skips rendering; fast-forward counts in frame skip |
 | Rollback | `core/network/ggpo.cpp/.h` (session start and stats in `core/gdxsv/gdxsv_ggpo.cpp`, hash log in `core/gdxsv/gdxsv_ggpo_hooks.cpp`), `core/hw/pvr/elan.cpp`, `core/hw/mem/mem_watch.h`, `core/hw/maple/maple_cfg.h` | gdxsv rollback session on top of upstream GGPO; flag bits sent beside the pad input; state hash log; test logs; memory watch shared with gdxsv; a fault on an already-saved page no longer loops |
 | Determinism | `core/hw/sh4/interpr/sh4_fpu.cpp`, `core/rec-ARM/rec_arm.cpp`, `core/rec-ARM64/rec_arm64.cpp`, `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/shil_canonical.h` | `fmac` without fused multiply-add (`GDXSV_FP_COMPAT`) |
-| Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp/.h`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games); output-only game functions skipped on seek frames; slow idle loop hack; ARM7 `cpuid` probed once |
+| Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games); output-only game functions skipped on seek frames (hook call); slow idle loop hack; ARM7 `cpuid` probed once |
 | Memory | `core/windows/win_vmem.cpp`, `core/linux/posix_vmem.cpp` | Windows: fixed RAM base (host address low 28 bits = guest address); Linux: one shared-memory name per process (four-screen replay) |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade |
@@ -95,7 +95,9 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/audio/audiobackend_coreaudio.cpp` |  | queue level for the replay and spectating audio rate control |
 | `core/audio/audiobackend_directsound.cpp` |  | queue level for the replay and spectating audio rate control |
 | `core/audio/audiobackend_sdl2.cpp` |  | queue level for the replay and spectating audio rate control |
-| `core/audio/audiostream.cpp` | `WriteSample` | `settings.gdxsv.audioScale`, `settings.gdxsv.audioRateControl` |
+| `core/audio/audiostream.cpp` |  | include `gdxsv/gdxsv_audio_hooks.h` |
+| `core/audio/audiostream.cpp` | `WriteSample` | `gdxsv_audio_pushed` |
+| `core/audio/audiostream.cpp` | `WriteSample` | `gdxsv_audio_gain`, `gdxsv_audio_write` |
 | `core/audio/audiostream.h` |  | frames queued for output and the most the queue holds, for audio rate control. |
 | `core/audio/audiostream.h` |  | drops queued samples on a replay seek |
 | `core/audio/audiostream.h` |  | queue level for the backends' getQueueLevel |
@@ -134,11 +136,10 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/elan.cpp` | `write_elancmd` | rollback test of the gdxsv session |
 | `core/hw/pvr/ta_ctx.cpp` |  | rollback time sync in QueueRender |
 | `core/hw/pvr/ta_ctx.cpp` | `QueueRender` | fast-forward counts in frame skip; a rollback time sync skips one render every 30 frames |
-| `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCode` | on skip frames (rollback resimulation, replay seek) the game's render call still runs, because object draw callbacks inside it update state that game logic reads. |
-| `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCodeByVAddr` | `settings.gdxsv.skipRenderingAddr`, `gdxsvRenderReturn`, `gdxsvUpdateRenderOnlyMask` |
-| `core/hw/sh4/dyna/blockmanager.h` |  | `bm_gdxsvLinkable`, `bm_gdxsvRenderReturnPtr`, `bm_gdxsvRenderOnlyMaskPtr` |
-| `core/hw/sh4/dyna/decoder.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
-| `core/hw/sh4/dyna/decoder.cpp` |  | `gdxsv_sh4_block_cycles` |
+| `core/hw/sh4/dyna/blockmanager.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
+| `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCodeByVAddr` | `gdxsv_sh4_code_addr` |
+| `core/hw/sh4/dyna/decoder.cpp` |  | slow idle loop hack |
+| `core/hw/sh4/dyna/decoder.cpp` |  | slow idle loop hack, the game's idle loop block costs more cycles |
 | `core/hw/sh4/dyna/shil_canonical.h` |  | round the product before the add (no fused multiply-add) |
 | `core/hw/sh4/interpr/sh4_fpu.cpp` | `sh4op` | round the product before the add (no fused multiply-add) |
 | `core/input/gamepad_device.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
@@ -159,20 +160,35 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/log/LogManager.cpp` | `LogManager::UpdateConfig` | `gdxsv_multi_pov_log_file_name` |
 | `core/network/ggpo.cpp` |  | include `gdxsv/gdxsv_sleep.h` |
 | `core/network/ggpo.cpp` | `getLocalInput` | `gdxsv_enabled` |
+| `core/network/ggpo.cpp` | `on_event` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr`, `settings.gdxsv.skipRenderingBaseAddr` |
-| `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr`, `gdxsv_emu_skip_rendering_addr` |
+| `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state`, `settings.gdxsv.skipRenderingAddr`, `gdxsv_emu_skip_rendering_addr` |
 | `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr` |
+| `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `load_game_state` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `save_game_state` | `gdxsv_ggpo_state_saved` |
-| `core/network/ggpo.cpp` | `on_message` | `gdxsv_sleep_us` |
-| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start` |
-| `core/network/ggpo.cpp` | `stopSession` | `gdxsv_ggpo_session_stop` |
-| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_input_update_joysticks` |
-| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_enabled` |
+| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `stopSession` | `gdxsv_ggpo_session_stop`, `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_input_update_joysticks` |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_enabled` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_sleep_us` |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startNetwork` | `gdxsv_sleep_us` |
-| `core/network/ggpo.cpp` | `receiveChatMessages` | `gdxsvStartSession`, `gdxsv_ggpo_session_start`, `gdxsvStartNetwork` |
-| `core/network/ggpo.cpp` | `receiveChatMessages` | `gdxsvStartSession`, `gdxsvStartNetwork` |
-| `core/network/ggpo.h` |  | `gdxsvStartNetwork` |
+| `core/network/ggpo.cpp` | `displayStats` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `gdxsv_ggpo_upstream` | `GdxsvGgpoUpstream`, `gdxsv_ggpo_upstream` |
+| `core/network/miniupnp.cpp` | `MiniUPnP::Init` | `snprintf(lastError, sizeof(lastError), "UPnP discover failed: error %d", error); // gdxsv` |
+| `core/network/miniupnp.cpp` | `MiniUPnP::Init` | `snprintf(lastError, sizeof(lastError), "Internet Gateway not found: error %d", error); // gdxsv` |
+| `core/network/miniupnp.cpp` | `MiniUPnP::AddPortMapping` | `snprintf(lastError, sizeof(lastError), "Port %d redirection failed: error %d", port, error); // gdxs` |
+| `core/network/miniupnp.cpp` | `MiniUPnP::CheckPortMapping` | P2P status, true if the router maps the port to this host |
+| `core/network/miniupnp.h` |  | error text for the P2P status |
+| `core/network/miniupnp.h` |  | port-mapping check, addresses and last error for the P2P status |
+| `core/network/miniupnp.h` |  | `char lastError[256]; // gdxsv` |
+| `core/network/miniupnp.h` |  | P2P status |
 | `core/nullDC.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/nullDC.cpp` | `flycast_init` | find content in the working directory |
 | `core/nullDC.cpp` | `flycast_init` | `gdxsv_emu_flycast_init` |
@@ -187,22 +203,23 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/profiler/fc_profiler.h` |  | memset; no longer included through implot 0.18 |
 | `core/rec-ARM/rec_arm.cpp` | `Arm32Assembler::compileOp` | round the product before the add (no fused multiply-add) |
 | `core/rec-ARM64/rec_arm64.cpp` |  | round the product before the add (no fused multiply-add) |
-| `core/rec-x64/rec_x64.cpp` |  | `bm_gdxsvLinkable` |
+| `core/rec-x64/rec_x64.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
+| `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_linkable` |
 | `core/rec-x64/rec_x64.cpp` |  | fused multiply-add breaks sync of replays and netplay |
-| `core/rec-x64/rec_x64.cpp` |  | `bm_gdxsvRenderReturnPtr`, `bm_gdxsvRenderOnlyMaskPtr`, `settings.gdxsv.skipRenderingBaseAddr` |
+| `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_render_return_ptr`, `gdxsv_sh4_render_only_mask_ptr`, `settings.gdxsv.skipRenderingBaseAddr` |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | `GdxsvEmbedTextureSource`, `GdxsvTexturePackSource` |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 embedded textures and the downloaded texture pack |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `emuEventCallback` | `settings.gdxsv.replayModeActive` |
-| `core/sdl/sdl.cpp` | `input_sdl_init` | `gdxsv_sdl_input_init` |
+| `core/sdl/sdl.cpp` | `input_sdl_init` | XInput and DirectInput switches; joystick events on their own thread |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | 4-player replay handles full screen as a grid |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | handle outside window for network stats hovering |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `gdxsv_input_poll_joysticks` |
-| `core/sdl/sdl.cpp` | `sdl_recreate_window` | `gdxsv_sdl_window_flags` |
-| `core/sdl/sdl.cpp` | `sdl_window_create` | `gdxsv_sdl_window_create` |
+| `core/sdl/sdl.cpp` | `sdl_recreate_window` | a capture rig tiles instances edge to edge, so it wants no border. |
+| `core/sdl/sdl.cpp` | `sdl_window_create` | a fullscreen window is not minimized on focus loss. |
 | `core/sdl/sdl.cpp` | `sdl_window_destroy` | `gdxsv_is_multi_pov_guest` |
 | `core/sdl/sdl.h` |  | nullptr before the window is created or in a headless run. |
 | `core/sdl/sdl.h` |  | preserve window preferences while a temporary layout is active. |
