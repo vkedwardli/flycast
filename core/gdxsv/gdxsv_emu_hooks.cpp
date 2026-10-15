@@ -353,7 +353,7 @@ void gdxsv_emu_gui_display() {
 	}
 	
 	if (gui_state == GuiState::GdxsvLatencyCheck) {
-		gui_draw_boxart_background();
+		drawBoxartBackground();
 		centerNextWindow();
 		ImGui::SetNextWindowSize(ScaledVec2(330, 0));
 		ImGui::SetNextWindowBgAlpha(0.8f);
