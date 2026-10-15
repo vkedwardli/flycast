@@ -46,7 +46,6 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_spectator_downlink.cpp/.h` | receives live inputs from LBS |
 | `gdxsv_spectate_sync.cpp/.h` | keeps spectator instances on one machine on the same frame |
 | `gdxsv_multi_pov*.cpp/.h/.mm` | 4-player replay grid: launch, window placement per platform (`_win`, `_sdl`, `_apple`, `_none`) |
-| `gdxsv_sdl.cpp/.h` | SDL hints, window flags and headless display size called from `core/sdl/sdl.cpp` |
 | `gdxsv_round_counters.h` | round and win counts of a battle |
 | `gdxsv_slowdown.cpp/.h` | experimental arcade slowdown in DX battles |
 | `gdxsv_projectile_view.cpp/.h` | debug overlay of DX projectiles |
