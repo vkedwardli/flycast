@@ -28,11 +28,11 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | Network patch: an SH4 payload (`gdxsv_patch/`) replaces the game's modem stack; the game talks to the host through `gdx_rpc` | always for the game | none | none |
-| Lobby connection over TCP (`gdxsv_backend_tcp`) | setting `server` (default `zdxsv.net`) | none | none |
-| Login key, generated on first use | setting `loginkey` | none | none |
-| Platform info to the lobby (build, OS, CPU, machine id, wireless or not, local and public IPs, UDP port, UPnP and port test results) | always | none | none |
+| Lobby connection over TCP (`gdxsv_backend_tcp`) | setting `server` (default `zdxsv.net`) | O1: login and plaza on a local `gdxsv lbs` | none |
+| Login key, generated on first use | setting `loginkey` | O1: the lobby finds the account by the key | O1c (unknown key) |
+| Platform info to the lobby (build, OS, CPU, machine id, wireless or not, local and public IPs, UDP port, UPnP and port test results) | always | O1: received by the lobby (build, OS, CPU) | none |
 | VPN warning (connection medium) | always online | none | none |
-| P2P connectivity test and public IP / UPnP port mapping | first lobby connection | none | none |
+| P2P connectivity test and public IP / UPnP port mapping | first lobby connection | O1: public IP and P2P test requests reach the local server (UPnP off) | none |
 | HTTPS latency test to the cloud regions | when the game goes online | none | none |
 | Ping test to the battle peers, input delay from it | lobby battle | rollback cases A1 to D8 use it (`TEST_GGPO_DELAY` replaces the delay); I1: the delay setting reaches the game's input buffer | I1c |
 | Relay through peers and relay servers, relay RTTs passed on between peers | lobby battle info | `run_suite.py` D2 to D8 (D4 to D8: local `gdxsv relay`); unit: `GdxsvPingPongTest.*` | none |

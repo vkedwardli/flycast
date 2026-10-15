@@ -69,3 +69,19 @@ def replay(entry: dict) -> str:
     if got != entry["sha256"]:
         raise ValueError(f"{path}: sha256 {got}, corpus says {entry['sha256']}")
     return path
+
+
+LOGIN_SLOT = 5
+
+
+def login_state_dir() -> Optional[str]:
+    """A directory with GDXSV_LOGIN_STATE (Disc 2 savestate at the network game menu, a VMU
+    with a registered user) as save slot LOGIN_SLOT; None if the variable is not set."""
+    src = os.environ.get("GDXSV_LOGIN_STATE")
+    if not src or not os.path.isfile(src):
+        return None
+    sub = os.path.join(TESTS, "out", "state", "login")
+    os.makedirs(sub, exist_ok=True)
+    with open(src, "rb") as f, open(os.path.join(sub, f"gdx-disc2_{LOGIN_SLOT}.state"), "wb") as dst:
+        dst.write(f.read())
+    return sub

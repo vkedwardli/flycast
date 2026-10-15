@@ -33,10 +33,13 @@ python gdxsv_tests/run.py --exe build/flycast.exe --cases R2,R2c
 | `GDXSV_STATE_DIR` | boot savestates (`<rom>_99.state`), made on first use (default `out/state`) |
 | `GDXSV_REPLAY_DIR` | corpus replays, downloaded on first use and checked against `corpus/replays.json` (default `out/replay`) |
 | `GDXSV_REPLAY_JOBS` | replays R1 plays in parallel (default 4) |
+| `GDXSV_SERVER_EXE` | O1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="` |
+| `GDXSV_LOGIN_STATE` | O1: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
 
 The ROM, BIOS, savestates and replays are not in the repository.
 Every instance gets `gdxsv:server=127.0.0.1`, `UploadReplay=no` and local
-replay/live API URLs: no case reaches a production server.
+replay/live API URLs: no case reaches a production server. The online cases also
+send the public IP, P2P and latency checks to a local fake server and turn UPnP off.
 
 ## Layout
 
@@ -63,6 +66,7 @@ replay/live API URLs: no case reaches a production server.
 | R1 | full | all corpus replays play to the end with the recorded winners | 470-520 s (4-5 replays in parallel) |
 | W1 / W1c | full | widescreen matte edges and HUD offset per layout and viewport (formula of `WriteWidescreenPatch`) | 10 s |
 | I1 / I1c | full | 4-peer local rollback match at GGPO delay 2 and 4: peer 1's B press reaches the confirmed input buffer 2 vblanks later at delay 4 | 130-260 s |
+| O1 / O1c | full | Disc 2 logs in to a local `gdxsv lbs` (fresh SQLite, seeded user for the login key): platform info, user login, plaza join; public IP and P2P test go to a local fake HTTP server | 85-170 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is
 written only when the emulator stops between frames; W1c fails with it, since the

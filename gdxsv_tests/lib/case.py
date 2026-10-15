@@ -111,10 +111,11 @@ class Ctx:
 
     def probe(self, name: str, rom: str, script: str, params: dict, frames: int,
               config: Optional[List[str]] = None, loadstate: bool = True, timeout: float = 180,
-              window: bool = False) -> Probe:
+              window: bool = False, states: Optional[str] = None) -> Probe:
         """Run one headless instance for `frames` vblanks (gdxsv:headless_probe_frames exits it)
         with lua/<script>; with loadstate it resumes the game's slot-99 lobby savestate.
-        window=True: a normal window and a cold boot, killed once the script is done."""
+        window=True: a normal window and a cold boot, killed once the script is done.
+        states: a directory whose *.state files go to the data dir instead (cold boot)."""
         from . import assets
         d = os.path.join(self.out, name)
         os.makedirs(self.out, exist_ok=True)
@@ -122,7 +123,7 @@ class Ctx:
         cfg = [f"gdxsv:headless_probe_frames={frames}", "log:Verbosity=3", "log:LogToFile=1"] + list(config or [])
         if loadstate and not window:
             cfg.append("gdxsv:headless_loadstate=yes")
-        state = assets.state_dir(rom) if loadstate and not window else None
+        state = assets.state_dir(rom) if loadstate and not window else states
         t0 = time.time()
         inst = emu.launch(self.exe, rom, d, config=cfg, state_dir=state, lua=lua, headless=not window)
         timed_out = False
