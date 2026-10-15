@@ -57,11 +57,14 @@ void gdxsv_emu_loadstate(int slot);
 
 bool gdxsv_emu_menu_open();
 
+// Commands (pause) menu, first column: the Live & Replays button.
+void gdxsv_emu_gui_display_commands(float buttonWidth);
 void gdxsv_emu_gui_display();
 
 void gdxsv_emu_gui_display_replay();
 
 void gdxsv_emu_settings_gdxsv_tab();
+void gdxsv_emu_settings_video();
 
 void gdxsv_emu_apply_base_settings();
 

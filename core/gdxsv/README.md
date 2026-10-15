@@ -38,6 +38,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_backend_tcp.cpp/.h` | TCP backend: the lobby (LBS) connection |
 | `gdxsv_backend_udp.cpp/.h` | UDP backend: MCS over UDP |
 | `gdxsv_backend_rollback.cpp/.h` | rollback backend: GGPO session for a battle |
+| `gdxsv_ggpo_hooks.cpp/.h` | called from `core/network/ggpo.cpp`: per-frame state hash log (`gdxsv:hashlog`) |
 | `gdxsv_backend_replay.cpp/.h` | replay backend: plays a recorded battle |
 | `gdxsv_replay_util.cpp/.h`, `gdxsv_replay_ui.h` | replay files, bootstrap save state, replay UI data |
 | `gdxsv_save_state.cpp/.h` | in-memory save states for rollback |
@@ -45,6 +46,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_spectator_downlink.cpp/.h` | receives live inputs from LBS |
 | `gdxsv_spectate_sync.cpp/.h` | keeps spectator instances on one machine on the same frame |
 | `gdxsv_multi_pov*.cpp/.h/.mm` | 4-player replay grid: launch, window placement per platform (`_win`, `_sdl`, `_apple`, `_none`) |
+| `gdxsv_sdl.cpp/.h` | SDL hints, window flags and headless display size called from `core/sdl/sdl.cpp` |
 | `gdxsv_round_counters.h` | round and win counts of a battle |
 | `gdxsv_slowdown.cpp/.h` | experimental arcade slowdown in DX battles |
 | `gdxsv_projectile_view.cpp/.h` | debug overlay of DX projectiles |

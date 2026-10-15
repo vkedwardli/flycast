@@ -269,6 +269,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_backend_replay.h
 		core/gdxsv/gdxsv_backend_rollback.cpp
 		core/gdxsv/gdxsv_backend_rollback.h
+		core/gdxsv/gdxsv_ggpo_hooks.cpp
+		core/gdxsv/gdxsv_ggpo_hooks.h
 		core/gdxsv/gdxsv_backend_tcp.cpp
 		core/gdxsv/gdxsv_backend_tcp.h
 		core/gdxsv/gdxsv_backend_udp.cpp
@@ -277,6 +279,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_emu_hooks.h
 		core/gdxsv/gdxsv_frame_limiter.cpp
 		core/gdxsv/gdxsv_frame_limiter.h
+		core/gdxsv/gdxsv_sdl.cpp
+		core/gdxsv/gdxsv_sdl.h
 		core/gdxsv/gdxsv_gui_settings.cpp
 		core/gdxsv/gdxsv_gui_settings.h
 		core/gdxsv/gdxsv_https_latency.h
@@ -350,6 +354,7 @@ endif()
 # 4-player replay window backend
 if(WIN32 AND NOT WINDOWS_STORE)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_win.cpp)
+	target_link_libraries(${PROJECT_NAME} PRIVATE comctl32)
 elseif(APPLE AND NOT IOS)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_apple.mm)
 elseif(UNIX AND NOT APPLE AND NOT ANDROID AND NOT NINTENDO_SWITCH)
