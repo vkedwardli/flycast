@@ -155,3 +155,17 @@ def server_login_key(key: str) -> str:
         h = (h * 0x01000193) & 0xffffffff
         h ^= ch ^ magic[i & 3]
     return f"{h:08x}"
+
+
+def add_training_lobby(db: str, no: int = 2, force_start: bool = True) -> None:
+    """Disc 2 lobby `no` with rule 'training' (timer 4, vitals 1000: the lobby treats it as a
+    training lobby, where one entry and the chat message "あ" start a battle if force_start)."""
+    c = sqlite3.connect(db)
+    c.execute("INSERT OR REPLACE INTO m_rule VALUES ('training',3,2,4,0,0,1,1000,1000,0,0,0,0,0,0,"
+              "4294967295,4294967295,0,1,255,1,4294967295,4294967295,0)")
+    c.execute("DELETE FROM m_lobby_setting WHERE platform='emu-x86/64' AND disk='dc2' AND no=?", (no,))
+    c.execute("INSERT INTO m_lobby_setting (platform, disk, no, name, enable_force_start, team_shuffle, ping_limit,"
+              " patch_names, rule_id) VALUES ('emu-x86/64', 'dc2', ?, ?, ?, 0, 0, '', 'training')",
+              (no, f"e2e{no}", int(force_start)))
+    c.commit()
+    c.close()

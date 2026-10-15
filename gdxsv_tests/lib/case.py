@@ -111,11 +111,13 @@ class Ctx:
 
     def probe(self, name: str, rom: str, script: str, params: dict, frames: int,
               config: Optional[List[str]] = None, loadstate: bool = True, timeout: float = 180,
-              window: bool = False, states: Optional[str] = None) -> Probe:
+              window: bool = False, states: Optional[str] = None, until_done: bool = False) -> Probe:
         """Run one headless instance for `frames` vblanks (gdxsv:headless_probe_frames exits it)
         with lua/<script>; with loadstate it resumes the game's slot-99 lobby savestate.
         window=True: a normal window and a cold boot, killed once the script is done.
-        states: a directory whose *.state files go to the data dir instead (cold boot)."""
+        states: a directory whose *.state files go to the data dir instead (cold boot).
+        until_done: also headless, stop once the script is done (`frames` is then an upper bound)."""
+        stop_on_done = window or until_done
         from . import assets
         d = os.path.join(self.out, name)
         os.makedirs(self.out, exist_ok=True)
@@ -132,7 +134,7 @@ class Ctx:
             if time.time() - t0 > timeout:
                 timed_out = True
                 break
-            if window and os.path.isfile(e2e_log):
+            if stop_on_done and os.path.isfile(e2e_log):
                 with open(e2e_log, encoding="utf-8", errors="replace") as f:
                     s = f.read()
                 if "E2E done=" in s or "E2E error=" in s:
@@ -142,7 +144,7 @@ class Ctx:
         if rc is None:
             inst.kill()
             inst.proc.wait(10)
-            rc = 0 if window and not timed_out else inst.poll()
+            rc = 0 if stop_on_done and not timed_out else inst.poll()
         p = Probe(inst, rc, timed_out, time.time() - t0)
         inst.remove_exe()
         return p

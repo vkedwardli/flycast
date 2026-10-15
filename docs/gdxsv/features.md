@@ -36,7 +36,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | HTTPS latency test to the cloud regions | when the game goes online | none | none |
 | Ping test to the battle peers, input delay from it | lobby battle | rollback cases A1 to D8 use it (`TEST_GGPO_DELAY` replaces the delay); I1: the delay setting reaches the game's input buffer | I1c |
 | Relay through peers and relay servers, relay RTTs passed on between peers | lobby battle info | `run_suite.py` D2 to D8 (D4 to D8: local `gdxsv relay`); unit: `GdxsvPingPongTest.*` | none |
-| Battle without GGPO over UDP (`gdxsv_backend_udp`) | battle info without rollback | none | none |
+| Battle without GGPO over UDP (`gdxsv_backend_udp`) | battle info without rollback | O2: one player, local battle server | O2c |
 | Network status OSD | in battle | none | none |
 
 ## Rollback netcode (GGPO)

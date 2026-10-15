@@ -67,6 +67,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | W1 / W1c | full | widescreen matte edges and HUD offset per layout and viewport (formula of `WriteWidescreenPatch`) | 10 s |
 | I1 / I1c | full | 4-peer local rollback match at GGPO delay 2 and 4: peer 1's B press reaches the confirmed input buffer 2 vblanks later at delay 4 | 130-260 s |
 | O1 / O1c | full | Disc 2 logs in to a local `gdxsv lbs` (fresh SQLite, seeded user for the login key): platform info, user login, plaza join; public IP and P2P test go to a local fake HTTP server | 85-170 s |
+| O2 / O2c | full | O1, then a training lobby entry, chat force start, mobile suit select and battle: one player on the UDP backend through the local battle server (O2c: lobby without force start) | 170 s / 300 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is
 written only when the emulator stops between frames; W1c fails with it, since the
