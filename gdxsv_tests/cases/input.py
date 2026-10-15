@@ -1,10 +1,14 @@
 """Input delay in a rollback battle."""
 
 import os
+import threading
 
 from lib import assets
 from lib.case import case, result, write_lua
 from rollback import rbk_lib
+
+# One local match at a time: the peers use fixed ports.
+MATCH_LOCK = threading.Lock()
 
 # InetBuf and the in-battle markers (gdxsv_backend_rollback.cpp, mcs_message.h)
 DC2 = {"inetbuf": 0x0c3ab984, "battle": [0x0c3d16d4, 0x0c3d16d5]}
@@ -22,8 +26,9 @@ def measure(ctx, tag: str, delay: int) -> dict:
     s = rbk_lib.Settings(exe=ctx.exe, rom=rom, out=ctx.out, state_dir=assets.state_dir(rom))
     os.makedirs(ctx.out, exist_ok=True)
     lua = write_lua(os.path.join(ctx.out, tag + ".lua"), "input_lag.lua", {**DC2, "settle": 180, "window": 60})
-    m = rbk_lib.run_match(s, tag, [ctx.exe] * rbk_lib.N, [0] * rbk_lib.N, env={"TEST_GGPO_DELAY": str(delay)},
-                          lua=lua, timeout=600, on_start=mark_presser)
+    with MATCH_LOCK:
+        m = rbk_lib.run_match(s, tag, [ctx.exe] * rbk_lib.N, [0] * rbk_lib.N, env={"TEST_GGPO_DELAY": str(delay)},
+                              lua=lua, timeout=600, on_start=mark_presser)
     e2e = {}
     try:
         with open(os.path.join(m.peers[0].dir, "e2e.log"), encoding="utf-8") as f:

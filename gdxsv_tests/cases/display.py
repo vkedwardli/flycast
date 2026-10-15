@@ -92,7 +92,7 @@ def ws_run(ctx, name, wide, super_wide, layout, w, h, expect) -> list:
              "got": [g if g is None else round(g, 4) for g in got], "ok": ok}]
 
 
-@case("W1", "widescreen HUD layout: matte edges and HUD offset per layout and viewport", tier="smoke")
+@case("W1", "widescreen HUD layout: matte edges and HUD offset per layout and viewport")
 def widescreen(ctx):
     return result(sum((ws_run(ctx, *c, expect=ws_expected(*c[1:])) for c in WS_CASES), []))
 
@@ -102,17 +102,3 @@ def widescreen_control(ctx):
     c = WS_CASES[3]
     ran, values = ws_run(ctx, *c, expect=ws_expected(False, *c[2:]))
     return result([ran, {"what": "stock values check fails", "ok": not values["ok"]}], detail=values)
-
-
-@case("W0", "measure: W1 layout1_16x9 with extra config from W0_CONFIG")
-def ws_measure(ctx):
-    c = WS_CASES[2]
-    extra = [x for x in os.environ.get("W0_CONFIG", "").split(";") if x]
-    yn = lambda b: "yes" if b else "no"  # noqa: E731
-    addrs = [symbol(s) for s in WS_SYMBOLS]
-    p = ctx.probe("m", ctx.rom("dc2"), "memread.lua", {"frame": int(os.environ.get("W0_FRAME", "30")),
-                  "reads": [[a, 4] for a in addrs]}, frames=int(os.environ.get("W0_FRAME", "30")) + 20,
-                  config=["config:rend.WideScreen=yes", "config:rend.WidescreenGameHacks=yes",
-                          "gdxsv:headless_width=854", "gdxsv:headless_height=480"] + extra,
-                 window=bool(os.environ.get("W0_WINDOW")), loadstate=not os.environ.get("W0_WINDOW"), timeout=300)
-    return result([{"ok": True}], e2e=p.e2e, facts=p.facts())
