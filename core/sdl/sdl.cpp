@@ -2,7 +2,6 @@
 #include "types.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include "gdxsv/gdxsv_input_hooks.h"
-#include "gdxsv/gdxsv_sdl.h"
 #include "cfg/cfg.h"
 #include "sdl/sdl.h"
 #ifdef _WIN32
@@ -249,8 +248,19 @@ void input_sdl_init()
 		}
 		// Don't close the app when pressing the B button
 		SDL_SetHint(SDL_HINT_WINRT_HANDLE_BACK_BUTTON, "1");
+		// gdxsv: XInput and DirectInput switches; joystick events on their own thread
+		if (!config::UseXInput)
+		{
+			NOTICE_LOG(INPUT, "Disabling XInput, using DirectInput");
+			SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
+		}
+		if (!config::UseDirectInput)
+		{
+			NOTICE_LOG(INPUT, "Disabling DirectInput");
+			SDL_SetHint(SDL_HINT_DIRECTINPUT_ENABLED, "0");
+		}
+		SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
 #endif
-		gdxsv_sdl_input_init();
 		std::string db = get_readonly_data_path("gamecontrollerdb.txt");
 		int rv = SDL_GameControllerAddMappingsFromFile(db.c_str());
 		if (rv < 0)
@@ -925,7 +935,11 @@ bool sdl_recreate_window(u32 flags)
 	flags |= SDL_WINDOW_FULLSCREEN;
 #endif
 
-	flags |= gdxsv_sdl_window_flags();
+	// gdxsv: a capture rig tiles instances edge to edge, so it wants no border.
+	// Set at creation, not after: removing the decoration later moves the frame
+	// and the grid comes out overlapping.
+	if (config::loadBool("gdxsv", "borderless", false))
+		flags |= SDL_WINDOW_BORDERLESS;
 	window = SDL_CreateWindow("Flycast", windowPos.x, windowPos.y,
 			windowPos.w * hdpiScaling, windowPos.h * hdpiScaling, flags);
 	if (window == nullptr)
@@ -1060,7 +1074,16 @@ void sdl_window_create()
 #endif
 	}
 	sdlDeInit.initialized = true;
-	gdxsv_sdl_window_create();
+	// gdxsv: a fullscreen window is not minimized on focus loss.
+	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+	if (gdxsv_headless())
+	{
+		// No window: give the UI a nominal size so layout math stays finite.
+		// Configurable so tests can exercise aspect-ratio-dependent code
+		// (e.g. the widescreen HUD layout) at a chosen viewport.
+		settings.display.width = config::loadInt("gdxsv", "headless_width", 640);
+		settings.display.height = config::loadInt("gdxsv", "headless_height", 480);
+	}
 	try {
 		initRenderApi();
 	} catch (const FlycastException& e) {
