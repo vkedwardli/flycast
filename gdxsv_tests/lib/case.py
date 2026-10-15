@@ -8,6 +8,7 @@ check on input where the feature is absent and passes when the check catches it.
 
 import json
 import os
+import subprocess
 import time
 from typing import Dict, List, Optional
 
@@ -141,6 +142,27 @@ class Ctx:
             inst.kill()
             inst.proc.wait(10)
             rc = 0 if window and not timed_out else inst.poll()
+        p = Probe(inst, rc, timed_out, time.time() - t0)
+        inst.remove_exe()
+        return p
+
+    def run(self, name: str, rom: str, config: List[str], timeout: float, script: Optional[str] = None,
+            params: Optional[dict] = None) -> Probe:
+        """One headless instance until it exits by itself or the timeout; with lua/<script> if given."""
+        cfg = ["log:Verbosity=3", "log:LogToFile=1"] + list(config)
+        lua = None
+        if script:
+            os.makedirs(self.out, exist_ok=True)
+            lua = write_lua(os.path.join(self.out, name + ".lua"), script, params or {})
+        t0 = time.time()
+        inst = emu.launch(self.exe, rom, os.path.join(self.out, name), config=cfg, lua=lua)
+        try:
+            rc = inst.proc.wait(timeout)
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            inst.kill()
+            inst.proc.wait(10)
+            rc, timed_out = inst.poll(), True
         p = Probe(inst, rc, timed_out, time.time() - t0)
         inst.remove_exe()
         return p

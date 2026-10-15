@@ -41,3 +41,31 @@ def state_dir(rom_path: str) -> str:
         with open(os.path.join(root, name), "rb") as src, open(os.path.join(sub, name), "wb") as dst:
             dst.write(src.read())
     return sub
+
+
+CORPUS = os.path.join(TESTS, "corpus", "replays.json")
+
+
+def corpus() -> list:
+    import json
+    with open(CORPUS, encoding="utf-8") as f:
+        return json.load(f)["replays"]
+
+
+def replay(entry: dict) -> str:
+    """Path of a corpus replay in GDXSV_REPLAY_DIR (default gdxsv_tests/out/replay), downloaded
+    when missing; a file whose sha256 differs from the corpus is an error, not a skip."""
+    import hashlib
+    import urllib.request
+    root = os.environ.get("GDXSV_REPLAY_DIR") or os.path.join(TESTS, "out", "replay")
+    os.makedirs(root, exist_ok=True)
+    path = os.path.join(root, entry["id"] + ".pb")
+    if not os.path.isfile(path):
+        print(f"downloading {entry['id']}.pb")
+        urllib.request.urlretrieve(entry["url"], path + ".tmp")
+        os.replace(path + ".tmp", path)
+    with open(path, "rb") as f:
+        got = hashlib.sha256(f.read()).hexdigest()
+    if got != entry["sha256"]:
+        raise ValueError(f"{path}: sha256 {got}, corpus says {entry['sha256']}")
+    return path
