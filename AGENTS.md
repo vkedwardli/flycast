@@ -87,8 +87,13 @@ Follow the names already in `core/gdxsv/`:
 
 ### Seams With Upstream Code
 
-- An upstream file gets only an `#include` of a hook header and a guarded
-  one-line call into `core/gdxsv/`.
+- A gdxsv feature of its own (its state, a block of its logic, code that
+  `core/gdxsv/` also calls) lives in `core/gdxsv/`; the upstream file gets
+  an `#include` of a hook header and a guarded call.
+- A change of a few lines that reads naturally where it is (a condition, a
+  flag test, a value) stays inline in the upstream file. Never add a
+  function or a file only to move a few lines out of an upstream file: the
+  reader then has to jump to see a few lines.
 - Hook headers (`core/gdxsv/gdxsv_<area>_hooks.h`, `gdxsv_emu_hooks.h` for
   the emulator as a whole): `extern` flags, declarations, tiny inline
   guards; include only standard headers and `types.h`. One per upstream
@@ -98,7 +103,7 @@ Follow the names already in `core/gdxsv/`:
   rendering, maple input, audio push): test a header flag, then call. Off =
   one predictable branch.
 - Need upstream internals: add the smallest declaration, accessor, member or
-  option upstream; logic stays in `core/gdxsv/`.
+  option upstream; gdxsv logic stays in `core/gdxsv/`.
 - Do not reformat, reorder or refactor upstream code.
 - An upstream bug fix: its own PR, saying it fixes upstream code. Never open
   an upstream issue or PR.
