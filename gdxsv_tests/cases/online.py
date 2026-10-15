@@ -12,7 +12,7 @@ LOGIN_FRAMES = 4400  # boot, the menu path in lua/login.lua, and the lobby's pla
 BATTLE_FRAMES = 40000  # upper bound; the script ends 300 vblanks into the battle
 
 
-def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True):
+def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True, mcs_region: str = ""):
     """Disc 2 logs in from the network menu savestate; returns (probe, lobby log, fake HTTP requests)."""
     rom = ctx.rom("dc2")
     exe = servers.server_exe()
@@ -23,7 +23,7 @@ def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: boo
         raise Skip("no network menu savestate (GDXSV_LOGIN_STATE)")
     lobby = servers.Lobby(exe, os.path.join(ctx.out, tag + "_lbs"))
     lobby.init([(servers.server_login_key(LOGIN_KEY),) + USER])
-    servers.add_training_lobby(lobby.db, force_start=force_start)
+    servers.add_training_lobby(lobby.db, force_start=force_start, mcs_region=mcs_region)
     with servers.FakeHttp() as http:
         cfg = http.config() + [f"gdxsv:loginkey={client_key}", "config:rend.ThreadedRendering=no"]
         lobby.start()
@@ -70,25 +70,44 @@ def online_login_control(ctx):
 @case("O2", "lobby to battle: training lobby entry, force start, mobile suit select, battle (local gdxsv)")
 def online_battle(ctx):
     p, lbs, _ = login(ctx, "O2", LOGIN_KEY, battle=True)
-    return result(battle_checks(p, lbs))
+    return result(battle_checks(p, lbs, rollback=False))
 
 
 @case("O2c", "O2 in a lobby without force start: no battle", control_of="O2")
 def online_battle_control(ctx):
     p, lbs, _ = login(ctx, "O2c", LOGIN_KEY, battle=True, force_start=False)
-    c = battle_checks(p, lbs)
+    c = battle_checks(p, lbs, rollback=False)
     return result([{"what": "probe ran", "ok": c[0]["ok"]},
                    {"what": "battle checks fail", "ok": not any(x["ok"] for x in c[1:])}], detail=c)
 
 
-def battle_checks(p, lbs: str) -> list:
+@case("O3", "lobby to a rollback battle: P2P lobby, one player (local gdxsv)")
+def online_rollback(ctx):
+    p, lbs, _ = login(ctx, "O3", LOGIN_KEY, battle=True, mcs_region="p2p")
+    return result(battle_checks(p, lbs, rollback=True))
+
+
+@case("O3c", "O3's checks on a battle-server lobby: battle, but no rollback", control_of="O3")
+def online_rollback_control(ctx):
+    p, lbs, _ = login(ctx, "O3c", LOGIN_KEY, battle=True)
+    c = battle_checks(p, lbs, rollback=True)
+    return result([{"what": "battle reached", "ok": c[0]["ok"] and c[1]["ok"]},
+                   {"what": "rollback checks fail", "ok": not any(x["ok"] for x in c[2:])}], detail=c)
+
+
+def battle_checks(p, lbs: str, rollback: bool) -> list:
     log = p.log
-    return [
-        {"what": "probe ran", "ok": p.clean, **p.facts()},
-        {"what": "battle scene reached", "ok": p.e2e.get("battle") == "1"},
+    c = [{"what": "probe ran", "ok": p.clean, **p.facts()},
+         {"what": "battle scene reached", "ok": p.e2e.get("battle") == "1"}]
+    if rollback:
+        return c + [
+            {"what": "lobby sent the P2P matching", "ok": "Command: lbsP2PMatching, Direction: ServerToClient" in lbs},
+            {"what": "GGPO session started", "ok": "StartGGPOSession" in log and "Peer count 1" in log},
+            {"what": "battle loaded on the rollback backend", "ok": "LoadEndMsg Join" in log},
+        ]
+    return c + [
         {"what": "lobby gave the battle server", "ok": "Command: lbsAskMcsAddress, Direction: ClientToServer" in lbs},
         {"what": "battle server room joined over UDP", "ok": "new McsRoom" in lbs and "join udp peer" in lbs},
-        # One player in a training lobby: the battle runs on the UDP backend, not rollback.
         {"what": "UDP backend logged in to the battle",
          "ok": "gdxsv_backend_udp" in log and f"user_id:{USER[0]}" in log},
     ]
