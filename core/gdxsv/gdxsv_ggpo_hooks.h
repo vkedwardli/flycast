@@ -20,7 +20,7 @@ struct GdxsvGgpoState {
 	int disconnectFlags;   // bit per disconnected player, from ggpo_synchronize_input
 	std::array<int, 3> inputBlockCount;
 	bool useExInput;
-	bool testLog;  // GGPO_TEST_LOG: log timesync skips and rollback loads for tools/rbk_test
+	bool testLog;  // GGPO_TEST_LOG: log timesync skips and rollback loads for tests/gdxsv/rollback
 	int totalRollbackFrames;
 	int totalTimeSync;
 	float fpsAvg;

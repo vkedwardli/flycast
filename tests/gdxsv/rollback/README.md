@@ -7,11 +7,11 @@ rollback match (`gdxsv:rbk_test=N/4`) with random input, and checks the logs and
 ## Running
 
 ```
-python tools/rbk_test/run_suite.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi --old-release gdxsv-1.9.2 --older-release gdxsv-1.8.13
-python tools/rbk_test/run_suite.py --rom ... --cases C1,C2     # selected cases
-python tools/rbk_test/run_suite.py --rom ... --long            # include A2 (about 20 minutes)
-python tools/rbk_test/run_suite.py --list
-python tools/rbk_test/run_suite.py --rom ... --jobs 3                  # cases in parallel
+python tests/gdxsv/rollback/run_suite.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi --old-release gdxsv-1.9.2 --older-release gdxsv-1.8.13
+python tests/gdxsv/rollback/run_suite.py --rom ... --cases C1,C2     # selected cases
+python tests/gdxsv/rollback/run_suite.py --rom ... --long            # include A2 (about 20 minutes)
+python tests/gdxsv/rollback/run_suite.py --list
+python tests/gdxsv/rollback/run_suite.py --rom ... --jobs 3                  # cases in parallel
 ```
 
 - `--exe` defaults to `cmake-build-relwithdebinfo/flycast.exe`.
@@ -22,7 +22,7 @@ python tools/rbk_test/run_suite.py --rom ... --jobs 3                  # cases i
   release and one before it. Pass `--old-exe` / `--older-exe` to use local builds instead. Without
   them, A3/A4 are skipped.
 - The pre-battle savestate (`gdx-disc2_99.state`) is taken from `work/state` and downloaded if missing.
-- Output goes to `tools/rbk_test/out/<case>/p1..p4/` (`flycast.log`, `data/hashlog.txt`). The copied
+- Output goes to `tests/gdxsv/rollback/out/<case>/p1..p4/` (`flycast.log`, `data/hashlog.txt`). The copied
   executables are deleted after each match. `out/summary.json` holds the results.
 - The whole default set takes about 30 minutes. Windowed cases (B2, B3, C1, C3) open four emulator
   windows, and audio is muted. C1 is Windows only.
@@ -88,9 +88,9 @@ peers' uplink (`TEST_SPECTATOR_LBS`), lbs assembling the live recording, and spe
 rule (`--make-header` makes one).
 
 ```
-python tools/rbk_test/live_rig.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi --make-header --tag livehdr --rounds 1
-TEST_FAKE_TIMESYNC=20 python tools/rbk_test/live_rig.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi \
-    --header tools/rbk_test/out/livehdr/p1/data/replays/0123456.pb --rounds 4 --delays 30,50,60,80 --input-delay 3
+python tests/gdxsv/rollback/live_rig.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi --make-header --tag livehdr --rounds 1
+TEST_FAKE_TIMESYNC=20 python tests/gdxsv/rollback/live_rig.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi \
+    --header tests/gdxsv/rollback/out/livehdr/p1/data/replays/0123456.pb --rounds 4 --delays 30,50,60,80 --input-delay 3
 ```
 
 lbs asks the participant nearest it to stream (`spectator_uplink` in P2PMatching), and records only
@@ -111,7 +111,7 @@ lbs never closes a `-spectator_test_session`, so moving on from one battle to th
 in real time, closes each at its end, and answers `/status` for the Live tab.
 
 ```
-python tools/rbk_test/fake_live_lbs.py --replay tools/rbk_test/out/<tag>_header.pb.live.pb --battles 3 --max-frames 5300 --overlap 60
+python tests/gdxsv/rollback/fake_live_lbs.py --replay tests/gdxsv/rollback/out/<tag>_header.pb.live.pb --battles 3 --max-frames 5300 --overlap 60
 flycast --config gdxsv:server=127.0.0.1 --config gdxsv:LiveApiUrl=http://127.0.0.1:3390 \
     --config gdxsv:spectate=9000000 --config gdxsv:ReplayFourScreen=yes --config gdxsv:LiveAutoNext=yes <rom>
 ```

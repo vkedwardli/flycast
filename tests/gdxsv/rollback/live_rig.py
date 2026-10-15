@@ -1,7 +1,7 @@
 """Live spectator rig: a 4-player local rollback match streamed through a local
 lbs to live spectators, checked against the peers' own replays.
 
-    python tools/rbk_test/live_rig.py --rom D:\\rom\\gdx-disc2\\gdx-disc2.gdi --header <dc2 replay of a local test>
+    python tests/gdxsv/rollback/live_rig.py --rom D:\\rom\\gdx-disc2\\gdx-disc2.gdi --header <dc2 replay of a local test>
 
 The peers run as in run_suite.py (gdxsv:rbk_test, random input) with
 TEST_SPECTATOR_LBS pointing their uplink at a local `gdxsv lbs` started with

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Rollback netcode test suite. See README.md for what each case covers.
 
-    python tools/rbk_test/run_suite.py --rom D:\\rom\\gdx-disc2\\gdx-disc2.gdi --old-release gdxsv-1.9.2
-    python tools/rbk_test/run_suite.py --rom ... --cases A1,C1
-    python tools/rbk_test/run_suite.py --list
+    python tests/gdxsv/rollback/run_suite.py --rom D:\\rom\\gdx-disc2\\gdx-disc2.gdi --old-release gdxsv-1.9.2
+    python tests/gdxsv/rollback/run_suite.py --rom ... --cases A1,C1
+    python tests/gdxsv/rollback/run_suite.py --list
 """
 import argparse
 import concurrent.futures

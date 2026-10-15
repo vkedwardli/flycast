@@ -158,7 +158,7 @@ protected:
    int            _jam_latency;
    bool           _enable_jam;
    int            _oop_percent;
-   int            _test_log;         /* GGPO_TEST_LOG: count relay drops for tools/rbk_test */
+   int            _test_log;         /* GGPO_TEST_LOG: count relay drops for tests/gdxsv/rollback */
    int            _relay_drops;
    struct {
       int         send_time;

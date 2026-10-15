@@ -2,7 +2,7 @@
 testing Live Spectate end to end without a match: it streams a replay as a
 series of live battles, in real time, and closes each one at its end.
 
-    python tools/rbk_test/fake_live_lbs.py --replay outsync-test/nanasu/1768580845982.pb --battles 3
+    python tests/gdxsv/rollback/fake_live_lbs.py --replay outsync-test/nanasu/1768580845982.pb --battles 3
 
 Point flycast at it with
     --config gdxsv:server=127.0.0.1 --config gdxsv:LiveApiUrl=http://127.0.0.1:3390
