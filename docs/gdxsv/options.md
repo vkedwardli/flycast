@@ -64,7 +64,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `SpectateSyncGroup` | empty | instances with the same name play the same frame (four-screen replay sets it) |
 | `SyncMaxWaitMs` | 2 | longest such a sync stalls a frame, 0 to 200 ms |
 | `SyncStartTime` | 0 | Unix time to wait for before loading the start state |
-| `rbk_test` | empty | local rollback test match, `<peer>/<peers>` (`tests/gdxsv/rollback`) |
+| `rbk_test` | empty | local rollback test match, `<peer>/<peers>` (`gdxsv_tests/rollback`) |
 | `rand_input` | 0 | seed of random input in `rbk_test` |
 | `hashlog` | no | per-frame GGPO state hash log, `data/hashlog.txt` |
 | `headless` | no | no window, no graphics API |
@@ -76,7 +76,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 ## Environment variables
 
 Tests only; they do nothing unless set. Effects are in
-`tests/gdxsv/rollback/README.md`.
+`gdxsv_tests/rollback/README.md`.
 
 | Variable | Used by |
 |---|---|
