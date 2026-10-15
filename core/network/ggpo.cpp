@@ -103,7 +103,6 @@ static void getLocalInput(MapleInputState inputState[4])
 #include <mutex>
 #include <unordered_map>
 #include <numeric>
-#include <random>
 #include "imgui.h"
 #include "miniupnp.h"
 #include "hw/naomi/naomi_cart.h"
@@ -133,32 +132,23 @@ struct VerificationData
 
 static GGPOSession *ggpoSession;
 static int localPlayerNum;
-static GGPOPlayerHandle playerHandles[MAX_PLAYERS];
 static GGPOPlayerHandle localPlayer;
 static GGPOPlayerHandle remotePlayer;
-static int disconnect_flags;
 static bool synchronized;
 static std::recursive_mutex ggpoMutex;
 static std::array<int, 10> usPerFrame;
 static int usPerFrameIndex;
 static time_point<steady_clock> lastFrameTime;
 static int usPerFrameAvg;
-static float fpsAvg;
-static std::array<int, 3> inputBlockCount;
 static bool _endOfFrame;
 static MiniUPnP miniupnp;
 static int analogAxes;
 static bool absPointerPos;
 static bool keyboardGame;
 static bool mouseGame;
-static bool useExInput;
 static int inputSize;
 static void (*eventCallback)(GGPOEvent* event);
 static void (*chatCallback)(int playerNum, const std::string& msg);
-
-static bool useRandInput;
-static u32 randInputMask;
-static std::mt19937 randSource;
 
 struct MemPages
 {
@@ -178,10 +168,6 @@ static std::unordered_map<int, MemPages> deltaStates;
 static int lastSavedFrame = -1;
 
 static int seekToFrame = -1;
-static int totalRollbackFrames;
-static int totalTimeSync;
-// GGPO_TEST_LOG: log timesync skips and rollback loads for tools/rbk_test.
-static bool testLog;
 static int timesyncOccurred;
 
 #pragma pack(push, 1)
@@ -279,7 +265,7 @@ static bool on_event(GGPOEvent *info)
 			timesyncOccurred += 5;
 		}
 		timeSyncFrames = info->u.timesync.frames_ahead;
-		totalTimeSync += info->u.timesync.frames_ahead;
+		gdxsv_ggpo_state.totalTimeSync += info->u.timesync.frames_ahead;
 		break;
 	case GGPO_EVENTCODE_CONNECTION_INTERRUPTED:
 		INFO_LOG(NETWORK, "Connection interrupted with player %d", info->u.connection_interrupted.player);
@@ -314,7 +300,7 @@ static bool advance_frame(int)
 	inRollback = true;
 
 	const int skips = skippedFrames[frame];
-	if (testLog && skips > 0)
+	if (gdxsv_ggpo_state.testLog && skips > 0)
 		NOTICE_LOG(NETWORK, "RBKTEST skip replay frame=%d skips=%d", frame, skips);
 	bool frameRan = false;
 	for (int i = 0; i < skips; i++) {
@@ -325,7 +311,7 @@ static bool advance_frame(int)
 			// on this frame, the skip was taken on a mispredicted one, and an extra vblank would advance
 			// a scene that runs on its own, such as the countdown before a battle, ahead of the other peers.
 			// So that run was the frame itself.
-			if (testLog)
+			if (gdxsv_ggpo_state.testLog)
 				NOTICE_LOG(NETWORK, "RBKTEST skip dropped frame=%d skips=%d", frame, skips - i);
 			skippedFrames[frame] = i;
 			frameRan = true;
@@ -345,7 +331,7 @@ static bool advance_frame(int)
 	inRollback = false;
 	_endOfFrame = false;
 
-	totalRollbackFrames++;
+	gdxsv_ggpo_state.totalRollbackFrames++;
 	return true;
 }
 
@@ -366,7 +352,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 	Deserializer deser(buffer, len, true);
 	int frame;
 	deser >> frame;
-	if (testLog)
+	if (gdxsv_ggpo_state.testLog)
 		NOTICE_LOG(NETWORK, "RBKTEST load seek=%d from=%d", frame, seekToFrame);
 	memwatch::unprotect();
 	for (int f = lastSavedFrame - 1; f >= frame; f--)
@@ -555,17 +541,6 @@ static void on_message(u8 *msg, int len)
 	}
 }
 
-static void ggpoIdleLoop() {
-	while (active()) {
-		{
-			std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-			if (ggpoSession == nullptr) return;
-			ggpo_idle(ggpoSession, -1); // only pump
-		}
-		gdxsv_sleep_us(1000);
-	}
-}
-
 void startSession(int localPort, int localPlayerNum)
 {
 	GGPOSessionCallbacks cb{};
@@ -578,9 +553,9 @@ void startSession(int localPort, int localPlayerNum)
 	cb.log_game_state  = log_game_state;
 	cb.on_message      = on_message;
 	gdxsv_ggpo_session_start();
-	testLog = getenv("GGPO_TEST_LOG") != nullptr;
-	disconnect_flags = 0;
-	inputBlockCount.fill(0);
+	gdxsv_ggpo_state.testLog = getenv("GGPO_TEST_LOG") != nullptr;
+	gdxsv_ggpo_state.disconnectFlags = 0;
+	gdxsv_ggpo_state.inputBlockCount.fill(0);
 
 #ifdef SYNC_TEST
 	GGPOErrorCode result = ggpo_start_synctest(&ggpoSession, &cb, settings.content.gameId.c_str(), 2, sizeof(kcode[0]), 1);
@@ -600,7 +575,7 @@ void startSession(int localPort, int localPlayerNum)
 	analogAxes = 0;
 	NOTICE_LOG(NETWORK, "GGPO synctest session started");
 #else
-	useExInput = false;
+	gdxsv_ggpo_state.useExInput = false;
 
 	if (settings.platform.isConsole())
 		analogAxes = config::GGPOAnalogAxes;
@@ -713,10 +688,10 @@ void stopSession()
 	ggpoSession = nullptr;
 	skippedFrames.clear();
 	gdxsv_ggpo_session_stop();
-	disconnect_flags = 0;
+	gdxsv_ggpo_state.disconnectFlags = 0;
 	miniupnp.Term();
-	totalRollbackFrames = 0;
-	totalTimeSync = 0;
+	gdxsv_ggpo_state.totalRollbackFrames = 0;
+	gdxsv_ggpo_state.totalTimeSync = 0;
 	emu.setNetworkState(false);
 	memwatch::unprotect();
 	memwatch::reset();
@@ -735,7 +710,7 @@ void getInput(MapleInputState inputState[4])
 
 	std::vector<u8> inputData(inputSize * MAX_PLAYERS);
 	// should not call any callback
-	GGPOErrorCode error = ggpo_synchronize_input(ggpoSession, (void *)&inputData[0], inputData.size(), &disconnect_flags);
+	GGPOErrorCode error = ggpo_synchronize_input(ggpoSession, (void *)&inputData[0], inputData.size(), &gdxsv_ggpo_state.disconnectFlags);
 	if (error != GGPO_OK)
 	{
 		stopSession();
@@ -771,7 +746,7 @@ void getInput(MapleInputState inputState[4])
 			state.mouseButtons = ~inputs->mouseButtons;
 		}
 
-		if (useExInput)
+		if (gdxsv_ggpo_state.useExInput)
 		{
 			state.exInput = inputs->exInput;
 		}
@@ -815,7 +790,7 @@ bool nextFrame()
 		if (usPerFrameIndex >= (int)usPerFrame.size())
 			usPerFrameIndex = 0;
 		usPerFrameAvg = std::accumulate(usPerFrame.begin(), usPerFrame.end(), 0) / usPerFrame.size();
-		fpsAvg = static_cast<float>(usPerFrame.size()) * 1000 * 1000 / std::accumulate(usPerFrame.begin(), usPerFrame.end(), 0);
+		gdxsv_ggpo_state.fpsAvg = static_cast<float>(usPerFrame.size()) * 1000 * 1000 / std::accumulate(usPerFrame.begin(), usPerFrame.end(), 0);
 	}
 	lastFrameTime = now;
 
@@ -828,7 +803,7 @@ bool nextFrame()
 	if (skipInputOccurred) {
 		skipInputOccurred = false;
 		skippedFrames[frame]++;
-		if (testLog)
+		if (gdxsv_ggpo_state.testLog)
 			NOTICE_LOG(NETWORK, "RBKTEST skip record frame=%d", frame);
 		if (active()) {
 			emu.getSh4Executor()->Start();
@@ -852,18 +827,18 @@ bool nextFrame()
 			throw FlycastException("GGPO error");
 	}
 
-	if (useRandInput) {
+	if (gdxsv_ggpo_state.useRandInput) {
 		int frame;
 		ggpo::getCurrentFrame(&frame);
 		if ((frame + localPlayerNum) % 5 == 0) {
-			kcode[0] = ~(randSource() & randInputMask);
+			kcode[0] = ~(gdxsv_ggpo_state.randSource() & gdxsv_ggpo_state.randInputMask);
 		}
 	}
 
 	// may call save_game_state
 	int loop_count = 0;
 	do {
-		if (!useRandInput) {
+		if (!gdxsv_ggpo_state.useRandInput) {
 			if (!config::ThreadedRendering)
 				os_UpdateInputState();
 			else if (config::JoystickPolling)
@@ -909,7 +884,7 @@ bool nextFrame()
 			mo_wheel_delta[0] -= inputs.u.relPos.wheel;
 		}
 
-		if (useExInput)
+		if (gdxsv_ggpo_state.useExInput)
 		{
 			inputs.exInput = localExInput | localExInputFlags;
 		}
@@ -921,9 +896,9 @@ bool nextFrame()
 		if (error == GGPO_OK)
 		{
 			if (0 < loop_count) {
-				if (loop_count * 5 <= 30) inputBlockCount[0]++;
-				else if (loop_count * 5 <= 500) inputBlockCount[1]++;
-				else inputBlockCount[2]++;
+				if (loop_count * 5 <= 30) gdxsv_ggpo_state.inputBlockCount[0]++;
+				else if (loop_count * 5 <= 500) gdxsv_ggpo_state.inputBlockCount[1]++;
+				else gdxsv_ggpo_state.inputBlockCount[2]++;
 			}
 			if (2 < loop_count)
 				NOTICE_LOG(NETWORK, "ggpo_add_local_input prediction barrier reached looped %dms", loop_count * 5);
@@ -947,13 +922,13 @@ bool nextFrame()
 	} while (active());
 #ifdef SYNC_TEST
 	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (playerHandles[i] == localPlayer) continue;
+		if (gdxsv_ggpo_state.playerHandles[i] == localPlayer) continue;
 		u32 input = ~kcode[0];
 		if (rt[0] >= 64) input |= BTN_TRIGGER_RIGHT;
 		else input &= ~BTN_TRIGGER_RIGHT;
 		if (lt[0] >= 64) input |= BTN_TRIGGER_LEFT;
 		else input &= ~BTN_TRIGGER_LEFT;
-		GGPOErrorCode result = ggpo_add_local_input(ggpoSession, playerHandles[i], &input, sizeof(input));
+		GGPOErrorCode result = ggpo_add_local_input(ggpoSession, gdxsv_ggpo_state.playerHandles[i], &input, sizeof(input));
 		if (result != GGPO_OK)
 			WARN_LOG(NETWORK, "ggpo_add_local_input(%d) failed %d", i, result);
 	}
@@ -1101,8 +1076,8 @@ void displayStats()
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (i == localPlayerNum) continue;
-		if (playerHandles[i] == 0) continue;
-		ggpo_get_network_stats(ggpoSession, playerHandles[i], &stats);
+		if (gdxsv_ggpo_state.playerHandles[i] == 0) continue;
+		ggpo_get_network_stats(ggpoSession, gdxsv_ggpo_state.playerHandles[i], &stats);
 
 		ImGui::Text("-- %dP --", i+1);
 
@@ -1171,220 +1146,24 @@ void receiveChatMessages(void (*callback)(int playerNum, const std::string& msg)
 	chatCallback = callback;
 }
 
-bool isConnected(int playerNum) {
-	if (playerNum == localPlayerNum) return true;
-	return !(disconnect_flags >> playerNum & 1);
 }
 
-void disconnect(int playerNum) {
-	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-	if (ggpoSession == nullptr) {
-		return;
-	}
-	ggpo_disconnect_player(ggpoSession, playerHandles[playerNum]);
-}
-
-void randomInput(bool enable, u64 seed, u32 inputMask) {
-	useRandInput = enable;
-	randInputMask = inputMask;
-	randSource.seed(seed);
-}
-
-void getNetworkStats(int playerNum, NetworkStats* stats)
+GdxsvGgpoUpstream gdxsv_ggpo_upstream(void *cb)
 {
-	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-	if (ggpoSession == nullptr) {
-		return;
-	}
-	stats->extra.total_rollbacked_frames = totalRollbackFrames;
-	stats->extra.total_timesync = totalTimeSync;
-	stats->extra.current_timesync = timeSyncFrames;
-	stats->extra.current_fps = fpsAvg;
-	stats->extra.input_block_count[0] = inputBlockCount[0];
-	stats->extra.input_block_count[1] = inputBlockCount[1];
-	stats->extra.input_block_count[2] = inputBlockCount[2];
-	ggpo_get_network_stats(ggpoSession, playerHandles[playerNum], (GGPONetworkStats*)stats);
-}
-
-void gdxsvStartSession(const char* sessionCode, int me,
-	const std::vector<std::string>& ips, const std::vector<u16>& ports, const std::vector<u8>& relays,
-	const std::vector<RelayServerAddr>& relayServers)
-{
-	GGPOSessionCallbacks cb{};
-	cb.begin_game      = begin_game;
-	cb.advance_frame   = advance_frame;
-	cb.load_game_state = load_game_state;
-	cb.save_game_state = save_game_state;
-	cb.free_buffer     = free_buffer;
-	cb.on_event        = on_event;
-	cb.log_game_state  = log_game_state;
-	cb.on_message      = on_message;
-	gdxsv_ggpo_session_start();
-	testLog = getenv("GGPO_TEST_LOG") != nullptr;
-	memset(playerHandles, 0, sizeof(playerHandles));
-	disconnect_flags = 0;
-	inputBlockCount.fill(0);
-	useExInput = true;
-	localExInput = 0;
-	localExInputFlags = 0;
-	analogAxes = 2;
-	inputSize = sizeof(kcode[0]) + sizeof(Inputs::exInput) + analogAxes;
-	NOTICE_LOG(NETWORK, "inputSize:%d", inputSize);
-#ifdef SYNC_TEST
-	GGPOErrorCode result = ggpo_start_synctest(&ggpoSession, &cb, settings.content.gameId.c_str(), MAX_PLAYERS, inputSize, 1);
-	if (result != GGPO_OK)
+	using namespace ggpo;
+	if (cb != nullptr)
 	{
-		WARN_LOG(NETWORK, "GGPO start sync session failed: %d", result);
-		ggpoSession = nullptr;
-		throw FlycastException("GGPO start sync session failed");
+		GGPOSessionCallbacks& callbacks = *(GGPOSessionCallbacks *)cb;
+		callbacks.begin_game      = begin_game;
+		callbacks.advance_frame   = advance_frame;
+		callbacks.load_game_state = load_game_state;
+		callbacks.save_game_state = save_game_state;
+		callbacks.free_buffer     = free_buffer;
+		callbacks.on_event        = on_event;
+		callbacks.log_game_state  = log_game_state;
+		callbacks.on_message      = on_message;
 	}
-	ggpo_idle(ggpoSession, 0);
-	ggpo::localPlayerNum = localPlayerNum;
-
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		GGPOPlayer player{ sizeof(GGPOPlayer), GGPO_PLAYERTYPE_LOCAL, i + 1 };
-		if (i != localPlayerNum) {
-			player.type = GGPO_PLAYERTYPE_REMOTE;
-		}
-
-		result = ggpo_add_player(ggpoSession, &player, &playerHandles[i]);
-		if (result != GGPO_OK) {
-			WARN_LOG(NETWORK, "add_player failed: %d", result);
-			ggpoSession = nullptr;
-			throw FlycastException("GGPO start sync session failed");
-		}
-
-		if (i == localPlayerNum) {
-			localPlayer = playerHandles[i];
-		}
-		else {
-			remotePlayer = playerHandles[i];
-		}
-	}
-
-	synchronized = true;
-	NOTICE_LOG(NETWORK, "GGPO synctest session started");
-#else
-	ggpo::localPlayerNum = me;
-	GGPOErrorCode result = ggpo_start_session(
-		&ggpoSession, &cb, settings.content.gameId.c_str(),
-		ips.size(), inputSize, ports[me], sessionCode, strlen(sessionCode));
-	if (result != GGPO_OK)
-	{
-		WARN_LOG(NETWORK, "GGPO start session failed: %d", result);
-		ggpoSession = nullptr;
-		throw FlycastException("GGPO network initialization failed");
-	}
-
-	NOTICE_LOG(NETWORK, "LOCAL PLAYER: %d", me);
-
-	ggpo_set_disconnect_timeout(ggpoSession, 10000);
-	ggpo_set_disconnect_notify_start(ggpoSession, 1000);
-	ggpo_set_disconnect_without_rollback(ggpoSession, true);
-	for (const auto& server : relayServers) {
-		ggpo_add_relay_server(ggpoSession, server.ip.c_str(), server.port, server.altIp.c_str());
-	}
-
-	GGPOPlayer player{sizeof(GGPOPlayer), GGPO_PLAYERTYPE_LOCAL, me + 1};
-	result = ggpo_add_player(ggpoSession, &player, &playerHandles[me]);
-	if (result != GGPO_OK) {
-		WARN_LOG(NETWORK, "GGPO cannot add local player: %d", result);
-		stopSession();
-		return;
-	}
-	ggpo::localPlayer = playerHandles[me];
-
-	for (int i = 0; i < ips.size(); i++) {
-		if (i == me) continue;
-        GGPOPlayer player{sizeof(GGPOPlayer), GGPO_PLAYERTYPE_REMOTE, i + 1};
-		if (ips[i].empty()) {
-			strcpy(player.u.remote.ip_address, "127.0.0.1");
-		} else {
-			strcpy(player.u.remote.ip_address, ips[i].c_str());
-		}
-
-		if (ports[i] == 0) {
-			player.u.remote.port = SERVER_PORT + i;
-		} else {
-			player.u.remote.port = ports[i];
-		}
-
-		if (relays[i]) {
-		    player.u.remote.relay = true;
-		}
-
-		result = ggpo_add_player(ggpoSession, &player, &playerHandles[i]);
-		if (result != GGPO_OK) {
-			WARN_LOG(NETWORK, "GGPO cannot add remote player: %d", result);
-			stopSession();
-			return;
-		}
-
-		ggpo::remotePlayer = playerHandles[i];
-	}
-
-	if (getenv("GGPO_DELAY") != nullptr) {
-		const int v = atoi(getenv("GGPO_DELAY"));
-		if (0 <= v && v <= 64) {
-			config::GGPODelay.override(v);
-		}
-	}
-	ggpo_set_frame_delay(ggpoSession, localPlayer, config::GGPODelay.get());
-
-	DEBUG_LOG(NETWORK, "GGPO session started");
-#endif
-}
-
-std::future<bool> gdxsvStartNetwork(const char* sessionCode, int me,
-	const std::vector<std::string>& ips,
-	const std::vector<u16>& ports,
-	const std::vector<u8>& relays,
-	const std::vector<RelayServerAddr>& relayServers) {
-	synchronized = false;
-	const std::string session_code(sessionCode);
-	return std::async(std::launch::async, [=]{
-		{
-			std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-#ifdef SYNC_TEST
-			gdxsvStartSession(0, 0, "");
-#else
-			gdxsvStartSession(session_code.c_str(), me, ips, ports, relays, relayServers);
-#endif
-		}
-		while (!synchronized && active())
-		{
-			{
-				std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-				if (ggpoSession == nullptr)
-					break;
-				GGPOErrorCode result = ggpo_idle(ggpoSession, 0);
-				if (result == GGPO_ERRORCODE_VERIFICATION_ERROR)
-					throw FlycastException("Peer verification failed");
-				else if (result != GGPO_OK)
-				{
-					WARN_LOG(NETWORK, "ggpo_idle failed %d", result);
-					throw FlycastException("GGPO error");
-				}
-			}
-			gdxsv_sleep_us(20 * 1000);
-		}
-#ifdef SYNC_TEST
-		// save initial state (frame 0)
-		if (active())
-		{
-			MapleInputState state[4];
-			getInput(state);
-		}
-#endif
-		emu.setNetworkState(active());
-
-		if (synchronized && active()) {
-			std::thread(ggpoIdleLoop).detach();
-		}
-		return active();
-	});
-}
-
+	return { &ggpoSession, &ggpoMutex, &localPlayerNum, &localPlayer, &remotePlayer, &synchronized, &analogAxes, &inputSize };
 }
 
 #else // LIBRETRO
@@ -1422,26 +1201,6 @@ void sendChatMessage(int playerNum, const std::string& msg) {
 }
 
 void receiveChatMessages(void (*callback)(int playerNum, const std::string& msg)) {
-}
-
-bool isConnected(int playerNum) {
-}
-
-void disconnect(int playerNum) {
-}
-
-void randomInput(bool enable, u64 seed, u32 inputMask) {
-}
-
-void getNetworkStats(int playerNum, NetworkStats* stats) {
-}
-
-void gdxsvStartSession(const char* sessionCode, int me, const std::vector<std::string>& ips, const std::vector<u16>& ports, const std::vector<u8>& relays,
-	const std::vector<RelayServerAddr>& relayServers) {
-}
-
-std::future<bool> gdxsvStartNetwork(const char* sessionCode, int me, const std::vector<std::string>& ips, const std::vector<u16>& ports,
-	const std::vector<u8>& relays, const std::vector<RelayServerAddr>& relayServers) {
 }
 
 }

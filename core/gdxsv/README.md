@@ -38,7 +38,8 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_backend_tcp.cpp/.h` | TCP backend: the lobby (LBS) connection |
 | `gdxsv_backend_udp.cpp/.h` | UDP backend: MCS over UDP |
 | `gdxsv_backend_rollback.cpp/.h` | rollback backend: GGPO session for a battle |
-| `gdxsv_ggpo_hooks.cpp/.h` | called from `core/network/ggpo.cpp`: per-frame state hash log (`gdxsv:hashlog`) |
+| `gdxsv_ggpo.cpp/.h` | gdxsv GGPO session (up to 4 peers, relays) on top of `core/network/ggpo.cpp`; disconnect, network stats, random input |
+| `gdxsv_ggpo_hooks.cpp/.h` | called from `core/network/ggpo.cpp`: per-frame state hash log (`gdxsv:hashlog`), session state `gdxsv_ggpo_state`; `gdxsv_ggpo_upstream` gives `gdxsv_ggpo.cpp` the upstream session state |
 | `gdxsv_backend_replay.cpp/.h` | replay backend: plays a recorded battle |
 | `gdxsv_replay_util.cpp/.h`, `gdxsv_replay_ui.h` | replay files, bootstrap save state, replay UI data |
 | `gdxsv_save_state.cpp/.h` | in-memory save states for rollback |
