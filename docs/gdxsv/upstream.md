@@ -81,9 +81,16 @@ every spot is marked and the list is current (`--write` updates it).
 | File | Where | What |
 |---|---|---|
 | `.gitignore` |  | Visual Studio resource editor files |
-| `CMakeLists.txt` |  | `set(GDXSV_PATTERN "gdxsv-\\*")` |
+| `CMakeLists.txt` |  | x86_64 only |
+| `CMakeLists.txt` |  | version from the latest gdxsv-* tag, in semver form |
 | `CMakeLists.txt` |  | `# Transform git describe to semver format, e.g. gdxsv-1.2.4-3-g89b14873e -> gdxsv-1.2.4-dev.3+89b148` |
-| `CMakeLists.txt` |  | `string(REGEX MATCH "gdxsv-[^-]+" TAG_VERSION ${GIT_VERSION})` |
+| `CMakeLists.txt` |  | version and hash in the configure log |
+| `CMakeLists.txt` |  | x86_64 only, no arm64 symbols. |
+| `CMakeLists.txt` |  | x86_64 only, no arm64 symbols. |
+| `CMakeLists.txt` |  | SDL headers for the MSVC (clang-cl) build |
+| `CMakeLists.txt` |  | MoltenVK define kept from an upstream merge |
+| `CMakeLists.txt` |  | bundle version from the gdxsv-* tag |
+| `CMakeLists.txt` |  | Syphon metallib copied into the app bundle (both branches identical; from an upstream merge) |
 | `CMakeLists.txt` | `include` | `include(core/gdxsv/gdxsv.cmake)` |
 | `core/audio/audiobackend_coreaudio.cpp` |  | queue level for the replay and spectating audio rate control |
 | `core/audio/audiobackend_directsound.cpp` |  | queue level for the replay and spectating audio rate control |
