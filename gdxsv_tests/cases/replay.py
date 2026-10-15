@@ -27,16 +27,20 @@ def play(ctx, entry: dict, pb: str = None) -> dict:
     log = p.log
     m = STARTS_RE.search(log)
     starts = [int(x) for x in m.group(1).split()] if m else []
-    rounds = len(ROUND_RE.findall(log))
+    round_starts = [int(x) for x in ROUND_RE.findall(log)]
+    rounds = len(round_starts)
+    if not starts:  # files that list no round starts (log_file_version 20230426): the rounds that ran
+        starts = round_starts
     stops = STOP_RE.findall(log)
     stop = int(stops[-1][0]) if stops else None
     inputs = int(stops[-1][1]) if stops else None
     played = (p.clean and bool(starts) and rounds == len(starts) and stop is not None and stop > starts[-1])
-    want = replayfile.win_teams(pb)
+    # Recorded in the file (round_data), else as a past build played it (corpus "winners").
+    want = replayfile.win_teams(pb) or entry.get("winners", [])
     got = [int(p.e2e[k]) for k in sorted((k for k in p.e2e if k.startswith("round")), key=lambda k: int(k[5:]))]
     outcome_ok = not want or got == want
     return {"id": entry["id"], "disk": entry["disk"], "version": entry["log_file_version"],
-            "expect": entry.get("expect", "play"), "ok": played and outcome_ok, "played": played,
+            "ok": played and outcome_ok, "played": played,
             "inputs": inputs, "stopped_at": stop, "rounds_in_file": len(starts), "rounds_started": rounds,
             "winners_recorded": want, "winners_seen": got, **p.facts()}
 
