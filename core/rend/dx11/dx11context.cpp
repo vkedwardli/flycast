@@ -226,10 +226,6 @@ void DX11Context::term()
 	pDeviceContext.reset();
 	pDevice.reset();
 	d3dcompiler = nullptr;
-#ifdef VIDEO_ROUTING
-	extern void os_VideoRoutingTermDX();
-	os_VideoRoutingTermDX();
-#endif
 }
 
 void DX11Context::Present()

@@ -115,7 +115,9 @@ void TransformMatrix::CalcMatrices(const rend_context *renderingContext, int wid
 			widescreenShift = 0;
 		}
 		glm::mat4 trans = glm::translate(glm::vec3(-1 + widescreenShift, -flipY, 0));
-		normalMatrix = trans * glm::scale(glm::vec3(2.0f / dcViewport.x, 2.0f / dcViewport.y * flipY, 1.f));
+		float x_coef = 2.0f / dcViewport.x;
+		float y_coef = 2.0f / dcViewport.y * flipY;
+		normalMatrix = trans * glm::scale(glm::vec3(x_coef, y_coef, 1.f));
 	}
 	normalMatrix = glm::scale(glm::vec3(1, 1, 1 / config::ExtraDepthScale)) * normalMatrix;
 

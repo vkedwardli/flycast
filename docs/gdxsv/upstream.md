@@ -58,13 +58,12 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game |
 | Crash reports | `core/oslib/oslib.cpp/.h` | own crash list file; gdxsv log, tags and `emu.cfg` attached to a report |
 | Window | `core/sdl/sdl.cpp`, `core/wsi/sdl.cpp`, `core/wsi/switcher.cpp`, `core/linux-dist/main.cpp` | headless (no graphics API), borderless, window position for several instances, four-screen grid; frames duplicated on a monitor over 60 Hz only with `DupeFrames` |
-| Video routing | `core/wsi/gl_context.cpp`, `core/rend/dx11/dx11context.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gles.cpp`, `core/rend/gl4/gles.cpp` | Spout / Syphon output drawn and torn down with the graphics context |
 | Config | `core/cfg/cfg.cpp` | a new `emu.cfg` gets the gdxsv defaults |
 | UI | `core/ui/gui.cpp/.h`, `core/ui/settings*.cpp/.h`, `core/ui/gui_font.cpp`, `core/oslib/i18n.cpp` | gdxsv settings page, Live & Replays menu, update popup, gdxsv translations, Japanese fonts always loaded |
 | Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |
 | Network | `core/network/miniupnp.cpp/.h` | UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
-| Textures | `core/rend/CustomTexture.cpp`, `core/rend/TexCache.cpp` | embedded and downloaded texture packs for the game (`T13306M`) |
+| Textures | `core/rend/CustomTexture.cpp` | embedded and downloaded texture packs for the game (`T13306M`) |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
 | Build | `CMakeLists.txt`, `tests/CMakeLists.txt`, `resources/resources.cmake`, `.gitignore` | `include(core/gdxsv/gdxsv.cmake)` (gdxsv sources, protobuf), build options, gdxsv tests and resources; `comctl32` for the temporary Windows frame subclass |
