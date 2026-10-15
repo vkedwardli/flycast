@@ -588,6 +588,11 @@ void uploadCrashes(const std::string& directory)
 				fields.emplace_back("sentry[release]", version);
 				if (file_exists(logfile))
 					fields.emplace_back("flycast_log", logfile, "text/plain");
+
+				std::string config_path = get_writable_config_path("emu.cfg");
+				if (file_exists(config_path))
+					fields.emplace_back("emu.cfg", config_path, "text/plain");
+
 				gdxsv_crash_append_tag(logfile, fields);
 				// TODO config, gpu/driver, ...
 				int rc = http::post(SENTRY_UPLOAD, fields);
