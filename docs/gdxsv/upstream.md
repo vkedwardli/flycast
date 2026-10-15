@@ -58,7 +58,6 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game |
 | Crash reports | `core/oslib/oslib.cpp/.h` | own crash list file; gdxsv log, tags and `emu.cfg` attached to a report |
 | Window | `core/sdl/sdl.cpp` (hooks into `core/gdxsv/gdxsv_sdl.cpp`), `core/wsi/sdl.cpp`, `core/wsi/switcher.cpp`, `core/linux-dist/main.cpp` | headless (no graphics API), borderless, window position for several instances, four-screen grid; frames duplicated on a monitor over 60 Hz only with `DupeFrames` |
-| Video routing | `core/wsi/gl_context.cpp`, `core/rend/dx11/dx11context.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gles.cpp`, `core/rend/gl4/gles.cpp` | Spout / Syphon output drawn and torn down with the graphics context |
 | Config | `core/cfg/cfg.cpp` | a new `emu.cfg` gets the gdxsv defaults |
 | UI | `core/ui/gui.cpp/.h`, `core/ui/settings*.cpp/.h`, `core/ui/gui_font.cpp`, `core/oslib/i18n.cpp` | gdxsv settings page, Live & Replays menu, update popup, gdxsv translations, Japanese fonts always loaded |
 | Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |

@@ -12,7 +12,6 @@
 #include <ostream>
 #include <string>
 #include <fstream>
-#include <list>
 
 #include "ConsoleListener.h"
 #include "InMemoryListener.h"

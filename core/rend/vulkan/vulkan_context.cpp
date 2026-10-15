@@ -657,7 +657,6 @@ bool VulkanContext::InitDevice()
 				+ std::to_string(props.driverVersion / 10000) + "."
 				+ std::to_string((props.driverVersion % 10000) / 100) + "."
 				+ std::to_string(props.driverVersion % 100);
-		
 #else
 		driverVersion = std::to_string(VK_API_VERSION_MAJOR(props.driverVersion)) + "."
 				+ std::to_string(VK_API_VERSION_MINOR(props.driverVersion)) + "."
@@ -1267,10 +1266,6 @@ void VulkanContext::term()
 	renderCompleteSemaphores.clear();
 	drawFences.clear();
 	allocator.Term();
-#if defined(VIDEO_ROUTING) && defined(TARGET_MAC)
-	extern void os_VideoRoutingTermVk();
-	os_VideoRoutingTermVk();
-#endif
 #ifndef USE_SDL
 	surface.reset();
 #else

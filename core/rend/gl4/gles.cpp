@@ -712,7 +712,6 @@ struct OpenGL4Renderer : OpenGLRenderer
 			drawOSD();
 			renderVideoRouting();
 		}
-		renderVideoRouting();
 		restoreCurrentFramebuffer();
 
 		return true;
