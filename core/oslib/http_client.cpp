@@ -61,27 +61,18 @@ void init()
 	}
 }
 
-// gdxsv: per-call buffers. Static ones were shared by concurrent requests
-// (update check, texture pack check, boxart...) and could swap their hosts/paths.
-struct CrackedUrl
+static bool crackUrl(const std::string& url, URL_COMPONENTS& components)
 {
-	char scheme[16];
-	char host[256];
-	char path[2048];
-	URL_COMPONENTS components;
-};
-
-static bool crackUrl(const std::string& url, CrackedUrl& cracked)
-{
-	URL_COMPONENTS& components = cracked.components;
+	// gdxsv: thread_local, concurrent requests (update check, texture pack, boxart...) swapped hosts/paths
+	static thread_local char scheme[16], host[256], path[2048];
 	components = {};
 	components.dwStructSize = sizeof(components);
-	components.lpszScheme = cracked.scheme;
-	components.dwSchemeLength = sizeof(cracked.scheme) / sizeof(cracked.scheme[0]);
-	components.lpszHostName = cracked.host;
-	components.dwHostNameLength = sizeof(cracked.host) / sizeof(cracked.host[0]);
-	components.lpszUrlPath = cracked.path;
-	components.dwUrlPathLength = sizeof(cracked.path) / sizeof(cracked.path[0]);
+	components.lpszScheme = scheme;
+	components.dwSchemeLength = sizeof(scheme) / sizeof(scheme[0]);
+	components.lpszHostName = host;
+	components.dwHostNameLength = sizeof(host) / sizeof(host[0]);
+	components.lpszUrlPath = path;
+	components.dwUrlPathLength = sizeof(path) / sizeof(path[0]);
 
 	return InternetCrackUrlA(url.c_str(), url.length(), 0, &components);
 }
@@ -92,10 +83,9 @@ static HINTERNET connect(const URL_COMPONENTS& comp) {
 
 int get(const std::string& url, std::vector<u8>& content, const Headers *reqHeaders, Headers *respHeaders)
 {
-	CrackedUrl cracked;
-	if (!crackUrl(url, cracked))
+	URL_COMPONENTS components;
+	if (!crackUrl(url, components))
 		return 500;
-	const URL_COMPONENTS& components = cracked.components;
 
 	bool https = !strcmp(components.lpszScheme, "https");
 
@@ -187,10 +177,9 @@ int get(const std::string& url, std::vector<u8>& content, const Headers *reqHead
 
 static int post(const std::string& url, const char *headers, const u8 *payload, u32 payloadSize, std::vector<u8>& reply)
 {
-	CrackedUrl cracked;
-	if (!crackUrl(url, cracked))
+	URL_COMPONENTS components;
+	if (!crackUrl(url, components))
 		return 500;
-	const URL_COMPONENTS& components = cracked.components;
 
 	bool https = !strcmp(components.lpszScheme, "https");
 

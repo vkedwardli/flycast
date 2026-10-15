@@ -60,7 +60,7 @@ public:
 	}
 
 private:
-	static constexpr int MaxLines = 100;
+	static constexpr int MaxLines = 100; // gdxsv: upstream 20; the log goes into rollback reports
 
 	std::mutex mutex;
 	std::array<char[MAX_MSGLEN], MaxLines> lines {};

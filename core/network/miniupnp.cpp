@@ -37,8 +37,8 @@ bool MiniUPnP::Init()
 #endif
 	if (devlist == nullptr)
 	{
-		snprintf(lastError, sizeof(lastError), "UPnP discover failed: error %d", error);
-		WARN_LOG(NETWORK, lastError);
+		snprintf(lastError, sizeof(lastError), "UPnP discover failed: error %d", error); // gdxsv
+		WARN_LOG(NETWORK, "UPnP discover failed: error %d", error);
 		return false;
 	}
 #if MINIUPNPC_API_VERSION >= 18
@@ -49,8 +49,8 @@ bool MiniUPnP::Init()
 	freeUPNPDevlist(devlist);
 	if (error != 1)
 	{
-		snprintf(lastError, sizeof(lastError), "Internet Gateway not found: error %d", error);
-		WARN_LOG(NETWORK, lastError);
+		snprintf(lastError, sizeof(lastError), "Internet Gateway not found: error %d", error); // gdxsv
+		WARN_LOG(NETWORK, "Internet Gateway not found: error %d", error);
 		return false;
 	}
 	initialized = true;
@@ -85,8 +85,8 @@ bool MiniUPnP::AddPortMapping(int port, bool tcp)
 								"86400");  // port map lease duration (in seconds) or zero for "as long as possible"
 	if (error != 0)
 	{
-		snprintf(lastError, sizeof(lastError), "Port %d redirection failed: error %d", port, error);
-		WARN_LOG(NETWORK, lastError);
+		snprintf(lastError, sizeof(lastError), "Port %d redirection failed: error %d", port, error); // gdxsv
+		WARN_LOG(NETWORK, "Port %d redirection failed: error %d", port, error);
 		return false;
 	}
 	{
@@ -97,6 +97,7 @@ bool MiniUPnP::AddPortMapping(int port, bool tcp)
 	return true;
 }
 
+// gdxsv: P2P status, true if the router maps the port to this host
 bool MiniUPnP::CheckPortMapping(int port, bool tcp)
 {
 	if (!initialized && !Init())
@@ -111,12 +112,6 @@ bool MiniUPnP::CheckPortMapping(int port, bool tcp)
 	int error = UPNP_GetSpecificPortMappingEntry(urls.controlURL, data.first.servicetype,
 		std::to_string(port).c_str(), tcp ? "TCP" : "UDP", nullptr,
 		internalClient, internalPort, description, enabled, duration);
-
-	if (error == 0) {
-		// Mapping exists. Check if it's for our IP.
-		return strcmp(internalClient, lanAddress) == 0;
-	}
-
-	return false;
+	return error == 0 && strcmp(internalClient, lanAddress) == 0;
 }
 #endif

@@ -45,7 +45,7 @@ Option<int, false> UITheme("UITheme", 0);
 
 // Sound
 
-Option<bool> LimitFPS("aica.LimitFPS", true);
+Option<bool> LimitFPS("aica.LimitFPS", true); // gdxsv: an option, not a constant: replay and rollback turn it off
 Option<bool> DSPEnabled("aica.DSPEnabled", false);
 #if HOST_CPU == CPU_ARM
 Option<int> AudioBufferSize("aica.BufferSize", 5644);	// 128 ms
@@ -119,7 +119,7 @@ Option<bool> NativeDepthInterpolation("rend.NativeDepthInterpolation", true);
 Option<bool> NativeDepthInterpolation("rend.NativeDepthInterpolation", false);
 #endif
 Option<bool> EmulateFramebuffer("rend.EmulateFramebuffer", false);
-Option<int> FixedFrequency("rend.FixedFrequency", 0);
+Option<int> FixedFrequency("rend.FixedFrequency", 0); // gdxsv: fixed frame rate limiter (core/gdxsv/gdxsv_frame_limiter.cpp)
 Option<bool> FixUpscaleBleedingEdge("rend.FixUpscaleBleedingEdge", true);
 Option<bool> CustomGpuDriver("rend.CustomGpuDriver", false);
 Option<bool> FramePacing("rend.FramePacing", true);
@@ -236,6 +236,7 @@ std::array<std::array<Option<int>, 2>, 4> NetworkExpansionDevices{{
 Option<bool> PerGameVmu("PerGameVmu", true, "config");
 #ifdef _WIN32
 Option<bool, false> UseRawInput("RawInput", false, "input");
+// gdxsv: XInput and DirectInput switches; joystick polling from the emulation thread
 Option<bool, false> UseXInput("UseXInput", true, "input");
 Option<bool, false> UseDirectInput("UseDirectInput", true, "input");
 Option<bool, false> JoystickPolling("JoystickPolling", false, "input");

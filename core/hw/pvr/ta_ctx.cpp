@@ -4,7 +4,7 @@
 #include "Renderer_if.h"
 #include "serialize.h"
 #include "stdclass.h"
-#include "network/ggpo.h"
+#include "network/ggpo.h" // gdxsv: rollback time sync in QueueRender
 
 #include <mutex>
 #include <vector>
@@ -55,6 +55,7 @@ bool QueueRender(TA_context* ctx)
 	if (!skipFrame)
 	{
 		RenderCount++;
+		// gdxsv: fast-forward counts in frame skip; a rollback time sync skips one render every 30 frames
 		if (RenderCount % (1 + config::SkipFrame + settings.input.fastForwardMode) != 0)
 			skipFrame = true;
 		else if (ggpo::active() && RenderCount % 30 == 0 && ggpo::timeSyncFrames < 0) {

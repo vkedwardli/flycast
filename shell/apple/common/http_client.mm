@@ -20,6 +20,7 @@
 #include "oslib/http_client.h"
 #include "stdclass.h"
 
+// gdxsv: delegate of the asynchronous NSURLSession request in http::get
 @interface NSURLSessionHandler:NSObject <NSURLSessionDataDelegate, NSURLSessionDelegate, NSURLSessionTaskDelegate>
 - (void)setSemaphore:(dispatch_semaphore_t)sema;
 - (void)setContent:(std::vector<u8>&)content;
@@ -118,7 +119,7 @@ int get(const std::string& url, std::vector<u8>& content, const Headers *reqHead
 		}
 	}
 	
-	return [[handler httpResponse] statusCode];
+	return [[handler httpResponse] statusCode]; // gdxsv: content was filled by the handler
 }
 
 int post(const std::string& url, const char *payload, const char *contentType, std::vector<u8>& reply)

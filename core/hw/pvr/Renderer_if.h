@@ -55,12 +55,12 @@ struct Renderer
 	Renderer() {
 		EventManager::listen(Event::Terminate, onEvent, this);
 		EventManager::listen(Event::LoadState, onEvent, this);
-		EventManager::listen(Event::GGPOGameEnd, onEvent, this);
+		EventManager::listen(Event::GGPOGameEnd, onEvent, this); // gdxsv: caches reloaded after a rollback or replay session
 	}
 	virtual ~Renderer() {
 		EventManager::unlisten(Event::Terminate, onEvent, this);
 		EventManager::unlisten(Event::LoadState, onEvent, this);
-		EventManager::unlisten(Event::GGPOGameEnd, onEvent, this);
+		EventManager::unlisten(Event::GGPOGameEnd, onEvent, this); // gdxsv: caches reloaded after a rollback or replay session
 	}
 
 	virtual bool Init() = 0;

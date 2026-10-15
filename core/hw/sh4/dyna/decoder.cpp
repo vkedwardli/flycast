@@ -18,7 +18,7 @@
 #include "hw/sh4/modules/mmu.h"
 #include "decoder_opcodes.h"
 #include "cfg/option.h"
-#include "gdxsv/gdxsv_sh4_hooks.h"
+#include "gdxsv/gdxsv_config.h"	// gdxsv: slow idle loop hack
 
 #define BLOCK_MAX_SH_OPS_SOFT 500
 #define BLOCK_MAX_SH_OPS_HARD 511
@@ -1064,7 +1064,10 @@ _end:
 	
 	blk->guest_cycles = std::round(blk->guest_cycles * 200.f / std::max(1.f, (float)config::Sh4Clock));
 
-	gdxsv_sh4_block_cycles(blk->addr, blk->guest_cycles);
+	// gdxsv: slow idle loop hack, the game's idle loop block costs more cycles
+	if (config::GdxSlowIdleLoopHack
+			&& ((settings.gdxsv.disk == 1 && blk->addr == 0x0c2317fa) || (settings.gdxsv.disk == 2 && blk->addr == 0x0c2ccdba)))
+		blk->guest_cycles = 1448;
 
 	//make sure we don't use wayy-too-few cycles
 	blk->guest_cycles = std::max(1U, blk->guest_cycles);

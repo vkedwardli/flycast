@@ -365,7 +365,7 @@ static void gui_newFrame()
 }
 
 // SDL on-screen keyboard: Delay keys up by one frame to allow quick key presses.
-void gui_delayed_keys_up()
+void delayedKeysUp()
 {
 	ImGuiIO& io = ImGui::GetIO();
 	for (u32 i = 0; i < std::size(keysUpNextFrame); i++)
@@ -376,7 +376,7 @@ void gui_delayed_keys_up()
 
 static void gui_endFrame(bool gui_open) {
     imguiDriver->renderDrawData(ImGui::GetDrawData(), gui_open);
-    gui_delayed_keys_up();
+    delayedKeysUp();
 }
 
 void gui_setOnScreenKeyboardCallback(void (*callback)(bool show)) {
@@ -1108,7 +1108,7 @@ static void gui_display_onboarding()
 	select_file_popup(title, &systemdir_selected_callback);
 }
 
-static void drawBoxartBackground()
+void drawBoxartBackground()
 {
 	GameMedia game;
 	game.path = settings.content.path;
@@ -1117,11 +1117,6 @@ static void drawBoxartBackground()
 	ImguiFileTexture tex(art.boxartPath);
 	ImDrawList *dl = ImGui::GetBackgroundDrawList();
 	tex.draw(dl, ImVec2(0, 0), ImVec2(settings.display.width, settings.display.height), 1.f);
-}
-
-void gui_draw_boxart_background()
-{
-	drawBoxartBackground();
 }
 
 static std::future<bool> networkStatus;

@@ -101,7 +101,7 @@ int flycast_init(int argc, char* argv[])
 		{
 			LogManager::Init();
 			config::Settings::instance().load(false);
-			//gdxsv auto find content in cwd
+			// gdxsv: find content in the working directory
 			if (config::ContentPath.get().empty()) {
 				config::ContentPath.get().push_back("./");
 			}

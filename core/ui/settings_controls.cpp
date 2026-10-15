@@ -1102,10 +1102,11 @@ void gui_settings_controls(std::array<bool, 4>& mapleDevicesChanges, std::array<
 	OptionSlider(T("Mouse sensitivity"), config::MouseSensitivity, 1, 500);
 #if defined(_WIN32) && !defined(TARGET_UWP)
 	OptionCheckbox(T("Use Raw Input"), config::UseRawInput, T("Supports multiple pointing devices (mice, light guns) and keyboards"));
+	// gdxsv: XInput and DirectInput switches, joystick polling
 	ImGui::SameLine(0, uiScaled(16));
 	OptionCheckbox("Use XInput", config::UseXInput, "Enable XInput devices");
 	ImGui::SameLine(0, uiScaled(16));
-	OptionCheckbox("Use DirectInput", config::UseDirectInput, "Enable XInput devices");
+	OptionCheckbox("Use DirectInput", config::UseDirectInput, "Enable DirectInput devices");
 	OptionCheckbox("Joystick Polling", config::JoystickPolling,
 		"Use polling instead of events for joystick input. "
 		"May improve input latency for GGPO in multi-threaded mode.");

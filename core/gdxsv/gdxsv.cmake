@@ -261,6 +261,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_sh4_hooks.h
 		core/gdxsv/gdxsv.pb.cc
 		core/gdxsv/gdxsv.pb.h
+		core/gdxsv/gdxsv_audio.cpp
+		core/gdxsv/gdxsv_audio_hooks.h
 		core/gdxsv/gdxsv_custom_texture_source.cpp
 		core/gdxsv/gdxsv_custom_texture_source.h
 		core/gdxsv/gdxsv_custom_texture_update.cpp
@@ -269,6 +271,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_backend_replay.h
 		core/gdxsv/gdxsv_backend_rollback.cpp
 		core/gdxsv/gdxsv_backend_rollback.h
+		core/gdxsv/gdxsv_ggpo.cpp
+		core/gdxsv/gdxsv_ggpo.h
 		core/gdxsv/gdxsv_ggpo_hooks.cpp
 		core/gdxsv/gdxsv_ggpo_hooks.h
 		core/gdxsv/gdxsv_backend_tcp.cpp
@@ -279,8 +283,6 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_emu_hooks.h
 		core/gdxsv/gdxsv_frame_limiter.cpp
 		core/gdxsv/gdxsv_frame_limiter.h
-		core/gdxsv/gdxsv_sdl.cpp
-		core/gdxsv/gdxsv_sdl.h
 		core/gdxsv/gdxsv_gui_settings.cpp
 		core/gdxsv/gdxsv_gui_settings.h
 		core/gdxsv/gdxsv_https_latency.h

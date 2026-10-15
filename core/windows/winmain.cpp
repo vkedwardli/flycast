@@ -40,6 +40,7 @@
 #include "oslib/i18n.h"
 #include "dynlink.h"
 #ifdef USE_BREAKPAD
+// gdxsv: breakpad include path of the MSVC (clang-cl) build
 #ifdef _MSC_VER
 #include "client/windows/handler/exception_handler.h"
 #else
