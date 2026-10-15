@@ -59,13 +59,14 @@ replay/live API URLs: no case reaches a production server.
 | P1 / P1c | smoke | game patches rewritten within 2 vblanks after the original values are written back (Disc 1, 2) | 3 s |
 | L1 / L1c | smoke | translation patch: Disc 2 text per language | 6 s |
 | N1 / N1c | smoke | NAOMI version boots: game id, code at `0x0c020000` | 21 s |
-| R2 / R2c | smoke | newest Disc 2 replay plays to the end with the recorded winners | 110 s |
-| R1 | full | all corpus replays play to the end with the recorded winners | 470 s at `GDXSV_REPLAY_JOBS=5` |
-| W1 / W1c | full | widescreen matte edges and HUD offset per layout and viewport (formula of `WriteWidescreenPatch`) | 20 s |
-| I1 / I1c | full | 4-peer local rollback match at GGPO delay 2 and 4: peer 1's B press reaches the confirmed input buffer 2 vblanks later at delay 4 | 130 s |
+| R2 / R2c | smoke | newest Disc 2 replay plays to the end with the recorded winners | 110-150 s |
+| R1 | full | all corpus replays play to the end with the recorded winners | 470-520 s (4-5 replays in parallel) |
+| W1 / W1c | full | widescreen matte edges and HUD offset per layout and viewport (formula of `WriteWidescreenPatch`) | 10 s |
+| I1 / I1c | full | 4-peer local rollback match at GGPO delay 2 and 4: peer 1's B press reaches the confirmed input buffer 2 vblanks later at delay 4 | 130-260 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is
-written only when the emulator stops between frames.
+written only when the emulator stops between frames; W1c fails with it, since the
+values are stock.
 
 ## Adding a case
 
