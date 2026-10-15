@@ -18,7 +18,6 @@
 */
 #pragma once
 #include <future>
-#include <vector>
 #include <atomic>
 #include <string>
 
@@ -28,31 +27,6 @@ struct MapleInputState;
 
 namespace ggpo
 {
-struct NetworkStats {
-   struct {
-      int   send_queue_len;
-      int   recv_queue_len;
-      int   ping;
-      int   kbps_sent;
-      int   recv_packet_loss;
-      int   send_packet_loss;
-      int   is_relay;
-   } network;
-   struct {
-      int   local_frames_behind;
-      int   remote_frames_behind;
-   } timesync;
-   struct {
-	   int predicted_frames;
-   } sync;
-   struct {
-	   int total_rollbacked_frames;
-	   int total_timesync;
-	   int current_timesync;
-	   float current_fps;
-	   int input_block_count[3];
-   } extra;
-};
 
 std::future<bool> startNetwork();
 void startSession(int localPort, int localPlayerNum);
@@ -65,23 +39,7 @@ void endOfFrame();
 bool getCurrentFrame(int* frame);
 void sendChatMessage(int playerNum, const std::string& msg);
 void receiveChatMessages(void (*callback)(int playerNum, const std::string& msg));
-bool isConnected(int playerNum);
-void disconnect(int playerNum);
-void randomInput(bool enable, u64 seed, u32 inputMask);
-void getNetworkStats(int playerNum, NetworkStats* stats);
 bool poll();
-struct RelayServerAddr {
-	std::string ip;    // what this peer uses
-	std::string altIp; // the other IP family, or empty
-	u16 port;
-};
-
-std::future<bool> gdxsvStartNetwork(
-    const char* sessionCode, int me,
-    const std::vector<std::string>& ips,
-    const std::vector<u16>& ports,
-    const std::vector<u8>& relays,
-    const std::vector<RelayServerAddr>& relayServers);
 
 static inline bool isInRollback() {
 	extern bool inRollback;

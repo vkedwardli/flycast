@@ -71,7 +71,7 @@ u16 convertInput(MapleInputState input) {
 }
 
 void drawConnectionDiagram(int elapsed, const uint8_t matrix[4][4], const std::map<int, int>& pos_to_id);
-void drawNetworkStat(const proto::P2PMatching& matching, const std::array<ggpo::NetworkStats, 4>& stats,
+void drawNetworkStat(const proto::P2PMatching& matching, const std::array<GdxsvGgpoNetworkStats, 4>& stats,
 					 const std::array<bool, 4>& is_connected);
 }  // namespace
 
@@ -94,7 +94,7 @@ void GdxsvBackendRollback::DisplayOSD() {
 
 	if (osd_network_stat_ || osd_network_stat_countdown_) {
 		if (osd_network_stat_countdown_) osd_network_stat_countdown_--;
-		std::array<ggpo::NetworkStats, 4> stats;
+		std::array<GdxsvGgpoNetworkStats, 4> stats;
 		std::array<bool, 4> is_connected;
 		{
 			std::lock_guard<std::mutex> lock(net_stat_mutex_);
@@ -384,7 +384,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 			config::LimitFPS.override(false);
 			config::AudioBufferSize.override(2822);
 
-			std::vector<ggpo::RelayServerAddr> relay_servers;
+			std::vector<GdxsvGgpoRelayServerAddr> relay_servers;
 			for (int k = 0; k < relay_count; k++) {
 				sockaddr_storage use{}, alt{};
 				ping_pong_.GetRelayAddress(k, &use, &alt);
@@ -392,7 +392,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 				const auto [alt_ip, alt_port] = get_ip_port(alt);
 				relay_servers.push_back({ip, alt_ip, static_cast<u16>(matching_.relays(k).port())});
 			}
-			start_network_ = ggpo::gdxsvStartNetwork(matching_.battle_code().c_str(), matching_.peer_id(), ips, ports, relays,
+			start_network_ = gdxsv_ggpo_start_network(matching_.battle_code().c_str(), matching_.peer_id(), ips, ports, relays,
 													 relay_servers);
 			ggpo::receiveChatMessages(nullptr);
 			session_start_time = std::chrono::high_resolution_clock::now();
@@ -524,7 +524,7 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 			mask = strtoul(env, nullptr, 16);
 		}
 		NOTICE_LOG(COMMON, "RandomInput Seed=%d Mask=%04x", seed + me, mask);
-		ggpo::randomInput(true, seed + me, mask);
+		gdxsv_ggpo_random_input(true, seed + me, mask);
 	}
 	// Team vitals (Renpo, Zeon), little endian. VITAL=600 for a full-length battle.
 	const int vital = getenv("VITAL") ? atoi(getenv("VITAL")) : 1;
@@ -742,7 +742,7 @@ void GdxsvBackendRollback::OnNextFrame() {
 			if (battle_end_frame_ <= ConfirmedFrame()) {
 				SetCloseReason("game_end");
 				disconnect_frame_ = frame;
-				ggpo::disconnect(matching_.peer_id());
+				gdxsv_ggpo_disconnect(matching_.peer_id());
 				state_ = State::CloseWait;
 			}
 		} else {
@@ -771,18 +771,18 @@ int GdxsvBackendRollback::ConfirmedFrame() {
 	if (!ggpo::getCurrentFrame(&current_frame)) {
 		return -1;
 	}
-	ggpo::NetworkStats stats{};
-	ggpo::getNetworkStats(matching_.peer_id(), &stats);
+	GdxsvGgpoNetworkStats stats{};
+	gdxsv_ggpo_get_network_stats(matching_.peer_id(), &stats);
 	return current_frame - stats.sync.predicted_frames;
 }
 
 void GdxsvBackendRollback::UpdateNetworkStatSnapshot() {
-	std::array<ggpo::NetworkStats, 4> stats{};
+	std::array<GdxsvGgpoNetworkStats, 4> stats{};
 	std::array<bool, 4> connected{};
 	const int n = std::min(matching_.users_size(), 4);
 	for (int i = 0; i < n; i++) {
-		ggpo::getNetworkStats(i, &stats[i]);
-		connected[i] = ggpo::isConnected(i);
+		gdxsv_ggpo_get_network_stats(i, &stats[i]);
+		connected[i] = gdxsv_ggpo_is_connected(i);
 	}
 	std::lock_guard<std::mutex> lock(net_stat_mutex_);
 	net_stats_ = stats;
@@ -939,7 +939,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 		if (60 * 4 <= start_button_counter_) {
 			for (int i = 0; i < matching_.player_count(); ++i) {
-				ggpo::disconnect(matching_.peer_id());
+				gdxsv_ggpo_disconnect(matching_.peer_id());
 			}
 			error_fast_return_ = true;
 		}
@@ -948,7 +948,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	// Disconnect check
 	if (ggpo::active() && !(gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 2)) {
 		for (int i = 0; i < matching_.player_count(); ++i) {
-			if (!ggpo::isConnected(i)) {
+			if (!gdxsv_ggpo_is_connected(i)) {
 				char buf[256] = {0};
 				const auto& user = matching_.users(i);
 				snprintf(buf, sizeof(buf), "player_disconnect peer=%d fr=%d ID=%s HN=%s PN=%s", i, frame, user.user_id().c_str(),
@@ -1139,9 +1139,9 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 		if (0 < frame && frame % 600 == 0) {
 			auto me = matching_.peer_id();
-			ggpo::NetworkStats stats{};
+			GdxsvGgpoNetworkStats stats{};
 			if (ggpo::active()) {
-				ggpo::getNetworkStats(me, &stats);
+				gdxsv_ggpo_get_network_stats(me, &stats);
 				report_.add_fps_history(stats.extra.current_fps);
 				report_.set_total_timesync(stats.extra.total_timesync);
 				report_.set_input_block_count_0(stats.extra.input_block_count[0]);
@@ -1652,7 +1652,7 @@ std::array<int, N> sortedSamples(const std::array<int, N>& samples, int count) {
 }
 
 ConnectionHealth updateConnectionHealth(ConnectionHealthTracker& tracker,
-										const ggpo::NetworkStats& stats) {
+										const GdxsvGgpoNetworkStats& stats) {
 	const double now = ImGui::GetTime();
 	const int loss_from = stats.network.recv_packet_loss;
 	const int loss_to = stats.network.send_packet_loss;
@@ -1849,7 +1849,7 @@ void drawFramePacingMeter(int local_frames_behind, float requested_width = -1.f)
 	ImGui::Dummy(ImVec2(width, height));
 }
 
-void drawNetworkDiagnostics(int player, const ggpo::NetworkStats& stats, bool connected) {
+void drawNetworkDiagnostics(int player, const GdxsvGgpoNetworkStats& stats, bool connected) {
 	static bool loss_initialized[4] = {};
 	static int previous_loss_from[4] = {};
 	static int previous_loss_to[4] = {};
@@ -1995,7 +1995,7 @@ void drawNetworkPlayerName(const std::string& text, bool bold) {
 }
 
 void drawNetworkPlayerHeading(int player, const proto::BattleLogUser& user,
-							  const ggpo::NetworkStats& stats, bool connected, bool show_details) {
+							  const GdxsvGgpoNetworkStats& stats, bool connected, bool show_details) {
 	const ImVec2 pos = ImGui::GetCursorScreenPos();
 	const float width = ImGui::GetContentRegionAvail().x;
 	// Keep the player position and ID in the separator, with both names below.
@@ -2043,7 +2043,7 @@ void drawNetworkPlayerHeading(int player, const proto::BattleLogUser& user,
 	drawNetworkPlayerName(user.pilot_name(), false);
 }
 
-void drawNetworkStat(const proto::P2PMatching& matching, const std::array<ggpo::NetworkStats, 4>& stats,
+void drawNetworkStat(const proto::P2PMatching& matching, const std::array<GdxsvGgpoNetworkStats, 4>& stats,
 					 const std::array<bool, 4>& is_connected) {
 	auto me = matching.peer_id();
 
