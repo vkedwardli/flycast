@@ -1105,7 +1105,7 @@ void gui_settings_controls(std::array<bool, 4>& mapleDevicesChanges, std::array<
 	ImGui::SameLine(0, uiScaled(16));
 	OptionCheckbox("Use XInput", config::UseXInput, "Enable XInput devices");
 	ImGui::SameLine(0, uiScaled(16));
-	OptionCheckbox("Use DirectInput", config::UseDirectInput, "Enable XInput devices");
+	OptionCheckbox("Use DirectInput", config::UseDirectInput, "Enable DirectInput devices");
 	OptionCheckbox("Joystick Polling", config::JoystickPolling,
 		"Use polling instead of events for joystick input. "
 		"May improve input latency for GGPO in multi-threaded mode.");
