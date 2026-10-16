@@ -388,7 +388,11 @@ void gdxsv_emu_settings_gdxsv_tab() { gdxsv_gui_settings_tab(); }
 
 void gdxsv_emu_settings_video() { gdxsv_gui_settings_video(); }
 
-void gdxsv_emu_apply_base_settings() { gdxsv_apply_base_settings(); }
+void gdxsv_emu_apply_base_settings() {
+	gdxsv_apply_base_settings();
+	// Into the new config file: loading a game resets the options to what the file holds.
+	config::Settings::instance().save();
+}
 
 const char* gdxsv_emu_settings_text_for_preparing_font() { return gdxsv_gui_settings_text_for_preparing_font(); }
 
