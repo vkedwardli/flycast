@@ -750,6 +750,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 		ProcessMcsMessage(McsMessage::Create(McsMessage::MsgType::StartMsg, pov_));
 	}
 	FollowMultiPovHost();
+	// gdxsv:replay_takeover_frame: what the pause menu's Take Over does, once
+	// playback (not a seek, not a queued jump) has reached that input.
+	if (0 < takeover_frame_ && takeover_frame_ <= key_msg_count_ && state_ == State::McsInBattle && IsInGame() &&
+		!seeking_ && !pause_menu_opend_ && ctrl_commands_.empty()) {
+		takeover_frame_ = 0;
+		ui_commands_.emplace_back(ReplayCtrlCommand::TogglePauseMenu);
+		ui_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+	}
 	ProcessUiCommands();
 	if (state_ != State::End) {
 		UpdateReplayFlow();
@@ -1392,7 +1400,10 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			ctrl_commands_.pop_front();
 			gdxsv.key_display_.Clear();
 
-			if (target_round_ > 1) {
+			// The first round can queue two SeekToBriefing (waiting for the join, then at StartMsg).
+			// A second jump would load the state again after SendStartMsg filled recv_buf_.
+			if (ctrl_commands_.contains(ReplayCtrlCommand::SetRound) || ctrl_commands_.contains(ReplayCtrlCommand::JumpToKeyMsg)) {
+			} else if (target_round_ > 1) {
 				BeginLoadingHud();
 				ctrl_commands_.emplace_back(ReplayCtrlCommand::SetRound, target_round_);
 			} else if (target_frame_ != 0) {
@@ -1667,6 +1678,7 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	
 	target_round_ = config::loadInt("gdxsv", "replay_target_round", 0);
 	target_frame_ = config::loadInt("gdxsv", "replay_target_frame", 0);
+	takeover_frame_ = config::loadInt("gdxsv", "replay_takeover_frame", 0);
 
 	return Start();
 }
@@ -1900,6 +1912,8 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 }
 
 void GdxsvBackendReplay::Stop() {
+	// gdxsv_tests reads how far playback got from this line.
+	NOTICE_LOG(COMMON, "replay stopped at key_msg_count_ %d of %d", key_msg_count_, log_file_.inputs_size());
 	live_initial_catchup_ = false;
 	config::FixedFrequency.load();
 	config::LimitFPS.load();

@@ -57,8 +57,12 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `ReplayFourScreen` | no | `replay` as a four-screen replay (four processes) |
 | `replay_target_round` | 0 | start `replay` at this round |
 | `replay_target_frame` | 0 | start `replay` at this input index |
+| `replay_takeover_frame` | 0 | take over `replay` (pause menu's Take Over) once it plays this input index |
 | `ReplayApiUrl` | lobby API | where replays are listed and fetched |
 | `LiveApiUrl` | lobby API | where live battles are listed (`/status`) |
+| `UdpTestUrl` | gdxsv cloud function | P2P test: asked to send a UDP packet to this client's public address |
+| `PublicIpUrl` | empty (ipify, seeip) | returns this client's public IP as text; replaces the IPv4 and IPv6 lists |
+| `LatencyHost` | empty (Cloud Run regions) | `host[:port]` every region's HTTPS latency test uses instead |
 | `UpdateCheckUrl` | GitHub latest release | release JSON the startup update check reads |
 | `LiveBufferFrames` | 30 | spectating: frames kept behind the live edge (10 to 3600) |
 | `MultiPovVolume` | 50 | four-screen replay: volume of each instance, 0 to 100 |

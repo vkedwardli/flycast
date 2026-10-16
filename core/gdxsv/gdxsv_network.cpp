@@ -6,6 +6,7 @@
 #include <random>
 #include <thread>
 
+#include "cfg/cfg.h"
 #include "oslib/http_client.h"
 #include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv.h"
@@ -40,12 +41,14 @@ static std::vector<std::string> v4_urls = {"https://api.ipify.org", "https://ipv
 static std::vector<std::string> v6_urls = {"https://api64.ipify.org", "https://api.seeip.org"};
 
 std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6) {
-	return std::async(std::launch::async, [ipv6]() -> std::pair<bool, std::string> {
+	// Tests point this at a local server.
+	const std::string override_url = config::loadStr("gdxsv", "PublicIpUrl", "");
+	const auto urls = override_url.empty() ? (ipv6 ? v6_urls : v4_urls) : std::vector<std::string>{override_url};
+	return std::async(std::launch::async, [ipv6, urls]() -> std::pair<bool, std::string> {
 		std::vector<u8> myip;
 		std::string dummy;
 		http::init();
 
-		const auto urls = ipv6 ? v6_urls : v4_urls;
 		int rc = 0;
 		for (const auto &url : urls) {
 			rc = http::get(url, myip, dummy);
@@ -72,7 +75,8 @@ static bool run_udp_reachability_test(UdpClient &udp, int port, const std::strin
 
 	std::vector<http::PostField> fields;
 	fields.emplace_back("addr", myip + ":" + std::to_string(port));
-	int rc = http::post("https://asia-northeast1-gdxsv-274515.cloudfunctions.net/udptest", fields);
+	int rc = http::post(config::loadStr("gdxsv", "UdpTestUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/udptest"),
+						fields);
 	if (!http::success(rc)) return false;
 
 	for (int t = 0; t < 30; t++) {
@@ -282,7 +286,9 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 }
 
 std::future<std::map<std::string, int>> gcp_ping_test() {
-	auto fn = []() -> std::map<std::string, int> {
+	// Tests point every region at one local host.
+	const std::string override_host = config::loadStr("gdxsv", "LatencyHost", "");
+	auto fn = [override_host]() -> std::map<std::string, int> {
 		std::map<std::string, int> test_result;
 
 		// powered by https://github.com/GoogleCloudPlatform/gcping
@@ -313,8 +319,9 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 		};
 
 		// Function to test a single region
-		auto test_region = [&get_path](const std::tuple<std::string, std::string, std::string> &region_host) -> std::pair<std::string, int> {
-			const GdxsvHttpsLatencyResult latency = measureGdxsvHttpsLatency(std::get<1>(region_host), get_path, 3);
+		auto test_region = [&get_path, &override_host](const std::tuple<std::string, std::string, std::string> &region_host) -> std::pair<std::string, int> {
+			const std::string &host = override_host.empty() ? std::get<1>(region_host) : override_host;
+			const GdxsvHttpsLatencyResult latency = measureGdxsvHttpsLatency(host, get_path, 3);
 			for (size_t i = 0; i < latency.attempts_ms.size(); i++)
 			{
 				const int rtt = latency.attempts_ms[i];
