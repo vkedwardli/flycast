@@ -58,6 +58,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | `lib/case.py` | case registry, `Ctx.probe` (one instance with a Lua script), `result` |
 | `lib/assets.py` | ROM, savestate and replay paths |
 | `lib/hashlog.py`, `lib/replayfile.py` | per-frame hash logs; replay protobuf (round results, input cut, field encoding) |
+| `lib/image.py`, `golden/` | screen grabs of a window, white-text masks compared with small 1-bit golden images |
 | `lua/e2e.lua` | helpers joined in front of every case script: frame waits, input, RAM reads, `E2E key=value` lines to `e2e.log` |
 | `cases/*.py` | the cases |
 | `corpus/replays.json` | replays of every format, with sha256 and the winners per round |
@@ -88,6 +89,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | V4 / V4c | full | `ReplayHideName`: the battle names the players ＰＩＬＯＴ０1-4 (`0x0c3d1b04`, 16 bytes each) (V4c: recorded names) | 5 s |
 | V5 / V5c | full | `ReplayFourScreen=yes` in a window: the host starts 3 guests (one sync group); POV bytes per screen (guests write `e2e_pov<N>.log` via `lua/fourscreen.lua` in `emu.cfg`) are players 1-4; each guest log joined the host's group and plays its replay (V5c: no four-screen, every guest check fails) | 57 s |
 | V6 / V6c | full | `replay_target_frame=3000 replay_takeover_frame=3000` in a window (the countdown runs from the pause-menu render): `StartTakeover` at the newest saved state before 3000 (within 60); `lua/takeover.lua` holds B X Y C Z (MCS 0xb003, in no corpus replay) and InetBuf shows it 60 vblanks in a row; START: `RetryTakeover` at the same input, then the mask again (V6c: no option, every takeover check fails) | 13 s / 28 s |
+| G1 / G1c | full | `cases/osd.py`: the 4-peer local match in 640x480 windows; peer 1's client area is grabbed from the screen every 2 s (Windows only, raised to the top; elsewhere `SKIP`). The near-white pixels of the panel's label column (Delay, Roll, player names, Ping, Lag) cover >= 0.5 of `golden/net_osd_labels.png`'s in at least 5 grabs (measured: 0.64-1.00 in battle, 0.00-0.04 without the panel) (G1c: `network:Stats=no`, in no grab) | 68 s / 61 s |
 | K1 / K1c | full | `replay_target_frame=6000` with and without `SkipRenderingHack`: both land on input 6000 and play every round with the recorded winners; the hack seeks under 0.85 x the ms per frame (`JumpToKeyMsg` log line; windows-mini 2.0 vs 3.2) (K1c: off in both runs) | 410 s |
 | F1 / F1c | full | `config:rend.FixedFrequency` 2, 4, 5 from the lobby savestate: 600 vblanks timed by the wall clock (`lua/rate.lua` marks, 10 ms poll) at 59.94, 50, 30 fps within 2 % (measured 59.91, 50.01, 30.00); F1c: `FixedFrequency=0 LimitFPS=no` ran 956 fps, the 59.94 check fails | 53 s / 2 s |
 | H1 / H1c | full | `SlowIdleLoopHack` yes vs no, `LimitFPS=no` from the lobby savestate, 6000 vblanks timed like F1: the hack over 2 x the fps (measured 931-981 vs 318-333) (H1c: off in both runs) | 27 s / 39 s |

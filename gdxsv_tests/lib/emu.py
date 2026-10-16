@@ -198,6 +198,38 @@ def hung_windows(pids: List[int]) -> Dict[int, Optional[bool]]:
     return found
 
 
+def window_rect(pid: int) -> Optional[tuple]:
+    """The screen box (left, top, right, bottom) of pid's window client area, raised to
+    the top so a screen grab of it shows the emulator; None if it has no visible window.
+    Windows only (NotImplementedError elsewhere): a grab of the window itself is black,
+    its surface is OpenGL/DirectX."""
+    if not IS_WINDOWS:
+        raise NotImplementedError("window_rect: Windows only")
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware()  # screen pixels, the same as the grab's
+    hwnds: List[int] = []
+    proc_t = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def visit(hwnd, _):
+        p = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(p))
+        if p.value == pid and user32.IsWindowVisible(ctypes.c_void_p(hwnd)):
+            hwnds.append(hwnd)
+        return True
+
+    user32.EnumWindows(proc_t(visit), None)
+    if not hwnds:
+        return None
+    hwnd = ctypes.c_void_p(hwnds[0])
+    # HWND_TOPMOST, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+    user32.SetWindowPos(hwnd, ctypes.c_void_p(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10)
+    r, pt = wintypes.RECT(), wintypes.POINT(0, 0)
+    user32.GetClientRect(hwnd, ctypes.byref(r))
+    user32.ClientToScreen(hwnd, ctypes.byref(pt))
+    return (pt.x, pt.y, pt.x + r.right, pt.y + r.bottom)
+
+
 def suspend(pid: int, on: bool) -> None:
     """Freeze (on=True) or resume a process, every thread of it."""
     if not IS_WINDOWS:
