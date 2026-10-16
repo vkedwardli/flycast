@@ -750,6 +750,14 @@ void GdxsvBackendReplay::OnNextFrame() {
 		ProcessMcsMessage(McsMessage::Create(McsMessage::MsgType::StartMsg, pov_));
 	}
 	FollowMultiPovHost();
+	// gdxsv:replay_takeover_frame: what the pause menu's Take Over does, once
+	// playback (not a seek, not a queued jump) has reached that input.
+	if (0 < takeover_frame_ && takeover_frame_ <= key_msg_count_ && state_ == State::McsInBattle && IsInGame() &&
+		!seeking_ && !pause_menu_opend_ && ctrl_commands_.empty()) {
+		takeover_frame_ = 0;
+		ui_commands_.emplace_back(ReplayCtrlCommand::TogglePauseMenu);
+		ui_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
+	}
 	ProcessUiCommands();
 	if (state_ != State::End) {
 		UpdateReplayFlow();
@@ -1667,6 +1675,7 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	
 	target_round_ = config::loadInt("gdxsv", "replay_target_round", 0);
 	target_frame_ = config::loadInt("gdxsv", "replay_target_frame", 0);
+	takeover_frame_ = config::loadInt("gdxsv", "replay_takeover_frame", 0);
 
 	return Start();
 }
