@@ -87,9 +87,11 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | M1 / M1c | full | `ConnectionMedium=Wireless`: `wireless warning shown`; `VPN: e2e`: `VPN warning shown: VPN: e2e` (M1c: `Wired`, neither) | 3 s / 3 s |
 | S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
 
-W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is
-written only when the emulator stops between frames; W1c fails with it, since the
-values are stock.
+W1 and W1c are known failures (`known_failure=`, reported `KNOWN`, exit code 0): on
+the default `rend.ThreadedRendering=yes` the widescreen patch is written only when the
+emulator stops between frames, so W1 reads stock values and W1c's check passes. With
+`ThreadedRendering=no` both pass, and the runner reports `known failure passed: drop
+the mark`. The fix is postponed: it may move the other patches' timing too.
 
 ## Adding a case
 
@@ -100,3 +102,4 @@ values are stock.
 - Judge by RAM values, logs and hash logs; an image only for what is visual by
   nature, cropped and downscaled into `golden/`.
 - Add a control and name both in `docs/gdxsv/features.md`.
+- A failure a human chose not to fix yet: `known_failure="<why>"` on the case (and its control).

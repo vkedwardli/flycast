@@ -4,6 +4,8 @@ A case is a function in cases/*.py decorated with @case. It gets a Ctx and retur
 dict with "status" ("pass" or "fail") and whatever details explain the result; raising
 Skip marks it skipped (missing ROM). A control case (control_of=<id>) runs its case's
 check on input where the feature is absent and passes when the check catches it.
+A case with known_failure=<reason> fails for a reason not fixed yet: the runner reports
+that failure as "known" (exit code 0) and flags a pass, so the mark gets dropped.
 """
 
 import json
@@ -21,20 +23,23 @@ CASES: Dict[str, "Case"] = {}
 
 
 class Case:
-    def __init__(self, id: str, title: str, tier: str, fn, control_of: Optional[str]):
+    def __init__(self, id: str, title: str, tier: str, fn, control_of: Optional[str],
+                 known_failure: Optional[str] = None):
         self.id = id
         self.title = title
         self.tier = tier
         self.fn = fn
         self.control_of = control_of
+        self.known_failure = known_failure
 
 
-def case(id: str, title: str, tier: str = "full", control_of: Optional[str] = None):
+def case(id: str, title: str, tier: str = "full", control_of: Optional[str] = None,
+         known_failure: Optional[str] = None):
     assert tier in ("smoke", "full"), tier
 
     def register(fn):
         assert id not in CASES, id
-        CASES[id] = Case(id, title, tier, fn, control_of)
+        CASES[id] = Case(id, title, tier, fn, control_of, known_failure)
         return fn
     return register
 

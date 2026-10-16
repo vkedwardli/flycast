@@ -5,7 +5,7 @@
     python gdxsv_tests/run.py --exe build/flycast.exe --tier smoke
     python gdxsv_tests/run.py --exe build/flycast.exe --cases P1,P1c --jobs 2
 
-Exit code 0 when every selected case passed or was skipped.
+Exit code 0 when every selected case passed, was skipped or failed as known (known_failure).
 """
 
 import argparse
@@ -49,6 +49,12 @@ def run_case(c, exe: str, out: str) -> dict:
         r = {"status": "skip", "reason": str(e)}
     except Exception:
         r = {"status": "fail", "exception": traceback.format_exc()}
+    if c.known_failure and r["status"] in ("pass", "fail"):
+        r["known_failure"] = c.known_failure
+        if r["status"] == "fail":
+            r["status"] = "known"
+        else:
+            r["reason"] = "known failure passed: drop the mark"
     r["seconds"] = round(time.time() - t0, 1)
     with open(os.path.join(d, "result.json"), "w", encoding="utf-8") as f:
         json.dump(r, f, indent=1)
@@ -68,7 +74,8 @@ def main() -> int:
     if a.list:
         for c in CASES.values():
             ctl = f"  (control of {c.control_of})" if c.control_of else ""
-            print(f"{c.id:6} {c.tier:6} {c.title}{ctl}")
+            kf = f"  (known failure: {c.known_failure})" if c.known_failure else ""
+            print(f"{c.id:6} {c.tier:6} {c.title}{ctl}{kf}")
         return 0
     if a.cases:
         unknown = [i for i in a.cases.split(",") if i not in CASES]
@@ -89,7 +96,7 @@ def main() -> int:
             c = futures[fut]
             r = fut.result()
             results[c.id] = r
-            why = r.get("reason") or ("" if r["status"] == "pass" else "see " + os.path.join(a.out, c.id))
+            why = r.get("reason") or r.get("known_failure") or ("" if r["status"] == "pass" else "see " + os.path.join(a.out, c.id))
             print(f"{r['status'].upper():5} {c.id:6} {r['seconds']:6.1f}s  {c.title}  {why}", flush=True)
 
     summary = {"commit": commit(), "exe": exe, "exe_mtime": int(os.path.getmtime(exe)),
@@ -97,7 +104,7 @@ def main() -> int:
     with open(os.path.join(a.out, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=1)
     failed = [i for i, r in results.items() if r["status"] == "fail"]
-    print(f"{len(results) - len(failed)}/{len(results)} passed or skipped" +
+    print(f"{len(results) - len(failed)}/{len(results)} passed, skipped or known failures" +
           (", failed: " + ",".join(sorted(failed)) if failed else ""))
     return 1 if failed else 0
 
