@@ -60,6 +60,7 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
 | C2c | Control of C2 | as C2, no peer killed, 1 run | C2 fails on "no StartNetwork timeout" |
 | C3 | Re-battle cancel ends the match | `RAND_MASK=06F6`, `MAXREBATTLE=3`, `GGPO_TEST_LOG=1`; headless and windowed | all peers enter scene 4/3 on the same frame and are in CloseWait at 4/4; common checks |
+| C3c | Control of C3 | as C3 headless, `GGPO_TEST_NO_REBATTLE_CANCEL=1` | C3 fails on "not in CloseWait at the friend save scene" |
 | D1 | Malformed packets | ~45 s of `fuzz.py` during the battle (oversized AppData/Input, truncated, unknown types, bogus relays), `GGPO_TEST_LOG=1` | a peer logs `RBKTEST malformed drop` (relayed malformed AppData); common checks |
 | D1c | Control of D1 | as D1, the fuzzer sends to ports 50 above the peers' | D1 fails on "no peer dropped a malformed packet" |
 | D2 | Relay in use | `TEST_RELAY=single` | p1 picks the relay (`Relay:1`), p2 forwards, common checks |
@@ -94,6 +95,7 @@ These do nothing unless set.
 | `GGPO_TEST_NO_SKIP_REPLAY` | A rollback does not replay the timesync skips after its seek frame (control of B1) | local test |
 | `TEST_GGPO_DELAY` | Fixed input delay in frames instead of one derived from the ping test, so a large `GGPO_NETWORK_DELAY` means deep prediction rather than more delay | local test |
 | `TEST_FAKE_TIMESYNC` | Peer 0 takes a timesync skip every K frames (K = value), as a peer whose clock runs fast does. Peers on one machine rarely get them | local test |
+| `GGPO_TEST_NO_REBATTLE_CANCEL` | The re-battle-cancel scene does not close the match (control of C3) | local test |
 | `TEST_SPECTATOR_LBS` | Streams the peers' confirmed inputs to a local lbs (`ip:port`) started with `-spectator_test_session` | local test |
 | `TEST_SPECTATOR_UPLINK` | Which peer lbs would ask to stream (peer number, default 1), or `all` as clients from before lbs picked one did | local test |
 | `TEST_UPLINK_ROUND_DELAY` | Sends round starts to lbs N frames late, so spectators reach StartMsg before the round's start index | local test |

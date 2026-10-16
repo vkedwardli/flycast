@@ -89,6 +89,7 @@ Tests only; they do nothing unless set. Effects are in
 |---|---|
 | `GGPO_NETWORK_DELAY`, `GGPO_TEST_LOG`, `GGPO_TEST_NO_SKIP_REPLAY` | any GGPO session |
 | `GGPO_DELAY` | GGPO input delay 0 to 64, over the setting |
+| `GGPO_TEST_NO_REBATTLE_CANCEL` | `rbk_test` match (control of rollback case C3) |
 | `VITAL`, `MAXREBATTLE`, `RAND_MASK`, `RBK_SAVE_REPLAY`, `TEST_PORT_BASE`, `TEST_GGPO_DELAY`, `TEST_FAKE_TIMESYNC` | `rbk_test` match |
 | `TEST_RELAY`, `TEST_RELAY_SERVER`, `TEST_RELAY_TOKEN`, `TEST_RELAY_IPV6` | `rbk_test` relays |
 | `TEST_SPECTATOR_LBS`, `TEST_SPECTATOR_UPLINK`, `TEST_UPLINK_ROUND_DELAY` | `rbk_test` live uplink |

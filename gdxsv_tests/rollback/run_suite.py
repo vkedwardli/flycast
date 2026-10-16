@@ -261,8 +261,8 @@ def c2_control(s: Settings) -> Result:
     return control(*_c2(s, "C2c", 1, False), ("no StartNetwork timeout",))
 
 
-def _rebattle_cancel(s: Settings, tag: str, headless: bool) -> Tuple[List[str], List[str]]:
-    env = {"RAND_MASK": "06F6", "MAXREBATTLE": "3", "GGPO_TEST_LOG": "1"}
+def _rebattle_cancel(s: Settings, tag: str, headless: bool, extra_env=None) -> Tuple[List[str], List[str]]:
+    env = dict(extra_env or {}, RAND_MASK="06F6", MAXREBATTLE="3", GGPO_TEST_LOG="1")
     m = lib.run_match(s, tag, [s.exe] * 4, DELAYS_SPREAD, env=env, headless=headless)
     bad = common(m)
     cancel_frames = set()
@@ -289,6 +289,10 @@ def c3_rebattle_cancel(s: Settings) -> Result:
     if not bad and any("never reached" in n for n in notes):
         return INCONCLUSIVE, notes
     return verdict(bad, notes)
+
+
+def c3_control(s: Settings) -> Result:
+    return control(*_rebattle_cancel(s, "C3c", True, {"GGPO_TEST_NO_REBATTLE_CANCEL": "1"}), ("not in CloseWait",))
 
 
 # --- D. Network robustness ---------------------------------------------------
@@ -567,6 +571,7 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
     "C2c": ("control: C2 with no peer killed, no start timeout", c2_control, 1, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),
+    "C3c": ("control: C3 headless with GGPO_TEST_NO_REBATTLE_CANCEL, no CloseWait", c3_control, 2, False),
     "D1": ("malformed packet fuzzing during a match", d1_fuzz, 1, False),
     "D1c": ("control: D1 with the fuzzer on ports no peer uses, no malformed drop logged", d1_control, 1, False),
     "D2": ("relay path in use", d2_relay, 1, False),

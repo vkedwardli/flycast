@@ -138,6 +138,7 @@ void GdxsvBackendRollback::Reset() {
 	battle_end_frame_ = -1;
 	disconnect_frame_ = 0;
 	test_log_ = getenv("GGPO_TEST_LOG") != nullptr;
+	test_no_cancel_ = getenv("GGPO_TEST_NO_REBATTLE_CANCEL") != nullptr;
 	last_scene_ = -1;
 	{
 		std::lock_guard<std::mutex> lock(net_stat_mutex_);
@@ -734,7 +735,7 @@ void GdxsvBackendRollback::OnNextFrame() {
 
 	// Re-battle cancelled. Entering this scene depends on the players' menu input, so the frame it shows up on may
 	// still be a prediction; disconnecting cannot be undone, so wait until that frame is confirmed.
-	if (state_ != State::CloseWait) {
+	if (state_ != State::CloseWait && !test_no_cancel_) {
 		if (scene == 4 && sub_scene == 3) {
 			if (battle_end_frame_ < 0) {
 				battle_end_frame_ = frame;

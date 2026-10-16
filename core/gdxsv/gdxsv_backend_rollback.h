@@ -100,6 +100,8 @@ class GdxsvBackendRollback {
 
 	// GGPO_TEST_LOG: log scene changes for gdxsv_tests/rollback.
 	bool test_log_ = false;
+	// GGPO_TEST_NO_REBATTLE_CANCEL: the re-battle-cancel scene does not close the match (control of rollback case C3).
+	bool test_no_cancel_ = false;
 	int last_scene_ = -1;
 
 	// Network stats copied on the emulation thread for the OSD. The UI thread must not call into GGPO: the emu
