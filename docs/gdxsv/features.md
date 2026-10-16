@@ -47,7 +47,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Compatibility with older releases | always | `run_suite.py` A3, A4 (`--old-release`, `--older-release`) | A3c, A4c |
 | Timesync skips replayed in a rollback | always | `run_suite.py` B1 (`GGPO_TEST_LOG=1`) | none |
 | Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | C1c, C2c |
-| Malformed packets dropped | always | `run_suite.py` D1 (`fuzz.py`) | none |
+| Malformed packets dropped | always | `run_suite.py` D1 (`fuzz.py`) | D1c |
 | Local test match without servers | `gdxsv:rbk_test=N/4`, `gdxsv:rand_input=SEED` | it is the tool of the cases above | none |
 | SH4 `fmac` as `fmul` + `fadd` on every CPU and backend (same results across hosts) | CMake `GDXSV_FP_COMPAT` (on) | none | none |
 

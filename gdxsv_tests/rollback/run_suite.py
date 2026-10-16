@@ -281,21 +281,34 @@ def c3_rebattle_cancel(s: Settings) -> Result:
 # --- D. Network robustness ---------------------------------------------------
 
 def d1_fuzz(s: Settings) -> Result:
+    return verdict(*_d1(s, "D1", 0))
+
+
+def d1_control(s: Settings) -> Result:
+    return control(*_d1(s, "D1c", 50), ("no peer dropped a malformed packet",))
+
+
+def _d1(s: Settings, tag: str, port_offset: int) -> Tuple[List[str], List[str]]:
+    """port_offset 50 aims the fuzzer at ports no peer listens on."""
     sent = []
 
     def attack(m: Match):
-        base = lib.port_base()
+        base = lib.port_base() + port_offset
 
         def body():
             if lib.wait_for_log(m, 1, "StartMsg Join", 120):
                 sent.append(fuzz.run(45, base))
         threading.Thread(target=body, daemon=True).start()
 
-    m = lib.run_match(s, "D1", [s.exe] * 4, DELAYS, on_start=attack)
+    m = lib.run_match(s, tag, [s.exe] * 4, DELAYS, on_start=attack, env={"GGPO_TEST_LOG": "1"})
     bad = common(m)
     if not sent:
         bad.append("fuzzer never started")
-    return verdict(bad, [summary(m), f"malformed packets sent: {sent[0] if sent else 0}"])
+    # Only relays of malformed messages (fuzz.py kind 5) get past the sender check, to the length checks.
+    drops = [p.log.count("RBKTEST malformed drop") for p in m.peers]
+    if not any(drops):
+        bad.append("no peer dropped a malformed packet")
+    return bad, [summary(m), f"malformed packets sent: {sent[0] if sent else 0}, drop log lines per peer: {drops}"]
 
 
 def _d2(s: Settings, tag: str, env: Dict[str, str]) -> Tuple[List[str], List[str]]:
@@ -541,6 +554,7 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "C2c": ("control: C2 with no peer killed, no start timeout", c2_control, 1, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),
     "D1": ("malformed packet fuzzing during a match", d1_fuzz, 1, False),
+    "D1c": ("control: D1 with the fuzzer on ports no peer uses, no malformed drop logged", d1_control, 1, False),
     "D2": ("relay path in use", d2_relay, 1, False),
     "D2c": ("control: D2 with no TEST_RELAY, no relay picked", d2_control, 1, False),
     "D3": ("relay loop is cut", d3_relay_loop, 2, False),

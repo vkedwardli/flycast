@@ -59,7 +59,8 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
 | C2c | Control of C2 | as C2, no peer killed, 1 run | C2 fails on "no StartNetwork timeout" |
 | C3 | Re-battle cancel ends the match | `RAND_MASK=06F6`, `MAXREBATTLE=3`, `GGPO_TEST_LOG=1`; headless and windowed | all peers enter scene 4/3 on the same frame and are in CloseWait at 4/4; common checks |
-| D1 | Malformed packets | ~45 s of `fuzz.py` during the battle (oversized AppData/Input, truncated, unknown types, bogus relays) | common checks |
+| D1 | Malformed packets | ~45 s of `fuzz.py` during the battle (oversized AppData/Input, truncated, unknown types, bogus relays), `GGPO_TEST_LOG=1` | a peer logs `RBKTEST malformed drop` (relayed malformed AppData); common checks |
+| D1c | Control of D1 | as D1, the fuzzer sends to ports 50 above the peers' | D1 fails on "no peer dropped a malformed packet" |
 | D2 | Relay in use | `TEST_RELAY=single` | p1 picks the relay (`Relay:1`), p2 forwards, common checks |
 | D2c | Control of D2 | as D2, no `TEST_RELAY` | D2 fails on "did not pick the relay" |
 | D3 | Relay loop | `TEST_RELAY=loop` | peers 1 and 2 cut the loop (a few `relay drop-return-to-sender` lines, not a flood), no crash; session start times out as expected |
@@ -88,7 +89,7 @@ These do nothing unless set.
 | `TEST_RELAY_SERVER`, `TEST_RELAY_TOKEN`, `TEST_RELAY_IPV6` | Adds relay servers (`ip:port`, comma separated; hex token, default `1234`; for peers 0-1, every relay gets this IPv6 address and an unreachable IPv4 one) to the local match, for a relay started with `-relay_test_session=12345:<token>` | local test |
 | `RBK_SAVE_REPLAY` | Saves the match to `data/replays/0123456.pb` when it ends (never uploaded) | local test |
 | `TEST_PORT_BASE` | First of the peers' ports (default 20010, peer N uses base + N), so local tests can run at once | local test |
-| `GGPO_TEST_LOG` | Logs `RBKTEST` lines: timesync skip record/replay, rollback loads, scene changes, relay forwards and loop drops, relay server use | any session |
+| `GGPO_TEST_LOG` | Logs `RBKTEST` lines: timesync skip record/replay, rollback loads, scene changes, relay forwards and loop drops, malformed packet drops, relay server use | any session |
 | `TEST_GGPO_DELAY` | Fixed input delay in frames instead of one derived from the ping test, so a large `GGPO_NETWORK_DELAY` means deep prediction rather than more delay | local test |
 | `TEST_FAKE_TIMESYNC` | Peer 0 takes a timesync skip every K frames (K = value), as a peer whose clock runs fast does. Peers on one machine rarely get them | local test |
 | `TEST_SPECTATOR_LBS` | Streams the peers' confirmed inputs to a local lbs (`ip:port`) started with `-spectator_test_session` | local test |

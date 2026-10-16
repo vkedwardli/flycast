@@ -125,6 +125,7 @@ protected:
    void QueueEvent(const UdpProtocol::Event &evt);
    void ClearSendQueue(void);
    void LogMsg(const char *prefix, UdpMsg *msg);
+   void CountMalformedDrop();
    void LogEvent(const char *prefix, const UdpProtocol::Event &evt);
    void SendSyncRequest();
    void SendMsg(UdpMsg *msg, sockaddr_storage* to = nullptr);
@@ -158,8 +159,9 @@ protected:
    int            _jam_latency;
    bool           _enable_jam;
    int            _oop_percent;
-   int            _test_log;         /* GGPO_TEST_LOG: count relay drops for gdxsv_tests/rollback */
+   int            _test_log;         /* GGPO_TEST_LOG: count relay and malformed drops for gdxsv_tests/rollback */
    int            _relay_drops;
+   int            _malformed_drops;
    struct {
       int         send_time;
       sockaddr_storage dest_addr;
