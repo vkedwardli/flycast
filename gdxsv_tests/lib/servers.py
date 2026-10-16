@@ -8,7 +8,7 @@ import sqlite3
 import subprocess
 import threading
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 LOBBY_PORT = 9876  # the client's lobby port is fixed (kGdxsvLbsPort)
@@ -103,9 +103,10 @@ def wait_port(port: int, timeout: float) -> bool:
 
 class FakeHttp:
     """Answers every request with 200 and `body`, and records "METHOD path" per request.
-    Stands in for the public IP, P2P test and latency URLs (emu.net_config)."""
+    Stands in for the public IP, P2P test and latency URLs (emu.net_config).
+    routes: path (query dropped) -> body instead; other paths get 404."""
 
-    def __init__(self, body: bytes = b"127.0.0.1"):
+    def __init__(self, body: bytes = b"127.0.0.1", routes: Optional[Dict[str, bytes]] = None):
         self.requests: List[str] = []
         owner = self
 
@@ -115,10 +116,12 @@ class FakeHttp:
                 if n:
                     self.rfile.read(n)
                 owner.requests.append(f"{self.command} {self.path}")
-                self.send_response(200)
-                self.send_header("Content-Length", str(len(body)))
+                data = body if routes is None else routes.get(self.path.split("?")[0])
+                self.send_response(200 if data is not None else 404)
+                data = data or b""
+                self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
-                self.wfile.write(body)
+                self.wfile.write(data)
 
             do_GET = do_POST = do_HEAD = handle_one
 

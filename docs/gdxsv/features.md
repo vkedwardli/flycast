@@ -31,7 +31,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Lobby connection over TCP (`gdxsv_backend_tcp`) | setting `server` (default `zdxsv.net`) | O1: login and plaza on a local `gdxsv lbs` | none |
 | Login key, generated on first use | setting `loginkey` | O1: the lobby finds the account by the key | O1c (unknown key) |
 | Platform info to the lobby (build, OS, CPU, machine id, wireless or not, local and public IPs, UDP port, UPnP and port test results) | always | O1: received by the lobby (build, OS, CPU) | none |
-| VPN warning (connection medium) | always online | none | none |
+| Wireless warning popup and VPN warning toast (connection medium) | main menu; `gdxsv:ConnectionMedium` overrides the detected adapter | M1: Wireless logs the popup, `VPN: e2e` the toast with the adapter | M1c |
 | P2P connectivity test and public IP / UPnP port mapping | first lobby connection | O1: public IP and P2P test requests reach the local server (UPnP off) | none |
 | HTTPS latency test to the cloud regions | when the game goes online | none | none |
 | Ping test to the battle peers, input delay from it | lobby battle | rollback cases A1 to D8 use it (`TEST_GGPO_DELAY` replaces the delay); I1: the delay setting reaches the game's input buffer | I1c |
@@ -82,7 +82,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Translation patch (Japanese, Cantonese, English) | setting `language` | L1 | L1c |
 | Game patches (`gdxsv_patch.inc`), rewritten every vblank | always for the game | P1 (Disc 1, Disc 2) | P1c |
 | NAOMI version (`gundmxgd`) boots | the NAOMI game files | N1 | N1c |
-| Texture pack, downloaded and updated | settings `UseTexturePack`, `TexturePackChannel` | none | none |
+| Texture pack, downloaded and updated | settings `UseTexturePack`, `TexturePackChannel` | X1: a local channel, 3 chunks checked by hash and installed; the next start finds it current (`gdxsv:TexturePackUrl`); the pack is not loaded in a game (a fake pack) | X1c |
 | Widescreen HUD layout | setting `WidescreenHudLayout` | W1 (fails with `rend.ThreadedRendering=yes`, the default) | W1c |
 | Slow idle loop hack | setting `SlowIdleLoopHack` | none | none |
 | Projectile view (debug overlay, Disc 2) | setting `ProjectileView` (ini only) | none | none |
