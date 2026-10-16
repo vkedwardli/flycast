@@ -10,6 +10,7 @@
 
 #include "json.hpp"
 #include "libs.h"
+#include "cfg/cfg.h"
 #include "oslib/http_client.h"
 #include "version.h"
 
@@ -93,7 +94,8 @@ void GdxsvUpdate::FetchLatestVersionInfo() {
 		std::vector<u8> dl;
 		std::string content_type;
 		http::init();
-		const std::string url = "https://api.github.com/repos/inada-s/flycast/releases/latest";
+		const std::string url =
+			config::loadStr("gdxsv", "UpdateCheckUrl", "https://api.github.com/repos/inada-s/flycast/releases/latest");
 		const int rc = http::get(url, dl, content_type);
 		if (rc != 200) {
 			ERROR_LOG(COMMON, "version check failure: %s", url.c_str());
@@ -101,6 +103,8 @@ void GdxsvUpdate::FetchLatestVersionInfo() {
 		}
 
 		HandleReleaseJSON(std::string(dl.begin(), dl.end()), latest);
+		NOTICE_LOG(COMMON, "update check: latest %s, newer %d, download %d", latest.version_tag.c_str(),
+				   latest.is_new_version, !latest.download_url.empty());
 		return latest;
 	};
 
