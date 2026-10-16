@@ -187,6 +187,11 @@ def b3_not_threaded(s: Settings) -> Result:
     return verdict(common(m), [summary(m)])
 
 
+def b3_control(s: Settings) -> Result:
+    m = lib.run_match(s, "B3c", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=THREADED_OFF, lua={2: DESYNC})
+    return control(common(m), [summary(m)], DESYNC_SIGNS)
+
+
 # --- C. Disconnect and session lifecycle --------------------------------------
 
 def c1_peer_drop(s: Settings) -> Result:
@@ -566,6 +571,7 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
     "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
+    "B3c": ("control: B3 with desync.lua on peer 2", b3_control, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
     "C1c": ("control: C1 with p1 frozen for 15 s after the drop, its window stops responding", c1_control, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),

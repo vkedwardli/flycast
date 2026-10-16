@@ -55,6 +55,7 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B2c | Control of B2 | as B2, delay 0 ms, `TEST_GGPO_DELAY=10`, 1 round | B2 fails on "no rollbacks happened" |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
+| B3c | Control of B3 | as B3, peer 2 loads `desync.lua` | B3 fails on last frames or round winners |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |
 | C1c | Control of C1 | as C1, p1 suspended for 15 s right after the drop (`emu.suspend`) | C1 fails on "windows not responding" |
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
