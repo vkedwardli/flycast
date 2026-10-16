@@ -8,6 +8,8 @@
 local mem = flycast.memory
 local inp = flycast.input
 
+-- e2e.every_vblank: a function run on every vblank before main() resumes (after
+-- the emulator's own vblank hooks, e.g. the gdxsv patch writes).
 e2e = { frame = 0 }
 
 -- Dreamcast controller buttons (pressed = bit cleared in kcode)
@@ -63,6 +65,7 @@ local function vblank()
   e2e.frame = e2e.frame + 1
   if co == nil then co = coroutine.create(main) end
   if coroutine.status(co) == "dead" then return end
+  if e2e.every_vblank then e2e.every_vblank() end
   local ok, err = coroutine.resume(co)
   if not ok then
     e2e.log("error", err)
