@@ -217,6 +217,7 @@ class GdxsvBackendReplay {
 	bool seeking_ = false;
 	int target_round_ = 0;
 	int target_frame_ = 0;
+	int takeover_frame_ = 0;
 	bool pause_menu_opend_ = false;
 	int ctrl_play_speed_ = 0;
 	bool ctrl_step_frame_ = false;
