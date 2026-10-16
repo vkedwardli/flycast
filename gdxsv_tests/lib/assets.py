@@ -73,6 +73,12 @@ def replay(entry: dict) -> str:
     return path
 
 
+def release(tag: str) -> str:
+    """Executable of a gdxsv release, downloaded once with gh to <GDXSV_RELEASE_ROOT>/releases/<tag>
+    (default gdxsv_tests/out)."""
+    return emu.fetch_release(tag, os.environ.get("GDXSV_RELEASE_ROOT") or os.path.join(TESTS, "out"))
+
+
 LOGIN_SLOT = 5
 
 

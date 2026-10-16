@@ -41,6 +41,7 @@ python gdxsv_tests/run.py --recheck gdxsv_tests/out --cases K1      # checks onl
 | `GDXSV_STATE_DIR` | boot savestates (`<rom>_99.state`), made on first use (default `out/state`) |
 | `GDXSV_REPLAY_DIR` | corpus replays, downloaded on first use and checked against `corpus/replays.json` (default `out/replay`) |
 | `GDXSV_REPLAY_JOBS` | replays R1 plays in parallel (default 4) |
+| `GDXSV_RELEASE_ROOT` | A3, A4: releases downloaded with `gh` to `<dir>/releases/<tag>` (default `out`) |
 | `GDXSV_SERVER_EXE` | O1-O5, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
 | `GDXSV_LOGIN_STATE` | O1-O5: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
 
@@ -82,6 +83,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | O4 / O4c | full | two clients (two login keys, same savestate) in one P2P lobby: both enter, one force-starts; P2P matching to both, two-peer GGPO session, each peer answers the other, both reach the battle (O4c: the second client only logs in) | 190 s / 190 s |
 | O5 / O5c | full | O1, and the network payload (`gdxsv_patch/`) is in RAM: its install logged, current `patch_id` at the network menu, connection not refused (O5c: Lua zeroes `patch_id` every vblank: lobby connection refused, no login) | 85 s / 105 s |
 | R3 / R3c | full | 4-peer local rollback match with `RBK_SAVE_REPLAY=1`: each peer saves one replay, the four hold the same inputs, peer 1's plays to the end with the match's winner (R3c: `SaveReplay=no`, no file, `Skip SaveReplay` logged) | 80 s / 65 s |
+| A3 / A3c, A4 / A4c | full | 4-peer local rollback match, two peers this build and two a release (A3: the previous, A4: an older; tags in `cases/compat.py`), both seat orders: every rollback suite match check (A3c/A4c: `desync.lua` on peer 2, the checks fail on last frames or winners) | 120 s, 60 s |
 | V1 / V1c | full | newest Disc 2 replay with `ReplayPOV` 2 and 4: the game stores player side POV-1 (`0x0c3d19d9`) and id POV (`0x0c391d92`) at vblank 4000 (V1c: no `ReplayPOV`, player 1) | 15 s |
 | V2 / V2c | full | `replay_target_round=4` on a 5-round replay: one jump, rounds 4 and 5 play to the last input (V2c: from round 1) | 50 s / 110 s |
 | V3 / V3c | full | `replay_target_frame=4000`: one seek landing on input 4000, then every round with the recorded winners (V3c: no target) | 110 s |
