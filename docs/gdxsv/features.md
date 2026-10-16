@@ -59,7 +59,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Replay browser: Local, Server, Live tabs | menu "Live & Replays" | none | none |
 | Play a replay file | menu, or `gdxsv:replay=FILE` | R1 (every replay format), R2: plays to the end with the recorded winners | R2c |
 | Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*`; V2, V3: round jump and seek at start (`replay_target_round`, `replay_target_frame`) | V2c, V3c |
-| Takeover: play on from a replay frame, retry with START | pause menu | none | none |
+| Takeover: play on from a replay frame, retry with START | pause menu, or `gdxsv:replay_takeover_frame` | V6: the pad plays from the frame, START retries from it | V6c |
 | Round results kept across seeks and round jumps | always | unit: `GdxsvRoundCountersTest.*` | none |
 | Key display, Ally HP, hidden names, skip mobile suit selection | settings `ReplayKeyDisplay`, `ReplayShowAllyHP`, `ReplayHideName`, `ReplaySkipMsSelection` | V4: hidden names | V4c |
 | Point of view | `gdxsv:ReplayPOV` | V1: the game plays as the chosen player | V1c |

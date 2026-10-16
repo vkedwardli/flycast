@@ -76,6 +76,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | V3 / V3c | full | `replay_target_frame=4000`: one seek landing on input 4000, then every round with the recorded winners (V3c: no target) | 110 s |
 | V4 / V4c | full | `ReplayHideName`: the battle names the players ＰＩＬＯＴ０1-4 (`0x0c3d1b04`, 16 bytes each) (V4c: recorded names) | 5 s |
 | V5 / V5c | full | `ReplayFourScreen=yes` in a window: the host starts 3 guests (one sync group); POV bytes per screen (guests write `e2e_pov<N>.log` via `lua/fourscreen.lua` in `emu.cfg`) are players 1-4; each guest log joined the host's group and plays its replay (V5c: no four-screen, every guest check fails) | 57 s |
+| V6 / V6c | full | `replay_target_frame=3000 replay_takeover_frame=3000` in a window (the countdown runs from the pause-menu render): `StartTakeover` at the newest saved state before 3000 (within 60); `lua/takeover.lua` holds B X Y C Z (MCS 0xb003, in no corpus replay) and InetBuf shows it 60 vblanks in a row; START: `RetryTakeover` at the same input, then the mask again (V6c: no option, every takeover check fails) | 13 s / 28 s |
 | S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is

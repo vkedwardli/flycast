@@ -278,3 +278,49 @@ def replay_four_screen_control(ctx):
     return result([{"what": "probe ran", "ok": r["clean"]},
                    {"what": "every guest check fails", "failed": [x["what"] for x in guests if not x["ok"]],
                     "ok": all(not x["ok"] for x in guests)}], detail=c)
+
+
+TAKEOVER_FRAME = 3000
+TAKEOVER_RE = re.compile(r"(StartTakeover|RetryTakeover) at key_msg_count_:(\d+)")
+# B X Y C Z on the pad: MCS B X Y LT RT (0xb003), held together in no corpus replay
+TAKEOVER_HOLD = 0x0703
+SAVE_INTERVAL = 60  # ReplaySeekFrames: Take Over resumes from the newest state saved before the frame
+
+
+def takeover_run(ctx, name: str, takeover: bool) -> dict:
+    e = newest_dc2()
+    extra = [f"gdxsv:replay_takeover_frame={TAKEOVER_FRAME}"] if takeover else []
+    p = ctx.probe(name, ctx.rom("dc2"), "takeover.lua",
+                  {"max": 12000, "window": 3600, "hold": TAKEOVER_HOLD, "mcs": 0xb003, "run": 60, "inetbuf": 0x0c3ab984},
+                  frames=16000, config=[f"gdxsv:replay={assets.replay(e)}", "gdxsv:ReplaySeekStates=no",
+                                        f"gdxsv:replay_target_frame={TAKEOVER_FRAME}", *extra],
+                  loadstate=False, window=True, timeout=400)
+    return {"clean": p.clean, "e2e": dict(p.e2e), "events": TAKEOVER_RE.findall(p.log), **p.facts()}
+
+
+def takeover_checks(r: dict) -> list:
+    at = [int(n) for _, n in r["events"]]
+    kinds = [k for k, _ in r["events"]]
+    return [{"what": f"takeover started at the last saved state before input {TAKEOVER_FRAME} (states every "
+                     f"{SAVE_INTERVAL})", "events": r["events"],
+             "ok": kinds[:1] == ["StartTakeover"] and TAKEOVER_FRAME - SAVE_INTERVAL <= at[0] < TAKEOVER_FRAME},
+            {"what": "the game takes this pad's input, not the recording", "held": r["e2e"].get("held"),
+             "ok": r["e2e"].get("held", "none") != "none"},
+            {"what": "START retries from the same input, then plays on", "held2": r["e2e"].get("held2"),
+             "ok": kinds[:3] == ["StartTakeover", "RetryTakeover", "StartTakeover"] and len(set(at[:3])) == 1
+             and r["e2e"].get("held2", "none") != "none"}]
+
+
+@case("V6", f"replay takeover: gdxsv:replay_takeover_frame={TAKEOVER_FRAME}, the pad plays from that input, "
+            "START retries from it")
+def replay_takeover(ctx):
+    r = takeover_run(ctx, "V6", True)
+    return result([{"what": "battle shown", "ok": "battle" in r["e2e"]}] + takeover_checks(r), **r)
+
+
+@case("V6c", "V6's checks on the replay played without a takeover: they fail", control_of="V6")
+def replay_takeover_control(ctx):
+    r = takeover_run(ctx, "V6c", False)
+    c = takeover_checks(r)
+    return result([{"what": "battle shown", "ok": "battle" in r["e2e"]},
+                   {"what": "every takeover check fails", "ok": all(not x["ok"] for x in c)}], detail=c, **r)
