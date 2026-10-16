@@ -181,3 +181,36 @@ def frame_jump_checks(r: dict, out: str, name: str, frame: int) -> list:
         jumps = FRAME_JUMP_RE.findall(f.read())
     return [{"what": f"one seek, landed on input {frame}", "ok": jumps == [(str(frame), str(frame))], "jumps": jumps},
             {"what": "every round played to the end with the recorded winners", "ok": r["ok"]}]
+
+
+NAMES = 0x0c3d1b04  # pilot names in the battle, 16 bytes per player (SJIS)
+PILOT = "826f8268826b826e8273824f"  # ＰＩＬＯＴ０
+
+
+def scenes_run(ctx, name: str, extra: list) -> dict:
+    e = newest_dc2()
+    p = ctx.probe(name, ctx.rom("dc2"), "replay_scenes.lua",
+                  {"max": 12000, "after": 60, "reads": [[NAMES + 16 * i, 14] for i in range(4)]}, frames=12100,
+                  config=[f"gdxsv:replay={assets.replay(e)}", "gdxsv:ReplaySeekStates=no", *extra],
+                  loadstate=False, until_done=True, timeout=300)
+    names = [p.e2e.get(f"0x{NAMES + 16 * i:08x}", "") for i in range(4)]
+    return {"clean": p.clean, "battle": p.e2e.get("battle"), "names": names,
+            **p.facts()}
+
+
+def hide_name_check(r: dict) -> dict:
+    want = [PILOT + f"82{0x50 + i:02x}" for i in range(4)]
+    return {"what": "players are named ＰＩＬＯＴ０1 to ０4 in the battle",
+            "ok": r["clean"] and [n[:len(want[0])] for n in r["names"]] == want, "names": r["names"]}
+
+
+@case("V4", "replay hidden names: ReplayHideName shows the players as ＰＩＬＯＴ０1-4 in the battle")
+def replay_hide_name(ctx):
+    return result([hide_name_check(scenes_run(ctx, "V4", ["gdxsv:ReplayHideName=yes"]))])
+
+
+@case("V4c", "V4's check without ReplayHideName: the recorded names show", control_of="V4")
+def replay_hide_name_control(ctx):
+    r = scenes_run(ctx, "V4c", [])
+    return result([{"what": "battle reached", "ok": r["clean"] and r["battle"] is not None},
+                   {"what": "name check fails", "ok": not hide_name_check(r)["ok"]}], detail=r)
