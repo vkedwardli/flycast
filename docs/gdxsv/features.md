@@ -106,7 +106,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Release build from a `gdxsv-*` tag | push a tag | the workflow itself | none |
 | CI build (macOS, Linux, Windows MinGW) | every push and PR | the workflow itself | none |
 | Headless mode (no window, no graphics API) | `gdxsv:headless=yes` | most rollback cases run headless | none |
-| Boot probe for patch checks | `gdxsv:headless_loadstate=yes`, `gdxsv:headless_probe_frames=N` | none | none |
+| Boot probe for patch checks | `gdxsv:headless_loadstate=yes`, `gdxsv:headless_probe_frames=N` | B1: resumes the lobby state, exits rc 0 after N vblanks | B1c |
 | Per-frame state hash log | `gdxsv:hashlog=yes` | read by `gdxsv_tests/lib/hashlog.py` (rollback suite) | none |
 | `run.py` (several instances, replay, spectate, rollback test) and the `RunGame` workflow | `python run.py <function>` | none | none |
 | Fixed host address of guest RAM on Windows (lower 28 bits equal the guest address) | always | none | none |
