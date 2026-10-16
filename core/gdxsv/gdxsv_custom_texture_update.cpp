@@ -6,6 +6,7 @@
 #include <xxhash.h>
 #include "json.hpp"
 #include "libs.h"
+#include "cfg/cfg.h"
 #include "cfg/option.h"
 #include "oslib/http_client.h"
 
@@ -15,6 +16,11 @@
 #endif
 
 static constexpr size_t MaxDownloadSize = 30 * 1024 * 1024;
+
+// gdxsv:TexturePackUrl: tests serve the pack locally.
+static std::string base_url() {
+	return config::loadStr("gdxsv", "TexturePackUrl", "https://storage.googleapis.com/gdxsv/custom-texture/");
+}
 
 std::string get_texture_pack_path() {
 	return get_writable_data_path("T13306M.texp");
@@ -64,7 +70,7 @@ void GdxsvCustomTexutreUpdate::FetchLatestVersionInfo() {
 		}
 
 		const auto t = std::chrono::steady_clock::now().time_since_epoch().count();
-		const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/" + name + "?t=" + std::to_string(t);
+		const std::string url = base_url() + name + "?t=" + std::to_string(t);
 		const int rc = http::get(url, dl, content_type);
 		if (rc != 200) {
 			ERROR_LOG(COMMON, "version check failure: %s", url.c_str());
@@ -72,6 +78,7 @@ void GdxsvCustomTexutreUpdate::FetchLatestVersionInfo() {
 		}
 
 		HandleReleaseJSON(std::string(dl.begin(), dl.end()), latest);
+		NOTICE_LOG(COMMON, "texture pack check: %s, new %d", name.c_str(), latest.is_new_version);
 		return latest;
 	};
 
@@ -117,7 +124,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 			download_buf_.clear();
 			download_buf_.reserve(size);
 
-			const std::string url = "https://storage.googleapis.com/gdxsv/custom-texture/" + path;
+			const std::string url = base_url() + path;
 			const int rc = http::get(url, download_buf_, content_type);
 
 			if (rc != 200) {
@@ -183,6 +190,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 			return false;
 		}
 
+		NOTICE_LOG(COMMON, "texture pack updated to %s", latest.version.c_str());
 		return true;
 	};
 
