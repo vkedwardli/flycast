@@ -372,7 +372,7 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 	ss << "git_hash=" << GIT_HASH << "\n";
 	ss << "build_date=" << BUILD_DATE << "\n";
 	ss << "disk=" << (int)disk_ << "\n";
-	ss << "wireless=" << (int)(gdxsv_connection_medium() == "Wireless") << "\n";
+	ss << "wireless=" << (int)(gdxsv_connection_medium_or_setting() == "Wireless") << "\n";
 	ss << "patch_id=" << symbols_[":patch_id"] << "\n";
 	ss << "language=" << GdxsvLanguage::TextureDirectoryName() << "\n";
 	ss << "local_ip=" << lbs_net_.LocalIP() << "\n";
