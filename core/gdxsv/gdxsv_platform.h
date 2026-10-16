@@ -13,3 +13,6 @@ std::string gdxsv_machine_id();
 
 // "Wired", "Wireless", "VPN" / "VPN: <adapter>", "Unknown", or "".
 std::string gdxsv_connection_medium();
+
+// gdxsv:ConnectionMedium if set (tests), else gdxsv_connection_medium().
+std::string gdxsv_connection_medium_or_setting();
