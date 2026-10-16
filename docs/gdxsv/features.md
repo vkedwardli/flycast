@@ -63,7 +63,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Round results kept across seeks and round jumps | always | unit: `GdxsvRoundCountersTest.*` | none |
 | Key display, Ally HP, hidden names, skip mobile suit selection | settings `ReplayKeyDisplay`, `ReplayShowAllyHP`, `ReplayHideName`, `ReplaySkipMsSelection` | V4: hidden names | V4c |
 | Point of view | `gdxsv:ReplayPOV` | V1: the game plays as the chosen player | V1c |
-| Four-screen replay: 4 processes in a 2x2 grid, kept on one frame | `gdxsv:ReplayFourScreen=yes` | none | none |
+| Four-screen replay: 4 processes in a 2x2 grid, kept on one frame | `gdxsv:ReplayFourScreen=yes` | V5: 3 guests on one sync group, each screen plays as its player | V5c |
 | Audio rate control (resample up to 0.5 % to hold the queue half full) | replay and spectating without audio sync | none | none |
 | Fast seek: output-only game functions return early on seek frames | setting `SkipRenderingHack` | none | none |
 

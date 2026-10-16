@@ -214,3 +214,67 @@ def replay_hide_name_control(ctx):
     r = scenes_run(ctx, "V4c", [])
     return result([{"what": "battle reached", "ok": r["clean"] and r["battle"] is not None},
                    {"what": "name check fails", "ok": not hide_name_check(r)["ok"]}], detail=r)
+
+
+def four_screen_run(ctx, name: str, four: bool) -> dict:
+    """Newest Disc 2 replay in a window with ReplayFourScreen; logging and the Lua script go in
+    emu.cfg, since the host starts its guests without its --config values."""
+    e = newest_dc2()
+    rom = ctx.rom("dc2")
+    cfg = [f"gdxsv:replay={assets.replay(e)}", "gdxsv:ReplaySeekStates=no", "window:width=480", "window:height=360"]
+    if four:
+        cfg.append("gdxsv:ReplayFourScreen=yes")
+    p = ctx.probe(name, rom, "fourscreen.lua", {"frame": POV_FRAME, "after": 300, "side": POV_SIDE, "id": POV_ID},
+                  frames=POV_FRAME + 400, config=cfg, loadstate=False, window=True, timeout=300,
+                  states=assets.state_dir(rom),
+                  emu_cfg=f"[config]\nLuaFileName = {name}.lua\n\n[log]\nLogToFile = 1\nVerbosity = 3\n")
+    d = os.path.join(ctx.out, name)
+    povs = {1: (p.e2e.get("side"), p.e2e.get("id"))}
+    logs = {}
+    for n in (2, 3, 4):
+        vals = {}
+        try:
+            with open(os.path.join(d, f"e2e_pov{n}.log"), encoding="utf-8") as f:
+                vals = dict(l[4:].strip().split("=", 1) for l in f if l.startswith("E2E "))
+        except OSError:
+            pass
+        povs[n] = (vals.get("side"), vals.get("id"))
+        try:
+            with open(os.path.join(d, f"flycast-{n}P.log"), encoding="utf-8", errors="replace") as f:
+                logs[n] = f.read()
+        except OSError:
+            logs[n] = ""
+    return {"clean": p.clean, "host_log": p.log, "povs": povs, "logs": logs,
+            **p.facts()}
+
+
+def four_screen_checks(r: dict) -> list:
+    host = re.search(r"multi-pov: host session (\S+) with (\d+) guests", r["host_log"])
+    session = host.group(1) if host else None
+    checks = [{"what": "host started a session with 3 guests", "ok": bool(host) and host.group(2) == "3"}]
+    for n, (side, id) in r["povs"].items():
+        checks.append({"what": f"screen {n}: the game plays as player {n}", "side": side, "id": id,
+                       "ok": side == str(n - 1) and id == str(n)})
+    for n, log in r["logs"].items():
+        checks.append({"what": f"guest {n}P joined the host's sync group and plays the host's replay",
+                       "ok": session is not None and f"joined group {session}" in log
+                       and f"guest {n}P playing from the host's replay" in log
+                       and "start barrier released" in log})
+    return checks
+
+
+@case("V5", "four-screen replay: the host starts three guests on one sync group, each plays as its player")
+def replay_four_screen(ctx):
+    r = four_screen_run(ctx, "V5", True)
+    return result([{"what": "probe ran", "ok": r["clean"]}] + four_screen_checks(r))
+
+
+@case("V5c", "V5's checks on a replay played without ReplayFourScreen: no guests, the guest checks fail",
+      control_of="V5")
+def replay_four_screen_control(ctx):
+    r = four_screen_run(ctx, "V5c", False)
+    c = four_screen_checks(r)
+    guests = [x for x in c if "guest" in x["what"] or x["what"].startswith(("screen 2", "screen 3", "screen 4"))]
+    return result([{"what": "probe ran", "ok": r["clean"]},
+                   {"what": "every guest check fails", "failed": [x["what"] for x in guests if not x["ok"]],
+                    "ok": all(not x["ok"] for x in guests)}], detail=c)
