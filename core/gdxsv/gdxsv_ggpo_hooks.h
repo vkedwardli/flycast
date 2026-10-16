@@ -21,6 +21,7 @@ struct GdxsvGgpoState {
 	std::array<int, 3> inputBlockCount;
 	bool useExInput;
 	bool testLog;  // GGPO_TEST_LOG: log timesync skips and rollback loads for gdxsv_tests/rollback
+	bool testNoSkipReplay;  // GGPO_TEST_NO_SKIP_REPLAY: skips after the seek frame are not replayed (control of rollback case B1)
 	int totalRollbackFrames;
 	int totalTimeSync;
 	float fpsAvg;

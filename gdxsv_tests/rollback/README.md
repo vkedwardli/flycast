@@ -50,7 +50,8 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A3c | Control of A3 | peer 0 old only, peer 2 (this build) loads `desync.lua` | A3 fails on last frames or round winners |
 | A4 | Mixed with an older release | same as A3 | common checks |
 | A4c | Control of A4 | as A3c, with the older release | A4 fails on last frames or round winners |
-| B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1` | every rollback whose re-simulated range contains a skip after the seek frame replays it |
+| B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks) | every rollback whose re-simulated range contains a skip after the seek frame replays it |
+| B1c | Control of B1 | seeds 11, 22, `GGPO_TEST_NO_SKIP_REPLAY=1` | B1 fails on "skip at frame N not replayed" |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B2c | Control of B2 | as B2, delay 0 ms, `TEST_GGPO_DELAY=10`, 1 round | B2 fails on "no rollbacks happened" |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
@@ -90,6 +91,7 @@ These do nothing unless set.
 | `RBK_SAVE_REPLAY` | Saves the match to `data/replays/0123456.pb` when it ends (never uploaded) | local test |
 | `TEST_PORT_BASE` | First of the peers' ports (default 20010, peer N uses base + N), so local tests can run at once | local test |
 | `GGPO_TEST_LOG` | Logs `RBKTEST` lines: timesync skip record/replay, rollback loads, scene changes, relay forwards and loop drops, malformed packet drops, relay server use | any session |
+| `GGPO_TEST_NO_SKIP_REPLAY` | A rollback does not replay the timesync skips after its seek frame (control of B1) | local test |
 | `TEST_GGPO_DELAY` | Fixed input delay in frames instead of one derived from the ping test, so a large `GGPO_NETWORK_DELAY` means deep prediction rather than more delay | local test |
 | `TEST_FAKE_TIMESYNC` | Peer 0 takes a timesync skip every K frames (K = value), as a peer whose clock runs fast does. Peers on one machine rarely get them | local test |
 | `TEST_SPECTATOR_LBS` | Streams the peers' confirmed inputs to a local lbs (`ip:port`) started with `-spectator_test_session` | local test |
