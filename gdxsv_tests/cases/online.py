@@ -16,9 +16,10 @@ LOGIN_FRAMES = 4400  # boot, the menu path in lua/login.lua, and the lobby's pla
 BATTLE_FRAMES = 40000  # upper bound; the script ends 300 vblanks into the battle
 
 
-def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True, mcs_region: str = ""):
+def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True, mcs_region: str = "",
+          unpatch: bool = False):
     """Disc 2 logs in from the network menu savestate; returns (probe, lobby log, fake HTTP requests)."""
-    probes, lbs, reqs = session(ctx, tag, [(tag, client_key, {"battle": battle})],
+    probes, lbs, reqs = session(ctx, tag, [(tag, client_key, {"battle": battle, "unpatch": unpatch})],
                                 force_start=force_start, mcs_region=mcs_region)
     return probes[0], lbs, reqs
 
@@ -84,6 +85,38 @@ def online_login_control(ctx):
     return result([{"what": "probe ran", "ok": c[0]["ok"]},
                    {"what": "platform info still sent", "ok": c[1]["ok"]},
                    {"what": "login check fails", "ok": not c[2]["ok"]}],
+                  detail=c)
+
+
+PATCH_RE = re.compile(r"N\[COMMON\]: patch -?\d+ (\d+)$", re.M)
+
+
+def payload_checks(p, lbs: str, requests: list) -> list:
+    """The network payload (gdxsv_patch/) is installed after the state load and is what the login runs on."""
+    ids = PATCH_RE.findall(p.log)
+    want = ids[-1] if ids else None
+    return [
+        {"what": "payload installed (log: patch <in RAM> <current id>)", "ok": want is not None, "ids": ids},
+        {"what": "current patch_id in RAM at the network menu", "got": p.e2e.get("patch_id_menu"), "want": want,
+         "ok": want is not None and p.e2e.get("patch_id_menu") == want},
+        {"what": "lobby connection not refused", "ok": "Lobby connection refused" not in p.log},
+    ] + checks(p, lbs, requests)
+
+
+@case("O5", "network patch: the SH4 payload is installed and the login runs through it (local gdxsv lbs)")
+def online_payload(ctx):
+    p, lbs, reqs = login(ctx, "O5", LOGIN_KEY)
+    return result(payload_checks(p, lbs, reqs))
+
+
+@case("O5c", "O5 with the payload's patch_id zeroed every vblank: no current payload, no login", control_of="O5")
+def online_payload_control(ctx):
+    p, lbs, reqs = login(ctx, "O5c", LOGIN_KEY, unpatch=True)
+    c = payload_checks(p, lbs, reqs)
+    return result([{"what": "probe ran", "ok": c[3]["ok"]},
+                   {"what": "patch_id check fails", "ok": not c[1]["ok"]},
+                   {"what": "lobby connection refused", "ok": not c[2]["ok"]},
+                   {"what": "login check fails", "ok": not c[5]["ok"]}],
                   detail=c)
 
 

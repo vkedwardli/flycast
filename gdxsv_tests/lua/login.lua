@@ -5,10 +5,13 @@
 -- E2E_PARAMS.chat = false: enter, but leave the force start to another client;
 -- chat_delay: vblanks after the entry before the chat (until the other client's entry,
 -- which cancels a running countdown).
+-- E2E_PARAMS.unpatch: zero the network payload's patch_id on every vblank after the
+-- load, so the payload in RAM is never the current one.
 -- Menu paths from gdxsv-reveng tools/dc2_lobby.py.
 
 local B = e2e.BTN
 local SCENE = 0x0c3d16d4  -- u16: 0x0102 mobile suit select, 0x0702 battle
+local PATCH_ID = 0x0c4e0258  -- u32 symbol patch_id of the network payload (gdxsv_patch.inc)
 
 local LOGIN = {  -- {buttons, vblanks held, vblanks to wait after the release}
   {B.DOWN, 20, 20}, {B.A, 20, 240}, {B.UP, 20, 20}, {B.A, 20, 240}, {B.LEFT, 20, 20}, {B.A, 20, 300},
@@ -37,7 +40,13 @@ local function scene() return e2e.read16(SCENE) end
 function main()
   e2e.wait(E2E_PARAMS.boot)
   flycast.emulator.loadState(E2E_PARAMS.slot)
-  e2e.wait(120)
+  e2e.wait(1)
+  e2e.log("patch_id_loaded", e2e.read32(PATCH_ID))
+  if E2E_PARAMS.unpatch then
+    e2e.every_vblank = function() flycast.memory.write32(PATCH_ID, 0) end
+  end
+  e2e.wait(119)
+  e2e.log("patch_id_menu", e2e.read32(PATCH_ID))
   run(LOGIN)
   if not E2E_PARAMS.battle then return end
   run(LOBBY)

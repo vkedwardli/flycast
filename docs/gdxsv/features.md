@@ -27,7 +27,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Network patch: an SH4 payload (`gdxsv_patch/`) replaces the game's modem stack; the game talks to the host through `gdx_rpc` | always for the game | none | none |
+| Network patch: an SH4 payload (`gdxsv_patch/`) replaces the game's modem stack; the game talks to the host through `gdx_rpc` | always for the game | O5: installed after the state load, the login runs through it | O5c (`patch_id` never current: no login) |
 | Lobby connection over TCP (`gdxsv_backend_tcp`) | setting `server` (default `zdxsv.net`) | O1: login and plaza on a local `gdxsv lbs` | none |
 | Login key, generated on first use | setting `loginkey` | O1: the lobby finds the account by the key | O1c (unknown key) |
 | Platform info to the lobby (build, OS, CPU, machine id, wireless or not, local and public IPs, UDP port, UPnP and port test results) | always | O1: received by the lobby (build, OS, CPU) | none |
