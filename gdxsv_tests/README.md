@@ -57,7 +57,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | `lib/emu.py` | launch and stop an instance (own data dir, config, ports); OS differences live here |
 | `lib/case.py` | case registry, `Ctx.probe` (one instance with a Lua script), `result` |
 | `lib/assets.py` | ROM, savestate and replay paths |
-| `lib/hashlog.py`, `lib/replayfile.py` | per-frame hash logs; replay protobuf (round results, input cut) |
+| `lib/hashlog.py`, `lib/replayfile.py` | per-frame hash logs; replay protobuf (round results, input cut, field encoding) |
 | `lua/e2e.lua` | helpers joined in front of every case script: frame waits, input, RAM reads, `E2E key=value` lines to `e2e.log` |
 | `cases/*.py` | the cases |
 | `corpus/replays.json` | replays of every format, with sha256 and the winners per round |
@@ -95,6 +95,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | X1 / X1c | full | `UseTexturePack=yes TexturePackChannel=e2e TexturePackUrl=<local>`: `/e2e.json` lists a 100 KB fake pack in 3 chunks (XXH64 in `lib/xxh64.py`); all fetched, `texture pack updated to e2e-1`, `T13306M.texp` = the bytes served; second start, same dir: `new 0`, no chunk fetched (X1c: one chunk hash wrong, not installed) | 3 s / 3 s |
 | M1 / M1c | full | `ConnectionMedium=Wireless`: `wireless warning shown`; `VPN: e2e`: `VPN warning shown: VPN: e2e` (M1c: `Wired`, neither) | 3 s / 3 s |
 | S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
+| S2 / S2c | full | `rollback/fake_live_lbs.py` streams the newest Disc 2 corpus replay as a live battle 5 s into its last round; the spectator jumps to that round, every player's wins, losses and draws (`lua/counters.lua`) equal the earlier rounds' results, then the game's own count after it (S2c: no round results on the channel, both checks fail) | 117 s each |
 
 W1 and W1c are known failures (`known_failure=`, reported `KNOWN`, exit code 0): on
 the default `rend.ThreadedRendering=yes` the widescreen patch is written only when the
