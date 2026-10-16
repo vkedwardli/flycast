@@ -96,25 +96,38 @@ def a2_long(s: Settings) -> Result:
     return verdict(bad, [summary(m)])
 
 
-def _mixed(s: Settings, other: str, tag: str) -> Result:
+def _mixed(s: Settings, other: str, tag: str, lua=None, orders=("old-first", "new-first")) -> Tuple[List[str], List[str]]:
     bad, notes = [], []
-    for suffix, exes in (("old-first", [other, s.exe, other, s.exe]), ("new-first", [s.exe, other, s.exe, other])):
-        m = lib.run_match(s, f"{tag}-{suffix}", exes, DELAYS)
+    for suffix in orders:
+        exes = [other, s.exe, other, s.exe] if suffix == "old-first" else [s.exe, other, s.exe, other]
+        m = lib.run_match(s, f"{tag}-{suffix}", exes, DELAYS, lua=lua)
         bad += [f"{suffix}: {b}" for b in common(m)]
         notes.append(summary(m))
-    return verdict(bad, notes)
+    return bad, notes
 
 
 def a3_mixed_old(s: Settings) -> Result:
     if not s.old_exe:
         return SKIP, ["no --old-exe / --old-release"]
-    return _mixed(s, s.old_exe, "A3")
+    return verdict(*_mixed(s, s.old_exe, "A3"))
+
+
+def a3_control(s: Settings) -> Result:
+    if not s.old_exe:
+        return SKIP, ["no --old-exe / --old-release"]
+    return control(*_mixed(s, s.old_exe, "A3c", {2: DESYNC}, ("old-first",)), DESYNC_SIGNS)
 
 
 def a4_mixed_older(s: Settings) -> Result:
     if not s.older_exe:
         return SKIP, ["no --older-exe / --older-release"]
-    return _mixed(s, s.older_exe, "A4")
+    return verdict(*_mixed(s, s.older_exe, "A4"))
+
+
+def a4_control(s: Settings) -> Result:
+    if not s.older_exe:
+        return SKIP, ["no --older-exe / --older-release"]
+    return control(*_mixed(s, s.older_exe, "A4c", {2: DESYNC}, ("old-first",)), DESYNC_SIGNS)
 
 
 # --- B. Rollback -------------------------------------------------------------
@@ -493,7 +506,7 @@ def _d8_paths(m: Match) -> Tuple[List[str], List[str]]:
 
 
 # Cases that run release builds, which always use the default ports, so they never run alongside each other.
-DEFAULT_PORT_CASES = {"A3", "A4"}
+DEFAULT_PORT_CASES = {"A3", "A3c", "A4", "A4c"}
 
 CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     # id: (title, function, rough minutes, long-running)
@@ -501,7 +514,9 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "A1c": ("control: A1 with peer 2 desynced (desync.lua), A1's checks fail", a1_control, 1, False),
     "A2": ("20-round match", a2_long, 21, True),
     "A3": ("mixed with --old-exe, both peer 0 sides", a3_mixed_old, 2, False),
+    "A3c": ("control: A3 old-first with peer 2 (this build) desynced, A3's checks fail", a3_control, 1, False),
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
+    "A4c": ("control: A4 old-first with peer 2 (this build) desynced, A4's checks fail", a4_control, 1, False),
     "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 7, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
     "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),

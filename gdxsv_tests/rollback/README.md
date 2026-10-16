@@ -15,12 +15,12 @@ python gdxsv_tests/rollback/run_suite.py --rom ... --jobs 3                  # c
 ```
 
 - `--exe` defaults to `cmake-build-relwithdebinfo/flycast.exe`.
-- `--jobs N` runs N cases at once, each on its own ports (`TEST_PORT_BASE`, local relays too). A3 and A4 run
-  release builds, which always use the default ports, so those two take turns. Each case runs four emulators;
+- `--jobs N` runs N cases at once, each on its own ports (`TEST_PORT_BASE`, local relays too). A3, A4 and their controls run
+  release builds, which always use the default ports, so they take turns. Each case runs four emulators;
   keep N well under the CPU count, or timing-sensitive cases (stalls, B1) may fail from load alone.
 - `--old-release` / `--older-release` download a release with the GitHub CLI (`gh`). Use the latest
   release and one before it. Pass `--old-exe` / `--older-exe` to use local builds instead. Without
-  them, A3/A4 are skipped.
+  them, A3, A4 and their controls are skipped.
 - The pre-battle savestate (`gdx-disc2_99.state`) is taken from `work/state` and downloaded if missing.
 - Output goes to `gdxsv_tests/rollback/out/<case>/p1..p4/` (on Windows: `flycast.log`, `data/hashlog.txt`;
   the layout per OS is in `gdxsv_tests/lib/emu.py`). Copied executables (Windows) are deleted after each
@@ -47,7 +47,9 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A1c | Control of A1 | as A1, peer 2 loads `desync.lua` (holds player 1 HP at 1 from battle step 600) | A1's checks fail on last frames or round winners |
 | A2 | 20 rounds (`--long`) | `MAXREBATTLE=20` | common checks; used MS and StartMsg/LoadEndMsg join frames identical on all peers |
 | A3 | Mixed with the previous release | old ×2 + new ×2, run with peer 0 old and with peer 0 new | common checks |
+| A3c | Control of A3 | peer 0 old only, peer 2 (this build) loads `desync.lua` | A3 fails on last frames or round winners |
 | A4 | Mixed with an older release | same as A3 | common checks |
+| A4c | Control of A4 | as A3c, with the older release | A4 fails on last frames or round winners |
 | B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1` | every rollback whose re-simulated range contains a skip after the seek frame replays it |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B2c | Control of B2 | as B2, delay 0 ms, `TEST_GGPO_DELAY=10`, 1 round | B2 fails on "no rollbacks happened" |
