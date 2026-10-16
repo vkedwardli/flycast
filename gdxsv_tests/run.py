@@ -62,6 +62,8 @@ def run_case(c, exe: str, out: str, saved: str = None) -> dict:
             r = {"status": "fail", "exception": traceback.format_exc()}
         if saved and recheck.missing():
             r["recheck_missing"] = recheck.missing()
+    if saved:
+        r["rechecked_from"] = os.path.join(saved, c.id)
     if c.known_failure and r["status"] in ("pass", "fail"):
         r["known_failure"] = c.known_failure
         if r["status"] == "fail":
@@ -84,7 +86,7 @@ def print_checks(r: dict) -> None:
         print(f"        {'ok  ' if chk.get('ok') else 'FAIL'} {chk.get('what', '')}" +
               (f"  {json.dumps(vals)[:300]}" if vals else ""))
     facts = {k: v for k, v in r.items() if k not in ("status", "checks", "detail", "seconds", "exception",
-                                                     "recheck_missing", "reason")}
+                                                     "recheck_missing", "reason", "rechecked_from")}
     if facts:
         print(f"        facts {json.dumps(facts)[:600]}")
     if r.get("recheck_missing"):
