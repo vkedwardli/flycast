@@ -60,6 +60,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `replay_takeover_frame` | 0 | take over `replay` (pause menu's Take Over) once it plays this input index |
 | `ReplayApiUrl` | lobby API | where replays are listed and fetched |
 | `LiveApiUrl` | lobby API | where live battles are listed (`/status`) |
+| `UpdateCheckUrl` | GitHub latest release | release JSON the startup update check reads |
 | `UdpTestUrl` | gdxsv cloud function | P2P test: asked to send a UDP packet to this client's public address |
 | `PublicIpUrl` | empty (ipify, seeip) | returns this client's public IP as text; replaces the IPv4 and IPv6 lists |
 | `LatencyHost` | empty (Cloud Run regions) | `host[:port]` every region's HTTPS latency test uses instead |
