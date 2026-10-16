@@ -35,7 +35,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | P2P connectivity test and public IP / UPnP port mapping | first lobby connection | O1: public IP and P2P test requests reach the local server (UPnP off) | none |
 | HTTPS latency test to the cloud regions | when the game goes online | none | none |
 | Ping test to the battle peers, input delay from it | lobby battle | rollback cases A1 to D8 use it (`TEST_GGPO_DELAY` replaces the delay); I1: the delay setting reaches the game's input buffer | I1c |
-| Relay through peers and relay servers, relay RTTs passed on between peers | lobby battle info | `run_suite.py` D2 to D8 (D4 to D8: local `gdxsv relay`); unit: `GdxsvPingPongTest.*` | none |
+| Relay through peers and relay servers, relay RTTs passed on between peers | lobby battle info | `run_suite.py` D2 to D8 (D4 to D8: local `gdxsv relay`); unit: `GdxsvPingPongTest.*` | D2c, D4c |
 | Battle without GGPO over UDP (`gdxsv_backend_udp`) | battle info without rollback | O2: one player, local battle server | O2c |
 | Network status OSD | in battle | none | none |
 
@@ -43,10 +43,10 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off; O3: from a local gdxsv P2P lobby, O4: two clients | O3c, O4c |
+| Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off; O3: from a local gdxsv P2P lobby, O4: two clients | A1c, B2c, O3c, O4c |
 | Compatibility with older releases | always | `run_suite.py` A3, A4 (`--old-release`, `--older-release`) | none |
 | Timesync skips replayed in a rollback | always | `run_suite.py` B1 (`GGPO_TEST_LOG=1`) | none |
-| Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | none |
+| Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | C2c |
 | Malformed packets dropped | always | `run_suite.py` D1 (`fuzz.py`) | none |
 | Local test match without servers | `gdxsv:rbk_test=N/4`, `gdxsv:rand_input=SEED` | it is the tool of the cases above | none |
 | SH4 `fmac` as `fmul` + `fadd` on every CPU and backend (same results across hosts) | CMake `GDXSV_FP_COMPAT` (on) | none | none |
