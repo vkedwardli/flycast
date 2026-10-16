@@ -58,6 +58,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `replay_target_round` | 0 | start `replay` at this round |
 | `replay_target_frame` | 0 | start `replay` at this input index |
 | `replay_takeover_frame` | 0 | take over `replay` (pause menu's Take Over) once it plays this input index |
+| `TexturePackUrl` | gdxsv storage | base URL of the texture pack channel JSON and its chunks |
 | `ReplayApiUrl` | lobby API | where replays are listed and fetched |
 | `LiveApiUrl` | lobby API | where live battles are listed (`/status`) |
 | `UdpTestUrl` | gdxsv cloud function | P2P test: asked to send a UDP packet to this client's public address |
