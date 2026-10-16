@@ -16,6 +16,7 @@ python gdxsv_tests/run.py --list
 python gdxsv_tests/run.py --exe build/flycast.exe                 # smoke tier
 python gdxsv_tests/run.py --exe build/flycast.exe --tier full --jobs 4
 python gdxsv_tests/run.py --exe build/flycast.exe --cases R2,R2c
+python gdxsv_tests/run.py --recheck gdxsv_tests/out --cases K1      # checks only, no flycast
 ```
 
 - `--exe` or `GDXSV_EXE`: the flycast build to test.
@@ -23,6 +24,13 @@ python gdxsv_tests/run.py --exe build/flycast.exe --cases R2,R2c
   directory per case with the instances' logs. Exit code 0 when every case
   passed or was skipped.
 - A case whose ROM is missing is skipped.
+- `--recheck <out dir>`: each case saved there (with `--cases`: those and their
+  controls) runs its checks on a copy of its files (in `<out dir>.recheck`) and
+  prints each check with its values, in seconds. Instances, the lobby and the
+  HTTP stub are not started: their exit, log and requests are read back from
+  `probe.json`, `lbs.log`, `http_<n>.json`; what that run did not save is listed
+  and defaults to exit 0 and no requests. Try a new or changed check here on an
+  earlier run's directory before a run with flycast.
 
 ## Environment
 
@@ -99,6 +107,8 @@ the mark`. The fix is postponed: it may move the other patches' timing too.
   returning `result([{"what": ..., "ok": ...}, ...], **details)`.
 - Lua: `lua/<name>.lua` defines `main()`, a coroutine resumed once per vblank;
   parameters arrive as `E2E_PARAMS`. Standard flycast Lua API only.
+- Read what the check judges from files in `ctx.out` (logs, `e2e.log` values),
+  so `--recheck` can replay it.
 - Judge by RAM values, logs and hash logs; an image only for what is visual by
   nature, cropped and downscaled into `golden/`.
 - Add a control and name both in `docs/gdxsv/features.md`.

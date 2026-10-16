@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 
+from lib import recheck
 from lib.case import case, result
 
 GAME_ID_RE = re.compile(r"NAOMI GAME ID \[([^\]]*)\]")
@@ -40,9 +41,10 @@ def link(src: str, dst: str) -> None:
 def naomi_boot_control(ctx):
     rom = ctx.rom("naomi")
     d = os.path.join(ctx.out, "rom")
-    link(rom, os.path.join(d, os.path.basename(rom)))
-    gd = os.path.join(os.path.dirname(rom), "gundmxgd")
-    for f in os.listdir(gd):
-        link(os.path.join(gd, f), os.path.join(d, "gundmxgd", f))
+    if not recheck.ACTIVE:
+        link(rom, os.path.join(d, os.path.basename(rom)))
+        gd = os.path.join(os.path.dirname(rom), "gundmxgd")
+        for f in os.listdir(gd):
+            link(os.path.join(gd, f), os.path.join(d, "gundmxgd", f))
     checks = boot(ctx, "nobios", os.path.join(d, os.path.basename(rom)))
     return result([{"what": "boot check fails", "ok": not all(c["ok"] for c in checks)}], detail=checks)

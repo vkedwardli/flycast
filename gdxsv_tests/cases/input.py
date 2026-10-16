@@ -3,8 +3,8 @@
 import os
 import threading
 
-from lib import assets
-from lib.case import case, result, write_lua
+from lib import assets, recheck
+from lib.case import Skip, case, result, write_lua
 from rollback import rbk_lib
 
 # One local match at a time: the peers use fixed ports.
@@ -22,6 +22,8 @@ def mark_presser(match):
 def measure(ctx, tag: str, delay: int) -> dict:
     """A 4-player local rollback match with input delay `delay` (TEST_GGPO_DELAY); peer 1
     holds B 180 vblanks into the battle and logs when its confirmed input buffer has it."""
+    if recheck.ACTIVE:
+        raise Skip("not recheckable: rbk_lib.run_match saves no record of its peers")
     rom = ctx.rom("dc2")
     s = rbk_lib.Settings(exe=ctx.exe, rom=rom, out=ctx.out, state_dir=assets.state_dir(rom))
     os.makedirs(ctx.out, exist_ok=True)

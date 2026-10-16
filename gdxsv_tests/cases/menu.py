@@ -4,8 +4,8 @@ Judged by log lines: a popup waits behind any other open popup, so it may never 
 import json
 import os
 
-from lib import emu, servers
-from lib.case import case, result
+from lib import emu, recheck, servers
+from lib.case import Skip, case, result
 from lib.xxh64 import hexdigest
 
 WAIT = 30
@@ -90,6 +90,8 @@ def pack_routes(bad_chunk: bool = False) -> dict:
 
 def texture_runs(ctx, name: str, bad_chunk: bool) -> dict:
     """Run 1 from an empty data dir: download. Run 2, same dir: the pack is current, nothing fetched."""
+    if recheck.ACTIVE:
+        raise Skip("not recheckable: run 2 rewrites run 1's log in the same dir")
     cfg = [WIRED, "gdxsv:UseTexturePack=yes", f"gdxsv:TexturePackChannel={CHANNEL}", "gdxsv:TexturePackUrl={url}/"]
     routes = pack_routes(bad_chunk)
     first = main_menu(ctx, name, cfg, "texture pack updated" if not bad_chunk else "chunk hash missmatch", routes)

@@ -18,6 +18,8 @@ import time
 import urllib.request
 from typing import Dict, List, Optional
 
+from . import recheck
+
 IS_WINDOWS = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
 IS_LINUX = sys.platform.startswith("linux")
@@ -124,6 +126,10 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
     lua: a script copied to the config dir and loaded with config:LuaFileName.
     emu_cfg: the text of an emu.cfg written before the start; None: no file, flycast creates it.
     """
+    if recheck.ACTIVE:  # the saved instance; Ctx.probe/run read back its exit
+        inst = Instance(os.path.abspath(dir), os.path.abspath(exe))
+        inst.proc = recheck.Done(0)
+        return inst
     if clean:
         shutil.rmtree(dir, ignore_errors=True)
     inst = Instance(os.path.abspath(dir), os.path.abspath(exe))

@@ -9,7 +9,7 @@ downloaded when missing (default gdxsv_tests/out/state).
 import os
 from typing import Optional
 
-from . import emu
+from . import emu, recheck
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TESTS = os.path.dirname(HERE)
@@ -32,6 +32,8 @@ def rom(name: str) -> Optional[str]:
 
 def state_dir(rom_path: str) -> str:
     """A directory with only the boot savestate of rom_path (emu.launch copies all *.state)."""
+    if recheck.ACTIVE:
+        return ""
     root = os.environ.get("GDXSV_STATE_DIR") or os.path.join(TESTS, "out", "state")
     emu.ensure_state(root, rom_path)
     name = os.path.splitext(os.path.basename(rom_path))[0] + "_99.state"
@@ -77,6 +79,8 @@ LOGIN_SLOT = 5
 def login_state_dir() -> Optional[str]:
     """A directory with GDXSV_LOGIN_STATE (Disc 2 savestate at the network game menu, a VMU
     with a registered user) as save slot LOGIN_SLOT; None if the variable is not set."""
+    if recheck.ACTIVE:
+        return ""
     src = os.environ.get("GDXSV_LOGIN_STATE")
     if not src or not os.path.isfile(src):
         return None

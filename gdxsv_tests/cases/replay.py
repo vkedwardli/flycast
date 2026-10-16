@@ -4,7 +4,7 @@ import concurrent.futures
 import os
 import re
 
-from lib import assets, replayfile
+from lib import assets, recheck, replayfile
 from lib.case import case, result
 
 STARTS_RE = re.compile(r"start_msg_indexes = ([\d ]*)")
@@ -46,7 +46,10 @@ def play(ctx, entry: dict, pb: str = None, extra: list = (), name: str = None) -
 
 
 def play_all(ctx, entries: list) -> list:
-    entries = [e for e in entries if assets.rom(e["disk"])]
+    if recheck.ACTIVE:
+        entries = [e for e in entries if os.path.isdir(os.path.join(ctx.out, "R_" + e["id"]))]
+    else:
+        entries = [e for e in entries if assets.rom(e["disk"])]
     jobs = int(os.environ.get("GDXSV_REPLAY_JOBS", "4"))
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
         return list(pool.map(lambda e: play(ctx, e), entries))

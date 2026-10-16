@@ -4,6 +4,7 @@ import os
 import threading
 import time
 
+from lib import recheck
 from lib.case import case, result
 
 # FixedFrequency mode -> frames per second (core/gdxsv/gdxsv_frame_limiter.cpp)
@@ -32,6 +33,10 @@ def rate_run(ctx, mode: int, extra: list = (), frames: int = FRAMES) -> dict:
                   config=[f"config:rend.FixedFrequency={mode}", *extra], until_done=True, timeout=120)
     stop.set()
     t.join()
+    span = os.path.join(ctx.out, name, "watch.json")  # wall clock: saved for run.py --recheck
+    if recheck.ACTIVE:
+        seen = recheck.load(span, {})
+    recheck.save(span, seen)
     fps = frames / (seen["t1"] - seen["t0"]) if "t0" in seen and "t1" in seen else None
     return {"mode": mode, "clean": p.clean, "fps": round(fps, 2) if fps else None, **p.facts()}
 

@@ -6,7 +6,7 @@ import subprocess
 import sys
 import threading
 
-from lib import assets, servers
+from lib import assets, recheck, servers
 from lib.case import Skip, case, result
 from cases.input import MATCH_LOCK
 
@@ -17,6 +17,13 @@ LIVE = ["--rounds", "2", "--delays", "30,50,60,80", "--input-delay", "3"]
 
 
 def rig(ctx, tag: str, args: list, timeout: int) -> str:
+    if recheck.ACTIVE:  # the rig's saved output
+        try:
+            with open(os.path.join(ctx.out, tag, "rig.log"), encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            recheck.CASE.missing.append(os.path.join(tag, "rig.log"))
+            return ""
     exe = servers.server_exe()
     if exe is None:
         raise Skip("no GDXSV_SERVER_EXE (gdxsv with -spectator_test_session)")
@@ -37,6 +44,8 @@ def rig(ctx, tag: str, args: list, timeout: int) -> str:
 def header(ctx) -> str:
     """A Disc 2 replay of a local match, so lbs hands spectators the peers' rule; one per run."""
     path = os.path.join(os.path.dirname(ctx.out), "live_header", "live", "p1", "data", "replays", "0123456.pb")
+    if recheck.ACTIVE:
+        return path
     with HEADER_LOCK:
         if not os.path.isfile(path):
             rig(ctx, os.path.join("..", "live_header"), ["--make-header", "--rounds", "1"], 600)

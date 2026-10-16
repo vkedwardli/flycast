@@ -14,7 +14,7 @@ import subprocess
 import time
 from typing import Dict, List, Optional
 
-from . import emu
+from . import emu, recheck
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LUA_DIR = os.path.join(os.path.dirname(HERE), "lua")
@@ -102,6 +102,17 @@ class Probe:
         return self.rc == 0 and not self.timed_out and "error" not in self.e2e and not self.errors
 
 
+def finish(inst: emu.Instance, rc: Optional[int], timed_out: bool, t0: float) -> Probe:
+    """The Probe of a finished instance; its exit is saved, and read back in a recheck."""
+    path = os.path.join(inst.dir, "probe.json")
+    if recheck.ACTIVE:
+        rec = recheck.load(path, {})
+        return Probe(inst, rec.get("rc", rc), rec.get("timed_out", timed_out), rec.get("elapsed", 0))
+    p = Probe(inst, rc, timed_out, time.time() - t0)
+    recheck.save(path, {"rc": p.rc, "timed_out": p.timed_out, "elapsed": p.elapsed})
+    return p
+
+
 class Ctx:
     def __init__(self, exe: str, out: str):
         self.exe = exe
@@ -110,6 +121,8 @@ class Ctx:
     def rom(self, name: str) -> str:
         from . import assets
         path = assets.rom(name)
+        if path is None and recheck.ACTIVE:
+            return name  # never opened in a recheck
         if path is None:
             raise Skip(f"no {name} image (GDXSV_ROM_DIR or {assets.ROMS[name][0]})")
         return path
@@ -153,7 +166,7 @@ class Ctx:
             inst.kill()
             inst.proc.wait(10)
             rc = 0 if stop_on_done and not timed_out else inst.poll()
-        p = Probe(inst, rc, timed_out, time.time() - t0)
+        p = finish(inst, rc, timed_out, t0)
         inst.remove_exe()
         return p
 
@@ -174,7 +187,7 @@ class Ctx:
             inst.kill()
             inst.proc.wait(10)
             rc, timed_out = inst.poll(), True
-        p = Probe(inst, rc, timed_out, time.time() - t0)
+        p = finish(inst, rc, timed_out, t0)
         inst.remove_exe()
         return p
 

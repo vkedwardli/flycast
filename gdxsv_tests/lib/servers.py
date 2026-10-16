@@ -10,6 +10,8 @@ import threading
 import time
 from typing import Dict, List, Optional
 
+from . import recheck
+
 
 LOBBY_PORT = 9876  # the client's lobby port is fixed (kGdxsvLbsPort)
 BATTLE_PORT = 9877
@@ -20,6 +22,8 @@ LOBBY_HTTP_PORT = 3380
 def server_exe() -> Optional[str]:
     """inada-s/gdxsv built without the flycast version gate:
     go build -ldflags "-X main.requiredFlycastVersion=" -o gdxsv ./gdxsv"""
+    if recheck.ACTIVE:
+        return "gdxsv"  # never started in a recheck
     path = os.environ.get("GDXSV_SERVER_EXE")
     return os.path.abspath(path) if path and os.path.isfile(path) else None
 
@@ -46,6 +50,8 @@ class Lobby:
 
     def init(self, users: List[tuple]) -> None:
         """New database; users = (login_key, user_id, handle_name) rows, accounts included."""
+        if recheck.ACTIVE:
+            return
         os.makedirs(self.dir, exist_ok=True)
         for name in os.listdir(self.dir):
             if name.startswith("gdxsv.db"):
@@ -62,6 +68,8 @@ class Lobby:
         c.close()
 
     def start(self) -> None:
+        if recheck.ACTIVE:
+            return
         LOBBY_LOCK.acquire()
         self._lock = LOBBY_LOCK
         log = open(self.log_path, "w")
@@ -108,6 +116,12 @@ class FakeHttp:
 
     def __init__(self, body: bytes = b"127.0.0.1", routes: Optional[Dict[str, bytes]] = None):
         self.requests: List[str] = []
+        self.record = recheck.record_path("http")
+        self.server = None
+        if recheck.ACTIVE:
+            self.port = 0
+            self.requests = recheck.load(self.record, [])
+            return
         owner = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -139,8 +153,12 @@ class FakeHttp:
                 f"gdxsv:LatencyHost=127.0.0.1:{self.port}", "network:EnableUPnP=no"]
 
     def stop(self) -> None:
+        if self.server is None:
+            return
         self.server.shutdown()
         self.server.server_close()
+        self.server = None
+        recheck.save(self.record, self.requests)
 
     def __enter__(self):
         return self
@@ -164,6 +182,8 @@ def add_training_lobby(db: str, no: int = 2, force_start: bool = True, mcs_regio
     """Disc 2 lobby `no` with rule 'training' (timer 4, vitals 1000: the lobby treats it as a
     training lobby, where one entry and the chat message "あ" start a battle if force_start).
     mcs_region "p2p": rollback battles between the clients; "": the local battle server."""
+    if recheck.ACTIVE:
+        return
     c = sqlite3.connect(db)
     c.execute("INSERT OR REPLACE INTO m_rule VALUES ('training',3,2,4,0,0,1,1000,1000,0,0,0,0,0,0,"
               "4294967295,4294967295,0,1,255,1,4294967295,4294967295,0)")
