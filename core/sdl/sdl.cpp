@@ -269,6 +269,7 @@ void input_sdl_init()
 
 		if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) < 0)
 			die("SDL: error initializing Joystick subsystem");
+		gdxsv_input_attach_test_joystick();
 	}
 	sdlDeInit.initialized = true;
 	if (SDL_WasInit(SDL_INIT_HAPTIC) == 0)

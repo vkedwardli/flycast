@@ -14,6 +14,10 @@ void gdxsv_input_poll_joysticks();
 // update of the emulator thread when rendering is threaded.
 void gdxsv_input_update_joysticks();
 
+// Test only: with env GDXSV_TEST_JOYSTICK=<script>, attaches an SDL virtual
+// gamepad that plays the script on vblanks (see gdxsv_input.cpp).
+void gdxsv_input_attach_test_joystick();
+
 // A digital direction pair mapped to an analog axis. With gdxsv enabled the
 // axis goes to full deflection at once and opposite directions cancel out;
 // returns true then and the caller skips its ramp.
