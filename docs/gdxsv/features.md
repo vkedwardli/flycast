@@ -97,6 +97,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | J1 (polling on), J2 (off): SDL virtual gamepad; J4: the two switches (Windows) | J1c, J4c |
 | Opposite directions cancel (SOCD) for the game | always for the game | J3: SDL virtual gamepad, d-pad bound to the left stick | J3c |
 | gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
+| Settings from an older release's `emu.cfg` (gdxsv-1.9.6 layout) | always | C2: flycast and gdxsv values hold after the game start | C2c (sections renamed) |
 
 ## Releases and tools
 
