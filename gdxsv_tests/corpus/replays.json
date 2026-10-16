@@ -1,0 +1,245 @@
+{
+  "description": "Replays recorded by past releases, one or more per replay format (log_file_version) and per compatibility path in core/gdxsv/gdxsv_backend_replay.cpp. Fetched by lib/assets.py (GDXSV_REPLAY_DIR), checked against sha256. winners: each round's winner as the build winners_from played it, for files without round_data (no recorded result).",
+  "replays": [
+    {
+      "id": "diskdc2-1615130882741",
+      "disk": "dc2",
+      "date": "2021-03-08",
+      "log_file_version": 20201212,
+      "compat_path": "oldest (<20210802)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc2-1615130882741.pb",
+      "sha256": "fa37d0c0c9e059b151013456f940dea953e77361d5b527dc53deea4aa26e3b01",
+      "bytes": 628393,
+      "winners": [
+        2
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc2-1630516883661",
+      "disk": "dc2",
+      "date": "2021-09-02",
+      "log_file_version": 20210702,
+      "compat_path": "oldest (<20210802)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc2-1630516883661.pb",
+      "sha256": "261db329e7520fdf8fba78b9390289abe1ad90a77694b92a5402d54422a7871e",
+      "bytes": 4698789,
+      "winners": [
+        1,
+        2,
+        1,
+        2,
+        2
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc2-1661789446306",
+      "disk": "dc2",
+      "date": "2022-08-30",
+      "log_file_version": 20210702,
+      "compat_path": "oldest (<20210802)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc2-1661789446306.pb",
+      "sha256": "5fb2a0f0e9cfc6d0817ed682cfb339f6aa5f54c11ff294f131c40b57f424d3fb",
+      "bytes": 5264232,
+      "note": "2022 sample of the oldest path",
+      "winners": [
+        2,
+        1,
+        1,
+        2,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc2-1676739576677",
+      "disk": "dc2",
+      "date": "2023-02-19",
+      "log_file_version": 20210803,
+      "compat_path": "raw-MCS (battle_data->inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc2-1676739576677.pb",
+      "sha256": "7cb89af6fb978fe9699f8a95ea8bb48dae776d6ee53e7b7d382f45f4487f5cae",
+      "bytes": 3524148,
+      "note": "battle_data stored as raw MCS messages, converted to inputs on load",
+      "winners": [
+        1,
+        2,
+        2,
+        1,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "1690576053672",
+      "disk": "dc2",
+      "date": "2023-07-29",
+      "log_file_version": 20230426,
+      "compat_path": "modern (inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/replays/1690576053672.pb",
+      "sha256": "09a09d0bcd18f3ff80f21496a04070cfdbf6127be143b879968675986c9f1db4",
+      "bytes": 286334,
+      "note": "distinct 20230426 era (inputs format)",
+      "winners": [
+        1,
+        1,
+        1,
+        1,
+        2
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "1690642137805",
+      "disk": "dc2",
+      "date": "2023-07-29",
+      "log_file_version": 20230729,
+      "compat_path": "20230729 fixup",
+      "url": "https://storage.googleapis.com/gdxsv/replays/1690642137805.pb",
+      "sha256": "26bf3bf126b63f7876e86676912b4732a7f07620f4d289483755ba0117930dac",
+      "bytes": 498916,
+      "note": "narrow broken batch; guards the log_file_version==20230729 dedup fixup path",
+      "winners": [
+        2,
+        2,
+        1,
+        1,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "1727284586532",
+      "disk": "dc2",
+      "date": "2024-09-26",
+      "log_file_version": 20230730,
+      "compat_path": "modern (inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/replays/1727284586532.pb",
+      "sha256": "a52d025d2d5da5b62ae48f87f16c87be580644c0bb5aee446779a7a8d63c3737",
+      "bytes": 226309,
+      "winners": [
+        2,
+        2,
+        1,
+        1,
+        2
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "1769098243820",
+      "disk": "dc2",
+      "date": "2026-01-23",
+      "log_file_version": 20230730,
+      "compat_path": "modern (inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/replays/1769098243820.pb",
+      "sha256": "2e66e54d4dfc575c66e59794460bfe8d58fbc081807c42c06768ba9daf5fb9ad",
+      "bytes": 181165,
+      "winners": [
+        1,
+        2,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "1788627530784",
+      "disk": "dc2",
+      "date": "2026-09-06",
+      "log_file_version": 20230730,
+      "compat_path": "modern (inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/replays/1788627530784.pb",
+      "sha256": "53552208988b4cd4574dd930c9eeb036183031f3d10e27fb5b68fce18bafe60c",
+      "bytes": 249790,
+      "note": "recent"
+    },
+    {
+      "id": "diskdc1-1607706242618",
+      "disk": "dc1",
+      "date": "2020-12-11",
+      "log_file_version": 20201117,
+      "compat_path": "oldest (<20210802)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc1-1607706242618.pb",
+      "sha256": "073106ddf7ebdd038315dd6c90eed16c5691b712451cf807b52d92215132e990",
+      "bytes": 778690,
+      "winners": [
+        2
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc1-1608301743804",
+      "disk": "dc1",
+      "date": "2020-12-18",
+      "log_file_version": 20201212,
+      "compat_path": "oldest (<20210802)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc1-1608301743804.pb",
+      "sha256": "d25a07059202dd7affb793abb9028cf2c21b685cd721cb8783fece217ddf7374",
+      "bytes": 3601199,
+      "note": "dc1 20201212 proto2 era",
+      "winners": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc1-1650818073019",
+      "disk": "dc1",
+      "date": "2022-04-24",
+      "log_file_version": 20210702,
+      "compat_path": "oldest (<20210802)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc1-1650818073019.pb",
+      "sha256": "0745fffefc3485d09816df2ff69a5c370438d3ea9905c1937ec2f59bea955c8d",
+      "bytes": 4898602,
+      "note": "dc1 20210702 (<20210802 proto2 path).",
+      "winners": [
+        1,
+        2,
+        2,
+        2,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc1-1665242381965",
+      "disk": "dc1",
+      "date": "2022-10-08",
+      "log_file_version": 20210803,
+      "compat_path": "raw-MCS (battle_data->inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc1-1665242381965.pb",
+      "sha256": "a03a1cf0871c9f8345abd01199b0b335a82216ce9cf4563003a172a9e3786326",
+      "bytes": 4795020,
+      "note": "dc1 20210803 raw-MCS era: battle_data converted to inputs on load. early sample of the path.",
+      "winners": [
+        2,
+        1,
+        2,
+        1,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    },
+    {
+      "id": "diskdc1-1786105621072",
+      "disk": "dc1",
+      "date": "2026-08-07",
+      "log_file_version": 20210803,
+      "compat_path": "raw-MCS (battle_data->inputs)",
+      "url": "https://storage.googleapis.com/gdxsv/battlelog/diskdc1-1786105621072.pb",
+      "sha256": "988ecce48efa65fdb2f59a8ef36c79dc91bdd5238aab9b72193a467551ea4893",
+      "bytes": 1485563,
+      "note": "dc1 20210803 raw-MCS era, most recent sample. dc1 still uses this format in 2026 (no 'modern inputs' dc1 replays exist).",
+      "winners": [
+        1,
+        1
+      ],
+      "winners_from": "2d50c7502"
+    }
+  ]
+}
