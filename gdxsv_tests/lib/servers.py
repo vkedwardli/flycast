@@ -4,6 +4,8 @@ interface (gdxsv uses only the port of GDXSV_LOBBY_ADDR); clients are pointed at
 
 import http.server
 import os
+import re
+import socket
 import sqlite3
 import subprocess
 import threading
@@ -99,7 +101,6 @@ class Lobby:
 
 
 def wait_port(port: int, timeout: float) -> bool:
-    import socket
     t0 = time.time()
     while time.time() - t0 < timeout:
         with socket.socket() as s:
@@ -112,9 +113,12 @@ def wait_port(port: int, timeout: float) -> bool:
 class FakeHttp:
     """Answers every request with 200 and `body`, and records "METHOD path" per request.
     Stands in for the public IP, P2P test and latency URLs (emu.net_config).
-    routes: path (query dropped) -> body instead; other paths get 404."""
+    routes: path (query dropped) -> body instead; other paths get 404.
+    udp_hello: POST /udptest also sends "Hello" over UDP to its form field addr (ip:port),
+    as the real P2P test server does when the port is open."""
 
-    def __init__(self, body: bytes = b"127.0.0.1", routes: Optional[Dict[str, bytes]] = None):
+    def __init__(self, body: bytes = b"127.0.0.1", routes: Optional[Dict[str, bytes]] = None,
+                 udp_hello: bool = False):
         self.requests: List[str] = []
         self.record = recheck.record_path("http")
         self.server = None
@@ -127,9 +131,12 @@ class FakeHttp:
         class Handler(http.server.BaseHTTPRequestHandler):
             def handle_one(self):
                 n = int(self.headers.get("Content-Length") or 0)
-                if n:
-                    self.rfile.read(n)
+                form = self.rfile.read(n) if n else b""
                 owner.requests.append(f"{self.command} {self.path}")
+                m = re.search(rb'name="addr"\r\n\r\n([0-9.]+):(\d+)\r\n', form)
+                if udp_hello and self.path.startswith("/udptest") and m:
+                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as u:
+                        u.sendto(b"Hello", (m.group(1).decode(), int(m.group(2))))
                 data = body if routes is None else routes.get(self.path.split("?")[0])
                 self.send_response(200 if data is not None else 404)
                 data = data or b""
