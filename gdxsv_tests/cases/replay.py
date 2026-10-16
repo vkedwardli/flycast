@@ -183,6 +183,46 @@ def frame_jump_checks(r: dict, out: str, name: str, frame: int) -> list:
             {"what": "every round played to the end with the recorded winners", "ok": r["ok"]}]
 
 
+SEEK_RE = re.compile(r"JumpToKeyMsg \d+->(\d+) target=\d+ load=-?\d+ ran=(\d+) frames in \d+\[ms\] \(([\d.]+)\[ms/fr\]\)")
+SEEK_FRAME = 6000  # in round 1 (target 8000 landed on round 2's start, 6376)
+# Measured on windows-mini (newest Disc 2 replay, 6400 frames run): hack on 2.0-2.1 ms/fr, off 3.1-3.3.
+SEEK_SPEEDUP = 0.85
+
+
+def seek_run(ctx, name: str, hack: bool) -> dict:
+    r = play(ctx, newest_dc2(), name=name,
+             extra=[f"gdxsv:replay_target_frame={SEEK_FRAME}", f"gdxsv:SkipRenderingHack={'yes' if hack else 'no'}"])
+    with open(os.path.join(ctx.out, name, "flycast.log"), encoding="utf-8", errors="replace") as f:
+        seeks = SEEK_RE.findall(f.read())
+    r["seek"] = [{"landed": int(k), "ran": int(n), "ms_per_frame": float(ms)} for k, n, ms in seeks]
+    return r
+
+
+def seek_checks(fast: dict, slow: dict) -> list:
+    one = all(len(r["seek"]) == 1 and r["seek"][0]["landed"] == SEEK_FRAME for r in (fast, slow))
+    return [
+        {"what": f"each run: one seek, landed on input {SEEK_FRAME}", "ok": one},
+        {"what": "each run: every round played to the end with the recorded winners", "ok": fast["ok"] and slow["ok"]},
+        {"what": f"seek with the hack under {SEEK_SPEEDUP} x the ms per frame without it",
+         "ok": one and fast["seek"][0]["ms_per_frame"] < SEEK_SPEEDUP * slow["seek"][0]["ms_per_frame"],
+         "ms_per_frame": [r["seek"][0]["ms_per_frame"] if r["seek"] else None for r in (fast, slow)]},
+    ]
+
+
+@case("K1", "fast seek: SkipRenderingHack seeks faster per frame, same outcome as without it")
+def replay_fast_seek(ctx):
+    fast, slow = seek_run(ctx, "K1_on", True), seek_run(ctx, "K1_off", False)
+    return result(seek_checks(fast, slow), on=fast, off=slow)
+
+
+@case("K1c", "K1's checks with the hack off in both runs: the faster check fails", control_of="K1")
+def replay_fast_seek_control(ctx):
+    a, b = seek_run(ctx, "K1c_a", False), seek_run(ctx, "K1c_b", False)
+    c = seek_checks(a, b)
+    return result([{"what": "both runs seeked and played", "ok": c[0]["ok"] and c[1]["ok"]},
+                   {"what": "faster check fails", "ok": not c[2]["ok"]}], detail=c)
+
+
 NAMES = 0x0c3d1b04  # pilot names in the battle, 16 bytes per player (SJIS)
 PILOT = "826f8268826b826e8273824f"  # ＰＩＬＯＴ０
 

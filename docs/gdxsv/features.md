@@ -65,7 +65,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Point of view | `gdxsv:ReplayPOV` | V1: the game plays as the chosen player | V1c |
 | Four-screen replay: 4 processes in a 2x2 grid, kept on one frame | `gdxsv:ReplayFourScreen=yes` | V5: 3 guests on one sync group, each screen plays as its player | V5c |
 | Audio rate control (resample up to 0.5 % to hold the queue half full) | replay and spectating without audio sync | none | none |
-| Fast seek: output-only game functions return early on seek frames | setting `SkipRenderingHack` | none | none |
+| Fast seek: output-only game functions return early on seek frames | setting `SkipRenderingHack` | K1: same seek and outcome, under 0.85 x the ms per frame without the hack | K1c |
 
 ## Live spectating
 
