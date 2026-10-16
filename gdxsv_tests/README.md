@@ -41,7 +41,7 @@ python gdxsv_tests/run.py --recheck gdxsv_tests/out --cases K1      # checks onl
 | `GDXSV_STATE_DIR` | boot savestates (`<rom>_99.state`), made on first use (default `out/state`) |
 | `GDXSV_REPLAY_DIR` | corpus replays, downloaded on first use and checked against `corpus/replays.json` (default `out/replay`) |
 | `GDXSV_REPLAY_JOBS` | replays R1 plays in parallel (default 4) |
-| `GDXSV_SERVER_EXE` | O1-O5, S1-S4: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1, S3, S4 need `-spectator_test_session` (gdxsv `master`) |
+| `GDXSV_SERVER_EXE` | O1-O5, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
 | `GDXSV_LOGIN_STATE` | O1-O5: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
 
 The ROM, BIOS, savestates and replays are not in the repository.
@@ -100,7 +100,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | X1 / X1c | full | `UseTexturePack=yes TexturePackChannel=e2e TexturePackUrl=<local>`: `/e2e.json` lists a 100 KB fake pack in 3 chunks (XXH64 in `lib/xxh64.py`); all fetched, `texture pack updated to e2e-1`, `T13306M.texp` = the bytes served; second start, same dir: `new 0`, no chunk fetched (X1c: one chunk hash wrong, not installed) | 3 s / 3 s |
 | M1 / M1c | full | `ConnectionMedium=Wireless`: `wireless warning shown`; `VPN: e2e`: `VPN warning shown: VPN: e2e` (M1c: `Wired`, neither) | 3 s / 3 s |
 | S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
-| S3 / S3c, S4 / S4c | full | S1 with the previous release (`cases/live.py`, downloaded to `GDXSV_RELEASE_ROOT`, default `out`) as the spectator and its reference play (S3) or as the 4 uploading peers (S4); S3c/S4c: no uplink, every check fails | 300 s each |
+| S3 / S3c, S4 / S4c | full | S1 (same `GDXSV_SERVER_EXE`) with the previous release (`cases/live.py`, downloaded to `GDXSV_RELEASE_ROOT`, default `out`) as the spectator and its reference play (S3) or as the 4 uploading peers (S4); S3c/S4c: no uplink, every check fails | 170-240 s each |
 | S2 / S2c | full | `rollback/fake_live_lbs.py` streams the newest Disc 2 corpus replay as a live battle 5 s into its last round; the spectator jumps to that round, every player's wins, losses and draws (`lua/counters.lua`) equal the earlier rounds' results, then the game's own count after it (S2c: no round results on the channel, both checks fail) | 117 s each |
 
 W1 and W1c are known failures (`known_failure=`, reported `KNOWN`, exit code 0): on
