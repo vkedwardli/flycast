@@ -56,7 +56,8 @@ def browse(ctx, name: str, rows: bool) -> dict:
     with image.SCREEN_LOCK, servers.FakeHttp(routes=routes) as http:
         url = f"http://127.0.0.1:{http.port}"
         cfg = ["log:Verbosity=3", "log:LogToFile=1", "window:width=640", "window:height=480",
-               "gdxsv:ConnectionMedium=Wired", f"gdxsv:LiveApiUrl={url}", f"gdxsv:ReplayApiUrl={url}"]
+               "gdxsv:ConnectionMedium=Wired", f"gdxsv:LiveApiUrl={url}", f"gdxsv:ReplayApiUrl={url}",
+               *http.config()]  # the online boot's public IP, P2P and latency checks
         inst = emu.launch(ctx.exe, ctx.rom("dc2"), os.path.join(d, "emu"), config=cfg, headless=False)
         if not recheck.ACTIVE:
             try:
