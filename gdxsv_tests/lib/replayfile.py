@@ -108,6 +108,33 @@ def _put_varint(v: int) -> bytes:
         out.append(c | 0x80)
 
 
+def put_field(num: int, wt: int, v) -> bytes:
+    """One field as fields() read it."""
+    out = _put_varint(num << 3 | wt)
+    if wt == 0:
+        return out + _put_varint(v)
+    if wt == 2:
+        return out + _put_varint(len(v)) + v
+    return out + v
+
+
+def put(num: int, v) -> bytes:
+    """An int (int32 negatives as 10 bytes, as protobuf does), str, or bytes field."""
+    if isinstance(v, str):
+        v = v.encode()
+    if isinstance(v, (bytes, bytearray)):
+        return put_field(num, 2, bytes(v))
+    return put_field(num, 0, v & (1 << 64) - 1)
+
+
+def put_packed(num: int, vals: List[int], fixed64: bool = False) -> bytes:
+    """A packed repeated varint or fixed64 field; nothing when empty."""
+    if not vals:
+        return b""
+    body = b"".join(x.to_bytes(8, "little") if fixed64 else _put_varint(x & (1 << 64) - 1) for x in vals)
+    return put_field(num, 2, body)
+
+
 def truncate_inputs(src: str, dst: str, keep: int) -> None:
     """Copy of a replay file with only its first `keep` inputs."""
     with open(src, "rb") as f:
@@ -120,12 +147,6 @@ def truncate_inputs(src: str, dst: str, keep: int) -> None:
             keep -= 1
             if keep < 0:
                 continue
-        out += _put_varint(num << 3 | wt)
-        if wt == 0:
-            out += _put_varint(v)
-        elif wt == 2:
-            out += _put_varint(len(v)) + v
-        else:
-            out += v
+        out += put_field(num, wt, v)
     with open(dst, "wb") as f:
         f.write(out)
