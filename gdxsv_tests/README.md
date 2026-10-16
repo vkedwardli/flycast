@@ -80,6 +80,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | F1 / F1c | full | `config:rend.FixedFrequency` 2, 4, 5 from the lobby savestate: 600 vblanks timed by the wall clock (`lua/rate.lua` marks, 10 ms poll) at 59.94, 50, 30 fps within 2 % (measured 59.91, 50.01, 30.00); F1c: `FixedFrequency=0 LimitFPS=no` ran 956 fps, the 59.94 check fails | 53 s / 2 s |
 | F2 / F2c | full | `FixedFrequency=0 LimitFPS=yes`: the audio output paces the game, 59.94 fps within 2 % (measured 59.98); F2c: `LimitFPS=no` ran 958 fps | 13 s / 2 s |
 | B1 / B1c | full | `headless_loadstate=yes headless_probe_frames=300`: rc 0 by itself, `headless probe: exiting after 300 frames`, `Loaded state ..._99.state` (B1c: neither option, killed at 30 s, every check fails) | 6 s / 30 s |
+| U1 / U1c | full | no ROM, a window (the check runs in the main menu); `gdxsv:UpdateCheckUrl` = a local server returning release JSON with every platform zip: log `update check: latest gdxsv-99.0.0, newer 1, download 1` (U1c: `gdxsv-0.0.1`, `newer 0`). Judged by the log: the popup waits behind any other popup (the wireless warning) | 1 s / 1 s |
 | S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is

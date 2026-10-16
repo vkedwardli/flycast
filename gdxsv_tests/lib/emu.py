@@ -28,7 +28,8 @@ STATE_URL = "https://storage.googleapis.com/gdxsv/misc/{name}"
 OFFLINE = ["gdxsv:server=127.0.0.1",
            "gdxsv:UploadReplay=no",
            "gdxsv:ReplayApiUrl=http://127.0.0.1:1",
-           "gdxsv:LiveApiUrl=http://127.0.0.1:1"]
+           "gdxsv:LiveApiUrl=http://127.0.0.1:1",
+           "gdxsv:UpdateCheckUrl=http://127.0.0.1:1"]
 
 # Log lines that mean something broke, whatever the test.
 ERROR_RE = re.compile(r"GGPO error|Exception|\[GPF\]|Assertion|Flycast has stopped")
@@ -146,7 +147,8 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
     args = [inst.run_exe]
     for c in cfg:
         args += ["--config", c]
-    args.append(rom)
+    if rom:  # none: the main menu (GuiState::Main)
+        args.append(rom)
     penv = os.environ.copy()
     penv.update(inst.env())
     penv.update(env or {})
