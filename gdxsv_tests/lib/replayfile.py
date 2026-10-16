@@ -8,6 +8,7 @@ ROUND_DATA = 18  # BattleLogFile.round_data (BattleLogRound)
 WIN_TEAM = 1  # BattleLogRound.win_team (int32; -1 = draw)
 INPUTS = 15  # BattleLogFile.inputs (repeated fixed64)
 START_MSG_INDEXES = 16  # BattleLogFile.start_msg_indexes (repeated int32)
+START_MSG_RANDOMS = 17  # BattleLogFile.start_msg_randoms (repeated uint64)
 
 
 def _varint(b: bytes, i: int) -> Tuple[int, int]:
@@ -73,6 +74,27 @@ def start_indexes(path: str) -> List[int]:
         if num == START_MSG_INDEXES:
             out += _packed(v) if wt == 2 else [v]
     return out
+
+
+class Log:
+    """inputs, start_msg_indexes and start_msg_randoms of a replay file."""
+
+    def __init__(self, path: str):
+        with open(path, "rb") as f:
+            data = f.read()
+        self.inputs: List[int] = []
+        self.start_msg_indexes: List[int] = []
+        self.start_msg_randoms: List[int] = []
+        for num, wt, v in fields(data):
+            if num == INPUTS:
+                raw = v if wt == 2 else [v]
+                if wt == 2:
+                    raw = [raw[i:i + 8] for i in range(0, len(raw), 8)]
+                self.inputs += [int.from_bytes(x, "little") for x in raw]
+            elif num == START_MSG_INDEXES:
+                self.start_msg_indexes += _packed(v) if wt == 2 else [v]
+            elif num == START_MSG_RANDOMS:
+                self.start_msg_randoms += _packed(v) if wt == 2 else [v]
 
 
 def _put_varint(v: int) -> bytes:
