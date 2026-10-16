@@ -92,8 +92,8 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | none | none |
-| Audio sync as a setting | setting `config:aica.LimitFPS` | none | none |
+| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
+| Audio sync as a setting | setting `config:aica.LimitFPS` | F2: audio paces the game at 59.94 fps | F2c |
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | none | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | none | none |
 | gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
