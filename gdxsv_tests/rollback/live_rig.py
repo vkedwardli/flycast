@@ -153,6 +153,7 @@ def main():
     ap.add_argument("--spectators", default="1:0", help="comma separated pov:join_delay_sec")
     ap.add_argument("--spectator-extra", default="", help="extra flycast args for spectators, space separated")
     ap.add_argument("--timeout", type=int, default=1500)
+    ap.add_argument("--no-uplink", action="store_true", help="peers get no TEST_SPECTATOR_LBS (control: nothing to watch)")
     a = ap.parse_args()
 
     s = lib.Settings(exe=a.exe, rom=a.rom, out=a.out, state_dir=a.state_dir)
@@ -176,7 +177,8 @@ def main():
     lbs = start_lbs(os.path.abspath(a.gdxsv), header, os.path.join(a.out, f"{a.tag}_lbs.log"))
     time.sleep(2)
 
-    env["TEST_SPECTATOR_LBS"] = f"127.0.0.1:{LBS_PORT}"
+    if not a.no_uplink:
+        env["TEST_SPECTATOR_LBS"] = f"127.0.0.1:{LBS_PORT}"
     specs = []
     plan = [tuple(int(x) for x in p.split(":")) for p in a.spectators.split(",") if p]
     spec_config = [x for x in a.spectator_extra.split() if x != "--config"] if a.spectator_extra else []

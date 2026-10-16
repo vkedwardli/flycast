@@ -33,7 +33,7 @@ python gdxsv_tests/run.py --exe build/flycast.exe --cases R2,R2c
 | `GDXSV_STATE_DIR` | boot savestates (`<rom>_99.state`), made on first use (default `out/state`) |
 | `GDXSV_REPLAY_DIR` | corpus replays, downloaded on first use and checked against `corpus/replays.json` (default `out/replay`) |
 | `GDXSV_REPLAY_JOBS` | replays R1 plays in parallel (default 4) |
-| `GDXSV_SERVER_EXE` | O1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="` |
+| `GDXSV_SERVER_EXE` | O1-O4, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
 | `GDXSV_LOGIN_STATE` | O1: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
 
 The ROM, BIOS, savestates and replays are not in the repository.
@@ -75,6 +75,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | V2 / V2c | full | `replay_target_round=4` on a 5-round replay: one jump, rounds 4 and 5 play to the last input (V2c: from round 1) | 50 s / 110 s |
 | V3 / V3c | full | `replay_target_frame=4000`: one seek landing on input 4000, then every round with the recorded winners (V3c: no target) | 110 s |
 | V4 / V4c | full | `ReplayHideName`: the battle names the players ＰＩＬＯＴ０1-4 (`0x0c3d1b04`, 16 bytes each) (V4c: recorded names) | 5 s |
+| S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
 
 W1 fails on the default `rend.ThreadedRendering=yes`: the widescreen patch is
 written only when the emulator stops between frames; W1c fails with it, since the
