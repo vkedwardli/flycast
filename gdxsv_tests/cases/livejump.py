@@ -1,13 +1,15 @@
 """Live round jump: a spectator joining a live battle mid-match jumps to the current round, and the
 game's round counters (wins, losses, draws) are rebuilt from the earlier rounds' results.
-rollback/fake_live_lbs.py streams a corpus replay as the live battle."""
+Live auto-next: a spectator moves on to the next live battle when one ends.
+rollback/fake_live_lbs.py streams a corpus replay as the live battles."""
 
 import os
 import socket
 import subprocess
 import sys
+import time
 
-from lib import assets, recheck, replayfile, servers
+from lib import assets, emu, recheck, replayfile, servers
 from lib.case import case, result
 from cases.replay import newest_dc2
 
@@ -110,3 +112,71 @@ def live_round_counters_control(ctx):
     return result([{"what": "spectator joined and jumped", "ok": c[0]["ok"] and c[1]["ok"]},
                    {"what": "both counter checks fail", "ok": c[2]["ok"] and not c[3]["ok"] and not c[4]["ok"]}],
                   detail=c)
+
+
+NEXT = "9000001"  # fake_live_lbs.py's second battle
+LIVE_FRAMES = 1800  # each battle stays live this long after the join point (the spectator boots in ~6 s)
+
+
+def autonext_run(ctx, name: str, auto: bool) -> str:
+    """A windowed spectator (headless exits at the battle end) joins battle 1 of two fake live
+    battles, each LEAD s into its last round; returns its flycast.log."""
+    pb = assets.replay(newest_dc2())
+    last = replayfile.start_indexes(pb)[-1]
+    out = os.path.join(ctx.out, name)
+    os.makedirs(out, exist_ok=True)
+    rom = ctx.rom("dc2")
+    http = free_port()
+    cmd = [sys.executable, FAKE, "--replay", pb, "--battles", "2", "--lead", str(last / 59.94 + LEAD),
+           "--max-frames", str(last + LIVE_FRAMES), "--gap", "3", "--http-port", str(http)]
+    with servers.LOBBY_LOCK:
+        fake = None
+        if not recheck.ACTIVE:
+            log = open(os.path.join(out, "fake_live_lbs.log"), "w")
+            fake = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+            servers.wait_port(http, 10)
+        try:
+            inst = emu.launch(ctx.exe, rom, os.path.join(out, "spectator"), headless=False,
+                              state_dir=assets.state_dir(rom), config=[
+                                  "gdxsv:server=127.0.0.1", f"gdxsv:LiveApiUrl=http://127.0.0.1:{http}",
+                                  f"gdxsv:spectate={CODE}", f"gdxsv:LiveAutoNext={'yes' if auto else 'no'}",
+                                  "gdxsv:ReplayPOV=1", "gdxsv:ReplaySeekStates=no", "gdxsv:ReplayFourScreen=no",
+                                  "gdxsv:ConnectionMedium=Wired", "config:aica.Volume=0",
+                                  "log:Verbosity=3", "log:LogToFile=1"])
+            t0 = time.time()
+            # Battle 1 ends LIVE_FRAMES after the join; battle 2 is joined after the 3 s gap, a 5 s
+            # autoplay poll and a ~6 s boot.
+            while inst.poll() is None and time.time() - t0 < 90:
+                if inst.log.count("counters: restored") >= 2:
+                    break
+                time.sleep(1)
+            inst.kill()
+            inst.remove_exe()
+        finally:
+            if fake:
+                fake.kill()
+                fake.wait()
+                log.close()
+    return inst.log
+
+
+def autonext_checks(text: str) -> list:
+    return [
+        {"what": "battle 1 joined: its round counters restored", "ok": "counters: restored" in text},
+        {"what": f"log: live autoplay: moving on to {NEXT}", "ok": f"live autoplay: moving on to {NEXT}" in text},
+        {"what": f"battle {NEXT} joined: its round counters restored too",
+         "got": text.count("counters: restored"), "ok": text.count("counters: restored") >= 2},
+    ]
+
+
+@case("S5", "live auto-next: when a watched live battle ends, the spectator moves on to the next one "
+            "(fake live lobby with two battles)")
+def live_autonext(ctx):
+    return result(autonext_checks(autonext_run(ctx, "S5", True)))
+
+
+@case("S5c", "S5 with gdxsv:LiveAutoNext=no: battle 1 is watched, the spectator does not move on",
+      control_of="S5")
+def live_autonext_control(ctx):
+    c = autonext_checks(autonext_run(ctx, "S5c", False))
+    return result([c[0], {"what": "both move-on checks fail", "ok": not c[1]["ok"] and not c[2]["ok"]}], detail=c)

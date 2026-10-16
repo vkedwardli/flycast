@@ -101,6 +101,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | M1 / M1c | full | `ConnectionMedium=Wireless`: `wireless warning shown`; `VPN: e2e`: `VPN warning shown: VPN: e2e` (M1c: `Wired`, neither) | 3 s / 3 s |
 | S1 / S1c | full | `rollback/live_rig.py`: 4 peers (30-80 ms, input delay 3, 2 rounds) upload to a local `gdxsv lbs -spectator_test_session`; its recording is one peer's replay, a spectator's state per step equals that replay played offline (S1c: peers without `TEST_SPECTATOR_LBS`, every check fails). Header replay made once per run | 410 s + 115 s |
 | S2 / S2c | full | `rollback/fake_live_lbs.py` streams the newest Disc 2 corpus replay as a live battle 5 s into its last round; the spectator jumps to that round, every player's wins, losses and draws (`lua/counters.lua`) equal the earlier rounds' results, then the game's own count after it (S2c: no round results on the channel, both checks fail) | 117 s each |
+| S5 / S5c | full | `rollback/fake_live_lbs.py` serves two live battles (newest Disc 2 corpus replay, 5 s into the last round, 30 s live, 3 s apart) to a windowed spectator with `LiveAutoNext=yes`: it logs `live autoplay: moving on to 9000001` and restores battle 2's round counters (S5c: `LiveAutoNext=no`, neither) | 39 s, 91 s |
 
 W1 and W1c are known failures (`known_failure=`, reported `KNOWN`, exit code 0): on
 the default `rend.ThreadedRendering=yes` the widescreen patch is written only when the
