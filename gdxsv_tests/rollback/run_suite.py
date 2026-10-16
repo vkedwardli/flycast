@@ -69,6 +69,22 @@ def a1_basic(s: Settings) -> Result:
     return verdict(common(m), [summary(m)])
 
 
+DESYNC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "desync.lua")
+DESYNC_SIGNS = ("last frames differ", "round winners differ")
+
+
+def control(bad: List[str], signs, notes: List[str]) -> Result:
+    """A control passes when its parent's checks fail, on one of the expected signs."""
+    hit = [b for b in bad if any(b.startswith(x) or f": {x}" in b for x in signs)]
+    return (PASS, ["parent checks fail as expected: " + "; ".join(hit)] + notes) if hit else \
+        (FAIL, [f"parent checks did not fail on {list(signs)}: {bad or 'all passed'}"] + notes)
+
+
+def a1_control(s: Settings) -> Result:
+    m = lib.run_match(s, "A1c", [s.exe] * 4, DELAYS, lua={2: DESYNC})
+    return control(common(m), DESYNC_SIGNS, [summary(m)])
+
+
 def a2_long(s: Settings) -> Result:
     m = lib.run_match(s, "A2", [s.exe] * 4, DELAYS, env={"MAXREBATTLE": "20"}, timeout=3600)
     bad = common(m)
@@ -391,6 +407,7 @@ DEFAULT_PORT_CASES = {"A3", "A4"}
 CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     # id: (title, function, rough minutes, long-running)
     "A1": ("basic 4-player match", a1_basic, 1, False),
+    "A1c": ("control: A1 with peer 2 desynced (desync.lua), A1's checks fail", a1_control, 1, False),
     "A2": ("20-round match", a2_long, 21, True),
     "A3": ("mixed with --old-exe, both peer 0 sides", a3_mixed_old, 2, False),
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
