@@ -27,31 +27,12 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import rbk_lib as lib  # noqa: E402
+from lib.replayfile import Log as load_log  # noqa: E402
 
 LUA = os.path.join(lib.HERE, "live_det.lua")
 LBS_PORT = 9876
-
-
-def proto_module(out, gdxsv_repo):
-    """Python bindings for gdxsv.proto, generated with protoc from the gdxsv repo."""
-    d = os.path.join(out, "pb")
-    if not os.path.isfile(os.path.join(d, "gdxsv_pb2.py")):
-        os.makedirs(d, exist_ok=True)
-        proto_dir = os.path.join(gdxsv_repo, "gdxsv", "proto")
-        subprocess.run(["protoc", "-I", proto_dir, f"--python_out={d}", os.path.join(proto_dir, "gdxsv.proto")],
-                       check=True)
-    sys.path.insert(0, d)
-    # Older protoc output only loads with the pure Python implementation.
-    os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
-
-
-def load_log(path):
-    import gdxsv_pb2 as pb
-    f = pb.BattleLogFile()
-    with open(path, "rb") as fp:
-        f.ParseFromString(fp.read())
-    return f
 
 
 def read_det(path):
@@ -73,7 +54,7 @@ def start_lbs(gdxsv_exe, header, log_path):
     env = os.environ.copy()
     env.update({"GDXSV_LOBBY_ADDR": f":{LBS_PORT}", "GDXSV_LOBBY_PUBLIC_ADDR": f"127.0.0.1:{LBS_PORT}",
                 "GDXSV_LOBBY_HTTP_ADDR": "", "GDXSV_BATTLE_ADDR": ":3334", "GDXSV_RELAY_ADDR": ""})
-    cwd = os.path.dirname(os.path.dirname(os.path.abspath(gdxsv_exe)))
+    cwd = os.path.dirname(os.path.abspath(log_path))
     out = open(log_path, "w")
     return subprocess.Popen([gdxsv_exe, "-v=3", f"-spectator_test_session={header}", "lbs"], cwd=cwd, env=env,
                             stdout=out, stderr=subprocess.STDOUT)
@@ -172,10 +153,10 @@ def main():
     ap.add_argument("--spectators", default="1:0", help="comma separated pov:join_delay_sec")
     ap.add_argument("--spectator-extra", default="", help="extra flycast args for spectators, space separated")
     ap.add_argument("--timeout", type=int, default=1500)
+    ap.add_argument("--no-uplink", action="store_true", help="peers get no TEST_SPECTATOR_LBS (control: nothing to watch)")
     a = ap.parse_args()
 
     s = lib.Settings(exe=a.exe, rom=a.rom, out=a.out, state_dir=a.state_dir)
-    proto_module(a.out, os.path.dirname(os.path.dirname(os.path.abspath(a.gdxsv))))
     lib.ensure_state(s.state_dir, s.rom)
     delays = [int(x) for x in a.delays.split(",")]
     env = {"VITAL": a.vital, "MAXREBATTLE": a.rounds, "RBK_SAVE_REPLAY": "1"}
@@ -196,7 +177,8 @@ def main():
     lbs = start_lbs(os.path.abspath(a.gdxsv), header, os.path.join(a.out, f"{a.tag}_lbs.log"))
     time.sleep(2)
 
-    env["TEST_SPECTATOR_LBS"] = f"127.0.0.1:{LBS_PORT}"
+    if not a.no_uplink:
+        env["TEST_SPECTATOR_LBS"] = f"127.0.0.1:{LBS_PORT}"
     specs = []
     plan = [tuple(int(x) for x in p.split(":")) for p in a.spectators.split(",") if p]
     spec_config = [x for x in a.spectator_extra.split() if x != "--config"] if a.spectator_extra else []

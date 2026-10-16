@@ -28,22 +28,22 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | Network patch: an SH4 payload (`gdxsv_patch/`) replaces the game's modem stack; the game talks to the host through `gdx_rpc` | always for the game | none | none |
-| Lobby connection over TCP (`gdxsv_backend_tcp`) | setting `server` (default `zdxsv.net`) | none | none |
-| Login key, generated on first use | setting `loginkey` | none | none |
-| Platform info to the lobby (build, OS, CPU, machine id, wireless or not, local and public IPs, UDP port, UPnP and port test results) | always | none | none |
-| VPN warning (connection medium) | always online | none | none |
-| P2P connectivity test and public IP / UPnP port mapping | first lobby connection | none | none |
+| Lobby connection over TCP (`gdxsv_backend_tcp`) | setting `server` (default `zdxsv.net`) | O1: login and plaza on a local `gdxsv lbs` | none |
+| Login key, generated on first use | setting `loginkey` | O1: the lobby finds the account by the key | O1c (unknown key) |
+| Platform info to the lobby (build, OS, CPU, machine id, wireless or not, local and public IPs, UDP port, UPnP and port test results) | always | O1: received by the lobby (build, OS, CPU) | none |
+| Wireless warning popup and VPN warning toast (connection medium) | main menu; `gdxsv:ConnectionMedium` overrides the detected adapter | M1: Wireless logs the popup, `VPN: e2e` the toast with the adapter | M1c |
+| P2P connectivity test and public IP / UPnP port mapping | first lobby connection | O1: public IP and P2P test requests reach the local server (UPnP off) | none |
 | HTTPS latency test to the cloud regions | when the game goes online | none | none |
 | Ping test to the battle peers, input delay from it | lobby battle | rollback cases A1 to D8 use it (`TEST_GGPO_DELAY` replaces the delay); I1: the delay setting reaches the game's input buffer | I1c |
 | Relay through peers and relay servers, relay RTTs passed on between peers | lobby battle info | `run_suite.py` D2 to D8 (D4 to D8: local `gdxsv relay`); unit: `GdxsvPingPongTest.*` | none |
-| Battle without GGPO over UDP (`gdxsv_backend_udp`) | battle info without rollback | none | none |
+| Battle without GGPO over UDP (`gdxsv_backend_udp`) | battle info without rollback | O2: one player, local battle server | O2c |
 | Network status OSD | in battle | none | none |
 
 ## Rollback netcode (GGPO)
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off | none |
+| Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off; O3: from a local gdxsv P2P lobby, O4: two clients | O3c, O4c |
 | Compatibility with older releases | always | `run_suite.py` A3, A4 (`--old-release`, `--older-release`) | none |
 | Timesync skips replayed in a rollback | always | `run_suite.py` B1 (`GGPO_TEST_LOG=1`) | none |
 | Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | none |
@@ -58,21 +58,21 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Save a battle as a replay, upload it | settings `SaveReplay`, `UploadReplay`, `ReplayPath` | `RBK_SAVE_REPLAY` saves a local match (never uploaded) | none |
 | Replay browser: Local, Server, Live tabs | menu "Live & Replays" | none | none |
 | Play a replay file | menu, or `gdxsv:replay=FILE` | R1 (every replay format), R2: plays to the end with the recorded winners | R2c |
-| Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*` | none |
-| Takeover: play on from a replay frame, retry with START | pause menu | none | none |
+| Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*`; V2, V3: round jump and seek at start (`replay_target_round`, `replay_target_frame`) | V2c, V3c |
+| Takeover: play on from a replay frame, retry with START | pause menu, or `gdxsv:replay_takeover_frame` | V6: the pad plays from the frame, START retries from it | V6c |
 | Round results kept across seeks and round jumps | always | unit: `GdxsvRoundCountersTest.*` | none |
-| Key display, Ally HP, hidden names, skip mobile suit selection | settings `ReplayKeyDisplay`, `ReplayShowAllyHP`, `ReplayHideName`, `ReplaySkipMsSelection` | none | none |
-| Point of view | `gdxsv:ReplayPOV` | none | none |
-| Four-screen replay: 4 processes in a 2x2 grid, kept on one frame | `gdxsv:ReplayFourScreen=yes` | none | none |
+| Key display, Ally HP, hidden names, skip mobile suit selection | settings `ReplayKeyDisplay`, `ReplayShowAllyHP`, `ReplayHideName`, `ReplaySkipMsSelection` | V4: hidden names | V4c |
+| Point of view | `gdxsv:ReplayPOV` | V1: the game plays as the chosen player | V1c |
+| Four-screen replay: 4 processes in a 2x2 grid, kept on one frame | `gdxsv:ReplayFourScreen=yes` | V5: 3 guests on one sync group, each screen plays as its player | V5c |
 | Audio rate control (resample up to 0.5 % to hold the queue half full) | replay and spectating without audio sync | none | none |
-| Fast seek: output-only game functions return early on seek frames | setting `SkipRenderingHack` | none | none |
+| Fast seek: output-only game functions return early on seek frames | setting `SkipRenderingHack` | K1: same seek and outcome, under 0.85 x the ms per frame without the hack | K1c |
 
 ## Live spectating
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Uplink: one battle peer streams its confirmed inputs to the lobby | lobby battle | `live_rig.py`: lobby's recording equals that peer's replay | none |
-| Spectator: download, catch up, follow live | Live tab, or `gdxsv:spectate=CODE` | `live_rig.py`: each spectator's state per step equals the replay played offline; unit: `GdxsvSpectator.*` | none |
+| Uplink: one battle peer streams its confirmed inputs to the lobby | lobby battle | S1 (`live_rig.py`): lobby's recording equals that peer's replay | S1c |
+| Spectator: download, catch up, follow live | Live tab, or `gdxsv:spectate=CODE` | S1 (`live_rig.py`): each spectator's state per step equals the replay played offline; unit: `GdxsvSpectator.*` | S1c |
 | Live auto-next (watch the next live battle) | setting `LiveAutoNext` | `fake_live_lbs.py` (by hand, see `gdxsv_tests/rollback/README.md`) | none |
 
 ## Game and presentation
@@ -82,9 +82,9 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Translation patch (Japanese, Cantonese, English) | setting `language` | L1 | L1c |
 | Game patches (`gdxsv_patch.inc`), rewritten every vblank | always for the game | P1 (Disc 1, Disc 2) | P1c |
 | NAOMI version (`gundmxgd`) boots | the NAOMI game files | N1 | N1c |
-| Texture pack, downloaded and updated | settings `UseTexturePack`, `TexturePackChannel` | none | none |
-| Widescreen HUD layout | setting `WidescreenHudLayout` | W1 (fails with `rend.ThreadedRendering=yes`, the default) | W1c |
-| Slow idle loop hack | setting `SlowIdleLoopHack` | none | none |
+| Texture pack, downloaded and updated | settings `UseTexturePack`, `TexturePackChannel` | X1: a local channel, 3 chunks checked by hash and installed; the next start finds it current (`gdxsv:TexturePackUrl`); the pack is not loaded in a game (a fake pack) | X1c |
+| Widescreen HUD layout | setting `WidescreenHudLayout` | W1 (known failure: not written under `rend.ThreadedRendering=yes`, the default) | W1c (known failure) |
+| Slow idle loop hack | setting `SlowIdleLoopHack` | H1: unthrottled, over 2 x the fps without the hack | H1c |
 | Projectile view (debug overlay, Disc 2) | setting `ProjectileView` (ini only) | none | none |
 | Arcade slowdown (Disc 2) | compiled off (`GdxsvSlowdown::kEnabled`) | none | none |
 
@@ -92,21 +92,21 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | none | none |
-| Audio sync as a setting | setting `config:aica.LimitFPS` | none | none |
+| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
+| Audio sync as a setting | setting `config:aica.LimitFPS` | F2: audio paces the game at 59.94 fps | F2c |
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | none | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | none | none |
-| gdxsv defaults on a new config file | first start | none | none |
+| gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
 
 ## Releases and tools
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Update check against the releases of `inada-s/flycast`, a popup offers the new version | on start | none | none |
+| Update check against the releases of `inada-s/flycast`, a popup offers the new version | on start (`gdxsv:UpdateCheckUrl`) | U1: a newer release on a local release API is offered with its download | U1c |
 | Release build from a `gdxsv-*` tag | push a tag | the workflow itself | none |
 | CI build (macOS, Linux, Windows MinGW) | every push and PR | the workflow itself | none |
 | Headless mode (no window, no graphics API) | `gdxsv:headless=yes` | most rollback cases run headless | none |
-| Boot probe for patch checks | `gdxsv:headless_loadstate=yes`, `gdxsv:headless_probe_frames=N` | none | none |
+| Boot probe for patch checks | `gdxsv:headless_loadstate=yes`, `gdxsv:headless_probe_frames=N` | B1: resumes the lobby state, exits rc 0 after N vblanks | B1c |
 | Per-frame state hash log | `gdxsv:hashlog=yes` | read by `gdxsv_tests/lib/hashlog.py` (rollback suite) | none |
 | `run.py` (several instances, replay, spectate, rollback test) and the `RunGame` workflow | `python run.py <function>` | none | none |
 | Fixed host address of guest RAM on Windows (lower 28 bits equal the guest address) | always | none | none |
