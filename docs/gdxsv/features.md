@@ -96,7 +96,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Audio sync as a setting | setting `config:aica.LimitFPS` | none | none |
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | none | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | none | none |
-| gdxsv defaults on a new config file | first start | none | none |
+| gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
 
 ## Releases and tools
 

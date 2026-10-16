@@ -115,12 +115,13 @@ class Instance:
 
 def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
            headless: bool = True, state_dir: Optional[str] = None, lua: Optional[str] = None,
-           clean: bool = True) -> Instance:
+           clean: bool = True, emu_cfg: Optional[str] = None) -> Instance:
     """Start one instance in dir.
 
     config: "section:key=value" entries, passed as --config.
     state_dir: its *.state files are copied to the data dir (the pre-battle savestates).
     lua: a script copied to the config dir and loaded with config:LuaFileName.
+    emu_cfg: the text of an emu.cfg written before the start; None: no file, flycast creates it.
     """
     if clean:
         shutil.rmtree(dir, ignore_errors=True)
@@ -132,6 +133,9 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
         for name in os.listdir(state_dir):
             if name.endswith(".state"):
                 shutil.copy(os.path.join(state_dir, name), inst.data_dir)
+    if emu_cfg is not None:
+        with open(os.path.join(inst.config_dir, "emu.cfg"), "w", encoding="utf-8") as f:
+            f.write(emu_cfg)
     # Never the production lobby or APIs: a session that ends returns to the lobby (gdxsv:server).
     cfg = list(OFFLINE) + list(config or [])
     if lua:
