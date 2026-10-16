@@ -67,6 +67,7 @@ UdpProtocol::UdpProtocol() :
    _oop_percent = GGPOPlatform::GetConfigInt("GGPO_OOP_PERCENT");
    _test_log = GGPOPlatform::GetConfigInt("GGPO_TEST_LOG");
    _relay_drops = 0;
+   _malformed_drops = 0;
 }
 
 UdpProtocol::~UdpProtocol()
@@ -448,6 +449,7 @@ UdpProtocol::OnMsg(UdpMsg *msg, int len)
 
    if (!IsValidMsgLength(msg, len)) {
       Log("udpproto%d | dropping malformed packet (type: %d, len: %d)", _queue, msg->hdr.type, len);
+      CountMalformedDrop();
       return;
    }
 
@@ -542,6 +544,14 @@ UdpProtocol::GetPeerConnectStatus(int id, int *frame)
 {
    *frame = _peer_connect_status[id].last_frame;
    return !_peer_connect_status[id].disconnected;
+}
+
+void
+UdpProtocol::CountMalformedDrop()
+{
+   if (_test_log && ++_malformed_drops % 100 == 1) {
+      LogInfo("RBKTEST malformed drop n=%d", _malformed_drops);
+   }
 }
 
 void
@@ -675,6 +685,7 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
       if (input_size <= 0 || input_size > GAMEINPUT_MAX_BYTES * GAMEINPUT_MAX_PLAYERS
             || !IsValidInputBits(msg->u.input.bits, msg->u.input.num_bits, input_size * 8)) {
          Log("udpproto%d | dropping malformed input (size: %d, bits: %d)", _queue, input_size, msg->u.input.num_bits);
+         CountMalformedDrop();
          return false;
       }
    }

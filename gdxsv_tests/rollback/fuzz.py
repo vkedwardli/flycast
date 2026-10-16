@@ -2,9 +2,10 @@
 
 Every packet carries CONST_MAGIC so it gets past the first check. SyncReply is
 left out: a random reply matching a peer's 16-bit sync nonce would be a
-spoofing test, not a malformed-packet test. None of these carry a peer's
-session magic, so they show malformed input is rejected without crashing;
-they do not reach the handlers behind the magic check.
+spoofing test, not a malformed-packet test. A peer ignores packets from
+addresses that are not its peers, so only relays reach the message checks:
+a peer forwards a relayed malformed AppData (kind 5), and the receiver drops
+it on its length check (`RBKTEST malformed drop` with GGPO_TEST_LOG=1).
 """
 import os
 import random

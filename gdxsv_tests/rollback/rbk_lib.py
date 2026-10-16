@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(HERE, ".."))
 from lib import emu, hashlog  # noqa: E402
-from lib.emu import IS_WINDOWS, EXE_NAME, ERROR_RE, kill, ensure_state, fetch_release  # noqa: E402,F401
+from lib.emu import IS_WINDOWS, EXE_NAME, ERROR_RE, kill, suspend, ensure_state, fetch_release  # noqa: E402,F401
 
 N = 4
 DEFAULT_PORT_BASE = 20010  # the peers' ports: base + peer. Release builds always use this one.
@@ -109,14 +109,15 @@ class Match:
 
 def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: int = 55,
               env: Optional[Dict[str, str]] = None, headless: bool = True, config: Optional[List[str]] = None,
-              lua: Optional[str] = None, timeout: int = 900, stall_sec: int = 20, on_start=None,
+              lua=None, timeout: int = 900, stall_sec: int = 20, on_start=None,
               keep_exe: bool = False) -> Match:
     """Run one 4-player local match and wait for it to end.
 
     A peer whose hashlog frame stops moving for stall_sec, before it reports
     the local test finished, counts as stalled and ends the match. on_start is
     called with the Match once every peer has been launched. config: more
-    "section:key=value" entries; lua: a script every peer loads.
+    "section:key=value" entries; lua: a script every peer loads, or
+    {peer index (1-based): script} for some peers only.
     """
     base = os.path.join(s.out, tag)
     match = Match(tag)
@@ -139,7 +140,8 @@ def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: i
         if port_base() != DEFAULT_PORT_BASE:
             penv["TEST_PORT_BASE"] = str(port_base())
         inst = emu.launch(exes[i], s.rom, os.path.join(base, f"p{i + 1}"), config=cfg, env=penv,
-                          headless=headless, state_dir=s.state_dir, lua=lua)
+                          headless=headless, state_dir=s.state_dir,
+                          lua=lua.get(i + 1) if isinstance(lua, dict) else lua)
         match.peers.append(Peer(i + 1, inst))
 
     if on_start:

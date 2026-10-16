@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fuzz  # noqa: E402
@@ -69,6 +69,22 @@ def a1_basic(s: Settings) -> Result:
     return verdict(common(m), [summary(m)])
 
 
+DESYNC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "desync.lua")
+DESYNC_SIGNS = ("last frames differ", "round winners differ")
+
+
+def control(bad: List[str], notes: List[str], signs) -> Result:
+    """A control passes when its parent's checks fail, on one of the expected signs."""
+    hit = [b for b in bad if any(b.startswith(x) or f": {x}" in b for x in signs)]
+    return (PASS, ["parent checks fail as expected: " + "; ".join(hit)] + notes) if hit else \
+        (FAIL, [f"parent checks did not fail on {list(signs)}: {bad or 'all passed'}"] + notes)
+
+
+def a1_control(s: Settings) -> Result:
+    m = lib.run_match(s, "A1c", [s.exe] * 4, DELAYS, lua={2: DESYNC})
+    return control(common(m), [summary(m)], DESYNC_SIGNS)
+
+
 def a2_long(s: Settings) -> Result:
     m = lib.run_match(s, "A2", [s.exe] * 4, DELAYS, env={"MAXREBATTLE": "20"}, timeout=3600)
     bad = common(m)
@@ -80,25 +96,38 @@ def a2_long(s: Settings) -> Result:
     return verdict(bad, [summary(m)])
 
 
-def _mixed(s: Settings, other: str, tag: str) -> Result:
+def _mixed(s: Settings, other: str, tag: str, lua=None, orders=("old-first", "new-first")) -> Tuple[List[str], List[str]]:
     bad, notes = [], []
-    for suffix, exes in (("old-first", [other, s.exe, other, s.exe]), ("new-first", [s.exe, other, s.exe, other])):
-        m = lib.run_match(s, f"{tag}-{suffix}", exes, DELAYS)
+    for suffix in orders:
+        exes = [other, s.exe, other, s.exe] if suffix == "old-first" else [s.exe, other, s.exe, other]
+        m = lib.run_match(s, f"{tag}-{suffix}", exes, DELAYS, lua=lua)
         bad += [f"{suffix}: {b}" for b in common(m)]
         notes.append(summary(m))
-    return verdict(bad, notes)
+    return bad, notes
 
 
 def a3_mixed_old(s: Settings) -> Result:
     if not s.old_exe:
         return SKIP, ["no --old-exe / --old-release"]
-    return _mixed(s, s.old_exe, "A3")
+    return verdict(*_mixed(s, s.old_exe, "A3"))
+
+
+def a3_control(s: Settings) -> Result:
+    if not s.old_exe:
+        return SKIP, ["no --old-exe / --old-release"]
+    return control(*_mixed(s, s.old_exe, "A3c", {2: DESYNC}, ("old-first",)), DESYNC_SIGNS)
 
 
 def a4_mixed_older(s: Settings) -> Result:
     if not s.older_exe:
         return SKIP, ["no --older-exe / --older-release"]
-    return _mixed(s, s.older_exe, "A4")
+    return verdict(*_mixed(s, s.older_exe, "A4"))
+
+
+def a4_control(s: Settings) -> Result:
+    if not s.older_exe:
+        return SKIP, ["no --older-exe / --older-release"]
+    return control(*_mixed(s, s.older_exe, "A4c", {2: DESYNC}, ("old-first",)), DESYNC_SIGNS)
 
 
 # --- B. Rollback -------------------------------------------------------------
@@ -122,12 +151,21 @@ def b1_skip_replay(s: Settings) -> Result:
     return verdict(bad, notes)
 
 
-def b2_threaded(s: Settings) -> Result:
-    m = lib.run_match(s, "B2", [s.exe] * 4, DELAYS_SPREAD, headless=False, env={"MAXREBATTLE": "3"})
+def _b2(s: Settings, tag: str, delays: List[int], env: Dict[str, str]) -> Tuple[List[str], List[str]]:
+    m = lib.run_match(s, tag, [s.exe] * 4, delays, headless=False, env=env)
     bad = common(m)
     if not any(p.rolled_back_frames for p in m.peers):
         bad.append("no rollbacks happened")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
+
+
+def b2_threaded(s: Settings) -> Result:
+    return verdict(*_b2(s, "B2", DELAYS_SPREAD, {"MAXREBATTLE": "3"}))
+
+
+def b2_control(s: Settings) -> Result:
+    # Even 0 ms network delay rolls back (process timing): an input delay of 10 frames hides it.
+    return control(*_b2(s, "B2c", [0] * 4, {"MAXREBATTLE": "1", "TEST_GGPO_DELAY": "10"}), ("no rollbacks happened",))
 
 
 def b3_not_threaded(s: Settings) -> Result:
@@ -140,7 +178,17 @@ def b3_not_threaded(s: Settings) -> Result:
 
 def c1_peer_drop(s: Settings) -> Result:
     if not lib.IS_WINDOWS:
-        return SKIP, ["Windows only (samples Process.Responding)"]
+        return SKIP, ["Windows only (samples window responsiveness)"]
+    return verdict(*_c1(s, "C1", False))
+
+
+def c1_control(s: Settings) -> Result:
+    if not lib.IS_WINDOWS:
+        return SKIP, ["Windows only (samples window responsiveness)"]
+    return control(*_c1(s, "C1c", True), ("windows not responding",))
+
+
+def _c1(s: Settings, tag: str, freeze: bool) -> Tuple[List[str], List[str]]:
     samples: List[str] = []
 
     def drop(m: Match):
@@ -149,10 +197,14 @@ def c1_peer_drop(s: Settings) -> Result:
                 return
             time.sleep(10)  # well into the battle
             lib.kill_peer(m, 4)
+            if freeze:  # the control: p1 stops processing messages for 15 s
+                pid = m.peers[0].inst.proc.pid
+                lib.suspend(pid, True)
+                threading.Timer(15, lib.suspend, (pid, False)).start()
             samples.extend(lib.sample_responding(m, [1, 2, 3], 40))
         threading.Thread(target=body, daemon=True).start()
 
-    m = lib.run_match(s, "C1", [s.exe] * 4, DELAYS_SPREAD, headless=False, on_start=drop, timeout=240, stall_sec=600)
+    m = lib.run_match(s, tag, [s.exe] * 4, DELAYS_SPREAD, headless=False, on_start=drop, timeout=240, stall_sec=600)
     hung = [l for l in samples if "HUNG" in l]
     bad = []
     if not samples:
@@ -163,12 +215,12 @@ def c1_peer_drop(s: Settings) -> Result:
         if "GdxsvBackendRollback.Close Done" not in p.log:
             bad.append(f"p{p.index} never closed the session")
         bad += [f"p{p.index}: {e.strip()}" for e in p.errors[:3]]
-    return verdict(bad, [f"responding samples: {len(samples) - len(hung)}/{len(samples)}"])
+    return bad, [f"responding samples: {len(samples) - len(hung)}/{len(samples)}"]
 
 
-def c2_start_timeout(s: Settings) -> Result:
+def _c2(s: Settings, tag: str, runs: int, kill: bool) -> Tuple[List[str], List[str]]:
     bad, notes = [], []
-    for run in range(1, 4):  # the old crash depended on timing
+    for run in range(1, runs + 1):  # the old crash depended on timing
         def drop(m: Match):
             def body():
                 if lib.wait_for_log(m, 4, "Start UdpPingPong Thread", 60):
@@ -176,7 +228,8 @@ def c2_start_timeout(s: Settings) -> Result:
                     lib.kill_peer(m, 4)
             threading.Thread(target=body, daemon=True).start()
 
-        m = lib.run_match(s, f"C2-{run}", [s.exe] * 4, DELAYS, on_start=drop, timeout=60, stall_sec=600)
+        m = lib.run_match(s, f"{tag}-{run}", [s.exe] * 4, DELAYS, on_start=drop if kill else None,
+                          timeout=60, stall_sec=600)
         for p in m.peers[:3]:
             if "StartNetwork timeout" not in p.log:
                 bad.append(f"run {run} p{p.index}: no StartNetwork timeout")
@@ -184,7 +237,15 @@ def c2_start_timeout(s: Settings) -> Result:
                 bad.append(f"run {run} p{p.index}: never closed")
             bad += [f"run {run} p{p.index}: {e.strip()}" for e in p.errors[:3]]
         notes.append(f"run {run}: exit codes {[p.exit_code for p in m.peers[:3]]}")
-    return verdict(bad, notes)
+    return bad, notes
+
+
+def c2_start_timeout(s: Settings) -> Result:
+    return verdict(*_c2(s, "C2", 3, True))
+
+
+def c2_control(s: Settings) -> Result:
+    return control(*_c2(s, "C2c", 1, False), ("no StartNetwork timeout",))
 
 
 def _rebattle_cancel(s: Settings, tag: str, headless: bool) -> Tuple[List[str], List[str]]:
@@ -220,36 +281,65 @@ def c3_rebattle_cancel(s: Settings) -> Result:
 # --- D. Network robustness ---------------------------------------------------
 
 def d1_fuzz(s: Settings) -> Result:
+    return verdict(*_d1(s, "D1", 0))
+
+
+def d1_control(s: Settings) -> Result:
+    return control(*_d1(s, "D1c", 50), ("no peer dropped a malformed packet",))
+
+
+def _d1(s: Settings, tag: str, port_offset: int) -> Tuple[List[str], List[str]]:
+    """port_offset 50 aims the fuzzer at ports no peer listens on."""
     sent = []
 
     def attack(m: Match):
-        base = lib.port_base()
+        base = lib.port_base() + port_offset
 
         def body():
             if lib.wait_for_log(m, 1, "StartMsg Join", 120):
                 sent.append(fuzz.run(45, base))
         threading.Thread(target=body, daemon=True).start()
 
-    m = lib.run_match(s, "D1", [s.exe] * 4, DELAYS, on_start=attack)
+    m = lib.run_match(s, tag, [s.exe] * 4, DELAYS, on_start=attack, env={"GGPO_TEST_LOG": "1"})
     bad = common(m)
     if not sent:
         bad.append("fuzzer never started")
-    return verdict(bad, [summary(m), f"malformed packets sent: {sent[0] if sent else 0}"])
+    # Only relays of malformed messages (fuzz.py kind 5) get past the sender check, to the length checks.
+    drops = [p.log.count("RBKTEST malformed drop") for p in m.peers]
+    if not any(drops):
+        bad.append("no peer dropped a malformed packet")
+    return bad, [summary(m), f"malformed packets sent: {sent[0] if sent else 0}, drop log lines per peer: {drops}"]
 
 
-def d2_relay(s: Settings) -> Result:
-    m = lib.run_match(s, "D2", [s.exe] * 4, [16] * 4, env={"TEST_RELAY": "single", "GGPO_TEST_LOG": "1"})
+def _d2(s: Settings, tag: str, env: Dict[str, str]) -> Tuple[List[str], List[str]]:
+    m = lib.run_match(s, tag, [s.exe] * 4, [16] * 4, env=dict(env, GGPO_TEST_LOG="1"))
     bad = common(m)
     if "Relay:1" not in m.peers[0].log:
         bad.append("p1 did not pick the relay")
     if "RBKTEST relay forward" not in m.peers[1].log:
         bad.append("p2 forwarded nothing")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
+
+
+def d2_relay(s: Settings) -> Result:
+    return verdict(*_d2(s, "D2", {"TEST_RELAY": "single"}))
+
+
+def d2_control(s: Settings) -> Result:
+    return control(*_d2(s, "D2c", {}), ("p1 did not pick the relay",))
 
 
 def d3_relay_loop(s: Settings) -> Result:
-    env = {"TEST_RELAY": "loop", "GGPO_TEST_LOG": "1"}
-    m = lib.run_match(s, "D3", [s.exe] * 4, [16] * 4, env=env, timeout=120, stall_sec=600)
+    return verdict(*_d3(s, "D3", "loop"))
+
+
+def d3_control(s: Settings) -> Result:
+    return control(*_d3(s, "D3c", "single"), ("relay loop not cut",))
+
+
+def _d3(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
+    env = {"TEST_RELAY": test_relay, "GGPO_TEST_LOG": "1"}
+    m = lib.run_match(s, tag, [s.exe] * 4, [16] * 4, env=env, timeout=120, stall_sec=600)
     bad = []
     for p in m.peers[:2]:
         drops = [l for l in p.log.splitlines() if "RBKTEST relay drop-return-to-sender" in l]
@@ -259,7 +349,7 @@ def d3_relay_loop(s: Settings) -> Result:
             bad.append(f"p{p.index}: {len(drops)} drop log lines, packets kept bouncing")
     for p in m.peers:
         bad += [f"p{p.index}: {e.strip()}" for e in p.errors[:3]]
-    return verdict(bad, ["session start is expected to time out: peers 0 and 1 cannot reach peer 3"])
+    return bad, ["session start is expected to time out: peers 0 and 1 cannot reach peer 3"] if test_relay == "loop" else []
 
 
 def _with_relays(s: Settings, tag: str, count: int, test_relay: str, dual_stack: bool = False, exes=None):
@@ -277,8 +367,10 @@ def _with_relays(s: Settings, tag: str, count: int, test_relay: str, dual_stack:
             with open(path, "w", encoding="utf-8") as log:
                 relays.append(subprocess.Popen([s.relay_exe, "-pprof=0", "-relay_test_session=12345:1234", "relay"],
                                                env=penv, stdout=log, stderr=subprocess.STDOUT))
-        env = {"TEST_RELAY": test_relay, "TEST_RELAY_SERVER": ",".join(f"127.0.0.1:{p}" for p in ports),
+        env = {"TEST_RELAY_SERVER": ",".join(f"127.0.0.1:{p}" for p in ports),
                "TEST_RELAY_TOKEN": "1234", "GGPO_TEST_LOG": "1"}
+        if test_relay:  # none: peers reach each other directly
+            env["TEST_RELAY"] = test_relay
         if dual_stack:
             env["TEST_RELAY_IPV6"] = "::1"
         m = lib.run_match(s, tag, exes or [s.exe] * 4, [16] * 4, env=env)
@@ -296,7 +388,17 @@ def _with_relays(s: Settings, tag: str, count: int, test_relay: str, dual_stack:
 def d4_relay_server(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, relay_logs = _with_relays(s, "D4", 1, "server")
+    return verdict(*_d4(s, "D4", "server"))
+
+
+def d4_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    return control(*_d4(s, "D4c", None), ("p1 did not pick the relay server",))
+
+
+def _d4(s: Settings, tag: str, test_relay: Optional[str]) -> Tuple[List[str], List[str]]:
+    m, relay_logs = _with_relays(s, tag, 1, test_relay)
     bad = common(m)
     if "Relay:2" not in m.peers[0].log:
         bad.append("p1 did not pick the relay server")
@@ -306,13 +408,23 @@ def d4_relay_server(s: Settings) -> Result:
     bound = relay_logs[0].count("relay peer bound")
     if bound != len(m.peers):
         bad.append(f"relay bound {bound} peers, expected {len(m.peers)}")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
 
 
 def d5_relay_servers_settle(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, relay_logs = _with_relays(s, "D5", 2, "server2")
+    return verdict(*_d5(s, "D5", "server2"))
+
+
+def d5_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    return control(*_d5(s, "D5c", "server"), ("p1 did not move to server 0",))
+
+
+def _d5(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
+    m, relay_logs = _with_relays(s, tag, 2, test_relay)
     bad = common(m)
     p1, p2 = m.peers[0].log, m.peers[1].log
     # Peer 0 starts on server 1 for peer 1 and moves to server 0, which peer 1 picked.
@@ -326,13 +438,23 @@ def d5_relay_servers_settle(s: Settings) -> Result:
     for i, log in enumerate(relay_logs):
         if log.count("relay peer bound") != len(m.peers):
             bad.append(f"relay {i} bound {log.count('relay peer bound')} peers, expected {len(m.peers)}")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
 
 
 def d6_relay_server_ipv6(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, relay_logs = _with_relays(s, "D6", 1, "server", dual_stack=True)
+    return verdict(*_d6(s, "D6", True))
+
+
+def d6_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    return control(*_d6(s, "D6c", False), ("relay bound 0 peers over IPv6",))
+
+
+def _d6(s: Settings, tag: str, dual_stack: bool) -> Tuple[List[str], List[str]]:
+    m, relay_logs = _with_relays(s, tag, 1, "server", dual_stack=dual_stack)
     bad = common(m)
     if "Relay:2" not in m.peers[0].log:
         bad.append("p1 did not pick the relay server")
@@ -344,31 +466,37 @@ def d6_relay_server_ipv6(s: Settings) -> Result:
     v4 = sum(1 for l in bound if "127.0.0.1" in l)
     if (v6, v4) != (2, 2):
         bad.append(f"relay bound {v6} peers over IPv6 and {v4} over IPv4, expected 2 and 2")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
 
 
 def d7_relay_lower_rtt_wins(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, _ = _with_relays(s, "D7", 1, "fair")
+    return verdict(*_d7(s, "D7", "fair"))
+
+
+def d7_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    # single: the way through peer 1 (20 ms) beats the relay server, so peer 1 must win.
+    return control(*_d7(s, "D7c", "single"), ("p1 did not pick the relay server",))
+
+
+def _d7(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
+    m, _ = _with_relays(s, tag, 1, test_relay)
     bad = common(m)
     picks = [l for l in m.peers[0].log.splitlines() if "Peer3 " in l and "Relay:" in l]
     if not picks or "Relay:2" not in picks[-1]:
         bad.append("p1 did not pick the relay server over the slower relaying peer: " + (picks[-1].strip() if picks else "no Peer3 line"))
-    return verdict(bad, [summary(m)] + [p.strip() for p in picks[-1:]])
+    return bad, [summary(m)] + [p.strip() for p in picks[-1:]]
 
 
 def d8_relay_server_symmetric_nat(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
     m, _ = _with_relays(s, "D8", 1, "nat")
-    bad = common(m)
-    picks = []
-    for src, dst in ((0, 1), (2, 1), (1, 0), (1, 2)):
-        lines = [l.strip() for l in m.peers[src].log.splitlines() if f"Peer{dst} " in l and "Relay:" in l]
-        picks += lines[-1:]
-        if not lines or "Relay:2" not in lines[-1]:
-            bad.append(f"p{src + 1} did not reach p{dst + 1} through the relay server: " + (lines[-1] if lines else f"no Peer{dst} line"))
+    bad, picks = _d8_paths(m)
+    bad = common(m) + bad
     notes = [summary(m)] + picks
     if s.old_exe:
         # The NAT peer on the previous release learns no relay RTTs from peer 3, so it starts through peer 3 and
@@ -385,29 +513,62 @@ def d8_relay_server_symmetric_nat(s: Settings) -> Result:
     return verdict(bad, notes)
 
 
+def d8_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    m, _ = _with_relays(s, "D8c", 1, None)  # no NAT: every peer reaches the others directly
+    bad, picks = _d8_paths(m)
+    return control(common(m) + bad, [summary(m)] + picks, ("p1 did not reach p2 through the relay server",))
+
+
+def _d8_paths(m: Match) -> Tuple[List[str], List[str]]:
+    """Paths to and from the NAT peer (peer 1) must go through the relay server."""
+    bad, picks = [], []
+    for src, dst in ((0, 1), (2, 1), (1, 0), (1, 2)):
+        lines = [l.strip() for l in m.peers[src].log.splitlines() if f"Peer{dst} " in l and "Relay:" in l]
+        picks += lines[-1:]
+        if not lines or "Relay:2" not in lines[-1]:
+            bad.append(f"p{src + 1} did not reach p{dst + 1} through the relay server: " + (lines[-1] if lines else f"no Peer{dst} line"))
+    return bad, picks
+
+
 # Cases that run release builds, which always use the default ports, so they never run alongside each other.
-DEFAULT_PORT_CASES = {"A3", "A4"}
+DEFAULT_PORT_CASES = {"A3", "A3c", "A4", "A4c"}
 
 CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     # id: (title, function, rough minutes, long-running)
     "A1": ("basic 4-player match", a1_basic, 1, False),
+    "A1c": ("control: A1 with peer 2 desynced (desync.lua), A1's checks fail", a1_control, 1, False),
     "A2": ("20-round match", a2_long, 21, True),
     "A3": ("mixed with --old-exe, both peer 0 sides", a3_mixed_old, 2, False),
+    "A3c": ("control: A3 old-first with peer 2 (this build) desynced, A3's checks fail", a3_control, 1, False),
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
+    "A4c": ("control: A4 old-first with peer 2 (this build) desynced, A4's checks fail", a4_control, 1, False),
     "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 7, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
+    "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
+    "C1c": ("control: C1 with p1 frozen for 15 s after the drop, its window stops responding", c1_control, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
+    "C2c": ("control: C2 with no peer killed, no start timeout", c2_control, 1, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),
     "D1": ("malformed packet fuzzing during a match", d1_fuzz, 1, False),
+    "D1c": ("control: D1 with the fuzzer on ports no peer uses, no malformed drop logged", d1_control, 1, False),
     "D2": ("relay path in use", d2_relay, 1, False),
+    "D2c": ("control: D2 with no TEST_RELAY, no relay picked", d2_control, 1, False),
     "D3": ("relay loop is cut", d3_relay_loop, 2, False),
+    "D3c": ("control: D3 with a one-way relay (single), no loop to cut", d3_control, 2, False),
     "D4": ("relay server path, peers answer through it", d4_relay_server, 1, False),
+    "D4c": ("control: D4 with no TEST_RELAY, relay server not picked", d4_control, 1, False),
     "D5": ("two relay servers, peers settle on the earlier one", d5_relay_servers_settle, 1, False),
+    "D5c": ("control: D5 with one relay server picked (server), nothing to settle", d5_control, 1, False),
     "D6": ("relay server between IPv6 and IPv4 peers", d6_relay_server_ipv6, 1, False),
+    "D6c": ("control: D6 with an IPv4-only relay, no peer bound over IPv6", d6_control, 1, False),
     "D7": ("relaying peer and relay server: the lower RTT wins", d7_relay_lower_rtt_wins, 1, False),
+    "D7c": ("control: D7 with the relaying peer faster (single), the relay server loses", d7_control, 1, False),
     "D8": ("symmetric NAT peer reached through the relay server", d8_relay_server_symmetric_nat, 1, False),
+    "D8c": ("control: D8 with no NAT peer, nobody goes through the relay server", d8_control, 1, False),
 }
 
 

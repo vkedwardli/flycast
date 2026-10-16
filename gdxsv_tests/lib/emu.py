@@ -12,6 +12,7 @@ import ctypes
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -195,6 +196,22 @@ def hung_windows(pids: List[int]) -> Dict[int, Optional[bool]]:
 
     user32.EnumWindows(proc_t(visit), None)
     return found
+
+
+def suspend(pid: int, on: bool) -> None:
+    """Freeze (on=True) or resume a process, every thread of it."""
+    if not IS_WINDOWS:
+        os.kill(pid, signal.SIGSTOP if on else signal.SIGCONT)
+        return
+    ntdll, kernel32 = ctypes.windll.ntdll, ctypes.windll.kernel32
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    handle = kernel32.OpenProcess(0x0800, False, pid)  # PROCESS_SUSPEND_RESUME
+    if not handle:
+        raise OSError(f"OpenProcess({pid}) failed")
+    try:
+        (ntdll.NtSuspendProcess if on else ntdll.NtResumeProcess)(ctypes.c_void_p(handle))
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
 def ensure_state(state_dir: str, rom: str) -> None:
