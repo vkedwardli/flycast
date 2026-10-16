@@ -130,13 +130,14 @@ class Ctx:
     def probe(self, name: str, rom: str, script: str, params: dict, frames: int,
               config: Optional[List[str]] = None, loadstate: bool = True, timeout: float = 180,
               window: bool = False, states: Optional[str] = None, until_done: bool = False,
-              emu_cfg: Optional[str] = None) -> Probe:
+              emu_cfg: Optional[str] = None, env: Optional[Dict[str, str]] = None,
+              files: Optional[Dict[str, str]] = None) -> Probe:
         """Run one headless instance for `frames` vblanks (gdxsv:headless_probe_frames exits it)
         with lua/<script>; with loadstate it resumes the game's slot-99 lobby savestate.
         window=True: a normal window and a cold boot, killed once the script is done.
         states: a directory whose *.state files go to the data dir instead (cold boot).
         until_done: also headless, stop once the script is done (`frames` is then an upper bound).
-        emu_cfg: see emu.launch."""
+        emu_cfg, env, files: see emu.launch."""
         stop_on_done = window or until_done
         from . import assets
         d = os.path.join(self.out, name)
@@ -148,7 +149,7 @@ class Ctx:
         state = assets.state_dir(rom) if loadstate and not window else states
         t0 = time.time()
         inst = emu.launch(self.exe, rom, d, config=cfg, state_dir=state, lua=lua, headless=not window,
-                           emu_cfg=emu_cfg)
+                           emu_cfg=emu_cfg, env=env, files=files)
         timed_out = False
         e2e_log = os.path.join(d, "e2e.log")
         while inst.poll() is None:
