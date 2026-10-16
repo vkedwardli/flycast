@@ -684,7 +684,10 @@ void serialize(Serializer& ser)
 
 	interrupts_serialize(ser);
 
-	ser << (*p_sh4rcb).cntx;
+	// doSqWrite is a host pointer: saved as null so the same emulated state saves the same bytes in every run
+	Sh4Context cntx = p_sh4rcb->cntx;
+	cntx.doSqWrite = nullptr;
+	ser << cntx;
 
 	sh4_sched_serialize(ser);
 }
@@ -719,6 +722,7 @@ void deserialize(Deserializer& deser)
 	CCN_QACR_write<1>(0, CCN_QACR1.reg_data);
 
 	deser >> (*p_sh4rcb).cntx;
+	setSqwHandler();
 	if (deser.version() >= Deserializer::V19 && deser.version() < Deserializer::V21)
 		deser.skip<u32>(); // sh4InterpCycles
 	if (deser.version() < Deserializer::V21)
