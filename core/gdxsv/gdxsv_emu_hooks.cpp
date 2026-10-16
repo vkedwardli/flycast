@@ -338,12 +338,17 @@ void gdxsv_emu_gui_display_commands(float buttonWidth) {
 	}
 }
 
+std::string gdxsv_connection_medium_or_setting() {
+	const std::string medium = config::loadStr("gdxsv", "ConnectionMedium", "");
+	return medium.empty() ? gdxsv_connection_medium() : medium;
+}
+
 void gdxsv_emu_gui_display() {
 	if (gui_state == GuiState::Main) {
 		gdxsv_update_popup();
 		gdxsv_texture_update_popup();
 		
-		static std::string connection_medium = gdxsv_connection_medium();
+		static std::string connection_medium = gdxsv_connection_medium_or_setting();
 		wireless_warning_popup(connection_medium);
 		vpn_warning_toast(connection_medium);
 	}
@@ -619,6 +624,7 @@ static void wireless_warning_popup(const std::string& connection_medium) {
 
 	if (!initialized && no_popup_opened && connection_medium == "Wireless") {
 		ImGui::OpenPopup("Wireless connection detected");
+		NOTICE_LOG(COMMON, "wireless warning shown");
 		initialized = true;
 	}
 
@@ -652,6 +658,7 @@ static void vpn_warning_toast(const std::string& connection_medium) {
 	static bool initialized = false;
 	if (!initialized) {
 		vpnToast.active = connection_medium.find("VPN") == 0;
+		if (vpnToast.active) NOTICE_LOG(COMMON, "VPN warning shown: %s", connection_medium.c_str());
 		initialized = true;
 	}
 	
