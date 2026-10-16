@@ -1,5 +1,6 @@
 """Online features against a local gdxsv lobby (lib/servers.py)."""
 
+import json
 import os
 import re
 import threading
@@ -16,16 +17,21 @@ LOGIN_FRAMES = 4400  # boot, the menu path in lua/login.lua, and the lobby's pla
 BATTLE_FRAMES = 40000  # upper bound; the script ends 300 vblanks into the battle
 
 
-def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True, mcs_region: str = ""):
-    """Disc 2 logs in from the network menu savestate; returns (probe, lobby log, fake HTTP requests)."""
-    probes, lbs, reqs = session(ctx, tag, [(tag, client_key, {"battle": battle})],
-                                force_start=force_start, mcs_region=mcs_region)
+def login(ctx, tag: str, client_key: str, battle: bool = False, force_start: bool = True, mcs_region: str = "",
+          unpatch: bool = False, **net):
+    """Disc 2 logs in from the network menu savestate; returns (probe, lobby log, fake HTTP requests).
+    net: session()'s server, udp_hello, public_ip."""
+    probes, lbs, reqs = session(ctx, tag, [(tag, client_key, {"battle": battle, "unpatch": unpatch})],
+                                force_start=force_start, mcs_region=mcs_region, **net)
     return probes[0], lbs, reqs
 
 
-def session(ctx, tag: str, clients: list, force_start: bool = True, mcs_region: str = ""):
+def session(ctx, tag: str, clients: list, force_start: bool = True, mcs_region: str = "",
+            server: str = "127.0.0.1", udp_hello: bool = False, public_ip: str = "127.0.0.1"):
     """clients = (name, gdxsv:loginkey, lua/login.lua params) run at once against one lobby;
-    returns ([probe per client], lobby log, fake HTTP requests)."""
+    returns ([probe per client], lobby log, fake HTTP requests).
+    server: gdxsv:server; udp_hello: the fake P2P test answers over UDP (lib/servers.FakeHttp);
+    public_ip: the fake public IP answer."""
     rom = ctx.rom("dc2")
     exe = servers.server_exe()
     if exe is None:
@@ -37,10 +43,11 @@ def session(ctx, tag: str, clients: list, force_start: bool = True, mcs_region: 
     lobby.init([(servers.server_login_key(LOGIN_KEY),) + USER, (servers.server_login_key(LOGIN_KEY2),) + USER2])
     servers.add_training_lobby(lobby.db, force_start=force_start, mcs_region=mcs_region)
     probes = [None] * len(clients)
-    with servers.FakeHttp() as http:
+    with servers.FakeHttp(body=public_ip.encode(), udp_hello=udp_hello) as http:
         def run(i, name, key, params):
             battle = params.get("battle", False)
-            cfg = http.config() + [f"gdxsv:loginkey={key}", "config:rend.ThreadedRendering=no"]
+            cfg = http.config() + [f"gdxsv:server={server}", f"gdxsv:loginkey={key}",
+                                   "config:rend.ThreadedRendering=no"]
             probes[i] = ctx.probe(name, rom, "login.lua", {"boot": BOOT, "slot": assets.LOGIN_SLOT, **params},
                                   frames=BATTLE_FRAMES if battle else LOGIN_FRAMES, config=cfg, loadstate=False,
                                   states=states, timeout=900, until_done=battle)
@@ -71,10 +78,10 @@ def checks(p, lbs: str, requests: list) -> list:
     ]
 
 
-@case("O1", "lobby connection, login key, platform info, plaza (local gdxsv lbs)")
+@case("O1", "lobby connection, login key, platform info, plaza, P2P port test (local gdxsv lbs)")
 def online_login(ctx):
-    p, lbs, reqs = login(ctx, "O1", LOGIN_KEY)
-    return result(checks(p, lbs, reqs), requests=sorted(set(reqs)))
+    p, lbs, reqs = login(ctx, "O1", LOGIN_KEY, udp_hello=True)
+    return result(checks(p, lbs, reqs) + net_checks(p, lbs), requests=sorted(set(reqs)))
 
 
 @case("O1c", "O1 with a login key the lobby does not know: no user to log in", control_of="O1")
@@ -84,6 +91,102 @@ def online_login_control(ctx):
     return result([{"what": "probe ran", "ok": c[0]["ok"]},
                    {"what": "platform info still sent", "ok": c[1]["ok"]},
                    {"what": "login check fails", "ok": not c[2]["ok"]}],
+                  detail=c)
+
+
+NO_LOBBY = "192.0.2.1"  # TEST-NET-1: nothing answers, the connect times out (5 s)
+
+
+@case("O1t", "O1 with gdxsv:server at an address without a lobby: no TCP connection, nothing logged in",
+      control_of="O1")
+def online_tcp_control(ctx):
+    p, lbs, reqs = login(ctx, "O1t", LOGIN_KEY, server=NO_LOBBY)
+    c = checks(p, lbs, reqs)
+    return result([{"what": "probe ran", "ok": c[0]["ok"]},
+                   {"what": f"client connected to {NO_LOBBY}", "ok": f"TCP Connect: {NO_LOBBY}:" in p.log},
+                   {"what": "no client in the lobby log", "ok": "update session id" not in lbs},
+                   {"what": "platform info check fails", "ok": not c[1]["ok"]},
+                   {"what": "login check fails", "ok": not c[2]["ok"]}],
+                  detail=c)
+
+
+OTHER_IP = "203.0.113.7"  # TEST-NET-3
+
+
+@case("O1i", "O1 with another public IP answer: the platform info carries it, O1's IP check fails",
+      control_of="O1")
+def online_platform_control(ctx):
+    p, lbs, reqs = login(ctx, "O1i", LOGIN_KEY, public_ip=OTHER_IP)
+    c = net_checks(p, lbs)
+    return result([{"what": "probe ran", "ok": p.clean, **p.facts()},
+                   {"what": "public IP check fails", "ok": not c[1]["ok"]},
+                   {"what": f"platform info public_ipv4 = {OTHER_IP}", "ok": c[1]["got"] == OTHER_IP}],
+                  detail=c)
+
+
+@case("O1p", "O1 with a P2P test server that sends no UDP Hello: port test failed", control_of="O1")
+def online_p2p_control(ctx):
+    p, lbs, reqs = login(ctx, "O1p", LOGIN_KEY)
+    c = checks(p, lbs, reqs) + net_checks(p, lbs)
+    return result([{"what": "probe ran", "ok": c[0]["ok"]},
+                   {"what": "logged in", "ok": c[2]["ok"]},
+                   {"what": "P2P test still asked", "ok": c[5]["ok"]},
+                   {"what": "port test check fails", "ok": not c[-1]["ok"]},
+                   {"what": "port_test_v4 = Failed (Timeout)", "ok": c[-1]["got"] == "Failed (Timeout)"}],
+                  detail=c)
+
+
+def platform_info(lbs: str) -> dict:
+    """The platform info the lobby logged with the login (LoginUser line)."""
+    for l in lbs.splitlines():
+        m = re.search(r'"platform_info": (\{.*?\})', l)
+        if "LoginUser" in l and m:
+            return json.loads(m.group(1))
+    return {}
+
+
+def net_checks(p, lbs: str) -> list:
+    """Platform info fields against what this run measured or served."""
+    info = platform_info(lbs)
+    patch = PATCH_RE.findall(p.log)
+    return [
+        {"what": "platform info: payload patch_id", "got": info.get("patch_id"), "want": patch[-1:],
+         "ok": bool(patch) and info.get("patch_id") == patch[-1]},
+        {"what": "platform info: public IP from the local server", "got": info.get("public_ipv4"),
+         "ok": info.get("public_ipv4") == "127.0.0.1"},
+        {"what": "P2P port test: UDP Hello received", "got": info.get("port_test_v4"),
+         "ok": info.get("port_test_v4") == "Success"},
+    ]
+
+PATCH_RE = re.compile(r"N\[COMMON\]: patch -?\d+ (\d+)$", re.M)
+
+
+def payload_checks(p, lbs: str, requests: list) -> list:
+    """The network payload (gdxsv_patch/) is installed after the state load and is what the login runs on."""
+    ids = PATCH_RE.findall(p.log)
+    want = ids[-1] if ids else None
+    return [
+        {"what": "payload installed (log: patch <in RAM> <current id>)", "ok": want is not None, "ids": ids},
+        {"what": "current patch_id in RAM at the network menu", "got": p.e2e.get("patch_id_menu"), "want": want,
+         "ok": want is not None and p.e2e.get("patch_id_menu") == want},
+        {"what": "lobby connection not refused", "ok": "Lobby connection refused" not in p.log},
+    ] + checks(p, lbs, requests)
+
+
+@case("O5", "network patch: the SH4 payload is installed and the login runs through it (local gdxsv lbs)")
+def online_payload(ctx):
+    p, lbs, reqs = login(ctx, "O5", LOGIN_KEY)
+    return result(payload_checks(p, lbs, reqs))
+
+
+@case("O5c", "O5 with the payload's patch_id zeroed every vblank: no current payload, no login", control_of="O5")
+def online_payload_control(ctx):
+    p, lbs, reqs = login(ctx, "O5c", LOGIN_KEY, unpatch=True)
+    c = payload_checks(p, lbs, reqs)
+    return result([{"what": "probe ran", "ok": c[3]["ok"]},
+                   {"what": "patch_id check fails", "ok": not c[1]["ok"]},
+                   {"what": "lobby connection refused", "ok": not c[2]["ok"]},
+                   {"what": "login check fails", "ok": not c[5]["ok"]}],
                   detail=c)
 
 

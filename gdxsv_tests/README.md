@@ -41,8 +41,8 @@ python gdxsv_tests/run.py --recheck gdxsv_tests/out --cases K1      # checks onl
 | `GDXSV_STATE_DIR` | boot savestates (`<rom>_99.state`), made on first use (default `out/state`) |
 | `GDXSV_REPLAY_DIR` | corpus replays, downloaded on first use and checked against `corpus/replays.json` (default `out/replay`) |
 | `GDXSV_REPLAY_JOBS` | replays R1 plays in parallel (default 4) |
-| `GDXSV_SERVER_EXE` | O1-O4, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
-| `GDXSV_LOGIN_STATE` | O1: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
+| `GDXSV_SERVER_EXE` | O1-O5, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
+| `GDXSV_LOGIN_STATE` | O1-O5: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
 
 The ROM, BIOS, savestates and replays are not in the repository.
 Every instance gets `gdxsv:server=127.0.0.1`, `UploadReplay=no` and local
@@ -75,10 +75,11 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | R1 | full | all corpus replays play to the end with the recorded winners | 470-520 s (4-5 replays in parallel) |
 | W1 / W1c | full | widescreen matte edges and HUD offset per layout and viewport (formula of `WriteWidescreenPatch`) | 10 s |
 | I1 / I1c | full | 4-peer local rollback match at GGPO delay 2 and 4: peer 1's B press reaches the confirmed input buffer 2 vblanks later at delay 4 | 130-260 s |
-| O1 / O1c | full | Disc 2 logs in to a local `gdxsv lbs` (fresh SQLite, seeded user for the login key): platform info, user login, plaza join; public IP and P2P test go to a local fake HTTP server | 85-170 s |
+| O1 / O1c, O1t, O1i, O1p | full | Disc 2 logs in to a local `gdxsv lbs` (fresh SQLite, seeded user for the login key): platform info (payload `patch_id`, public IP, port test result), user login, plaza join; public IP and P2P test go to a local fake HTTP server, which sends the UDP "Hello" back (O1c: unknown login key; O1t: `gdxsv:server` 192.0.2.1, no connection; O1i: public IP answer 203.0.113.7 reaches the platform info; O1p: no UDP Hello, `Failed (Timeout)`) | 85 s each |
 | O2 / O2c | full | O1, then a training lobby entry, chat force start, mobile suit select and battle: one player on the UDP backend through the local battle server (O2c: lobby without force start) | 170 s / 300 s |
 | O3 / O3c | full | as O2 in a P2P lobby (`mcs_region` `p2p`): lobby sends the P2P matching, one-peer GGPO session, battle loads on the rollback backend (O3c: O3's checks on O2's lobby) | 170 s / 170 s |
 | O4 / O4c | full | two clients (two login keys, same savestate) in one P2P lobby: both enter, one force-starts; P2P matching to both, two-peer GGPO session, each peer answers the other, both reach the battle (O4c: the second client only logs in) | 190 s / 190 s |
+| O5 / O5c | full | O1, and the network payload (`gdxsv_patch/`) is in RAM: its install logged, current `patch_id` at the network menu, connection not refused (O5c: Lua zeroes `patch_id` every vblank: lobby connection refused, no login) | 85 s / 105 s |
 | R3 / R3c | full | 4-peer local rollback match with `RBK_SAVE_REPLAY=1`: each peer saves one replay, the four hold the same inputs, peer 1's plays to the end with the match's winner (R3c: `SaveReplay=no`, no file, `Skip SaveReplay` logged) | 80 s / 65 s |
 | V1 / V1c | full | newest Disc 2 replay with `ReplayPOV` 2 and 4: the game stores player side POV-1 (`0x0c3d19d9`) and id POV (`0x0c391d92`) at vblank 4000 (V1c: no `ReplayPOV`, player 1) | 15 s |
 | V2 / V2c | full | `replay_target_round=4` on a 5-round replay: one jump, rounds 4 and 5 play to the last input (V2c: from round 1) | 50 s / 110 s |
