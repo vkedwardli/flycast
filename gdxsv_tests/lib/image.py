@@ -1,11 +1,14 @@
 """Screen grabs of an emulator window and compares with the small images in golden/ (Pillow)."""
 
 import os
+import threading
 from typing import Optional, Tuple
 
 from . import emu
 
 GOLDEN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "golden")
+# One grabbing case at a time (run.py --jobs): each raises its windows over the others'.
+SCREEN_LOCK = threading.Lock()
 
 
 def grab(pid: int, path: str) -> Optional[str]:

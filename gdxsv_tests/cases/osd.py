@@ -47,7 +47,7 @@ def grab_match(ctx, tag: str, config: list) -> dict:
                     stop.wait(GRAB_EVERY)
             threading.Thread(target=run, daemon=True).start()
 
-        with MATCH_LOCK:
+        with MATCH_LOCK, image.SCREEN_LOCK:
             m = rbk_lib.run_match(s, tag, [ctx.exe] * rbk_lib.N, [0] * rbk_lib.N, headless=False,
                                   config=config, timeout=300, on_start=grabber)
         stop.set()

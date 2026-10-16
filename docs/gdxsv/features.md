@@ -56,7 +56,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | Save a battle as a replay, upload it | settings `SaveReplay`, `UploadReplay`, `ReplayPath` | R3: a local rollback match (`RBK_SAVE_REPLAY`, never uploaded) saves one replay per peer, the same inputs, it plays to the end with the match's winner | R3c (`SaveReplay=no`) |
-| Replay browser: Local, Server, Live tabs | menu "Live & Replays" | none | none |
+| Replay browser: Local, Server, Live tabs | menu "Live & Replays" | G2: each tab lists its fake or local entry (window grabs, golden images) | G2c |
 | Play a replay file | menu, or `gdxsv:replay=FILE` | R1 (every replay format), R2: plays to the end with the recorded winners | R2c |
 | Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*`; V2, V3: round jump and seek at start (`replay_target_round`, `replay_target_frame`) | V2c, V3c |
 | Takeover: play on from a replay frame, retry with START | pause menu, or `gdxsv:replay_takeover_frame` | V6: the pad plays from the frame, START retries from it | V6c |

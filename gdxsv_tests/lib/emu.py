@@ -230,6 +230,32 @@ def window_rect(pid: int) -> Optional[tuple]:
     return (pt.x, pt.y, pt.x + r.right, pt.y + r.bottom)
 
 
+def click(pid: int, x: int, y: int) -> bool:
+    """A left click at (x, y) of pid's window client area, with the real mouse (the window
+    is raised first; the click also gives it the keyboard). False if it has no window."""
+    box = window_rect(pid)
+    if box is None or box[2] <= box[0]:
+        return False
+    user32 = ctypes.windll.user32
+    user32.SetCursorPos(box[0] + x, box[1] + y)
+    time.sleep(0.2)  # ImGui sees the hover before the press
+    user32.mouse_event(0x2, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTDOWN
+    time.sleep(0.1)
+    user32.mouse_event(0x4, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTUP
+    return True
+
+
+def press_key(vk: int) -> None:
+    """Press and release a key (Windows virtual-key code) in the foreground window."""
+    if not IS_WINDOWS:
+        raise NotImplementedError("press_key: Windows only")
+    user32 = ctypes.windll.user32
+    scan = user32.MapVirtualKeyW(vk, 0)
+    user32.keybd_event(vk, scan, 0, 0)
+    time.sleep(0.1)
+    user32.keybd_event(vk, scan, 0x2, 0)  # KEYEVENTF_KEYUP
+
+
 def suspend(pid: int, on: bool) -> None:
     """Freeze (on=True) or resume a process, every thread of it."""
     if not IS_WINDOWS:
