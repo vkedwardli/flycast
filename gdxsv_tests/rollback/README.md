@@ -50,15 +50,18 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A3c | Control of A3 | peer 0 old only, peer 2 (this build) loads `desync.lua` | A3 fails on last frames or round winners |
 | A4 | Mixed with an older release | same as A3 | common checks |
 | A4c | Control of A4 | as A3c, with the older release | A4 fails on last frames or round winners |
-| B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1` | every rollback whose re-simulated range contains a skip after the seek frame replays it |
+| B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks) | every rollback whose re-simulated range contains a skip after the seek frame replays it |
+| B1c | Control of B1 | seeds 11, 22, `GGPO_TEST_NO_SKIP_REPLAY=1` | B1 fails on "skip at frame N not replayed" |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B2c | Control of B2 | as B2, delay 0 ms, `TEST_GGPO_DELAY=10`, 1 round | B2 fails on "no rollbacks happened" |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
+| B3c | Control of B3 | as B3, peer 2 loads `desync.lua` | B3 fails on last frames or round winners |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |
 | C1c | Control of C1 | as C1, p1 suspended for 15 s right after the drop (`emu.suspend`) | C1 fails on "windows not responding" |
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
 | C2c | Control of C2 | as C2, no peer killed, 1 run | C2 fails on "no StartNetwork timeout" |
 | C3 | Re-battle cancel ends the match | `RAND_MASK=06F6`, `MAXREBATTLE=3`, `GGPO_TEST_LOG=1`; headless and windowed | all peers enter scene 4/3 on the same frame and are in CloseWait at 4/4; common checks |
+| C3c | Control of C3 | as C3 headless, `GGPO_TEST_NO_REBATTLE_CANCEL=1` | C3 fails on "not in CloseWait at the friend save scene" |
 | D1 | Malformed packets | ~45 s of `fuzz.py` during the battle (oversized AppData/Input, truncated, unknown types, bogus relays), `GGPO_TEST_LOG=1` | a peer logs `RBKTEST malformed drop` (relayed malformed AppData); common checks |
 | D1c | Control of D1 | as D1, the fuzzer sends to ports 50 above the peers' | D1 fails on "no peer dropped a malformed packet" |
 | D2 | Relay in use | `TEST_RELAY=single` | p1 picks the relay (`Relay:1`), p2 forwards, common checks |
@@ -90,8 +93,10 @@ These do nothing unless set.
 | `RBK_SAVE_REPLAY` | Saves the match to `data/replays/0123456.pb` when it ends (never uploaded) | local test |
 | `TEST_PORT_BASE` | First of the peers' ports (default 20010, peer N uses base + N), so local tests can run at once | local test |
 | `GGPO_TEST_LOG` | Logs `RBKTEST` lines: timesync skip record/replay, rollback loads, scene changes, relay forwards and loop drops, malformed packet drops, relay server use | any session |
+| `GGPO_TEST_NO_SKIP_REPLAY` | A rollback does not replay the timesync skips after its seek frame (control of B1) | local test |
 | `TEST_GGPO_DELAY` | Fixed input delay in frames instead of one derived from the ping test, so a large `GGPO_NETWORK_DELAY` means deep prediction rather than more delay | local test |
 | `TEST_FAKE_TIMESYNC` | Peer 0 takes a timesync skip every K frames (K = value), as a peer whose clock runs fast does. Peers on one machine rarely get them | local test |
+| `GGPO_TEST_NO_REBATTLE_CANCEL` | The re-battle-cancel scene does not close the match (control of C3) | local test |
 | `TEST_SPECTATOR_LBS` | Streams the peers' confirmed inputs to a local lbs (`ip:port`) started with `-spectator_test_session` | local test |
 | `TEST_SPECTATOR_UPLINK` | Which peer lbs would ask to stream (peer number, default 1), or `all` as clients from before lbs picked one did | local test |
 | `TEST_UPLINK_ROUND_DELAY` | Sends round starts to lbs N frames late, so spectators reach StartMsg before the round's start index | local test |

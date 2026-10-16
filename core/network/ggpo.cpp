@@ -168,6 +168,7 @@ static std::unordered_map<int, MemPages> deltaStates;
 static int lastSavedFrame = -1;
 
 static int seekToFrame = -1;
+static int loadedFrame = -1;  // the frame the last rollback loaded
 static int timesyncOccurred;
 
 #pragma pack(push, 1)
@@ -299,7 +300,7 @@ static bool advance_frame(int)
 	rend_enable_renderer(false);
 	inRollback = true;
 
-	const int skips = skippedFrames[frame];
+	const int skips = gdxsv_ggpo_state.testNoSkipReplay && frame > loadedFrame ? 0 : skippedFrames[frame];
 	if (gdxsv_ggpo_state.testLog && skips > 0)
 		NOTICE_LOG(NETWORK, "RBKTEST skip replay frame=%d skips=%d", frame, skips);
 	bool frameRan = false;
@@ -354,6 +355,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 	deser >> frame;
 	if (gdxsv_ggpo_state.testLog)
 		NOTICE_LOG(NETWORK, "RBKTEST load seek=%d from=%d", frame, seekToFrame);
+	loadedFrame = frame;
 	memwatch::unprotect();
 	for (int f = lastSavedFrame - 1; f >= frame; f--)
 	{
@@ -554,6 +556,7 @@ void startSession(int localPort, int localPlayerNum)
 	cb.on_message      = on_message;
 	gdxsv_ggpo_session_start();
 	gdxsv_ggpo_state.testLog = getenv("GGPO_TEST_LOG") != nullptr;
+	gdxsv_ggpo_state.testNoSkipReplay = getenv("GGPO_TEST_NO_SKIP_REPLAY") != nullptr;
 	gdxsv_ggpo_state.disconnectFlags = 0;
 	gdxsv_ggpo_state.inputBlockCount.fill(0);
 

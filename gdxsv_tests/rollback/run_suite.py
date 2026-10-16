@@ -31,7 +31,7 @@ THREADED_OFF = ["config:rend.ThreadedRendering=no"]
 LAST_FRAME_SLACK = 2
 
 
-def common(m: Match, peers=None) -> List[str]:
+def common(m: Match, peers=None, slack: Optional[int] = None) -> List[str]:
     """Checks every completed match must pass. Returns the failures."""
     peers = peers or m.peers
     bad = []
@@ -46,7 +46,7 @@ def common(m: Match, peers=None) -> List[str]:
             bad.append(f"p{p.index}: {e.strip()}")
     # Teardown timing can leave one peer a frame ahead in its last saved state; more than that is suspicious.
     frames = [p.last_frame for p in peers]
-    if max(frames) - min(frames) > LAST_FRAME_SLACK:
+    if max(frames) - min(frames) > (LAST_FRAME_SLACK if slack is None else slack):
         bad.append("last frames differ: " + " ".join(f"p{p.index}={p.last_frame}" for p in peers))
     if len({tuple(p.win_teams) for p in peers}) > 1 or not peers[0].win_teams:
         bad.append("round winners differ or missing: " + " ".join(f"p{p.index}={p.win_teams}" for p in peers))
@@ -133,10 +133,25 @@ def a4_control(s: Settings) -> Result:
 # --- B. Rollback -------------------------------------------------------------
 
 def b1_skip_replay(s: Settings) -> Result:
+    bad, notes, crossings = _b1(s, "B1", (11, 22, 33, 44, 55, 66), {})
+    if not bad and not crossings:
+        return INCONCLUSIVE, notes + ["no rollback crossed a skip; rerun or add seeds"]
+    return verdict(bad, notes)
+
+
+def b1_control(s: Settings) -> Result:
+    bad, notes, _ = _b1(s, "B1c", (11, 22), {"GGPO_TEST_NO_SKIP_REPLAY": "1"})
+    return control(bad, notes, ("skip at frame",))
+
+
+def _b1(s: Settings, tag: str, seeds, env: Dict[str, str]):
     bad, notes, crossings = [], [], []
-    for seed in (11, 22, 33, 44, 55, 66):
-        m = lib.run_match(s, f"B1-{seed}", [s.exe] * 4, DELAYS, seed=seed, env={"GGPO_TEST_LOG": "1"})
-        bad += [f"seed {seed}: {b}" for b in common(m)]
+    for seed in seeds:
+        # Input delay 1: rollbacks of up to 6 frames, long enough to span the skips taken every few hundred frames.
+        m = lib.run_match(s, f"{tag}-{seed}", [s.exe] * 4, DELAYS, seed=seed,
+                          env=dict(env, GGPO_TEST_LOG="1", TEST_GGPO_DELAY="1"))
+        # Peers stop up to the 100 ms sender's 6 frames apart when the input delay is 1; a desync is ~100 (A1c).
+        bad += [f"seed {seed}: {b}" for b in common(m, slack=8)]
         for p in m.peers:
             for seek, frm, skip, replayed in lib.skip_crossings(p):
                 if skip > seek:
@@ -146,9 +161,7 @@ def b1_skip_replay(s: Settings) -> Result:
         notes.append("  seed=%d p%d seek=%d from=%d skip=%d replayed=%s" % c)
         if not c[5]:
             bad.append("skip at frame %d not replayed (seed %d p%d)" % (c[4], c[0], c[1]))
-    if not bad and not crossings:
-        return INCONCLUSIVE, notes + ["no rollback crossed a skip; rerun or add seeds"]
-    return verdict(bad, notes)
+    return bad, notes, crossings
 
 
 def _b2(s: Settings, tag: str, delays: List[int], env: Dict[str, str]) -> Tuple[List[str], List[str]]:
@@ -172,6 +185,11 @@ def b3_not_threaded(s: Settings) -> Result:
     m = lib.run_match(s, "B3", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=THREADED_OFF)
     # This harness produces no rollbacks with threaded rendering off (old builds too), so only completion is checked.
     return verdict(common(m), [summary(m)])
+
+
+def b3_control(s: Settings) -> Result:
+    m = lib.run_match(s, "B3c", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=THREADED_OFF, lua={2: DESYNC})
+    return control(common(m), [summary(m)], DESYNC_SIGNS)
 
 
 # --- C. Disconnect and session lifecycle --------------------------------------
@@ -248,8 +266,8 @@ def c2_control(s: Settings) -> Result:
     return control(*_c2(s, "C2c", 1, False), ("no StartNetwork timeout",))
 
 
-def _rebattle_cancel(s: Settings, tag: str, headless: bool) -> Tuple[List[str], List[str]]:
-    env = {"RAND_MASK": "06F6", "MAXREBATTLE": "3", "GGPO_TEST_LOG": "1"}
+def _rebattle_cancel(s: Settings, tag: str, headless: bool, extra_env=None) -> Tuple[List[str], List[str]]:
+    env = dict(extra_env or {}, RAND_MASK="06F6", MAXREBATTLE="3", GGPO_TEST_LOG="1")
     m = lib.run_match(s, tag, [s.exe] * 4, DELAYS_SPREAD, env=env, headless=headless)
     bad = common(m)
     cancel_frames = set()
@@ -276,6 +294,10 @@ def c3_rebattle_cancel(s: Settings) -> Result:
     if not bad and any("never reached" in n for n in notes):
         return INCONCLUSIVE, notes
     return verdict(bad, notes)
+
+
+def c3_control(s: Settings) -> Result:
+    return control(*_rebattle_cancel(s, "C3c", True, {"GGPO_TEST_NO_REBATTLE_CANCEL": "1"}), ("not in CloseWait",))
 
 
 # --- D. Network robustness ---------------------------------------------------
@@ -545,14 +567,17 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
     "A4c": ("control: A4 old-first with peer 2 (this build) desynced, A4's checks fail", a4_control, 1, False),
     "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 7, False),
+    "B1c": ("control: B1 seeds 11, 22 with GGPO_TEST_NO_SKIP_REPLAY, skips not replayed", b1_control, 3, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
     "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
+    "B3c": ("control: B3 with desync.lua on peer 2", b3_control, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
     "C1c": ("control: C1 with p1 frozen for 15 s after the drop, its window stops responding", c1_control, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
     "C2c": ("control: C2 with no peer killed, no start timeout", c2_control, 1, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),
+    "C3c": ("control: C3 headless with GGPO_TEST_NO_REBATTLE_CANCEL, no CloseWait", c3_control, 2, False),
     "D1": ("malformed packet fuzzing during a match", d1_fuzz, 1, False),
     "D1c": ("control: D1 with the fuzzer on ports no peer uses, no malformed drop logged", d1_control, 1, False),
     "D2": ("relay path in use", d2_relay, 1, False),
