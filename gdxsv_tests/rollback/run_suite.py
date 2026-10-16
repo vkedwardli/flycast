@@ -290,8 +290,16 @@ def d2_control(s: Settings) -> Result:
 
 
 def d3_relay_loop(s: Settings) -> Result:
-    env = {"TEST_RELAY": "loop", "GGPO_TEST_LOG": "1"}
-    m = lib.run_match(s, "D3", [s.exe] * 4, [16] * 4, env=env, timeout=120, stall_sec=600)
+    return verdict(*_d3(s, "D3", "loop"))
+
+
+def d3_control(s: Settings) -> Result:
+    return control(*_d3(s, "D3c", "single"), ("relay loop not cut",))
+
+
+def _d3(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
+    env = {"TEST_RELAY": test_relay, "GGPO_TEST_LOG": "1"}
+    m = lib.run_match(s, tag, [s.exe] * 4, [16] * 4, env=env, timeout=120, stall_sec=600)
     bad = []
     for p in m.peers[:2]:
         drops = [l for l in p.log.splitlines() if "RBKTEST relay drop-return-to-sender" in l]
@@ -301,7 +309,7 @@ def d3_relay_loop(s: Settings) -> Result:
             bad.append(f"p{p.index}: {len(drops)} drop log lines, packets kept bouncing")
     for p in m.peers:
         bad += [f"p{p.index}: {e.strip()}" for e in p.errors[:3]]
-    return verdict(bad, ["session start is expected to time out: peers 0 and 1 cannot reach peer 3"])
+    return bad, ["session start is expected to time out: peers 0 and 1 cannot reach peer 3"] if test_relay == "loop" else []
 
 
 def _with_relays(s: Settings, tag: str, count: int, test_relay: str, dual_stack: bool = False, exes=None):
@@ -366,7 +374,17 @@ def _d4(s: Settings, tag: str, test_relay: Optional[str]) -> Tuple[List[str], Li
 def d5_relay_servers_settle(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, relay_logs = _with_relays(s, "D5", 2, "server2")
+    return verdict(*_d5(s, "D5", "server2"))
+
+
+def d5_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    return control(*_d5(s, "D5c", "server"), ("p1 did not move to server 0",))
+
+
+def _d5(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
+    m, relay_logs = _with_relays(s, tag, 2, test_relay)
     bad = common(m)
     p1, p2 = m.peers[0].log, m.peers[1].log
     # Peer 0 starts on server 1 for peer 1 and moves to server 0, which peer 1 picked.
@@ -380,13 +398,23 @@ def d5_relay_servers_settle(s: Settings) -> Result:
     for i, log in enumerate(relay_logs):
         if log.count("relay peer bound") != len(m.peers):
             bad.append(f"relay {i} bound {log.count('relay peer bound')} peers, expected {len(m.peers)}")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
 
 
 def d6_relay_server_ipv6(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, relay_logs = _with_relays(s, "D6", 1, "server", dual_stack=True)
+    return verdict(*_d6(s, "D6", True))
+
+
+def d6_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    return control(*_d6(s, "D6c", False), ("relay bound 0 peers over IPv6",))
+
+
+def _d6(s: Settings, tag: str, dual_stack: bool) -> Tuple[List[str], List[str]]:
+    m, relay_logs = _with_relays(s, tag, 1, "server", dual_stack=dual_stack)
     bad = common(m)
     if "Relay:2" not in m.peers[0].log:
         bad.append("p1 did not pick the relay server")
@@ -398,31 +426,37 @@ def d6_relay_server_ipv6(s: Settings) -> Result:
     v4 = sum(1 for l in bound if "127.0.0.1" in l)
     if (v6, v4) != (2, 2):
         bad.append(f"relay bound {v6} peers over IPv6 and {v4} over IPv4, expected 2 and 2")
-    return verdict(bad, [summary(m)])
+    return bad, [summary(m)]
 
 
 def d7_relay_lower_rtt_wins(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, _ = _with_relays(s, "D7", 1, "fair")
+    return verdict(*_d7(s, "D7", "fair"))
+
+
+def d7_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    # single: the way through peer 1 (20 ms) beats the relay server, so peer 1 must win.
+    return control(*_d7(s, "D7c", "single"), ("p1 did not pick the relay server",))
+
+
+def _d7(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
+    m, _ = _with_relays(s, tag, 1, test_relay)
     bad = common(m)
     picks = [l for l in m.peers[0].log.splitlines() if "Peer3 " in l and "Relay:" in l]
     if not picks or "Relay:2" not in picks[-1]:
         bad.append("p1 did not pick the relay server over the slower relaying peer: " + (picks[-1].strip() if picks else "no Peer3 line"))
-    return verdict(bad, [summary(m)] + [p.strip() for p in picks[-1:]])
+    return bad, [summary(m)] + [p.strip() for p in picks[-1:]]
 
 
 def d8_relay_server_symmetric_nat(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
     m, _ = _with_relays(s, "D8", 1, "nat")
-    bad = common(m)
-    picks = []
-    for src, dst in ((0, 1), (2, 1), (1, 0), (1, 2)):
-        lines = [l.strip() for l in m.peers[src].log.splitlines() if f"Peer{dst} " in l and "Relay:" in l]
-        picks += lines[-1:]
-        if not lines or "Relay:2" not in lines[-1]:
-            bad.append(f"p{src + 1} did not reach p{dst + 1} through the relay server: " + (lines[-1] if lines else f"no Peer{dst} line"))
+    bad, picks = _d8_paths(m)
+    bad = common(m) + bad
     notes = [summary(m)] + picks
     if s.old_exe:
         # The NAT peer on the previous release learns no relay RTTs from peer 3, so it starts through peer 3 and
@@ -437,6 +471,25 @@ def d8_relay_server_symmetric_nat(s: Settings) -> Result:
             bad.append("old: p2 did not answer through the relay server")
         notes.append("old: " + summary(m))
     return verdict(bad, notes)
+
+
+def d8_control(s: Settings) -> Result:
+    if not s.relay_exe:
+        return SKIP, ["no gdxsv binary (--relay-exe)"]
+    m, _ = _with_relays(s, "D8c", 1, None)  # no NAT: every peer reaches the others directly
+    bad, picks = _d8_paths(m)
+    return control(common(m) + bad, [summary(m)] + picks, ("p1 did not reach p2 through the relay server",))
+
+
+def _d8_paths(m: Match) -> Tuple[List[str], List[str]]:
+    """Paths to and from the NAT peer (peer 1) must go through the relay server."""
+    bad, picks = [], []
+    for src, dst in ((0, 1), (2, 1), (1, 0), (1, 2)):
+        lines = [l.strip() for l in m.peers[src].log.splitlines() if f"Peer{dst} " in l and "Relay:" in l]
+        picks += lines[-1:]
+        if not lines or "Relay:2" not in lines[-1]:
+            bad.append(f"p{src + 1} did not reach p{dst + 1} through the relay server: " + (lines[-1] if lines else f"no Peer{dst} line"))
+    return bad, picks
 
 
 # Cases that run release builds, which always use the default ports, so they never run alongside each other.
@@ -461,12 +514,17 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "D2": ("relay path in use", d2_relay, 1, False),
     "D2c": ("control: D2 with no TEST_RELAY, no relay picked", d2_control, 1, False),
     "D3": ("relay loop is cut", d3_relay_loop, 2, False),
+    "D3c": ("control: D3 with a one-way relay (single), no loop to cut", d3_control, 2, False),
     "D4": ("relay server path, peers answer through it", d4_relay_server, 1, False),
     "D4c": ("control: D4 with no TEST_RELAY, relay server not picked", d4_control, 1, False),
     "D5": ("two relay servers, peers settle on the earlier one", d5_relay_servers_settle, 1, False),
+    "D5c": ("control: D5 with one relay server picked (server), nothing to settle", d5_control, 1, False),
     "D6": ("relay server between IPv6 and IPv4 peers", d6_relay_server_ipv6, 1, False),
+    "D6c": ("control: D6 with an IPv4-only relay, no peer bound over IPv6", d6_control, 1, False),
     "D7": ("relaying peer and relay server: the lower RTT wins", d7_relay_lower_rtt_wins, 1, False),
+    "D7c": ("control: D7 with the relaying peer faster (single), the relay server loses", d7_control, 1, False),
     "D8": ("symmetric NAT peer reached through the relay server", d8_relay_server_symmetric_nat, 1, False),
+    "D8c": ("control: D8 with no NAT peer, nobody goes through the relay server", d8_control, 1, False),
 }
 
 

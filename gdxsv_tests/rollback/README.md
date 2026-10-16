@@ -60,12 +60,17 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | D2 | Relay in use | `TEST_RELAY=single` | p1 picks the relay (`Relay:1`), p2 forwards, common checks |
 | D2c | Control of D2 | as D2, no `TEST_RELAY` | D2 fails on "did not pick the relay" |
 | D3 | Relay loop | `TEST_RELAY=loop` | peers 1 and 2 cut the loop (a few `relay drop-return-to-sender` lines, not a flood), no crash; session start times out as expected |
+| D3c | Control of D3 | as D3, `TEST_RELAY=single` (one-way relay) | D3 fails on "relay loop not cut" |
 | D4 | Relay server | a local `gdxsv relay` (`--relay-exe`, default `../gdxsv/bin/gdxsv.exe`), `TEST_RELAY=server` | p1 picks the server (`Relay:2`), every peer sends through it (the others after p1's packets reach them through it), the relay bound all four peers, common checks. Skipped without the binary |
 | D4c | Control of D4 | as D4, no `TEST_RELAY` | D4 fails on "did not pick the relay server" |
 | D5 | Two relay servers | two local relays, `TEST_RELAY=server2` | p1 starts on server 1 for peer 1 and moves to server 0, which peer 1 picked; peer 1 stays on server 0; peers 2 and 3 answer peer 0 through server 1; common checks |
+| D5c | Control of D5 | as D5, `TEST_RELAY=server` (p1 picks a server, p2 stays direct) | D5 fails on "p1 did not move to server 0" |
 | D6 | Relay server across IP families | a dual-stack local relay, `TEST_RELAY=server`, `TEST_RELAY_IPV6=::1` | peers 1-2 get only a reachable IPv6 address for the relay and pick it, peers 3-4 use IPv4 (the relay binds 2 and 2), peer 0 relays to everyone, common checks. The relay listens on all addresses, which may raise a firewall prompt |
+| D6c | Control of D6 | as D6, IPv4-only relay, no `TEST_RELAY_IPV6` | D6 fails on "relay bound 0 peers over IPv6" |
 | D7 | Lower RTT wins between relays | a local relay, `TEST_RELAY=fair` | p1 reaches p4 through the relay server (~35 ms) rather than through p2 (50 ms), though the server is less than 16 ms faster; common checks |
+| D7c | Control of D7 | as D7, `TEST_RELAY=single` (the way through p2 is 20 ms) | D7 fails on "p1 did not pick the relay server" |
 | D8 | Symmetric NAT peer | a local relay, `TEST_RELAY=nat` | p2 reaches only p4 in the ping test, and the way through p4 is slow; p1 and p3 reach p2, and p2 reaches them, through the relay server (`Relay:2`), using the relay RTTs p4 passed on; common checks. With `--old-exe`/`--old-release`, again with p2 on that build: p1 and p3 still pick the relay server and p2 answers through it |
+| D8c | Control of D8 | as D8, no `TEST_RELAY` (no NAT peer) | D8 fails on "p1 did not reach p2 through the relay server" |
 
 ## Test-only switches (environment variables)
 
