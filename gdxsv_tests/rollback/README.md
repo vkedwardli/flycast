@@ -55,6 +55,7 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | B2c | Control of B2 | as B2, delay 0 ms, `TEST_GGPO_DELAY=10`, 1 round | B2 fails on "no rollbacks happened" |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |
+| C1c | Control of C1 | as C1, p1 suspended for 15 s right after the drop (`emu.suspend`) | C1 fails on "windows not responding" |
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
 | C2c | Control of C2 | as C2, no peer killed, 1 run | C2 fails on "no StartNetwork timeout" |
 | C3 | Re-battle cancel ends the match | `RAND_MASK=06F6`, `MAXREBATTLE=3`, `GGPO_TEST_LOG=1`; headless and windowed | all peers enter scene 4/3 on the same frame and are in CloseWait at 4/4; common checks |

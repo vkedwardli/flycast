@@ -178,7 +178,17 @@ def b3_not_threaded(s: Settings) -> Result:
 
 def c1_peer_drop(s: Settings) -> Result:
     if not lib.IS_WINDOWS:
-        return SKIP, ["Windows only (samples Process.Responding)"]
+        return SKIP, ["Windows only (samples window responsiveness)"]
+    return verdict(*_c1(s, "C1", False))
+
+
+def c1_control(s: Settings) -> Result:
+    if not lib.IS_WINDOWS:
+        return SKIP, ["Windows only (samples window responsiveness)"]
+    return control(*_c1(s, "C1c", True), ("windows not responding",))
+
+
+def _c1(s: Settings, tag: str, freeze: bool) -> Tuple[List[str], List[str]]:
     samples: List[str] = []
 
     def drop(m: Match):
@@ -187,10 +197,14 @@ def c1_peer_drop(s: Settings) -> Result:
                 return
             time.sleep(10)  # well into the battle
             lib.kill_peer(m, 4)
+            if freeze:  # the control: p1 stops processing messages for 15 s
+                pid = m.peers[0].inst.proc.pid
+                lib.suspend(pid, True)
+                threading.Timer(15, lib.suspend, (pid, False)).start()
             samples.extend(lib.sample_responding(m, [1, 2, 3], 40))
         threading.Thread(target=body, daemon=True).start()
 
-    m = lib.run_match(s, "C1", [s.exe] * 4, DELAYS_SPREAD, headless=False, on_start=drop, timeout=240, stall_sec=600)
+    m = lib.run_match(s, tag, [s.exe] * 4, DELAYS_SPREAD, headless=False, on_start=drop, timeout=240, stall_sec=600)
     hung = [l for l in samples if "HUNG" in l]
     bad = []
     if not samples:
@@ -201,7 +215,7 @@ def c1_peer_drop(s: Settings) -> Result:
         if "GdxsvBackendRollback.Close Done" not in p.log:
             bad.append(f"p{p.index} never closed the session")
         bad += [f"p{p.index}: {e.strip()}" for e in p.errors[:3]]
-    return verdict(bad, [f"responding samples: {len(samples) - len(hung)}/{len(samples)}"])
+    return bad, [f"responding samples: {len(samples) - len(hung)}/{len(samples)}"]
 
 
 def _c2(s: Settings, tag: str, runs: int, kill: bool) -> Tuple[List[str], List[str]]:
@@ -522,6 +536,7 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
+    "C1c": ("control: C1 with p1 frozen for 15 s after the drop, its window stops responding", c1_control, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
     "C2c": ("control: C2 with no peer killed, no start timeout", c2_control, 1, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),

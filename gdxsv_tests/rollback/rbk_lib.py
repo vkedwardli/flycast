@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(HERE, ".."))
 from lib import emu, hashlog  # noqa: E402
-from lib.emu import IS_WINDOWS, EXE_NAME, ERROR_RE, kill, ensure_state, fetch_release  # noqa: E402,F401
+from lib.emu import IS_WINDOWS, EXE_NAME, ERROR_RE, kill, suspend, ensure_state, fetch_release  # noqa: E402,F401
 
 N = 4
 DEFAULT_PORT_BASE = 20010  # the peers' ports: base + peer. Release builds always use this one.
