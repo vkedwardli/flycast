@@ -13,6 +13,8 @@ void gdxsv_ggpo_session_start();
 void gdxsv_ggpo_session_stop();
 // GGPO saved the state of a frame, rollbacks included.
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len);
+// Draws the network stats of the gdxsv session (one block per peer). False when not a gdxsv session.
+bool gdxsv_ggpo_display_stats();
 
 // gdxsv state of a GGPO session, shared by core/network/ggpo.cpp and gdxsv_ggpo.cpp.
 struct GdxsvGgpoState {
@@ -42,6 +44,7 @@ struct GdxsvGgpoUpstream {
 	bool* synchronized;
 	int* analogAxes;
 	int* inputSize;
+	int* timesyncOccurred;  // frames the "Behind" bar of the stats stays red
 };
 // Defined in core/network/ggpo.cpp. Fills cb (a GGPOSessionCallbacks) with upstream's callbacks.
 GdxsvGgpoUpstream gdxsv_ggpo_upstream(void* cb);
