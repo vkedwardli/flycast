@@ -2074,12 +2074,14 @@ bool GdxsvBackendReplay::Start() {
 		settings.input.fastForwardMode = true;
 		config::FixedFrequency.override(0);
 	} else {
-		config::FixedFrequency.override(2);
+		// ReplayFixedFrequency (ini only) lets a test run the clock off the
+		// device's rate, e.g. 3 (60Hz) for audio rate control.
+		config::FixedFrequency.override(config::loadInt("gdxsv", "ReplayFixedFrequency", 2));
 		// As in the online battle. With audio sync on top of the fixed
 		// frequency, Live Spectate came out of each loading screen ~2s further
 		// behind the players and never made it up.
 		config::LimitFPS.override(false);
-		settings.gdxsv.audioRateControl = true;
+		settings.gdxsv.audioRateControl = config::loadBool("gdxsv", "AudioRateControl", true);
 	}
 	gdxsv_frame_period_trim_us = 0;
 
