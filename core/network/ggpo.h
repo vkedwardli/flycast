@@ -18,10 +18,10 @@
 */
 #pragma once
 #include <future>
-#include <atomic>
+#include <atomic> // gdxsv: timeSyncFrames
 #include <string>
 
-#include "types.h"
+#include "types.h" // gdxsv: u16 in setExInput
 
 struct MapleInputState;
 
@@ -36,23 +36,18 @@ bool nextFrame();
 bool active();
 void displayStats();
 void endOfFrame();
-bool getCurrentFrame(int* frame);
+bool getCurrentFrame(int* frame); // gdxsv
 void sendChatMessage(int playerNum, const std::string& msg);
 void receiveChatMessages(void (*callback)(int playerNum, const std::string& msg));
-bool poll();
+bool poll(); // gdxsv
 
-static inline bool isInRollback() {
+static inline bool rollbacking() {
 	extern bool inRollback;
 
 	return inRollback;
 }
 
-static inline bool isInSkipFrame() {
-	extern bool inSkipFrame;
-
-	return inSkipFrame;
-}
-
+// gdxsv: skip frames and extra input of the gdxsv session
 void notifySkipInput();
 // A replayed timesync skip held back the input the game asked for (advance_frame).
 void notifySkipReplayHeld();

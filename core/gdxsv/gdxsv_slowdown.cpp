@@ -77,7 +77,7 @@ bool GdxsvSlowdown::Measure(std::vector<GdxsvProjectileView::Entry>& scratch, Lo
 void GdxsvSlowdown::OnVBlank() {
 	if (ggpo::active()) {
 		// Rollback stalls in gdxsv_backend_rollback.cpp; here only the debug view's load.
-		if (ggpo::isInRollback()) return;
+		if (ggpo::rollbacking()) return;
 		in_battle_ = GdxsvProjectileView::InBattle();
 		if (in_battle_ && config::GdxProjectileView) Measure(entries_, load_);
 		return;

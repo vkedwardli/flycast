@@ -49,6 +49,7 @@ AudioBackend *AudioBackend::getBackend(const std::string& slug)
 	return nullptr;
 }
 
+// gdxsv: the gain moved to WriteSample, which may resample before the buffer
 static void pushFrame(s16 r, s16 l)
 {
 	Buffer[writePtr].r = r;
@@ -126,6 +127,7 @@ void TermAudio()
 	currentBackend = nullptr;
 }
 
+// gdxsv: drops queued samples on a replay seek
 void FlushAudio()
 {
 	writePtr = 0;

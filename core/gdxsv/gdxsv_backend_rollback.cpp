@@ -453,7 +453,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	// Ending the match (re-battle cancelled, friend save scene) is handled in OnNextFrame.
 
 	// Friend save scene
-	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 4 && ggpo::active() && !ggpo::isInRollback()) {
+	if (gdxsv_ReadMem8(COM_R_No0) == 4 && gdxsv_ReadMem8(COM_R_No0 + 5) == 4 && ggpo::active() && !ggpo::rollbacking()) {
 		ResetGgpoGameRendererState();
 	}
 
@@ -714,7 +714,7 @@ void GdxsvBackendRollback::OnNextFrame() {
 	if (!ggpo::getCurrentFrame(&frame)) {
 		return;
 	}
-	if (ggpo::isInRollback()) {
+	if (ggpo::rollbacking()) {
 		// A re-simulation from at or before the frame the scene was first seen on may take it back.
 		if (0 <= battle_end_frame_ && frame <= battle_end_frame_) {
 			battle_end_frame_ = -1;
@@ -873,7 +873,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 						 : gdxsv_ReadMem8(0x0c3d16d4) == 2 && gdxsv_ReadMem8(0x0c3d16d5) == 7;
 	};
 	const int skipFrameCount = ggpo::getSkippedFrames(frame);
-	if (!ggpo::isInRollback()) {
+	if (!ggpo::rollbacking()) {
 		u16 flags = 0;
 		if (GdxsvSlowdown::kEnabled && GdxsvProjectileView::InBattle()) {
 			flags |= ExInputSlowdownReady;
@@ -890,7 +890,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	if (frame != slowdown_last_frame_) {
 		// First poll of this frame, or the start of a rollback pass: stalls from here on are decided again.
 		slowdown_last_frame_ = frame;
-		if (!ggpo::isInRollback()) gdxsv.slowdown_.SetSynced(slowdownOn());
+		if (!ggpo::rollbacking()) gdxsv.slowdown_.SetSynced(slowdownOn());
 		slowdown_stall_frames_.erase(slowdown_stall_frames_.lower_bound(frame), slowdown_stall_frames_.end());
 		while (!slowdown_stall_frames_.empty() && *slowdown_stall_frames_.begin() < frame - 600) {
 			slowdown_stall_frames_.erase(slowdown_stall_frames_.begin());
@@ -905,7 +905,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			body[3] = input & 0xff;
 			std::copy(body.begin(), body.end(), std::back_inserter(recv_buf_));
 			inputs |= static_cast<u64>(input) << (i * 16);
-			if (matching_.is_training_game() && !ggpo::isInRollback()) {
+			if (matching_.is_training_game() && !ggpo::rollbacking()) {
 				gdxsv.key_display_.AppendInput(i, input);
 			}
 		}
@@ -926,7 +926,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 	gdxsv.key_display_.enabled(matching_.is_training_game() && !osd_network_stat_ && in_game());
 
 	// Disconnect from training game
-	if (ggpo::active() && !ggpo::isInRollback() && matching_.is_training_game()) {
+	if (ggpo::active() && !ggpo::rollbacking() && matching_.is_training_game()) {
 		auto start_btn_pressed = false;
 		for (int i = 0; i < 4; i++) {
 			start_btn_pressed |= ~inputState[i].kcode & DC_BTN_START;
@@ -1036,7 +1036,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 
 		if (msg.Type() == McsMessage::StartMsg) {
 			gdxsv_WriteMem16(memExInputAddr, ExInputWaitStart);
-			if (!ggpo::isInRollback()) {
+			if (!ggpo::rollbacking()) {
 				ggpo::setExInput(ExInputWaitStart);
 				NOTICE_LOG(COMMON, "StartMsg KeyFrame:%d", frame);
 			}
@@ -1046,18 +1046,18 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			// Local test only: TEST_FAKE_TIMESYNC=K makes peer 0 act as if GGPO asked it to slow down every K
 			// frames, as a peer whose clock runs fast does. Peers on one machine rarely get timesync skips.
 			static const int fake_timesync = getenv("TEST_FAKE_TIMESYNC") ? atoi(getenv("TEST_FAKE_TIMESYNC")) : 0;
-			if (is_local_test_ && fake_timesync > 0 && matching_.peer_id() == 0 && !ggpo::isInRollback() &&
+			if (is_local_test_ && fake_timesync > 0 && matching_.peer_id() == 0 && !ggpo::rollbacking() &&
 				frame % fake_timesync == 0 && ggpo::timeSyncFrames == 0) {
 				ggpo::timeSyncFrames = 1;
 			}
 			const int tsFrames = ggpo::timeSyncFrames;
-			if (!ggpo::isInRollback() && 0 < gdxsv_ReadMem16(DataStopCounter) && tsFrames > 0 && frame % 10 == 0) {
+			if (!ggpo::rollbacking() && 0 < gdxsv_ReadMem16(DataStopCounter) && tsFrames > 0 && frame % 10 == 0) {
 				ggpo::timeSyncFrames.fetch_sub(1);
 				ggpo::notifySkipInput();
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame remaining=%d", frame, tsFrames - 1);
 			} else if (0 < skipFrameCount && gdxsv_ReadMem16(DataStopCounter) < skipFrameCount + 1) {
 				DEBUG_LOG(COMMON, "KeyMsg1 frame=%d: skipFrame replaying", frame);
-				if (ggpo::isInRollback()) ggpo::notifySkipReplayHeld();
+				if (ggpo::rollbacking()) ggpo::notifySkipReplayHeld();
 			} else if (frame % 2 == 1 && skipFrameCount == 0 && slowdownOn()) {
 				// Slowdown: this frame's input is dropped and the game waits; the next frame delivers.
 				// Odd frames only: timesync skips (frame % 10 == 0, one peer) never land on them.
@@ -1076,7 +1076,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			}
 
 			gdxsv_WriteMem16(memExInputAddr, ExInputWaitLoadEnd);
-			if (!ggpo::isInRollback()) {
+			if (!ggpo::rollbacking()) {
 				ggpo::setExInput(ExInputWaitLoadEnd);
 				NOTICE_LOG(COMMON, "LoadEndMsg KeyFrame:%d", frame);
 			}
@@ -1095,7 +1095,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		if (ok && exInput == ExInputWaitStart) {
 			NOTICE_LOG(COMMON, "StartMsg Join:%d", frame);
 			gdxsv_WriteMem16(memExInputAddr, ExInputNone);
-			if (!ggpo::isInRollback()) {
+			if (!ggpo::rollbacking()) {
 				ggpo::setExInput(ExInputNone);
 			}
 			for (int i = 0; i < matching_.player_count(); i++) {
@@ -1124,7 +1124,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		if (ok && exInput == ExInputWaitLoadEnd) {
 			NOTICE_LOG(COMMON, "LoadEndMsg Join:%d", frame);
 			gdxsv_WriteMem16(memExInputAddr, ExInputNone);
-			if (!ggpo::isInRollback()) {
+			if (!ggpo::rollbacking()) {
 				ggpo::setExInput(ExInputNone);
 			}
 			for (int i = 0; i < matching_.player_count(); i++) {
@@ -1135,7 +1135,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 	}
 
-	if (!ggpo::isInRollback() && !matching_.is_training_game()) {
+	if (!ggpo::rollbacking() && !matching_.is_training_game()) {
 		report_.set_frame_count(frame);
 
 		if (0 < frame && frame % 600 == 0) {
@@ -1162,7 +1162,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		appendKeyMsg1Inputs();
 	}
 
-	if (!ggpo::isInRollback()) {
+	if (!ggpo::rollbacking()) {
 		FlushConfirmedToSpectatorUplink();
 	}
 

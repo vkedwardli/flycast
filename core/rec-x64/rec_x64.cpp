@@ -474,6 +474,7 @@ public:
 				}
 				break;
 
+// gdxsv: ftrv and fipr inline, bit-exact with the interpreter, so netplay peers agree
 #ifndef STRICT_MODE
 			case shop_ftrv:
 				// Same arithmetic as the canonical innerProduct<4>: double products summed in order, then
@@ -559,7 +560,7 @@ public:
 					if (cpu.has(Cpu::tFMA) && !config::GGPOEnable)
 						vfmadd231ss(rd, rs2, rs3);
 					else
-#endif
+#endif // GDXSV_FP_COMPAT
 					{
 						movss(xmm0, rs2);
 						mulss(xmm0, rs3);
@@ -589,7 +590,7 @@ public:
 		case BET_StaticCall:
 			//next_pc = block->BranchBlock;
 			mov(dword[rax], block->BranchBlock);
-			genBlockLink(block, 0);
+			genBlockLink(block, 0); // gdxsv: block linking
 			break;
 
 		case BET_Cond_0:
@@ -609,7 +610,7 @@ public:
 				cmp(dword[rdx], block->BlockType & 1);
 				Xbyak::Label branch_not_taken;
 
-				jne(branch_not_taken, T_NEAR);
+				jne(branch_not_taken, T_NEAR); // gdxsv: block linking, the link code is long
 				mov(dword[rax], block->BranchBlock);
 				genBlockLink(block, 0);
 				jmp(exit_block, T_NEAR);
@@ -625,7 +626,7 @@ public:
 			mov(rdx, (size_t)&sh4ctx.jdyn);
 			mov(edx, dword[rdx]);
 			mov(dword[rax], edx);
-			genDynamicLink(block);
+			genDynamicLink(block); // gdxsv: block linking
 			break;
 
 		case BET_DynamicIntr:
@@ -1480,7 +1481,7 @@ private:
 	std::vector<CC_PS> CC_pars;
 
 	X64RegAlloc regalloc;
-	// cpuid is slow: probe the host once, not for every compiled block
+	// gdxsv: cpuid is slow: probe the host once, not for every compiled block
 	static const Xbyak::util::Cpu& hostCpu() { static const Xbyak::util::Cpu c; return c; }
 	const Xbyak::util::Cpu& cpu = hostCpu();
 	size_t current_opid;
@@ -1528,6 +1529,7 @@ public:
 		virtmem::jit_set_exec(protStart, protSize, true);
 	}
 
+	// gdxsv: block linking
 	RuntimeBlockInfo *allocateBlock() override {
 		return new X64BlockInfo();
 	}

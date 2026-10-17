@@ -112,6 +112,7 @@ int get(const std::string& url, std::vector<u8>& content, const Headers *reqHead
 	}
 	else
 	{
+		// gdxsv: return the HTTP status, not always 200
 		DWORD status;
 		DWORD size = sizeof(status);
 		DWORD index = 0;
@@ -172,7 +173,7 @@ int get(const std::string& url, std::vector<u8>& content, const Headers *reqHead
 	InternetCloseHandle(hreq);
 	InternetCloseHandle(ic);
 
-	return rc;
+	return rc; // gdxsv: HTTP status
 }
 
 static int post(const std::string& url, const char *headers, const u8 *payload, u32 payloadSize, std::vector<u8>& reply)

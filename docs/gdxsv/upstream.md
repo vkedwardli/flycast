@@ -81,12 +81,14 @@ every spot is marked and the list is current (`--write` updates it).
 |---|---|---|
 | `.gitignore` |  | Visual Studio resource editor files |
 | `CMakeLists.txt` |  | x86_64 only |
+| `CMakeLists.txt` |  | `gdxsv_tests` |
 | `CMakeLists.txt` |  | version from the latest gdxsv-* tag, in semver form |
 | `CMakeLists.txt` |  | `# Transform git describe to semver format, e.g. gdxsv-1.2.4-3-g89b14873e -> gdxsv-1.2.4-dev.3+89b148` |
 | `CMakeLists.txt` |  | version and hash in the configure log |
 | `CMakeLists.txt` |  | x86_64 only, no arm64 symbols. |
 | `CMakeLists.txt` |  | x86_64 only, no arm64 symbols. |
 | `CMakeLists.txt` |  | SDL headers for the MSVC (clang-cl) build |
+| `CMakeLists.txt` |  | `if(LUA_FOUND AND (NOT APPLE OR GDXSV_APPLE_LUA))` |
 | `CMakeLists.txt` |  | MoltenVK define kept from an upstream merge |
 | `CMakeLists.txt` |  | bundle version from the gdxsv-* tag |
 | `CMakeLists.txt` |  | Syphon metallib copied into the app bundle (both branches identical; from an upstream merge) |
@@ -95,8 +97,10 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/audio/audiobackend_directsound.cpp` |  | queue level for the replay and spectating audio rate control |
 | `core/audio/audiobackend_sdl2.cpp` |  | queue level for the replay and spectating audio rate control |
 | `core/audio/audiostream.cpp` |  | include `gdxsv/gdxsv_audio_hooks.h` |
+| `core/audio/audiostream.cpp` | `pushFrame` | the gain moved to WriteSample, which may resample before the buffer |
 | `core/audio/audiostream.cpp` | `WriteSample` | `gdxsv_audio_pushed` |
 | `core/audio/audiostream.cpp` | `WriteSample` | `gdxsv_audio_gain`, `gdxsv_audio_write` |
+| `core/audio/audiostream.cpp` | `FlushAudio` | drops queued samples on a replay seek |
 | `core/audio/audiostream.h` |  | frames queued for output and the most the queue holds, for audio rate control. |
 | `core/audio/audiostream.h` |  | drops queued samples on a replay seek |
 | `core/audio/audiostream.h` |  | queue level for the backends' getQueueLevel |
@@ -132,7 +136,6 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/Renderer_if.cpp` | `rend_vblank` | `gdxsv_emu_vblank` |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
-| `core/hw/pvr/elan.cpp` | `write_elancmd` | rollback test of the gdxsv session |
 | `core/hw/pvr/ta_ctx.cpp` |  | rollback time sync in QueueRender |
 | `core/hw/pvr/ta_ctx.cpp` | `QueueRender` | fast-forward counts in frame skip; a rollback time sync skips one render every 30 frames |
 | `core/hw/sh4/dyna/blockmanager.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
@@ -141,6 +144,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/sh4/dyna/decoder.cpp` |  | slow idle loop hack, the game's idle loop block costs more cycles |
 | `core/hw/sh4/dyna/shil_canonical.h` |  | round the product before the add (no fused multiply-add) |
 | `core/hw/sh4/interpr/sh4_fpu.cpp` | `sh4op` | round the product before the add (no fused multiply-add) |
+| `core/hw/sh4/sh4_mmr.cpp` | `serialize` | doSqWrite is a host pointer: saved as null so the same emulated state saves the same bytes in every run |
+| `core/hw/sh4/sh4_mmr.cpp` | `deserialize` | doSqWrite was saved as null |
 | `core/input/gamepad_device.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/input/gamepad_device.cpp` | `GamepadDevice::handleButtonInput` | `gdxsv_is_ingame` |
 | `core/input/gamepad_device.cpp` | `GamepadDevice::handleButtonInput` | `gdxsv_is_ingame` |
@@ -158,28 +163,44 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/log/LogManager.cpp` |  | include `gdxsv/gdxsv_multi_pov.h` |
 | `core/log/LogManager.cpp` | `LogManager::UpdateConfig` | `gdxsv_multi_pov_log_file_name` |
 | `core/network/ggpo.cpp` |  | include `gdxsv/gdxsv_sleep.h` |
+| `core/network/ggpo.cpp` |  | skip frames, rollback seek and extra input of the gdxsv session |
 | `core/network/ggpo.cpp` | `getLocalInput` | `gdxsv_enabled` |
+| `core/network/ggpo.cpp` |  | 4-player battles |
+| `core/network/ggpo.cpp` |  | microseconds for the fps shown in the gdxsv stats |
+| `core/network/ggpo.cpp` |  | frames of the last rollback, for the skip frame replay and its test log |
+| `core/network/ggpo.cpp` |  | extra input (game state flags) sent with the buttons |
+| `core/network/ggpo.cpp` |  | exInput |
 | `core/network/ggpo.cpp` | `on_event` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr`, `settings.gdxsv.skipRenderingBaseAddr` |
 | `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state`, `settings.gdxsv.skipRenderingAddr`, `gdxsv_emu_skip_rendering_addr` |
 | `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr` |
 | `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `load_game_state` | test log |
 | `core/network/ggpo.cpp` | `load_game_state` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `load_game_state` | free_buffer keeps the skip counts of the frames after it |
 | `core/network/ggpo.cpp` | `save_game_state` | `gdxsv_ggpo_state_saved` |
+| `core/network/ggpo.cpp` | `free_buffer` | during a rollback the freed state is one of the frames about to be re-simulated (frame > lastSavedFrame), whose skip count is still needed by advance_frame. |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `stopSession` | `gdxsv_ggpo_session_stop`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `notifySkipInput` | skip frames |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_input_update_joysticks` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_enabled` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_sleep_us` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `poll` | rollback check between frames, for the gdxsv session |
 | `core/network/ggpo.cpp` | `startNetwork` | `gdxsv_sleep_us` |
+| `core/network/ggpo.cpp` | `displayStats` | read per peer below, up to 4 players |
 | `core/network/ggpo.cpp` | `displayStats` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `getCurrentFrame` | the gdxsv session works by frame number |
 | `core/network/ggpo.cpp` | `gdxsv_ggpo_upstream` | `GdxsvGgpoUpstream`, `gdxsv_ggpo_upstream` |
+| `core/network/ggpo.h` |  | timeSyncFrames |
+| `core/network/ggpo.h` |  | `bool getCurrentFrame(int* frame); // gdxsv` |
+| `core/network/ggpo.h` | `rollbacking` | skip frames and extra input of the gdxsv session |
 | `core/network/miniupnp.cpp` | `MiniUPnP::Init` | `snprintf(lastError, sizeof(lastError), "UPnP discover failed: error %d", error); // gdxsv` |
 | `core/network/miniupnp.cpp` | `MiniUPnP::Init` | `snprintf(lastError, sizeof(lastError), "Internet Gateway not found: error %d", error); // gdxsv` |
 | `core/network/miniupnp.cpp` | `MiniUPnP::AddPortMapping` | `snprintf(lastError, sizeof(lastError), "Port %d redirection failed: error %d", port, error); // gdxs` |
@@ -195,6 +216,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/nullDC.cpp` | `dc_savestate` | `gdxsv_emu_savestate` |
 | `core/nullDC.cpp` | `dc_loadstate` | `gdxsv_emu_loadstate` |
 | `core/oslib/http_client.cpp` | `crackUrl` | thread_local, concurrent requests (update check, texture pack, boxart...) swapped hosts/paths |
+| `core/oslib/http_client.cpp` | `get` | return the HTTP status, not always 200 |
+| `core/oslib/http_client.cpp` | `get` | HTTP status |
 | `core/oslib/i18n.cpp` | `reloadLanguage` | `dictMgr->add_directory("i18n-gdxsv");` |
 | `core/oslib/oslib.cpp` | `os_UpdateInputState` | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/oslib/oslib.cpp` | `registerCrash` | `gdxsv_crash_append_log` |
@@ -204,38 +227,61 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rec-ARM64/rec_arm64.cpp` |  | round the product before the add (no fused multiply-add) |
 | `core/rec-x64/rec_x64.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
 | `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_linkable` |
+| `core/rec-x64/rec_x64.cpp` |  | ftrv and fipr inline, bit-exact with the interpreter, so netplay peers agree |
 | `core/rec-x64/rec_x64.cpp` |  | fused multiply-add breaks sync of replays and netplay |
+| `core/rec-x64/rec_x64.cpp` |  | `#endif // GDXSV_FP_COMPAT` |
+| `core/rec-x64/rec_x64.cpp` |  | block linking |
+| `core/rec-x64/rec_x64.cpp` |  | block linking, the link code is long |
+| `core/rec-x64/rec_x64.cpp` |  | block linking |
 | `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_render_return_ptr`, `gdxsv_sh4_render_only_mask_ptr`, `settings.gdxsv.skipRenderingBaseAddr` |
+| `core/rec-x64/rec_x64.cpp` |  | cpuid is slow: probe the host once, not for every compiled block |
+| `core/rec-x64/rec_x64.cpp` |  | block linking |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
 | `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 embedded textures and the downloaded texture pack |
 | `core/rend/norend/norend.cpp` |  | present once per rendered frame, as the real renderers do; a second Present (frame swap after an immediate one) would pace headless runs at half speed. |
 | `core/rend/norend/norend.cpp` |  | a framebuffer frame is presented once too |
 | `core/rend/norend/norend.cpp` |  | Render or RenderFramebuffer since the last Present |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/sdl/sdl.cpp` |  | preservedWindowState |
+| `core/sdl/sdl.cpp` |  | window state before the 4-player replay grid, saved at quit instead of the grid quadrant |
+| `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls and the replay grid can change SDL's flags directly |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `emuEventCallback` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_init` | XInput and DirectInput switches; joystick events on their own thread |
+| `core/sdl/sdl.cpp` | `input_sdl_init` | `gdxsv_input_attach_test_joystick` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | 4-player replay handles full screen as a grid |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | handle outside window for network stats hovering |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
-| `core/sdl/sdl.cpp` | `input_sdl_handle` | `gdxsv_input_poll_joysticks` |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | actual flag |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | when polling mode is enabled, poll joystick state here (main thread) |
+| `core/sdl/sdl.cpp` | `get_window_state` | actual flag |
+| `core/sdl/sdl.cpp` | `sdl_preserve_window_state` | the replay grid saves the window state before it moves the window |
 | `core/sdl/sdl.cpp` | `sdl_recreate_window` | a capture rig tiles instances edge to edge, so it wants no border. |
+| `core/sdl/sdl.cpp` | `sdl_get_window` | the replay grid places the window |
 | `core/sdl/sdl.cpp` | `sdl_window_create` | a fullscreen window is not minimized on focus loss. |
 | `core/sdl/sdl.cpp` | `sdl_window_destroy` | `gdxsv_is_multi_pov_guest` |
 | `core/sdl/sdl.h` |  | nullptr before the window is created or in a headless run. |
 | `core/sdl/sdl.h` |  | preserve window preferences while a temporary layout is active. |
 | `core/serialize.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/serialize.cpp` | `dc_deserialize` | `gdxsv_emu_state_restored` |
+| `core/types.h` |  | replay fade, 0.0 = silent, 1.0 = full volume (for fade-in effects) |
 | `core/types.h` |  | `} gdxsv;` |
 | `core/ui/gui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
-| `core/ui/gui.cpp` | `gui_open_settings` | `gdxsv_emu_menu_open` |
+| `core/ui/gui.cpp` | `delayedKeysUp` | not static, the replay UI calls it |
+| `core/ui/gui.cpp` | `gui_open_settings` | gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats) |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_emu_gui_display_commands` |
+| `core/ui/gui.cpp` | `drawBoxartBackground` | not static, the gdxsv menu calls it |
 | `core/ui/gui.cpp` | `gui_display_ui` | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui.cpp` | `gui_display_ui` | `gdxsv_emu_gui_display` |
 | `core/ui/gui.cpp` | `gui_draw_osd` | `gdxsv_gui_display_osd` |
+| `core/ui/gui.h` |  | used by the gdxsv menu |
+| `core/ui/gui.h` |  | used by the replay UI |
 | `core/ui/gui.h` |  | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui_font.cpp` | `gui_loadFonts` | Japanese text is always needed. |
 | `core/ui/mainui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
