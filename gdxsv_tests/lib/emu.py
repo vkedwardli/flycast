@@ -126,7 +126,7 @@ class Instance:
 def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
            headless: bool = True, state_dir: Optional[str] = None, lua: Optional[str] = None,
            clean: bool = True, emu_cfg: Optional[str] = None,
-           files: Optional[Dict[str, str]] = None) -> Instance:
+           files: Optional[Dict[str, str]] = None, suspended: bool = False) -> Instance:
     """Start one instance in dir.
 
     config: "section:key=value" entries, passed as --config.
@@ -134,6 +134,7 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
     lua: a script copied to the config dir and loaded with config:LuaFileName.
     emu_cfg: the text of an emu.cfg written before the start; None: no file, flycast creates it.
     files: {path relative to the config dir: text}, written before the start (e.g. mappings/*.cfg).
+    suspended: started frozen (Windows: before its first instruction); suspend(pid, False) runs it.
     """
     if recheck.ACTIVE:  # the saved instance; Ctx.probe/run read back its exit
         inst = Instance(os.path.abspath(dir), os.path.abspath(exe))
@@ -172,7 +173,11 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
     penv = os.environ.copy()
     penv.update(inst.env())
     penv.update(env or {})
-    inst.proc = subprocess.Popen(args, cwd=inst.dir, env=penv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    flags = 0x4 if suspended and IS_WINDOWS else 0  # CREATE_SUSPENDED
+    inst.proc = subprocess.Popen(args, cwd=inst.dir, env=penv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 creationflags=flags)
+    if suspended and not IS_WINDOWS:
+        suspend(inst.proc.pid, True)
     return inst
 
 
@@ -276,6 +281,41 @@ def suspend(pid: int, on: bool) -> None:
         (ntdll.NtSuspendProcess if on else ntdll.NtResumeProcess)(ctypes.c_void_p(handle))
     finally:
         kernel32.CloseHandle(ctypes.c_void_p(handle))
+
+
+def _process_memory(pid: int, fn):
+    """fn(kernel32, handle) on a handle with VM read and operation rights (Windows only)."""
+    kernel32 = ctypes.windll.kernel32
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.VirtualAllocEx.restype = ctypes.c_void_p
+    kernel32.VirtualAllocEx.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_ulong,
+                                        ctypes.c_ulong]
+    kernel32.ReadProcessMemory.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t,
+                                           ctypes.POINTER(ctypes.c_size_t)]
+    handle = kernel32.OpenProcess(0x0010 | 0x0008 | 0x0400, False, pid)  # VM_READ, VM_OPERATION, QUERY_INFORMATION
+    if not handle:
+        raise OSError(f"OpenProcess({pid}) failed")
+    try:
+        return fn(kernel32, ctypes.c_void_p(handle))
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+
+
+def read_memory(pid: int, address: int, size: int) -> Optional[bytes]:
+    """size bytes at a host address of the process; None if not readable (Windows only)."""
+    def read(kernel32, handle):
+        buf, n = ctypes.create_string_buffer(size), ctypes.c_size_t()
+        ok = kernel32.ReadProcessMemory(handle, ctypes.c_void_p(address), buf, size, ctypes.byref(n))
+        return buf.raw[:n.value] if ok and n.value == size else None
+    return _process_memory(pid, read)
+
+
+def reserve_memory(pid: int, address: int, size: int) -> bool:
+    """Reserve host address space in the process, so its own allocation there fails (Windows only)."""
+    def reserve(kernel32, handle):
+        mem_reserve, page_noaccess = 0x2000, 0x01
+        return kernel32.VirtualAllocEx(handle, ctypes.c_void_p(address), size, mem_reserve, page_noaccess) == address
+    return _process_memory(pid, reserve)
 
 
 def ensure_state(state_dir: str, rom: str) -> None:
