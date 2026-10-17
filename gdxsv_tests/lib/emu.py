@@ -32,7 +32,13 @@ OFFLINE = ["gdxsv:server=127.0.0.1",
            "gdxsv:UploadReplay=no",
            "gdxsv:ReplayApiUrl=http://127.0.0.1:1",
            "gdxsv:LiveApiUrl=http://127.0.0.1:1",
-           "gdxsv:UpdateCheckUrl=http://127.0.0.1:1"]
+           "gdxsv:UpdateCheckUrl=http://127.0.0.1:1",
+           "gdxsv:TexturePackUrl=http://127.0.0.1:1/",
+           # The online boot's checks (gdxsv_emu_hooks.cpp), and no router port mapping.
+           "gdxsv:PublicIpUrl=http://127.0.0.1:1",
+           "gdxsv:UdpTestUrl=http://127.0.0.1:1",
+           "gdxsv:LatencyHost=127.0.0.1:1",
+           "network:EnableUPnP=no"]
 
 # Log lines that mean something broke, whatever the test.
 ERROR_RE = re.compile(r"GGPO error|Exception|\[GPF\]|Assertion|Flycast has stopped")
