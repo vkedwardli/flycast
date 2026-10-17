@@ -547,14 +547,17 @@ Peer2PeerBackend::DisconnectPlayerQueue(int queue, int syncto)
    Log("Changing queue %d local connect status for last frame from %d to %d on disconnect request (current: %d).",
        queue, _local_connect_status[queue].last_frame, syncto, framecount);
 
-    if (_disconnect_without_rollback) {
-       syncto = GameInput::NullFrame;
-    }
+   // Without rollback, keep the inputs already received and zero only the frames after them. Zeroing from
+   // the current frame instead would make each peer drop the player at a different frame (the frame each
+   // was on when the disconnect arrived), so the peers' games and saved replays would differ.
+   if (_disconnect_without_rollback) {
+      syncto = _local_connect_status[queue].last_frame;
+   }
 
    _local_connect_status[queue].disconnected = 1;
    _local_connect_status[queue].last_frame = syncto;
 
-   if (syncto != GameInput::NullFrame && syncto < framecount) {
+   if (!_disconnect_without_rollback && syncto != GameInput::NullFrame && syncto < framecount) {
       Log("adjusting simulation to account for the fact that %d disconnected @ %d.", queue, syncto);
       _sync.AdjustSimulation(syncto);
       Log("finished adjusting simulation.");
