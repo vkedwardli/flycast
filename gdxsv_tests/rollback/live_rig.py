@@ -60,9 +60,9 @@ def start_lbs(gdxsv_exe, header, log_path):
                             stdout=out, stderr=subprocess.STDOUT)
 
 
-def start_spectator(s, base, index, pov, config):
+def start_spectator(s, base, index, pov, config, exe):
     d = os.path.join(base, f"s{index}")
-    inst = lib.emu.launch(s.exe, s.rom, d, headless=False, state_dir=s.state_dir, lua=LUA, config=[
+    inst = lib.emu.launch(exe, s.rom, d, headless=False, state_dir=s.state_dir, lua=LUA, config=[
         "config:aica.Volume=0",
         "gdxsv:ReplayFourScreen=no",
         "gdxsv:server=127.0.0.1",
@@ -75,10 +75,10 @@ def start_spectator(s, base, index, pov, config):
     return d, inst
 
 
-def play_replay(s, base, name, replay, pov, timeout=900):
+def play_replay(s, base, name, replay, pov, exe, timeout=900):
     """Play a replay headless with the probe; its det.txt is the reference state."""
     d = os.path.join(base, name)
-    inst = lib.emu.launch(s.exe, s.rom, d, state_dir=s.state_dir, lua=LUA, config=[
+    inst = lib.emu.launch(exe, s.rom, d, state_dir=s.state_dir, lua=LUA, config=[
         "config:aica.Volume=0",
         "gdxsv:ReplayFourScreen=no",
         f"gdxsv:replay={os.path.abspath(replay)}",
@@ -154,6 +154,8 @@ def main():
     ap.add_argument("--spectator-extra", default="", help="extra flycast args for spectators, space separated")
     ap.add_argument("--timeout", type=int, default=1500)
     ap.add_argument("--no-uplink", action="store_true", help="peers get no TEST_SPECTATOR_LBS (control: nothing to watch)")
+    ap.add_argument("--peer-exe", help="exe of the 4 peers (default --exe), e.g. a release")
+    ap.add_argument("--spectator-exe", help="exe of the spectators and of the reference replay play (default --exe)")
     a = ap.parse_args()
 
     s = lib.Settings(exe=a.exe, rom=a.rom, out=a.out, state_dir=a.state_dir)
@@ -182,17 +184,18 @@ def main():
     specs = []
     plan = [tuple(int(x) for x in p.split(":")) for p in a.spectators.split(",") if p]
     spec_config = [x for x in a.spectator_extra.split() if x != "--config"] if a.spectator_extra else []
+    spec_exe = a.spectator_exe or s.exe
 
     def on_start(_match):
         def launch():
             t0 = time.time()
             for i, (pov, delay) in enumerate(sorted(plan, key=lambda p: p[1])):
                 time.sleep(max(0, delay - (time.time() - t0)))
-                specs.append(start_spectator(s, base, i + 1, pov, spec_config))
+                specs.append(start_spectator(s, base, i + 1, pov, spec_config, spec_exe))
         threading.Thread(target=launch, daemon=True).start()
 
     try:
-        m = lib.run_match(s, a.tag, [s.exe] * lib.N, delays, seed=a.seed, env=env, lua=LUA,
+        m = lib.run_match(s, a.tag, [a.peer_exe or s.exe] * lib.N, delays, seed=a.seed, env=env, lua=LUA,
                           timeout=a.timeout, on_start=on_start)
         print("match elapsed", round(m.elapsed), "timed_out", m.timed_out, "stalled", m.stalled)
         for p in m.peers:
@@ -233,7 +236,7 @@ def main():
     # Reference: the recorded peer's replay played back offline. The peers' own det.txt is
     # only a rough check - a rollback need not rewrite every step it reran.
     replay = os.path.join(base, recorded or "p1", "data", "replays", "0123456.pb")
-    ref = read_det(os.path.join(play_replay(s, base, "r1", replay, 1), "det.txt")) if os.path.isfile(replay) else {}
+    ref = read_det(os.path.join(play_replay(s, base, "r1", replay, 1, spec_exe), "det.txt")) if os.path.isfile(replay) else {}
     print(f"battle state: replay {len(ref)} steps")
     for p in range(1, lib.N + 1):
         compare_det(ref, read_det(os.path.join(base, f"p{p}", "det.txt")), f"p{p}")
