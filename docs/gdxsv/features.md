@@ -49,7 +49,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | C1c, C2c, C3c |
 | Malformed packets dropped | always | `run_suite.py` D1 (`fuzz.py`) | D1c |
 | Local test match without servers | `gdxsv:rbk_test=N/4`, `gdxsv:rand_input=SEED` | it is the tool of the cases above | none |
-| SH4 `fmac` as `fmul` + `fadd` on every CPU and backend (same results across hosts) | CMake `GDXSV_FP_COMPAT` (on) | none | none |
+| SH4 `fmac` as `fmul` + `fadd` on every CPU and backend (same results across hosts) | CMake `GDXSV_FP_COMPAT` (on) | `gdxsv_tests` D1 (fixture: macos-mini arm64; equal on its x86_64 build and on windows-mini x64) | `gdxsv_tests` D1c |
 
 ## Replays
 

@@ -39,6 +39,9 @@ OFFLINE = ["gdxsv:server=127.0.0.1",
            "gdxsv:UdpTestUrl=http://127.0.0.1:1",
            "gdxsv:LatencyHost=127.0.0.1:1",
            "network:EnableUPnP=no"]
+# macOS: while the display sleeps, a window's vsync blocks the emulator.
+if IS_MAC:
+    OFFLINE.append("config:rend.vsync=no")
 
 # Log lines that mean something broke, whatever the test.
 ERROR_RE = re.compile(r"GGPO error|Exception|\[GPF\]|Assertion|Flycast has stopped")
