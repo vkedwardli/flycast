@@ -40,7 +40,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
-#include <optional>
+#include <optional> // gdxsv: preservedWindowState
 #include <tuple>
 
 static SDL_Window* window = NULL;
@@ -54,6 +54,7 @@ static std::shared_ptr<SDLKeyboardDevice> sdl_keyboard;
 static bool window_fullscreen;
 static bool window_maximized;
 static SDL_Rect windowPos { SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT };
+// gdxsv: window state before the 4-player replay grid, saved at quit instead of the grid quadrant
 static std::optional<std::tuple<SDL_Rect, bool, bool>> preservedWindowState;
 static bool gameRunning;
 static bool mouseCaptured;
@@ -61,9 +62,9 @@ static std::string clipboardText;
 static std::string barcode;
 static u64 lastBarcodeTime;
 
+// gdxsv: native window controls and the replay grid can change SDL's flags directly
 static bool isWindowFullscreen()
 {
-	// Native window controls and the replay grid can change SDL's flags directly.
 	return window != nullptr && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
 }
 
@@ -507,7 +508,7 @@ void input_sdl_handle()
 				}
 				else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
 				{
-					if (isWindowFullscreen())
+					if (isWindowFullscreen()) // gdxsv: actual flag
 						SDL_ShowCursor(SDL_ENABLE);
 				}
 				break;
@@ -515,7 +516,7 @@ void input_sdl_handle()
 
 			case SDL_JOYBUTTONDOWN:
 			case SDL_JOYBUTTONUP:
-				if (!config::JoystickPolling)
+				if (!config::JoystickPolling) // gdxsv: polled in gdxsv_input_poll_joysticks
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jbutton.which);
 					if (device != NULL)
@@ -523,7 +524,7 @@ void input_sdl_handle()
 				}
 				break;
 			case SDL_JOYAXISMOTION:
-				if (!config::JoystickPolling)
+				if (!config::JoystickPolling) // gdxsv: polled in gdxsv_input_poll_joysticks
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jaxis.which);
 					if (device != NULL)
@@ -531,7 +532,7 @@ void input_sdl_handle()
 				}
 				break;
 			case SDL_JOYHATMOTION:
-				if (!config::JoystickPolling)
+				if (!config::JoystickPolling) // gdxsv: polled in gdxsv_input_poll_joysticks
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jhat.which);
 					if (device != NULL)
@@ -689,7 +690,7 @@ void input_sdl_handle()
 		}
 	}
 
-	// When polling mode is enabled, poll joystick state here (main thread)
+	// gdxsv: when polling mode is enabled, poll joystick state here (main thread)
 	if (config::JoystickPolling)
 		gdxsv_input_poll_joysticks();
 }
@@ -758,7 +759,7 @@ bool sdl_update_display_metrics(SDL_Window *window, u32 windowFlags)
 static inline void get_window_state()
 {
 	u32 flags = SDL_GetWindowFlags(window);
-	window_fullscreen = isWindowFullscreen();
+	window_fullscreen = isWindowFullscreen(); // gdxsv: actual flag
 	window_maximized = flags & SDL_WINDOW_MAXIMIZED;
     if (!window_fullscreen && !window_maximized){
         SDL_GetWindowSize(window, &windowPos.w, &windowPos.h);
@@ -769,6 +770,7 @@ static inline void get_window_state()
 
 }
 
+// gdxsv: the replay grid saves the window state before it moves the window
 void sdl_preserve_window_state(bool preserve)
 {
 	if (!preserve)
@@ -1053,6 +1055,7 @@ static int suspendEventFilter(void *userdata, SDL_Event *event)
 }
 #endif
 
+// gdxsv: the replay grid places the window
 SDL_Window *sdl_get_window()
 {
 	return window;

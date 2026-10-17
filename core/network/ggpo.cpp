@@ -40,6 +40,7 @@ namespace ggpo
 {
 
 bool inRollback;
+// gdxsv: skip frames, rollback seek and extra input of the gdxsv session
 bool skipInputOccurred;
 // Set by notifySkipReplayHeld while advance_frame replays a timesync skip.
 bool skipReplayHeld;
@@ -107,15 +108,17 @@ static void getLocalInput(MapleInputState inputState[4])
 #include "miniupnp.h"
 #include "hw/naomi/naomi_cart.h"
 
-// #define SYNC_TEST 1
+//#define SYNC_TEST 1
 
+#ifdef SYNC_TEST
 #include <xxhash.h>
+#endif
 
 namespace ggpo
 {
 using namespace std::chrono;
 
-constexpr int MAX_PLAYERS = 4;
+constexpr int MAX_PLAYERS = 4; // gdxsv: 4-player battles
 constexpr int SERVER_PORT = 19713;
 
 constexpr u32 BTN_TRIGGER_LEFT	= DC_BTN_BITMAPPED_LAST << 1;
@@ -136,10 +139,11 @@ static GGPOPlayerHandle localPlayer;
 static GGPOPlayerHandle remotePlayer;
 static bool synchronized;
 static std::recursive_mutex ggpoMutex;
+// gdxsv: microseconds for the fps shown in the gdxsv stats
 static std::array<int, 10> usPerFrame;
 static int usPerFrameIndex;
 static time_point<steady_clock> lastFrameTime;
-static int usPerFrameAvg;
+static int usPerFrameAvg; // gdxsv: see usPerFrame
 static bool _endOfFrame;
 static MiniUPnP miniupnp;
 static int analogAxes;
@@ -147,7 +151,6 @@ static bool absPointerPos;
 static bool keyboardGame;
 static bool mouseGame;
 static int inputSize;
-static void (*eventCallback)(GGPOEvent* event);
 static void (*chatCallback)(int playerNum, const std::string& msg);
 
 struct MemPages
@@ -167,6 +170,7 @@ struct MemPages
 static std::unordered_map<int, MemPages> deltaStates;
 static int lastSavedFrame = -1;
 
+// gdxsv: frames of the last rollback, for the skip frame replay and its test log
 static int seekToFrame = -1;
 static int loadedFrame = -1;  // the frame the last rollback loaded
 static int timesyncOccurred;
@@ -177,7 +181,7 @@ struct Inputs
 	u32 kcode:20;
 	u32 mouseButtons:4;
 	u32 kbModifiers:8;
-	u16 exInput;
+	u16 exInput; // gdxsv: extra input (game state flags) sent with the buttons
 
 	union {
 		struct {
@@ -196,7 +200,7 @@ struct Inputs
 		u8 keys[6];
 	} u;
 };
-static_assert(sizeof(Inputs) == 12, "wrong Inputs size");
+static_assert(sizeof(Inputs) == 12, "wrong Inputs size"); // gdxsv: exInput
 static_assert(BTN_TRIGGER_RIGHT < (1 << 20));
 
 struct GameEvent
@@ -346,7 +350,7 @@ static bool advance_frame(int)
 static bool load_game_state(unsigned char *buffer, int len)
 {
 	INFO_LOG(NETWORK, "load_game_state");
-	ggpo::getCurrentFrame(&seekToFrame);
+	ggpo::getCurrentFrame(&seekToFrame); // gdxsv: test log
 
 	rend_start_rollback();
 	// FIXME dynarecs
@@ -371,7 +375,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 		DEBUG_LOG(NETWORK, "Restored frame %d pages: %d ram, %d vram, %d eram, %d aica ram", f, (u32)pages.ram.size(),
 					(u32)pages.vram.size(), (u32)pages.elanram.size(), (u32)pages.aram.size());
 	}
-	lastSavedFrame = frame;
+	lastSavedFrame = frame; // gdxsv: free_buffer keeps the skip counts of the frames after it
 	dc_deserialize(deser);
 	if (deser.size() != (u32)len)
 	{
@@ -513,7 +517,7 @@ static void free_buffer(void *buffer)
 		int frame;
 		deser >> frame;
 		deltaStates.erase(frame);
-		// During a rollback the freed state is one of the frames about to be re-simulated
+		// gdxsv: during a rollback the freed state is one of the frames about to be re-simulated
 		// (frame > lastSavedFrame), whose skip count is still needed by advance_frame.
 		if (frame < lastSavedFrame)
 			skippedFrames.erase(frame);
@@ -759,6 +763,7 @@ void getInput(MapleInputState inputState[4])
 	}
 }
 
+// gdxsv: skip frames
 void notifySkipInput()
 {
 	skipInputOccurred = true;
@@ -785,7 +790,6 @@ bool nextFrame()
 	_endOfFrame = false;
 	if (inRollback)
 		return true;
-
 	auto now = std::chrono::steady_clock::now();
 	if (lastFrameTime != time_point<steady_clock>())
 	{
@@ -948,6 +952,7 @@ bool active()
 	return ggpoSession != nullptr;
 }
 
+// gdxsv: rollback check between frames, for the gdxsv session
 bool poll()
 {
 	if (!active())
@@ -1047,7 +1052,7 @@ void displayStats()
 	if (!active())
 		return;
 
-	GGPONetworkStats stats;
+	GGPONetworkStats stats; // gdxsv: read per peer below, up to 4 players
 	ImguiStyleVar _(ImGuiStyleVar_WindowRounding, 0);
 	ImguiStyleVar _1(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::SetNextWindowPos(ImVec2(10, 10));
@@ -1072,7 +1077,7 @@ void displayStats()
 			// yellow
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(.9f, .9f, .1f, 1));
 		ImGui::Text("Predicted");
-		ImGui::ProgressBar(stats.sync.predicted_frames / 7.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
+		ImGui::ProgressBar(stats.sync.predicted_frames / 7.f, ImVec2(-1, uiScaled(10.f)), "");
 		if (stats.sync.predicted_frames >= 5)
 			ImGui::PopStyleColor();
 	}
@@ -1097,14 +1102,14 @@ void displayStats()
 
 		// Send Queue
 		ImGui::Text("Send Q");
-		ImGui::ProgressBar(stats.network.send_queue_len / 10.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
+		ImGui::ProgressBar(stats.network.send_queue_len / 10.f, ImVec2(-1, uiScaled(10.f)), "");
 
 		// Frames behind
 		int timesync = timesyncOccurred;
 		if (timesync > 0)
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1));
 		ImGui::Text("Behind");
-		ImGui::ProgressBar(0.5f + stats.timesync.local_frames_behind / 16.f, ImVec2(-1, 10.f * settings.display.uiScale), "");
+		ImGui::ProgressBar(0.5f + stats.timesync.local_frames_behind / 16.f, ImVec2(-1, uiScaled(10.f)), "");
 		if (timesync > 0)
 		{
 			ImGui::PopStyleColor();
@@ -1124,6 +1129,7 @@ void endOfFrame()
 	}
 }
 
+// gdxsv: the gdxsv session works by frame number
 bool getCurrentFrame(int* frame)
 {
 	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);

@@ -365,6 +365,7 @@ static void gui_newFrame()
 }
 
 // SDL on-screen keyboard: Delay keys up by one frame to allow quick key presses.
+// gdxsv: not static, the replay UI calls it
 void delayedKeysUp()
 {
 	ImGuiIO& io = ImGui::GetIO();
@@ -411,7 +412,7 @@ void gui_plot_render_time(int width, int height)
 void gui_open_settings()
 {
 	const LockGuard lock(guiMutex);
-	// gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats)
+	// gdxsv: gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats)
 	if (gui_state == GuiState::Closed && !settings.naomi.slave && gdxsv_emu_menu_open())
 	{
 		if (!ggpo::active())
@@ -1108,6 +1109,7 @@ static void gui_display_onboarding()
 	select_file_popup(title, &systemdir_selected_callback);
 }
 
+// gdxsv: not static, the gdxsv menu calls it
 void drawBoxartBackground()
 {
 	GameMedia game;

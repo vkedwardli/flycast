@@ -30,7 +30,7 @@ void gui_draw_osd();
 void gui_display_osd();
 void gui_display_profiler();
 void gui_open_onboarding();
-void drawBoxartBackground();
+void drawBoxartBackground(); // gdxsv: used by the gdxsv menu
 void gui_term();
 void gui_cancel_load();
 void gui_refresh_files();
@@ -39,7 +39,7 @@ void gui_keyboard_input(u32 wc);
 void gui_keyboard_inputUTF8(const std::string& s);
 void gui_keyboard_key(u8 keyCode, bool pressed);
 bool gui_keyboard_captured();
-void delayedKeysUp();
+void delayedKeysUp(); // gdxsv: used by the replay UI
 bool gui_mouse_captured();
 void gui_set_mouse_position(int x, int y, bool touchscreen);
 // 0: left, 1: right, 2: middle/wheel, 3: button 4
