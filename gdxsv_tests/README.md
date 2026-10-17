@@ -72,6 +72,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | L1 / L1c | smoke | translation patch: Disc 2 text per language | 6 s |
 | N1 / N1c | smoke | NAOMI version boots: game id, code at `0x0c020000` | 21 s |
 | C1 / C1c | smoke | no `emu.cfg`: the gdxsv defaults (`rend.Resolution` 720, `aica.Volume` 50, ...) still hold after the game start, read through Lua (C1c: an empty `emu.cfg`, the stock values) | 2 s |
+| C2 / C2c | smoke | an `emu.cfg` with gdxsv-1.9.6's sections and keys (`[config]`, `[gdxsv]`): `rend.Resolution`, `aica.Volume` read through Lua, `loginkey`, `LocalPort`, `language` from the log (C2c: sections renamed, none carries) | 2 s |
 | R2 / R2c | smoke | newest Disc 2 replay plays to the end with the recorded winners | 110-150 s |
 | R1 | full | all corpus replays play to the end with the recorded winners | 470-520 s (4-5 replays in parallel) |
 | W1 / W1c | full | widescreen matte edges and HUD offset per layout and viewport (formula of `WriteWidescreenPatch`) | 10 s |
