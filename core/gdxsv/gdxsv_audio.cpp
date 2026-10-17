@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "audio/audiostream.h"
+#include "cfg/option.h"
 #include "gdxsv_audio_hooks.h"
 
 // Audio rate control, for replay. It runs without audio sync, as the online
@@ -29,6 +30,16 @@ struct RateControl {
 	double queueLevel = 0.5;
 };
 RateControl rateControl;
+
+constexpr int kQueueLogPushes = 860;  // 512 frames each at 44.1kHz: ~10s
+
+struct QueueStats {
+	double min = 1.0;
+	double max = 0.0;
+	double sum = 0.0;
+	int pushes = 0;
+};
+QueueStats queueStats;
 }  // namespace
 
 float gdxsv_audio_gain() {
@@ -63,7 +74,21 @@ void gdxsv_audio_write(s16 r, s16 l, void (*push)(s16 r, s16 l)) {
 void gdxsv_audio_pushed(AudioBackend* backend) {
 	RateControl& rc = rateControl;
 	u32 queued, capacity;
-	if (!rc.active || backend == nullptr || !backend->getQueueLevel(queued, capacity) || capacity == 0) return;
-	rc.queueLevel += kQueueAlpha * (std::min<double>(1.0, (double)queued / capacity) - rc.queueLevel);
+	if (config::LimitFPS || backend == nullptr || !backend->getQueueLevel(queued, capacity) || capacity == 0) return;
+	const double level = std::min<double>(1.0, (double)queued / capacity);
+
+	// Without audio sync the queue can run dry or overflow: log its range every ~10s.
+	QueueStats& qs = queueStats;
+	qs.min = std::min(qs.min, level);
+	qs.max = std::max(qs.max, level);
+	qs.sum += level;
+	if (++qs.pushes == kQueueLogPushes) {
+		NOTICE_LOG(AUDIO, "Audio queue: mean %.3f min %.3f max %.3f rate control %s step %.5f", qs.sum / qs.pushes, qs.min, qs.max,
+				   rc.active ? "on" : "off", rc.step);
+		qs = {};
+	}
+
+	if (!rc.active) return;
+	rc.queueLevel += kQueueAlpha * (level - rc.queueLevel);
 	rc.step = 1.0 / (1.0 + kRateMaxCorrection * (1.0 - 2.0 * rc.queueLevel));
 }

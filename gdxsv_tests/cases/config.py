@@ -1,4 +1,7 @@
-"""gdxsv defaults on a new config file (gdxsv_apply_base_settings, called by config::open)."""
+"""gdxsv defaults on a new config file (gdxsv_apply_base_settings, called by config::open);
+settings read from an older release's emu.cfg."""
+
+import re
 
 from lib.case import case, result
 
@@ -41,3 +44,47 @@ def config_defaults_control(ctx):
                    {"what": "every gdxsv default that differs from stock fails the check",
                     "failed": [c["what"] for c in differ if not c["ok"]],
                     "ok": all(not c["ok"] for c in differ)}], detail=checks)
+
+
+# An emu.cfg with the section and key names gdxsv-1.9.6 writes (its gdxsv options lived in
+# core/cfg/option.cpp then), each set to a value that is the default in no build.
+OLD_CFG = """[config]
+rend.Resolution = 960
+aica.Volume = 30
+
+[gdxsv]
+language = 1
+loginkey = E2ECFG0001
+LocalPort = 29871
+"""
+OLD_LUA = [("video", "RenderResolution", "960"), ("audio", "AudioVolume", "30")]
+OLD_LOG = [("gdxsv.loginkey", r"loginkey:(\S+)", "E2ECFG0001"), ("gdxsv.LocalPort", r"udp_port:(\d+)", "29871"),
+           ("gdxsv.language", r"lang_patch id=\S+ prev=\S+ lang=(\d+)", "1")]
+
+
+def old_config(ctx, name: str, emu_cfg: str) -> list:
+    p = ctx.probe(name, ctx.rom("dc2"), "config.lua",
+                  {"frame": 30, "options": [[ns, o] for ns, o, _ in OLD_LUA]}, frames=60, emu_cfg=emu_cfg)
+    checks = [{"what": "probe ran", "ok": p.clean, **p.facts()}]
+    for ns, o, want in OLD_LUA:
+        got = p.e2e.get(f"{ns}.{o}")
+        checks.append({"what": f"{ns}.{o}", "want": want, "got": got, "ok": got == want})
+    for what, pattern, want in OLD_LOG:
+        m = re.search(pattern, p.log)
+        got = m.group(1) if m else None
+        checks.append({"what": what, "want": want, "got": got, "ok": got == want})
+    return checks
+
+
+@case("C2", "an emu.cfg in gdxsv-1.9.6's layout: its flycast and gdxsv values hold after the game start",
+      tier="smoke")
+def config_old(ctx):
+    return result(old_config(ctx, "C2", OLD_CFG))
+
+
+@case("C2c", "C2's emu.cfg with its sections renamed: no value carries", control_of="C2")
+def config_old_control(ctx):
+    checks = old_config(ctx, "C2c", OLD_CFG.replace("[config]", "[config-old]").replace("[gdxsv]", "[gdxsv-old]"))
+    return result([checks[0],
+                   {"what": "every value check fails", "passed": [c["what"] for c in checks[1:] if c["ok"]],
+                    "ok": all(not c["ok"] for c in checks[1:])}], detail=checks)

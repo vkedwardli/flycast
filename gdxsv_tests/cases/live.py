@@ -1,4 +1,5 @@
-"""Live spectating: rollback/live_rig.py as a case (4 peers upload to a local lobby, one spectator)."""
+"""Live spectating: rollback/live_rig.py as a case (4 peers upload to a local lobby, one spectator),
+also with the spectator or the peers on the previous release."""
 
 import os
 import re
@@ -6,7 +7,7 @@ import subprocess
 import sys
 import threading
 
-from lib import assets, recheck, servers
+from lib import assets, emu, recheck, servers
 from lib.case import Skip, case, result
 from cases.input import MATCH_LOCK
 
@@ -82,3 +83,39 @@ def live_spectate_control(ctx):
     c = checks(text)
     return result([{"what": "every S1 check fails", "failed": [x["what"] for x in c if not x["ok"]],
                     "ok": not any(x["ok"] for x in c)}], detail=c)
+
+
+PREVIOUS = "gdxsv-1.9.6"  # the latest release; bump it with each release
+
+
+def release() -> str:
+    return emu.fetch_release(PREVIOUS, os.environ.get("GDXSV_RELEASE_ROOT") or os.path.join(assets.TESTS, "out"))
+
+
+def mixed(ctx, tag: str, side: str, no_uplink: bool) -> list:
+    args = ["--header", header(ctx), f"--{side}-exe", "" if recheck.ACTIVE else release()] + LIVE
+    return checks(rig(ctx, tag, args + (["--no-uplink"] if no_uplink else []), 900))
+
+
+@case("S3", f"S1 with the spectator (and its offline reference play) on the previous release ({PREVIOUS})")
+def live_old_spectator(ctx):
+    return result(mixed(ctx, "S3", "spectator", False), release=PREVIOUS)
+
+
+@case("S3c", "S3 with no uplink: every S3 check fails", control_of="S3")
+def live_old_spectator_control(ctx):
+    c = mixed(ctx, "S3c", "spectator", True)
+    return result([{"what": "every S3 check fails", "failed": [x["what"] for x in c if not x["ok"]],
+                    "ok": not any(x["ok"] for x in c)}], detail=c, release=PREVIOUS)
+
+
+@case("S4", f"S1 with the 4 uploading peers on the previous release ({PREVIOUS}), the spectator on this build")
+def live_old_peers(ctx):
+    return result(mixed(ctx, "S4", "peer", False), release=PREVIOUS)
+
+
+@case("S4c", "S4 with no uplink: every S4 check fails", control_of="S4")
+def live_old_peers_control(ctx):
+    c = mixed(ctx, "S4c", "peer", True)
+    return result([{"what": "every S4 check fails", "failed": [x["what"] for x in c if not x["ok"]],
+                    "ok": not any(x["ok"] for x in c)}], detail=c, release=PREVIOUS)

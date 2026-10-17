@@ -4,6 +4,7 @@
 #include "gdxsv_multi_pov.h"
 
 #include <nowide/cstdio.hpp>
+#include <xxhash.h>
 
 #include <unistd.h>
 
@@ -40,6 +41,21 @@
 using namespace std::chrono;
 
 namespace {
+// gdxsv:hashlog=yes: one line per delivered input, "input hash size", a hash of the
+// four Disc 2 player work blocks (0x0c3d1cd4 + 0x2000 * player: position, motion,
+// mostly floats) as the game asks for that input. Not all of RAM: other bytes
+// follow host timing (counters a few vblanks apart between two runs).
+constexpr u32 kPlayerWorkOffset = 0x3d1cd4;
+constexpr u32 kPlayerWorkSize = 4 * 0x2000;
+FILE* replayHashLog;
+
+void CloseReplayHashLog() {
+	if (replayHashLog != nullptr) {
+		fclose(replayHashLog);
+		replayHashLog = nullptr;
+	}
+}
+
 std::string formatLocalClock(time_t ts) {
 	char buf[16];
 	const std::tm* t = std::localtime(&ts);
@@ -1914,6 +1930,7 @@ void GdxsvBackendReplay::CheckLiveUpdate() {
 void GdxsvBackendReplay::Stop() {
 	// gdxsv_tests reads how far playback got from this line.
 	NOTICE_LOG(COMMON, "replay stopped at key_msg_count_ %d of %d", key_msg_count_, log_file_.inputs_size());
+	CloseReplayHashLog();
 	live_initial_catchup_ = false;
 	config::FixedFrequency.load();
 	config::LimitFPS.load();
@@ -2060,6 +2077,15 @@ u32 GdxsvBackendReplay::OnSockPoll() {
 
 bool GdxsvBackendReplay::Start() {
 	NOTICE_LOG(COMMON, "game_disk = %s", log_file_.game_disk().c_str());
+	CloseReplayHashLog();
+	if (config::loadBool("gdxsv", "hashlog", false)) {
+		std::string path = get_writable_data_path("replay_hashlog.txt");
+		replayHashLog = nowide::fopen(path.c_str(), "w");
+		if (replayHashLog == nullptr)
+			WARN_LOG(COMMON, "Can't open replay hash log %s", path.c_str());
+		else
+			NOTICE_LOG(COMMON, "Replay hash log: %s", path.c_str());
+	}
 
 	// The match was played at 59.94Hz - the online battle path pins
 	// FixedFrequency to it - so play it back on the same clock. Without this
@@ -2074,12 +2100,14 @@ bool GdxsvBackendReplay::Start() {
 		settings.input.fastForwardMode = true;
 		config::FixedFrequency.override(0);
 	} else {
-		config::FixedFrequency.override(2);
+		// ReplayFixedFrequency (ini only) lets a test run the clock off the
+		// device's rate, e.g. 3 (60Hz) for audio rate control.
+		config::FixedFrequency.override(config::loadInt("gdxsv", "ReplayFixedFrequency", 2));
 		// As in the online battle. With audio sync on top of the fixed
 		// frequency, Live Spectate came out of each loading screen ~2s further
 		// behind the players and never made it up.
 		config::LimitFPS.override(false);
-		settings.gdxsv.audioRateControl = true;
+		settings.gdxsv.audioRateControl = config::loadBool("gdxsv", "AudioRateControl", true);
 	}
 	gdxsv_frame_period_trim_us = 0;
 
@@ -2463,6 +2491,10 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		return;
 	}
 	gdxsv.maxlag_ = 0;
+
+	if (replayHashLog != nullptr && !takeover_ && key_msg_count_ < log_file_.inputs_size())
+		fprintf(replayHashLog, "%d %016llx %u\n", key_msg_count_,
+				(unsigned long long)XXH3_64bits(&mem_b[kPlayerWorkOffset], kPlayerWorkSize), kPlayerWorkSize);
 
 	for (int i = 0; i < log_file_.users_size(); ++i) {
 		u16 input = 0;
