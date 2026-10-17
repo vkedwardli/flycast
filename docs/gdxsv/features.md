@@ -106,7 +106,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Update check against the releases of `inada-s/flycast`, a popup offers the new version | on start (`gdxsv:UpdateCheckUrl`) | U1: a newer release on a local release API is offered with its download | U1c |
 | Release build from a `gdxsv-*` tag | push a tag | the workflow itself | none |
 | CI build (macOS, Linux, Windows MinGW) | every push and PR | the workflow itself | none |
-| Headless mode (no window, no graphics API) | `gdxsv:headless=yes` | most rollback cases run headless | none |
+| Headless mode (no window, no graphics API) | `gdxsv:headless=yes` | E1; most rollback cases run headless | E1c |
 | Boot probe for patch checks | `gdxsv:headless_loadstate=yes`, `gdxsv:headless_probe_frames=N` | B1: resumes the lobby state, exits rc 0 after N vblanks | B1c |
 | Per-frame state hash log | `gdxsv:hashlog=yes` | Q1: a local rollback match logs every frame per peer, and each rollback's frames again (read by `gdxsv_tests/lib/hashlog.py`, rollback suite) | Q1c (`hashlog=no`) |
 | `run.py` (several instances, replay, spectate, rollback test) and the `RunGame` workflow | `python run.py <function>` | none | none |
