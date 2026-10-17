@@ -73,7 +73,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 |---|---|---|---|
 | Uplink: one battle peer streams its confirmed inputs to the lobby | lobby battle | S1 (`live_rig.py`): lobby's recording equals that peer's replay | S1c |
 | Spectator: download, catch up, follow live | Live tab, or `gdxsv:spectate=CODE` | S1 (`live_rig.py`): each spectator's state per step equals the replay played offline; unit: `GdxsvSpectator.*` | S1c |
-| Live auto-next (watch the next live battle) | setting `LiveAutoNext` | `fake_live_lbs.py` (by hand, see `gdxsv_tests/rollback/README.md`) | none |
+| Live auto-next (watch the next live battle) | setting `LiveAutoNext` | S5: `fake_live_lbs.py` with two battles, the spectator moves on to the second and joins it | S5c (`LiveAutoNext=no`) |
 
 ## Game and presentation
 
