@@ -45,8 +45,12 @@ def replay_save(ctx):
     if not checks[1]["ok"]:
         return result(checks)
     logs = [replayfile.Log(f[0]) for f in files]
-    checks.append({"what": "the peers' replays hold the same inputs", "inputs": [len(l.inputs) for l in logs],
-                   "ok": len(logs[0].inputs) > 0 and all(l.inputs == logs[0].inputs for l in logs)})
+    # The last input is the battle-end frame, on which each peer disconnects: a peer that got another's disconnect
+    # before its input for that frame saves 0 for it. The battle's own frames are compared.
+    n = len(logs[0].inputs) - 1
+    checks.append({"what": "the peers' replays hold the same inputs (but the disconnect frame)",
+                   "inputs": [len(l.inputs) for l in logs],
+                   "ok": n > 0 and all(len(l.inputs) == n + 1 and l.inputs[:n] == logs[0].inputs[:n] for l in logs)})
     r = play(ctx, {"id": "R3", "disk": "dc2", "log_file_version": "saved"}, pb=files[0][0], name="R3_play")
     want = [int(t) for t in m.peers[0].win_teams]
     checks.append({"what": "peer 1's replay plays to the end with its recorded winners", **r})
