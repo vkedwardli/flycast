@@ -89,9 +89,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `CMakeLists.txt` |  | x86_64 only, no arm64 symbols. |
 | `CMakeLists.txt` |  | SDL headers for the MSVC (clang-cl) build |
 | `CMakeLists.txt` |  | `if(LUA_FOUND AND (NOT APPLE OR GDXSV_APPLE_LUA))` |
-| `CMakeLists.txt` |  | MoltenVK define kept from an upstream merge |
 | `CMakeLists.txt` |  | bundle version from the gdxsv-* tag |
-| `CMakeLists.txt` |  | Syphon metallib copied into the app bundle (both branches identical; from an upstream merge) |
 | `CMakeLists.txt` | `include` | `include(core/gdxsv/gdxsv.cmake)` |
 | `core/audio/audiobackend_coreaudio.cpp` |  | queue level for the replay and spectating audio rate control |
 | `core/audio/audiobackend_directsound.cpp` |  | queue level for the replay and spectating audio rate control |
