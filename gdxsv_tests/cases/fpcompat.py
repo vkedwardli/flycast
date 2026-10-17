@@ -1,4 +1,4 @@
-"""SH4 fmac as fmul + fadd (GDXSV_FP_COMPAT): a replay gives the same RAM on every host."""
+"""SH4 fmac as fmul + fadd (GDXSV_FP_COMPAT): a replay gives the same player work RAM on every host."""
 
 import os
 
@@ -42,13 +42,13 @@ def load_fixture(entry: dict) -> list:
     return hashlog.read(path)
 
 
-@case("D1", "newest Disc 2 replay with gdxsv:hashlog: the main RAM hash every 100 inputs equals the fixture (another host)")
+@case("D1", "newest Disc 2 replay with gdxsv:hashlog: the player work hash every 100 inputs equals the fixture (another host)")
 def fp_same_ram(ctx):
     entry = newest_dc2()
     c, rows = hashed_play(ctx, entry, "D1")
     want = load_fixture(entry)
     cmp = compare(rows, want)
-    return result([c, {"what": "RAM hashes equal the fixture", "ok": cmp["same"], **cmp}])
+    return result([c, {"what": "player work hashes equal the fixture", "ok": cmp["same"], **cmp}])
 
 
 @case("D1c", "D1 with a GDXSV_FP_COMPAT=OFF build (GDXSV_FP_OFF_EXE): hashes differ from the fixture where the CPU fuses fmac",
@@ -61,4 +61,4 @@ def fp_same_ram_control(ctx):
     want = load_fixture(entry)
     c, rows = hashed_play(Ctx(exe, ctx.out), entry, "D1c")
     cmp = compare(rows, want)
-    return result([{"what": "fails: RAM hashes equal the fixture", "ok": not cmp["same"], **cmp}], detail=c)
+    return result([{"what": "fails: player work hashes equal the fixture", "ok": not cmp["same"], **cmp}], detail=c)

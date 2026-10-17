@@ -60,6 +60,9 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 - python.org Python has no CA bundle: `SSL_CERT_FILE=/etc/ssl/cert.pem` for the
   replay and savestate downloads.
 - Every instance gets `rend.vsync=no`: a window's vsync blocks while the display sleeps.
+- x86_64 build on Apple silicon (runs under Rosetta): `-DCMAKE_OSX_ARCHITECTURES=x86_64`,
+  an x86_64 `liblua.a` (archive it with `/usr/bin/libtool -static`, GNU `ar` output
+  does not link), `-DFT_DISABLE_PNG=ON` when Homebrew's arm64 libpng is found.
 
 ## Layout
 
@@ -116,7 +119,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | J4 / J4c | full | Windows: `input:UseXInput=no`, `input:UseDirectInput=no` log `Disabling XInput, using DirectInput` and `Disabling DirectInput` (SDL hints set); J4c: both `yes`, neither line | 2 s |
 | B1 / B1c | full | `headless_loadstate=yes headless_probe_frames=300`: rc 0 by itself, `headless probe: exiting after 300 frames`, `Loaded state ..._99.state` (B1c: neither option, killed at 30 s, every check fails) | 6 s / 30 s |
 | E1 / E1c | smoke | `cases/headless.py`: `gdxsv:headless=yes` on the lobby savestate: Lua reads the game id, rc 0 after 300 vblanks, no renderer start line (DX11, DX9, Vulkan, OpenGL), on Windows no visible window (E1c: no `headless`: a window, `DX11 Context initializing`, no probe exit; killed 3 s after the Lua) | 6 s / 7 s |
-| D1 / D1c | full | `cases/fpcompat.py`: newest Disc 2 replay with `gdxsv:hashlog=yes`; the replay backend logs a hash of the four player work blocks (`0x0c3d1cd4` + `0x2000` x player) per input to `replay_hashlog.txt`; every 100th line equals `golden/D1_<replay>.hashlog`, made on another host (no fixture: `SKIP`, the run's `D1/D1.hashlog` is the candidate). D1c: the same with `GDXSV_FP_OFF_EXE`, the hashes differ | 55 s (macos-mini) |
+| D1 / D1c | full | `cases/fpcompat.py`: newest Disc 2 replay with `gdxsv:hashlog=yes`; the replay backend logs a hash of the four player work blocks (`0x0c3d1cd4` + `0x2000` x player) per input to `replay_hashlog.txt`; every 100th line equals `golden/D1_<replay>.hashlog`, made on another host (committed: macos-mini arm64; no fixture: `SKIP`, the run's `D1/D1.hashlog` is the candidate). D1c: the same with `GDXSV_FP_OFF_EXE`, the hashes differ (arm64: from input 600, the replay stops at 8231 of 30966) | 33 s arm64, 102 s x86_64 Rosetta / 12 s (macos-mini) |
 | U1 / U1c | full | `cases/menu.py`: no ROM, a window (these run in the main menu), `ConnectionMedium=Wired` (the wireless popup would block the others); `gdxsv:UpdateCheckUrl` = a local release JSON with every platform zip: log `update check: latest gdxsv-99.0.0, newer 1, download 1` (U1c: `gdxsv-0.0.1`, `newer 0`). Judged by logs: a popup waits behind any other | 1 s / 1 s |
 | X1 / X1c | full | `UseTexturePack=yes TexturePackChannel=e2e TexturePackUrl=<local>`: `/e2e.json` lists a 100 KB fake pack in 3 chunks (XXH64 in `lib/xxh64.py`); all fetched, `texture pack updated to e2e-1`, `T13306M.texp` = the bytes served; second start, same dir: `new 0`, no chunk fetched (X1c: one chunk hash wrong, not installed) | 3 s / 3 s |
 | Y1 / Y1c | full | `cases/rambase.py`, Windows only: headless lobby savestate; `memread.lua` logs 64 bytes at guest 0x8c010000, the runner reads host 0x21c010000 (`emu.read_memory`): equal, and the log `RAM(16 MB) 000000021c000000`. Y1c: the host range is reserved in the suspended process first (`emu.reserve_memory`), flycast falls back to a dynamic base, the read differs | 2 s / 2 s |
