@@ -1685,7 +1685,7 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	}
 	fclose(fp);
 
-	if (log_file_.users_size() <= pov) {
+	if (pov < 0 || log_file_.users_size() <= pov) {
 		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
@@ -1706,7 +1706,7 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 		return false;
 	}
 
-	if (log_file_.users_size() <= pov) {
+	if (pov < 0 || log_file_.users_size() <= pov) {
 		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
@@ -1734,7 +1734,7 @@ bool GdxsvBackendReplay::StartLive(const std::string& host, const std::string& b
 	live_feeding_ = gdxsv_multi_pov_current_role() == GdxsvMultiPovRole::Host && gdxsv_multi_pov_is_live() &&
 		gdxsv_multi_pov_feed_publish_header(log_file_);
 
-	if (log_file_.users_size() <= pov) {
+	if (pov < 0 || log_file_.users_size() <= pov) {
 		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		live_downlink_.Stop();
 		return false;
@@ -1760,7 +1760,7 @@ bool GdxsvBackendReplay::StartLiveFromHost(int pov) {
 	constexpr int kHeaderTimeoutMs = 20000;
 	if (!gdxsv_multi_pov_feed_wait_header(&log_file_, kHeaderTimeoutMs)) return false;
 
-	if (log_file_.users_size() <= pov) {
+	if (pov < 0 || log_file_.users_size() <= pov) {
 		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
 		return false;
 	}
