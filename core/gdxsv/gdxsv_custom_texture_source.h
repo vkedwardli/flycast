@@ -41,7 +41,5 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource {
 
    private:
 	std::map<u32, int> texture_map;
-	FILE* texp_file = nullptr;
 	zip_t* texp_zip = nullptr;
-	zip_source_t* texp_zip_source = nullptr;
 };

@@ -13,6 +13,7 @@ target_sources(${PROJECT_NAME} PRIVATE
         src/GdxsvPingPongTest.cpp
         src/GdxsvSpectatorTest.cpp
         src/GdxsvReplayUiTest.cpp
+        src/GdxsvTexturePackTest.cpp
         src/GdxsvReplayInputTest.cpp
         src/GdxsvRoundCountersTest.cpp
         src/div32_test.cpp

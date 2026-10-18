@@ -224,10 +224,7 @@ GdxsvTexturePackSource::GdxsvTexturePackSource() {
 
 GdxsvTexturePackSource::~GdxsvTexturePackSource() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
-	if (texp_file != nullptr) std::fclose(texp_file);
-	texp_file = nullptr;
 	texp_zip = nullptr;
-	texp_zip_source = nullptr;
 }
 
 void GdxsvTexturePackSource::preloadTextures(TextureCallback callback, std::atomic<bool> *stop_flag) {
@@ -253,19 +250,13 @@ void GdxsvTexturePackSource::preloadTextures(TextureCallback callback, std::atom
 
 void GdxsvTexturePackSource::terminate() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
-	if (texp_file != nullptr) std::fclose(texp_file);
 	texture_map.clear();
-	texp_file = nullptr;
 	texp_zip = nullptr;
-	texp_zip_source = nullptr;
 }
 
 bool GdxsvTexturePackSource::loadMap() {
 	if (texp_zip != nullptr) zip_close(texp_zip);
-	if (texp_file != nullptr) std::fclose(texp_file);
-	texp_file = nullptr;
 	texp_zip = nullptr;
-	texp_zip_source = nullptr;
 
 	std::map<u32, int> mapping;
 
@@ -285,11 +276,11 @@ bool GdxsvTexturePackSource::loadMap() {
 				std::fclose(zip_file);
 				break;
 			}
+			// From here the source owns zip_file, and the zip owns the source once opened.
 
 			const auto zip = zip_open_from_source(source, ZIP_RDONLY, &error);
 			if (zip == nullptr) {
 				ERROR_LOG(COMMON, "LoadMap: zip_open_from_source failure: %s", error.str);
-				std::fclose(zip_file);
 				zip_source_free(source);
 				break;
 			}
@@ -301,17 +292,15 @@ bool GdxsvTexturePackSource::loadMap() {
 			const auto num_entries = zip_get_num_entries(zip, 0);
 			if (num_entries < 0) {
 				ERROR_LOG(COMMON, "LoadMap: zip_get_num_entries failure");
-				std::fclose(zip_file);
-				zip_source_free(source);
+				zip_discard(zip);
 				break;
 			}
 
-			this->texp_file = zip_file;
 			this->texp_zip = zip;
-			this->texp_zip_source = source;
 
 			for (int i = 0; i < num_entries; i++) {
-				std::string name(zip_get_name(zip, i, 0));
+				const char* entry_name = zip_get_name(zip, i, 0);
+				std::string name(entry_name ? entry_name : "");
 				if (name.empty()) {
 					ERROR_LOG(COMMON, "LoadMap: zip_get_name");
 					break;
@@ -370,6 +359,7 @@ u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height)
 		auto mem = std::malloc(z_stat.size);
 		if (zip_fread(zfp, mem, z_stat.size) < 0) {
 			ERROR_LOG(COMMON, "LoadCustomTexture: zip_fread failure");
+			zip_fclose(zfp);
 			std::free(mem);
 			return nullptr;
 		}
