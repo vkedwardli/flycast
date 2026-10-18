@@ -97,6 +97,9 @@ class GdxsvBackendRollback {
 	// First frame the re-battle-cancel scene was seen on, or -1. The match is closed once this frame is confirmed.
 	int battle_end_frame_ = -1;
 	int disconnect_frame_ = 0;
+	// Last frame a saved replay keeps, or -1 for all: the battle-end frame, confirmed on every peer when it
+	// disconnects. A later input could be a prediction, so the four peers' files could differ.
+	int replay_end_frame_ = -1;
 
 	// GGPO_TEST_LOG: log scene changes for gdxsv_tests/rollback.
 	bool test_log_ = false;

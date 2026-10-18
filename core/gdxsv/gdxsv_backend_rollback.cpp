@@ -137,6 +137,7 @@ void GdxsvBackendRollback::Reset() {
 	pending_spectator_round_results_.clear();
 	battle_end_frame_ = -1;
 	disconnect_frame_ = 0;
+	replay_end_frame_ = -1;
 	test_log_ = getenv("GGPO_TEST_LOG") != nullptr;
 	test_no_cancel_ = getenv("GGPO_TEST_NO_REBATTLE_CANCEL") != nullptr;
 	last_scene_ = -1;
@@ -477,9 +478,10 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	// return-to-lobby flow blocks retrying a lobby server that isn't there.
 	if (is_local_test_ && State::CloseWait <= state_) {
 		static int local_test_closing = 180;
-		// RBK_SAVE_REPLAY=1 keeps the match as a local replay. The countdown
+		// RBK_SAVE_REPLAY=1 keeps the match as a local replay. Saved after the
+		// friend save scene, as a lobby battle is; the rest of the countdown
 		// leaves the writer thread time to finish before the process exits.
-		if (local_test_closing == 180 && getenv("RBK_SAVE_REPLAY"))
+		if (local_test_closing == 60 && getenv("RBK_SAVE_REPLAY"))
 			SaveReplay();
 		if (--local_test_closing == 0) {
 			// The exit status is how a test harness learns whether the match
@@ -743,6 +745,7 @@ void GdxsvBackendRollback::OnNextFrame() {
 			if (battle_end_frame_ <= ConfirmedFrame()) {
 				SetCloseReason("game_end");
 				disconnect_frame_ = frame;
+				replay_end_frame_ = battle_end_frame_;
 				gdxsv_ggpo_disconnect(matching_.peer_id());
 				state_ = State::CloseWait;
 			}
@@ -1280,6 +1283,8 @@ void GdxsvBackendRollback::SaveReplay() const {
 	if (matching_.battle_code().empty() || input_logs_.empty()) {
 		return;
 	}
+	NOTICE_LOG(COMMON, "SaveReplay inputs=%d last_frame=%d end_frame=%d disconnect_frame=%d", (int)input_logs_.size(),
+			   input_logs_.back().first, replay_end_frame_, disconnect_frame_);
 
 	auto log = std::make_unique<proto::BattleLogFile>();
 	log->set_game_disk(gdxsv.Disk() == 1 ? "dc1" : "dc2");
@@ -1292,6 +1297,7 @@ void GdxsvBackendRollback::SaveReplay() const {
 	log->mutable_users()->CopyFrom(matching_.users());
 
 	for (const auto& kv : input_logs_) {
+		if (0 <= replay_end_frame_ && replay_end_frame_ < kv.first) break;
 		log->add_inputs(kv.second);
 	}
 	for (const auto& kv : start_msg_indexes_) {
