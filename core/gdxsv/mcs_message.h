@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <deque>
 #include <vector>
 
@@ -89,12 +90,16 @@ struct McsMessage {
 
 		if (buf[0] == 0x82 && buf[1] == 0x02) {
 			const int n = 20;
+			if (buf.size() < n) {
+				return 0;
+			}
 			body.clear();
 			std::copy_n(buf.begin(), n, std::back_inserter(body));
 			return n;
 		}
 
-		const int n = buf[0];
+		// A zero length byte would never be consumed and stall the stream: read it as a 1-byte unknown message.
+		const int n = std::max<int>(1, buf[0]);
 		if (buf.size() < n) {
 			return 0;
 		}

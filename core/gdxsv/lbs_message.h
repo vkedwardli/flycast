@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <deque>
 #include <vector>
 
@@ -97,7 +98,7 @@ struct LbsMessage {
 			return 0;
 		}
 
-		int pkt_size = HeaderSize + (int(buf[4] << 8) | int(buf[5]));
+		int pkt_size = HeaderSize + (int(u8(buf[4])) << 8 | int(u8(buf[5])));
 		if (size < pkt_size) {
 			return 0;
 		}
@@ -137,7 +138,7 @@ struct LbsMessage {
 
 	static LbsMessage ClNotice(u16 cmd) {
 		LbsMessage msg;
-		msg.direction = ServerToClient;
+		msg.direction = ClientToServer;
 		msg.category = CategoryNotice;
 		msg.command = cmd;
 		msg.seq = 1;
@@ -189,7 +190,7 @@ struct LbsMessage {
 	}
 
 	u16 Read16() {
-		u16 v = u16(body[reading]) << 8 | u16(body[reading]);
+		u16 v = u16(body[reading]) << 8 | u16(body[reading + 1]);
 		reading += 2;
 		return v;
 	}
