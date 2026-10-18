@@ -370,11 +370,11 @@ bool GdxsvUpdate::ExtractZipFile(const std::string& zip_path, const std::string&
 		std::fclose(zip_file);
 		return false;
 	}
+	// From here the source owns zip_file: freeing the source closes it.
 
 	auto zip = zip_open_from_source(source, ZIP_RDONLY, &error);
 	if (zip == nullptr) {
 		ERROR_LOG(COMMON, "ExtractZipFile: zip_open_from_source failure: %s", error.str);
-		std::fclose(zip_file);
 		zip_source_free(source);
 		return false;
 	}
@@ -387,7 +387,8 @@ bool GdxsvUpdate::ExtractZipFile(const std::string& zip_path, const std::string&
 	}
 
 	for (int i = 0; i < num_entries && result; i++) {
-		std::string name(zip_get_name(zip, i, 0));	// NOTE: need nowide?
+		const char* entry_name = zip_get_name(zip, i, 0);
+		std::string name(entry_name ? entry_name : "");	// NOTE: need nowide?
 		if (name.empty()) {
 			ERROR_LOG(COMMON, "ExtractZipFile: zip_get_name");
 			result = false;
@@ -427,7 +428,12 @@ bool GdxsvUpdate::ExtractZipFile(const std::string& zip_path, const std::string&
 
 			if (opsys == ZIP_OPSYS_UNIX && ((attributes >> 16) & FA_IFLNK) == FA_IFLNK) {
 #if defined(__APPLE__) && !defined(TARGET_IPHONE) || defined(__unix__) && !defined(__APPLE__) && !defined(__ANDROID__)
-				read_bytes = zip_fread(zfp, buf, sizeof(buf));
+				read_bytes = zip_fread(zfp, buf, sizeof(buf) - 1);
+				if (read_bytes < 0) {
+					ERROR_LOG(COMMON, "ExtractZipFile: zip_fread failure");
+					result = false;
+					break;
+				}
 				buf[read_bytes] = '\0';
 				auto dst = dst_path + "/" + name;
 				if (file_exists(dst)) {
@@ -468,7 +474,6 @@ bool GdxsvUpdate::ExtractZipFile(const std::string& zip_path, const std::string&
 	}
 
 	zip_close(zip);
-	std::fclose(zip_file);
 	return result;
 }
 

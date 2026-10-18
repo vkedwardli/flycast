@@ -17,6 +17,8 @@ class GdxsvUpdate {
 	float SelfUpdateProgress() const;
 
    private:
+	friend class GdxsvUpdateTest;
+
 	struct LatestVersionInfo {
 		bool is_new_version = false;
 		std::string version;
