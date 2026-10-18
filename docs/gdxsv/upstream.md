@@ -192,8 +192,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `poll` | rollback check between frames, for the gdxsv session |
 | `core/network/ggpo.cpp` | `startNetwork` | `gdxsv_sleep_us` |
-| `core/network/ggpo.cpp` | `displayStats` | read per peer below, up to 4 players |
-| `core/network/ggpo.cpp` | `displayStats` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `displayStats` | per-peer stats of the 4-player session |
 | `core/network/ggpo.cpp` | `getCurrentFrame` | the gdxsv session works by frame number |
 | `core/network/ggpo.cpp` | `gdxsv_ggpo_upstream` | `GdxsvGgpoUpstream`, `gdxsv_ggpo_upstream` |
 | `core/network/ggpo.h` |  | timeSyncFrames |
