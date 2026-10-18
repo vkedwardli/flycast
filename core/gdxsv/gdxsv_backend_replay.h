@@ -63,6 +63,7 @@ class GdxsvBackendReplay {
 	bool Start();
 	bool IsInBriefing() const;
 	bool IsInGame() const;
+	void ConvertBattleDataToInputs();
 	void PrintDisconnectionSummary() const;
 	void ProcessLbsMessage();
 	void ProcessMcsMessage(const McsMessage& msg);
