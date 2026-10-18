@@ -205,6 +205,35 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	const int frame_period_trim_ = gdxsv_frame_period_trim_us;
 };
 
+// Inputs pack 16 bits per player into a u64: a replay with more than 4 users is malformed.
+TEST(GdxsvReplayLoadTest, RejectsMoreThanFourUsers) {
+	proto::BattleLogFile log;
+	for (int i = 0; i < 5; ++i) log.add_users()->set_user_id("u" + std::to_string(i));
+	log.add_inputs(0);
+	std::string bytes;
+	ASSERT_TRUE(log.SerializeToString(&bytes));
+	const std::vector<u8> buf(bytes.begin(), bytes.end());
+
+	GdxsvBackendReplay replay;
+	EXPECT_FALSE(replay.StartBuffer(buf, 4));
+	EXPECT_FALSE(replay.StartBuffer(buf, 0));
+}
+
+#ifdef _WIN32
+// Windows cannot delete a file that is still open: a file that fails to parse must be closed too.
+TEST(GdxsvReplayLoadTest, UnparsableFileIsClosed) {
+	const std::string path = ::testing::TempDir() + "gdxsv_unparsable_replay.pb";
+	FILE* fp = fopen(path.c_str(), "wb");
+	ASSERT_NE(nullptr, fp);
+	fputs("\xff\xff\xff\xff not a battle log", fp);
+	fclose(fp);
+
+	GdxsvBackendReplay replay;
+	EXPECT_FALSE(replay.StartFile(path.c_str(), 0));
+	EXPECT_EQ(0, std::remove(path.c_str()));
+}
+#endif
+
 TEST_F(GdxsvReplayInputTest, ManualActionsDetachAndCancelAutomaticSpeed) {
 	PrepareFrameControl();
 	for (auto cmd : {Command::SeekBackward, Command::StepFrameBackward, Command::JumpToKeyMsg,
@@ -990,32 +1019,3 @@ TEST_F(GdxsvReplayInputTest, TakeoverInputIsIgnoredInLiveOrInactiveReplay) {
 		EXPECT_EQ(0u, PendingControlCommands());
 	}
 }
-
-// Inputs pack 16 bits per player into a u64: a replay with more than 4 users is malformed.
-TEST(GdxsvReplayLoadTest, RejectsMoreThanFourUsers) {
-	proto::BattleLogFile log;
-	for (int i = 0; i < 5; ++i) log.add_users()->set_user_id("u" + std::to_string(i));
-	log.add_inputs(0);
-	std::string bytes;
-	ASSERT_TRUE(log.SerializeToString(&bytes));
-	const std::vector<u8> buf(bytes.begin(), bytes.end());
-
-	GdxsvBackendReplay replay;
-	EXPECT_FALSE(replay.StartBuffer(buf, 4));
-	EXPECT_FALSE(replay.StartBuffer(buf, 0));
-}
-
-#ifdef _WIN32
-// Windows cannot delete a file that is still open: a file that fails to parse must be closed too.
-TEST(GdxsvReplayLoadTest, UnparsableFileIsClosed) {
-	const std::string path = ::testing::TempDir() + "gdxsv_unparsable_replay.pb";
-	FILE* fp = fopen(path.c_str(), "wb");
-	ASSERT_NE(nullptr, fp);
-	fputs("\xff\xff\xff\xff not a battle log", fp);
-	fclose(fp);
-
-	GdxsvBackendReplay replay;
-	EXPECT_FALSE(replay.StartFile(path.c_str(), 0));
-	EXPECT_EQ(0, std::remove(path.c_str()));
-}
-#endif
