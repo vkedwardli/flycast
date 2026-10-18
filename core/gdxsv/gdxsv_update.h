@@ -39,3 +39,7 @@ class GdxsvUpdate {
 };
 
 extern GdxsvUpdate gdxsv_update;
+
+// rename(), or a copy and remove when the two paths are on different filesystems.
+bool gdxsv_rename_file(const std::string& from, const std::string& to);
+bool gdxsv_copy_then_remove(const std::string& from, const std::string& to);

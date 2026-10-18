@@ -12,6 +12,7 @@ target_sources(${PROJECT_NAME} PRIVATE
         src/ConfigFileTest.cpp
         src/GdxsvPingPongTest.cpp
         src/GdxsvSpectatorTest.cpp
+        src/GdxsvRenameFileTest.cpp
         src/GdxsvReplayUiTest.cpp
         src/GdxsvReplayInputTest.cpp
         src/GdxsvRoundCountersTest.cpp

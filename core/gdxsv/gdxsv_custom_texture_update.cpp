@@ -1,5 +1,6 @@
 #include "gdxsv_custom_texture_update.h"
 #include "gdxsv_config.h"
+#include "gdxsv_update.h"
 
 #include <locale>
 #include <sstream>
@@ -185,7 +186,7 @@ std::shared_future<bool> GdxsvCustomTexutreUpdate::StartUpdate() {
 		}
 
 		nowide::remove(get_texture_pack_path().c_str());
-		if (nowide::rename(download_file_path.c_str(), get_texture_pack_path().c_str()) != 0) {
+		if (!gdxsv_rename_file(download_file_path, get_texture_pack_path())) {
 			ERROR_LOG(COMMON, "failed to move latest version");
 			return false;
 		}
