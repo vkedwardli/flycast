@@ -2198,57 +2198,18 @@ bool GdxsvBackendReplay::Start() {
 		// Fix broken replay: duplicated mutable_start_msg_indexes and randoms
 		auto indexes = log_file_.mutable_start_msg_indexes();
 		auto randoms = log_file_.mutable_start_msg_randoms();
-		for (int i = 1; i < indexes->size(); i++) {
+		for (int i = 1; i < indexes->size();) {
 			if (indexes->at(i) == indexes->at(i - 1)) {
 				indexes->erase(indexes->begin() + i - 1);
-				randoms->erase(randoms->begin() + i - 1);
+				if (i - 1 < randoms->size()) randoms->erase(randoms->begin() + i - 1);
+			} else {
+				i++;
 			}
 		}
 	}
 
 	if (log_file_.inputs_size() == 0 && log_file_.battle_data_size() != 0) {
-		// Convert McsMessage into uint64 input.
-		// start_msg_index_ holds input indexes of round start.
-		NOTICE_LOG(COMMON, "Converting inputs..");
-		McsMessageReader r;
-		McsMessage msg;
-		std::vector<std::vector<std::vector<u16>>> player_chunked_inputs(log_file_.users_size());
-
-		for (const auto& data : log_file_.battle_data()) {
-			r.Write(data.body().data(), data.body().size());
-
-			while (r.Read(msg)) {
-				const int p = msg.Sender();
-				if (msg.Type() == McsMessage::StartMsg) {
-					player_chunked_inputs[p].emplace_back();
-				}
-				if (msg.Type() == McsMessage::KeyMsg1) {
-					player_chunked_inputs[p].back().emplace_back(msg.FirstInput());
-				}
-				if (msg.Type() == McsMessage::KeyMsg2) {
-					player_chunked_inputs[p].back().emplace_back(msg.FirstInput());
-					player_chunked_inputs[p].back().emplace_back(msg.SecondInput());
-				}
-			}
-		}
-
-		for (int chunk = 0; chunk < player_chunked_inputs[0].size(); chunk++) {
-			int min_t = player_chunked_inputs[0][chunk].size();
-			for (int p = 0; p < log_file_.users_size(); p++) {
-				min_t = std::min<int>(min_t, player_chunked_inputs[p][chunk].size());
-			}
-
-			log_file_.add_start_msg_indexes(log_file_.inputs_size());
-
-			for (int t = 0; t < min_t; t++) {
-				uint64_t input = 0;
-				for (int p = 0; p < log_file_.users_size(); p++) {
-					input |= static_cast<uint64_t>(player_chunked_inputs[p][chunk][t]) << (p * 16);
-				}
-				log_file_.add_inputs(input);
-			}
-		}
-
+		ConvertBattleDataToInputs();
 		PrintDisconnectionSummary();
 	}
 
@@ -2279,6 +2240,61 @@ bool GdxsvBackendReplay::Start() {
 	return true;
 }
 
+// Convert McsMessage into uint64 input.
+// start_msg_index_ holds input indexes of round start.
+void GdxsvBackendReplay::ConvertBattleDataToInputs() {
+	NOTICE_LOG(COMMON, "Converting inputs..");
+	McsMessageReader r;
+	McsMessage msg;
+	// Inputs pack 16 bits per player into a u64; senders past the user list (a damaged log) are dropped.
+	const int users = std::min(4, log_file_.users_size());
+	if (users == 0) return;
+	std::vector<std::vector<std::vector<u16>>> player_chunked_inputs(users);
+
+	for (const auto& data : log_file_.battle_data()) {
+		r.Write(data.body().data(), data.body().size());
+
+		while (r.Read(msg)) {
+			const auto type = msg.Type();
+			if (type != McsMessage::StartMsg && type != McsMessage::KeyMsg1 && type != McsMessage::KeyMsg2) continue;
+			const int p = msg.Sender();
+			if (users <= p) continue;
+			auto& chunks = player_chunked_inputs[p];
+			if (type == McsMessage::StartMsg) {
+				chunks.emplace_back();
+				continue;
+			}
+			if (chunks.empty()) continue;  // key message before the first round start
+			chunks.back().emplace_back(msg.FirstInput());
+			if (type == McsMessage::KeyMsg2) {
+				chunks.back().emplace_back(msg.SecondInput());
+			}
+		}
+	}
+
+	size_t chunk_count = player_chunked_inputs[0].size();
+	for (int p = 1; p < users; p++) {
+		chunk_count = std::min(chunk_count, player_chunked_inputs[p].size());
+	}
+
+	for (size_t chunk = 0; chunk < chunk_count; chunk++) {
+		size_t min_t = player_chunked_inputs[0][chunk].size();
+		for (int p = 0; p < users; p++) {
+			min_t = std::min(min_t, player_chunked_inputs[p][chunk].size());
+		}
+
+		log_file_.add_start_msg_indexes(log_file_.inputs_size());
+
+		for (size_t t = 0; t < min_t; t++) {
+			uint64_t input = 0;
+			for (int p = 0; p < users; p++) {
+				input |= static_cast<uint64_t>(player_chunked_inputs[p][chunk][t]) << (p * 16);
+			}
+			log_file_.add_inputs(input);
+		}
+	}
+}
+
 void GdxsvBackendReplay::PrintDisconnectionSummary() const {
 	std::vector<McsMessage> msg_list;
 	McsMessageReader r;
@@ -2297,10 +2313,12 @@ void GdxsvBackendReplay::PrintDisconnectionSummary() const {
 		}
 	}
 
+	if (log_file_.users_size() == 0) return;
 	std::vector<int> last_keymsg_seq(log_file_.users_size());
 	std::vector<int> last_force_msg_index(log_file_.users_size());
 	for (int i = 0; i < msg_list.size(); ++i) {
 		const auto& msg = msg_list[i];
+		if (msg.Type() == McsMessage::UnknownMsg || log_file_.users_size() <= msg.Sender()) continue;
 		if (msg.Type() == McsMessage::KeyMsg1) {
 			last_keymsg_seq[msg.Sender()] = msg.FirstSeq();
 			last_force_msg_index[msg.Sender()] = 0;

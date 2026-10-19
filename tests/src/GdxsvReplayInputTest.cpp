@@ -35,6 +35,17 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	}
 
 	void AddInput(u64 input) { replay_.log_file_.add_inputs(input); }
+	proto::BattleLogFile& Log() { return replay_.log_file_; }
+	void ConvertBattleData() { replay_.ConvertBattleDataToInputs(); }
+	void PrintDisconnectionSummary() { replay_.PrintDisconnectionSummary(); }
+	void AddBattleData(McsMessage::MsgType type, int sender, u16 input = 0) {
+		auto msg = McsMessage::Create(type, sender);
+		if (type == McsMessage::KeyMsg1) {
+			msg.body[2] = input >> 8;
+			msg.body[3] = input & 0xff;
+		}
+		Log().add_battle_data()->set_body(msg.body.data(), msg.body.size());
+	}
 	void SetOffline() { replay_.live_mode_ = false; }
 	int InputIndex() const { return replay_.key_msg_count_; }
 	std::deque<u8>& Reply() { return replay_.recv_buf_; }
@@ -989,4 +1000,31 @@ TEST_F(GdxsvReplayInputTest, TakeoverInputIsIgnoredInLiveOrInactiveReplay) {
 		EXPECT_TRUE(TakeoverInputs().empty());
 		EXPECT_EQ(0u, PendingControlCommands());
 	}
+}
+
+// Old logs carry raw McsMessages that are converted to inputs on load; a damaged one must not index past the users.
+TEST_F(GdxsvReplayInputTest, ConvertingBattleDataSkipsSendersPastTheUserList) {
+	AddBattleData(McsMessage::KeyMsg1, 0, 0x1111);  // before any round start
+	for (int p = 0; p < 4; ++p) AddBattleData(McsMessage::StartMsg, p);
+	AddBattleData(McsMessage::StartMsg, 9);
+	AddBattleData(McsMessage::KeyMsg1, 9, 0x9999);
+	for (int p = 0; p < 4; ++p) AddBattleData(McsMessage::KeyMsg1, p, 0x0101 * (p + 1));
+	AddBattleData(McsMessage::StartMsg, 0);  // a second round only player 0 reached
+
+	ConvertBattleData();
+	ASSERT_EQ(1, Log().inputs_size());
+	EXPECT_EQ(0x0404030302020101ull, Log().inputs(0));
+	ASSERT_EQ(1, Log().start_msg_indexes_size());
+	EXPECT_EQ(0, Log().start_msg_indexes(0));
+
+	PrintDisconnectionSummary();
+}
+
+TEST_F(GdxsvReplayInputTest, ConvertingBattleDataWithoutUsersAddsNothing) {
+	Log().clear_users();
+	AddBattleData(McsMessage::StartMsg, 0);
+	AddBattleData(McsMessage::KeyMsg1, 0, 0x1234);
+	ConvertBattleData();
+	EXPECT_EQ(0, Log().inputs_size());
+	PrintDisconnectionSummary();
 }
