@@ -88,3 +88,31 @@ def config_old_control(ctx):
     return result([checks[0],
                    {"what": "every value check fails", "passed": [c["what"] for c in checks[1:] if c["ok"]],
                     "ok": all(not c["ok"] for c in checks[1:])}], detail=checks)
+
+
+# The socket binds only the low 16 bits (70000 -> 4464, -5 -> 65531) while LBS is told the full value.
+BAD_PORTS = ["70000", "-5"]
+
+
+def local_port(ctx, name: str, ports: list) -> list:
+    checks = []
+    for port in ports:
+        p = ctx.probe(f"{name}_{port}", ctx.rom("dc2"), "memread.lua", {"frame": 5, "reads": []}, frames=20,
+                      emu_cfg=f"[gdxsv]\nLocalPort = {port}\n")
+        m = re.search(r"udp_port:(-?\d+)", p.log)
+        got = int(m.group(1)) if m else None
+        checks.append({"what": f"LocalPort {port}: replaced by a port in 1-65535", "got": got,
+                       "ok": p.clean and got is not None and got != int(port) and 1 <= got <= 65535, **p.facts()})
+    return checks
+
+
+@case("C3", "an emu.cfg LocalPort a UDP socket cannot bind (70000, -5): gdxsv uses a port in 1-65535", tier="smoke")
+def config_local_port(ctx):
+    return result(local_port(ctx, "C3", BAD_PORTS))
+
+
+@case("C3c", "C3's check on a usable LocalPort (65535): it is kept, the check fails", control_of="C3")
+def config_local_port_control(ctx):
+    checks = local_port(ctx, "C3c", ["65535"])
+    return result([{"what": "the check fails", "ok": not checks[0]["ok"] and checks[0]["got"] == 65535}],
+                  detail=checks)

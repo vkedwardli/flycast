@@ -161,9 +161,7 @@ void Gdxsv::Reset() {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	if (config::GdxLocalPort == 0) {
-		config::GdxLocalPort = get_random_port_number();
-	}
+	config::GdxLocalPort = valid_local_port_number(config::GdxLocalPort);
 
 	if (config::GdxLoginKey.get().empty()) {
 		config::GdxLoginKey = GenerateLoginKey();

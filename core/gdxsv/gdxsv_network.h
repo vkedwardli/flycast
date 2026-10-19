@@ -30,6 +30,8 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port);
 std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6);
 std::future<std::map<std::string, int>> gcp_ping_test();
 int get_random_port_number();
+// The port if it is a usable UDP port (1-65535), else a random one.
+int valid_local_port_number(int port);
 std::string sockaddr_to_string(const sockaddr *addr);
 bool is_loopback_addr(const sockaddr *addr);
 bool is_private_addr(const sockaddr *addr);
