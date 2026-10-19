@@ -28,7 +28,8 @@ python gdxsv_tests/run.py --recheck gdxsv_tests/out --cases K1      # checks onl
   controls) runs its checks on a copy of its files (in `<out dir>.recheck`) and
   prints each check with its values, in seconds. Instances, the lobby and the
   HTTP stub are not started: their exit, log and requests are read back from
-  `probe.json`, `lbs.log`, `http_<n>.json`; what that run did not save is listed
+  `probe.json`, `lbs.log`, `http_<n>.json`, a rollback match's end from
+  `match_<n>.json` and its peers' files; what that run did not save is listed
   and defaults to exit 0 and no requests. Try a new or changed check here on an
   earlier run's directory before a run with flycast.
 
