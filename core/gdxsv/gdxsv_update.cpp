@@ -4,9 +4,13 @@
 #include <types.h>
 #include <zip.h>
 
+#include <cerrno>
 #include <future>
 #include <regex>
 #include <string>
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#endif
 
 #include "json.hpp"
 #include "libs.h"
@@ -31,6 +35,48 @@
 #endif
 
 static constexpr size_t MaxDownloadSize = 30 * 1024 * 1024;
+
+bool gdxsv_copy_then_remove(const std::string& from, const std::string& to) {
+	FILE* in = nowide::fopen(from.c_str(), "rb");
+	if (in == nullptr) return false;
+	FILE* out = nowide::fopen(to.c_str(), "wb");
+	if (out == nullptr) {
+		std::fclose(in);
+		return false;
+	}
+
+	bool ok = true;
+	std::vector<char> buf(64 * 1024);
+	size_t n;
+	while ((n = std::fread(buf.data(), 1, buf.size(), in)) != 0) {
+		if (std::fwrite(buf.data(), 1, n, out) != n) {
+			ok = false;
+			break;
+		}
+	}
+	ok = ok && !std::ferror(in);
+#if !defined(_WIN32)
+	// Keeps the executable bit of the new flycast binary.
+	struct stat st;
+	if (ok && fstat(fileno(in), &st) == 0) fchmod(fileno(out), st.st_mode & 07777);
+#endif
+	std::fclose(in);
+	ok = std::fclose(out) == 0 && ok;
+	if (!ok) {
+		nowide::remove(to.c_str());
+		return false;
+	}
+	nowide::remove(from.c_str());
+	return true;
+}
+
+bool gdxsv_rename_file(const std::string& from, const std::string& to) {
+	if (nowide::rename(from.c_str(), to.c_str()) == 0) return true;
+	// Downloads are staged in /tmp, which is a tmpfs on many Linux distributions:
+	// rename() into the data or executable directory then fails with EXDEV.
+	if (errno != EXDEV) return false;
+	return gdxsv_copy_then_remove(from, to);
+}
 
 static const std::string ReleaseFileName =
 #if HOST_CPU == CPU_X64
@@ -333,7 +379,7 @@ std::shared_future<bool> GdxsvUpdate::StartSelfUpdate() {
 		const auto executable_dir = executable_path.substr(0, get_last_slash_pos(executable_path));
 		const auto new_version_path = executable_dir + "/" + GetFlycastFileNameWithVersion(latest.version);
 
-		if (nowide::rename((tmp_dir + "/" + DefaultFlycastName).c_str(), new_version_path.c_str()) != 0) {
+		if (!gdxsv_rename_file(tmp_dir + "/" + DefaultFlycastName, new_version_path)) {
 			ERROR_LOG(COMMON, "failed to move latest version");
 			return false;
 		}
