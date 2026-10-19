@@ -1679,11 +1679,11 @@ bool GdxsvBackendReplay::StartFile(const char* path, int pov) {
 	}
 
 	bool ok = log_file_.ParseFromFileDescriptor(fileno(fp));
+	fclose(fp);
 	if (!ok) {
 		NOTICE_LOG(COMMON, "ParseFromFileDescriptor failed");
 		return false;
 	}
-	fclose(fp);
 
 	if (log_file_.users_size() <= pov) {
 		NOTICE_LOG(COMMON, "ReplayPOV %d does not exist: this battle has %d players", pov + 1, log_file_.users_size());
@@ -2076,6 +2076,11 @@ u32 GdxsvBackendReplay::OnSockPoll() {
 }
 
 bool GdxsvBackendReplay::Start() {
+	// Inputs pack 16 bits per player into a u64, and the game has at most 4 players.
+	if (4 < log_file_.users_size()) {
+		NOTICE_LOG(COMMON, "Replay has %d players, at most 4 are supported", log_file_.users_size());
+		return false;
+	}
 	NOTICE_LOG(COMMON, "game_disk = %s", log_file_.game_disk().c_str());
 	CloseReplayHashLog();
 	if (config::loadBool("gdxsv", "hashlog", false)) {
