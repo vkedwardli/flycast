@@ -247,6 +247,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/norend/norend.cpp` |  | a framebuffer frame is presented once too |
 | `core/rend/norend/norend.cpp` |  | Render or RenderFramebuffer since the last Present |
 | `core/rend/vulkan/vulkan_context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `gdxsv_video_vulkan_extensions` |
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::DrawFrame` | scale the final game image into the host's quadrant, before UI. |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls can change SDL's flags directly |

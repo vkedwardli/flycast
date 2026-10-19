@@ -466,6 +466,10 @@ bool VulkanContext::InitDevice()
 		// Required swapchain extension
 		tryAddDeviceExtension(vk::KHRSwapchainExtensionName);
 
+#if defined(_WIN32) && defined(VIDEO_ROUTING) && !defined(LIBRETRO)
+		gdxsv_video_vulkan_extensions(physicalDeviceProperties.apiVersion, supportedExtensions, enabledExtensions);
+#endif
+
 #ifdef VK_ENABLE_BETA_EXTENSIONS
 		tryAddDeviceExtension(vk::KHRPortabilitySubsetExtensionName);
 #endif

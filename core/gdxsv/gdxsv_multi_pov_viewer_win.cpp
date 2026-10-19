@@ -13,6 +13,10 @@
 #include "gdxsv_multi_pov.h"
 #include "imgui_impl_dx11.h"
 #include "rend/dx11/dx11context.h"
+#include "sdl/sdl.h"
+#ifdef USE_VULKAN
+#include "rend/vulkan/vulkan_context.h"
+#endif
 
 namespace {
 struct GdxsvSpoutReceiver {
@@ -28,6 +32,17 @@ struct GdxsvSpoutViewer {
 	std::array<GdxsvSpoutReceiver, kGdxsvMultiPovScreens> receivers;
 };
 GdxsvSpoutViewer viewer;
+
+enum class GdxsvViewerBackend { Unsupported, OpenGL, DirectX11, Vulkan };
+
+GdxsvViewerBackend CurrentBackend() {
+	// Settings can change before the context owning this frame is replaced.
+	if (dynamic_cast<DX11Context*>(GraphicsContext::Instance())) return GdxsvViewerBackend::DirectX11;
+#ifdef USE_VULKAN
+	if (dynamic_cast<VulkanContext*>(GraphicsContext::Instance())) return GdxsvViewerBackend::Vulkan;
+#endif
+	return SDL_GL_GetCurrentContext() ? GdxsvViewerBackend::OpenGL : GdxsvViewerBackend::Unsupported;
+}
 
 GdxsvMultiPovVideoFrame ReceiveGL(GdxsvSpoutReceiver& receiver, const std::string& name) {
 	if (!receiver.gl) {
@@ -67,8 +82,7 @@ void DrawOpaqueDX(const ImDrawList*, const ImDrawCmd*) {
 	state->DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 }
 
-GdxsvMultiPovVideoFrame ReceiveDX(GdxsvSpoutReceiver& receiver, const std::string& name) {
-	auto* context = DX11Context::Instance();
+GdxsvMultiPovVideoFrame ReceiveDX(DX11Context* context, GdxsvSpoutReceiver& receiver, const std::string& name) {
 	if (!receiver.dx) {
 		receiver.dx = std::make_unique<spoutDX>();
 		if (!receiver.dx->OpenDirectX11(context->getDevice())) {
@@ -98,16 +112,50 @@ GdxsvMultiPovVideoFrame ReceiveDX(GdxsvSpoutReceiver& receiver, const std::strin
 }
 }  // namespace
 
+const char* gdxsv_multi_pov_viewer_win_unavailable() {
+	switch (CurrentBackend()) {
+		case GdxsvViewerBackend::DirectX11:
+		case GdxsvViewerBackend::OpenGL:
+			return nullptr;
+#ifdef USE_VULKAN
+		case GdxsvViewerBackend::Vulkan:
+			return gdxsv_multi_pov_viewer_vulkan_unavailable();
+#endif
+		default:
+			return kGdxsvMultiPovRendererUnavailable;
+	}
+}
+
+bool gdxsv_multi_pov_viewer_win_needs_probe() { return CurrentBackend() == GdxsvViewerBackend::Vulkan; }
+
+const char* gdxsv_multi_pov_viewer_win_prepare(bool starting) {
+#ifdef USE_VULKAN
+	if (CurrentBackend() == GdxsvViewerBackend::Vulkan) return gdxsv_multi_pov_viewer_vulkan_prepare(starting);
+#endif
+	return gdxsv_multi_pov_viewer_win_unavailable();
+}
+
 GdxsvMultiPovVideoFrame gdxsv_multi_pov_viewer_receive(int screen, const std::string& name) {
 	if (screen < 1 || screen >= kGdxsvMultiPovScreens) return {};
 	auto& receiver = viewer.receivers[screen];
-	if (isOpenGL(config::RendererType)) return ReceiveGL(receiver, name);
-	if (config::RendererType == RenderType::DirectX11 || config::RendererType == RenderType::DirectX11_OIT)
-		return ReceiveDX(receiver, name);
-	return {};
+	switch (CurrentBackend()) {
+		case GdxsvViewerBackend::DirectX11:
+			return ReceiveDX(static_cast<DX11Context*>(GraphicsContext::Instance()), receiver, name);
+#ifdef USE_VULKAN
+		case GdxsvViewerBackend::Vulkan:
+			return gdxsv_multi_pov_viewer_vulkan_receive(screen, name);
+#endif
+		case GdxsvViewerBackend::OpenGL:
+			return ReceiveGL(receiver, name);
+		default:
+			return {};
+	}
 }
 
-void gdxsv_multi_pov_viewer_term() {
+void gdxsv_multi_pov_viewer_term(bool reset_device) {
+#ifdef USE_VULKAN
+	gdxsv_multi_pov_viewer_vulkan_term(reset_device);
+#endif
 	for (auto& receiver : viewer.receivers) {
 		if (receiver.gl) receiver.gl->ReleaseReceiver();
 		if (receiver.texture) glDeleteTextures(1, &receiver.texture);

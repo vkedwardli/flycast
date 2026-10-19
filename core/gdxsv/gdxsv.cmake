@@ -314,6 +314,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_multi_pov_launch.cpp
 		core/gdxsv/gdxsv_multi_pov_viewer.cpp
 		core/gdxsv/gdxsv_multi_pov_viewer.h
+		core/gdxsv/gdxsv_multi_pov_viewer_vulkan.h
 		core/gdxsv/gdxsv_video_hooks.h
 		core/gdxsv/gdxsv_spectate_sync.cpp
 		core/gdxsv/gdxsv_spectate_sync.h
@@ -356,7 +357,7 @@ endif()
 
 # Four-screen video receivers
 if(WIN32 AND NOT WINDOWS_STORE)
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_viewer_win.cpp)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_viewer_win.cpp core/gdxsv/gdxsv_multi_pov_viewer_vulkan_win.cpp)
 elseif(APPLE AND NOT IOS)
 	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_viewer_apple.mm core/gdxsv/gdxsv_multi_pov_viewer_vulkan.cpp)
 endif()

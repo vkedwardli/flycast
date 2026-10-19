@@ -147,7 +147,7 @@ GdxsvMultiPovVideoFrame gdxsv_multi_pov_viewer_receive(int screen, const std::st
 	}
 }
 
-void gdxsv_multi_pov_viewer_term() {
+void gdxsv_multi_pov_viewer_term(bool) {
 #ifdef USE_VULKAN
 	gdxsv_multi_pov_viewer_metal_term();
 #endif

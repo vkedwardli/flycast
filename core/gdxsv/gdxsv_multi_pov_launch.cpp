@@ -119,6 +119,11 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 	const std::string content = settings.content.path;
 	const std::string sender = "gdxsv:VideoRoutingName=Flycast " + session_id + " " + std::to_string(screen + 1) + "P";
 	RenderType guest_renderer = config::RendererType;
+#ifdef _WIN32
+	// Spout sends OpenGL and DirectX 11; a Vulkan host imports the latter.
+	if (isVulkan(guest_renderer))
+		guest_renderer = guest_renderer == RenderType::Vulkan_OIT ? RenderType::DirectX11_OIT : RenderType::DirectX11;
+#endif
 	const std::string renderer = "config:pvr.rend=" + std::to_string(static_cast<int>(guest_renderer));
 
 	std::vector<const char*> args = {
@@ -170,10 +175,11 @@ std::string gdxsv_multi_pov_log_file_name() {
 	return "flycast-" + std::to_string(screen + 1) + "P.log";
 }
 
-static bool FourScreenWindowAvailable() {
-	const char* reason = gdxsv_multi_pov_viewer_unavailable();
-	if (reason == nullptr) return true;
-	WARN_LOG(COMMON, "multi-pov: %s", reason);
+static bool FourScreenWindowAvailable(std::string* error) {
+	const std::string reason = gdxsv_multi_pov_viewer_prepare();
+	if (error) *error = reason;
+	if (reason.empty()) return true;
+	WARN_LOG(COMMON, "multi-pov: %s", reason.c_str());
 	return false;
 }
 
@@ -190,37 +196,38 @@ static void SpawnGuests(const std::string& session_id) {
 	NOTICE_LOG(COMMON, "multi-pov: host session %s with %d guests", session_id.c_str(), g_spawned_guests);
 }
 
-bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out) {
+bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out, std::string* video_error) {
 	g_spawned_guests = 0;
 
-	if (!FourScreenWindowAvailable()) return false;
-
-	if (!LoadReplaySource(replay_source, replay_out)) return false;
-	if (!IsFourPlayerBattle(replay_out)) return false;
-
-	const std::string session_id = gdxsv_multi_pov_new_session_id();
-	if (!gdxsv_multi_pov_host_create(session_id, replay_out)) return false;
-
-	if (!gdxsv_multi_pov_viewer_begin(session_id)) {
+	if (!FourScreenWindowAvailable(video_error) || !LoadReplaySource(replay_source, replay_out) || !IsFourPlayerBattle(replay_out)) {
 		gdxsv_multi_pov_close();
 		return false;
 	}
+
+	const std::string session_id = gdxsv_multi_pov_new_session_id();
+	if (!gdxsv_multi_pov_host_create(session_id, replay_out)) {
+		gdxsv_multi_pov_close();
+		return false;
+	}
+	gdxsv_multi_pov_viewer_begin(session_id);
 	SpawnGuests(session_id);
 	return true;
 }
 
-bool gdxsv_multi_pov_begin_live_host_session(const std::string& battle_code) {
+bool gdxsv_multi_pov_begin_live_host_session(const std::string& battle_code, std::string* video_error) {
 	g_spawned_guests = 0;
 
-	if (!FourScreenWindowAvailable()) return false;
-
-	const std::string session_id = gdxsv_multi_pov_new_session_id();
-	if (!gdxsv_multi_pov_host_create_live(session_id, battle_code)) return false;
-
-	if (!gdxsv_multi_pov_viewer_begin(session_id)) {
+	if (!FourScreenWindowAvailable(video_error)) {
 		gdxsv_multi_pov_close();
 		return false;
 	}
+
+	const std::string session_id = gdxsv_multi_pov_new_session_id();
+	if (!gdxsv_multi_pov_host_create_live(session_id, battle_code)) {
+		gdxsv_multi_pov_close();
+		return false;
+	}
+	gdxsv_multi_pov_viewer_begin(session_id);
 	SpawnGuests(session_id);
 	return true;
 }

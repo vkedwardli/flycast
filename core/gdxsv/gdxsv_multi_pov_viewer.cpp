@@ -3,7 +3,10 @@
 #include "gdxsv_multi_pov_viewer.h"
 
 #include <algorithm>
+#include <atomic>
+#include <future>
 #include <mutex>
+#include <thread>
 
 #include "cfg/cfg.h"
 #include "cfg/option.h"
@@ -19,9 +22,16 @@
 bool gdxsv_video_grid_active = false;
 
 namespace {
+constexpr const char* kNotReady = "Four-screen video sharing is not ready";
 struct GdxsvViewerState {
 	std::mutex mutex;
 	std::string requested;
+	bool release_requested = false;
+	std::thread::id ui_thread;
+	std::packaged_task<std::string()> prepare;
+	// The loader reads only these results, never the graphics context itself.
+	std::atomic<const char*> unavailable{kNotReady};
+	std::atomic<bool> needs_probe{false};
 	// The remainder is used only on the UI thread.
 	std::string session;
 	std::string names[kGdxsvMultiPovScreens];
@@ -33,6 +43,13 @@ GdxsvViewerState viewer;
 
 std::string SenderName(const std::string& session, int screen) { return "Flycast " + session + " " + std::to_string(screen + 1) + "P"; }
 
+#if defined(_WIN32) && defined(VIDEO_ROUTING) && !defined(LIBRETRO)
+std::string PrepareViewer() {
+	const char* reason = gdxsv_multi_pov_viewer_win_prepare(/*starting=*/true);
+	return reason ? reason : "";
+}
+#endif
+
 }  // namespace
 
 const char* gdxsv_multi_pov_viewer_unavailable() {
@@ -40,28 +57,53 @@ const char* gdxsv_multi_pov_viewer_unavailable() {
 	if (gdxsv_headless()) return "Four-screen playback needs a display";
 #if defined(TARGET_MAC)
 	if (isOpenGL(config::RendererType) || isVulkan(config::RendererType)) return nullptr;
+	return kGdxsvMultiPovRendererUnavailable;
 #elif defined(_WIN32)
-	if (isOpenGL(config::RendererType) || config::RendererType == RenderType::DirectX11 ||
-		config::RendererType == RenderType::DirectX11_OIT)
-		return nullptr;
-	return "Select OpenGL or DirectX 11 for four-screen playback";
+	return viewer.unavailable.load(std::memory_order_acquire);
+#else
+	return kGdxsvMultiPovRendererUnavailable;
 #endif
-	return "Select OpenGL, DirectX 11 or Vulkan for four-screen playback";
 #else
 	return "Four-screen video sharing is unavailable on this platform";
 #endif
 }
 
-bool gdxsv_multi_pov_viewer_begin(const std::string& session) {
-	if (gdxsv_multi_pov_viewer_unavailable() != nullptr) return false;
+std::string gdxsv_multi_pov_viewer_prepare() {
+	if (const char* reason = gdxsv_multi_pov_viewer_unavailable()) return reason;
+#if defined(_WIN32) && defined(VIDEO_ROUTING) && !defined(LIBRETRO)
+	if (!viewer.needs_probe.load(std::memory_order_acquire)) return {};
+	std::unique_lock<std::mutex> lock(viewer.mutex);
+	// UI launches probe immediately. A command-line launch asks the UI thread
+	// so the loader never touches a graphics context that may be replaced.
+	if (viewer.ui_thread == std::this_thread::get_id()) {
+		lock.unlock();
+		return PrepareViewer();
+	}
+	viewer.prepare = std::packaged_task<std::string()>(PrepareViewer);
+	auto ready = viewer.prepare.get_future();
+	lock.unlock();
+	if (ready.wait_for(std::chrono::seconds(2)) != std::future_status::ready) {
+		lock.lock();
+		viewer.prepare = {};
+		return "Timed out waiting for the four-screen video sharing check";
+	}
+	return ready.get();
+#else
+	return {};
+#endif
+}
+
+void gdxsv_multi_pov_viewer_begin(const std::string& session) {
 	std::lock_guard<std::mutex> lock(viewer.mutex);
 	viewer.requested = session;
-	return true;
+	viewer.release_requested = false;
 }
 
 void gdxsv_multi_pov_viewer_end() {
 	std::lock_guard<std::mutex> lock(viewer.mutex);
 	viewer.requested.clear();
+	// A failed start may end before Tick ever displayed its session.
+	viewer.release_requested = true;
 }
 
 bool gdxsv_video_hidden_window() {
@@ -85,18 +127,26 @@ std::string gdxsv_video_sender_name() {
 }
 
 void gdxsv_video_term() {
+	viewer.unavailable.store(kNotReady, std::memory_order_release);
 	gdxsv_multi_pov_viewer_term();
 	std::fill(std::begin(viewer.connected), std::end(viewer.connected), false);
 }
 
-void gdxsv_multi_pov_viewer_tick() {
+const char* gdxsv_multi_pov_viewer_tick() {
 	std::string requested;
+	bool release;
+	std::packaged_task<std::string()> prepare;
 	{
 		std::lock_guard<std::mutex> lock(viewer.mutex);
+		viewer.ui_thread = std::this_thread::get_id();
 		requested = viewer.requested;
+		release = viewer.release_requested;
+		viewer.release_requested = false;
+		prepare = std::move(viewer.prepare);
 	}
-	if (viewer.session != requested) {
-		gdxsv_video_term();
+	if (viewer.session != requested || release) {
+		gdxsv_multi_pov_viewer_term(/*reset_device=*/requested.empty());
+		std::fill(std::begin(viewer.connected), std::end(viewer.connected), false);
 		// VMU overlays span the whole window instead of the host's quadrant.
 		if (!requested.empty())
 			config::FloatVMUs.override(false);
@@ -108,10 +158,21 @@ void gdxsv_multi_pov_viewer_tick() {
 		viewer.group = {};
 		for (int screen = 1; screen < kGdxsvMultiPovScreens; ++screen) viewer.names[screen] = SenderName(requested, screen);
 	}
+	if (prepare.valid()) prepare();
 	gdxsv_video_grid_active = !viewer.session.empty();
+	const char* failure = nullptr;
+#if defined(_WIN32) && defined(VIDEO_ROUTING) && !defined(LIBRETRO)
+	const char* reason = gdxsv_multi_pov_viewer_win_unavailable();
+	viewer.needs_probe.store(gdxsv_multi_pov_viewer_win_needs_probe(), std::memory_order_release);
+	viewer.unavailable.store(reason, std::memory_order_release);
+	if (gdxsv_video_grid_active) {
+		failure = reason ? reason : gdxsv_multi_pov_viewer_win_prepare();
+		gdxsv_video_grid_active = failure == nullptr;
+	}
+#endif
 #ifdef USE_SDL
 	SDL_Window* window = sdl_get_window();
-	if (window == nullptr) return;
+	if (window == nullptr) return failure;
 	if (gdxsv_video_grid_active) {
 		GdxsvMultiPovHostWindow host;
 		SDL_GetWindowPosition(window, &host.group.x, &host.group.y);
@@ -141,6 +202,7 @@ void gdxsv_multi_pov_viewer_tick() {
 		}
 	}
 #endif
+	return failure;
 }
 
 void gdxsv_video_viewport(int& x, int& y, int& width, int& height, bool bottom_origin) {
@@ -173,13 +235,15 @@ void gdxsv_multi_pov_viewer_draw() {
 			viewer.connected[screen] = true;
 		} else {
 			viewer.connected[screen] = false;
-			const std::string label = std::to_string(screen + 1) + "P - waiting for video";
-			draw->AddText(ImVec2(start.x + 12, start.y + 12), IM_COL32_WHITE, label.c_str());
+		}
+		if (frame.error || frame.texture == 0) {
+			const std::string label = std::to_string(screen + 1) + "P - " + (frame.error ? frame.error : kGdxsvMultiPovWaitingForVideo);
+			draw->AddText(nullptr, 0, ImVec2(start.x + 12, start.y + 12), IM_COL32_WHITE, label.c_str(), nullptr, end.x - start.x - 24);
 		}
 	}
 }
 
 #if !defined(VIDEO_ROUTING) || (!defined(TARGET_MAC) && !defined(_WIN32)) || defined(LIBRETRO)
 GdxsvMultiPovVideoFrame gdxsv_multi_pov_viewer_receive(int, const std::string&) { return {}; }
-void gdxsv_multi_pov_viewer_term() {}
+void gdxsv_multi_pov_viewer_term(bool) {}
 #endif

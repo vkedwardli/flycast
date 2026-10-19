@@ -1925,9 +1925,13 @@ static bool start_live_battle(const std::string& battle_code, int pov, bool four
 	if (!gdxsv_ensure_replay_savestate(gdxsv.Disk())) return false;
 
 	if (four_screen) {
+		std::string video_error;
 		const bool moved_on = hosting_live_four_screen() ? gdxsv_multi_pov_host_publish_live_battle(battle_code)
-														 : gdxsv_multi_pov_begin_live_host_session(battle_code);
-		if (!moved_on) return false;
+														 : gdxsv_multi_pov_begin_live_host_session(battle_code, &video_error);
+		if (!moved_on) {
+			if (!video_error.empty()) gui_error(video_error);
+			return false;
+		}
 		pov = 0;
 	}
 
@@ -2039,9 +2043,10 @@ void gdxsv_start_replay(const std::string& replay_file, int pov, bool four_scree
 	}
 
 	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
-		// 4-player replay: host it, or fall back to single-screen playback.
+		// Report video-sharing failures without loading a single-screen replay.
 		std::vector<uint8_t> hosted_replay;
-		if (four_screen && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay)) {
+		std::string video_error;
+		if (four_screen && gdxsv_multi_pov_begin_host_session(replay_file, hosted_replay, &video_error)) {
 			dc_loadstate(99);
 			if (gdxsv.StartReplayBuffer(hosted_replay, 0)) {
 				gui_state = GuiState::Closed;
@@ -2051,6 +2056,10 @@ void gdxsv_start_replay(const std::string& replay_file, int pov, bool four_scree
 				dc_loadstate(90);
 				broken_replay_path = replay_file;
 			}
+			return;
+		}
+		if (!video_error.empty()) {
+			gui_error(video_error);
 			return;
 		}
 

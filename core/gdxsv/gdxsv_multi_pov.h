@@ -129,13 +129,14 @@ bool gdxsv_multi_pov_take_four_screen_request();
 
 // Host: reads `replay_source` (path or URL), publishes it and spawns the
 // guests. `replay_out` holds the bytes for the host's own playback. False
-// when the session cannot be set up or the battle is not four players; the
-// caller then plays single-screen.
-bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out);
+// when the session cannot be set up or the battle is not four players.
+// Video checks run before loading; `video_error` receives their failure reason.
+bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out,
+									  std::string* video_error = nullptr);
 
 // Host: opens a live session on `battle_code` and spawns the guests. The
 // caller checks that the battle has four players.
-bool gdxsv_multi_pov_begin_live_host_session(const std::string& battle_code);
+bool gdxsv_multi_pov_begin_live_host_session(const std::string& battle_code, std::string* video_error = nullptr);
 
 // What a guest plays: the host's replay, or a live battle.
 struct GdxsvMultiPovGuestStart {

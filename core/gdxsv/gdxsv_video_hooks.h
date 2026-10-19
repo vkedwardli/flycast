@@ -12,3 +12,11 @@ void gdxsv_video_term();
 bool gdxsv_video_hidden_window();
 // Optional stable name for video routing; empty keeps the ordinary sender name.
 std::string gdxsv_video_sender_name();
+
+#if defined(_WIN32) && defined(VIDEO_ROUTING) && defined(USE_VULKAN) && !defined(LIBRETRO)
+#include <cstdint>
+#include <set>
+#include <vector>
+// Windows Vulkan hosts import textures received from DirectX guests.
+void gdxsv_video_vulkan_extensions(uint32_t device_version, const std::set<std::string>& supported, std::vector<const char*>& enabled);
+#endif

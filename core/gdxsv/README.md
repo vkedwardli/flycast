@@ -48,7 +48,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_spectator_downlink.cpp/.h` | receives live inputs from LBS |
 | `gdxsv_spectate_sync.cpp/.h` | keeps spectator instances on one machine on the same frame |
 | `gdxsv_multi_pov.cpp/.h`, `gdxsv_multi_pov_launch.cpp` | four-player replay sessions, process launch and shared playback controls |
-| `gdxsv_multi_pov_viewer*.cpp/.h/.mm`, `gdxsv_video_hooks.h` | four views in the original window; Syphon and Spout receivers, Vulkan import of Metal textures, final presentation rectangle and sender names |
+| `gdxsv_multi_pov_viewer*.cpp/.h/.mm`, `gdxsv_video_hooks.h` | four views in the original window; Syphon and Spout receivers, Vulkan import of Metal/DirectX textures, shared Vulkan sampling resources, final presentation rectangle and sender names |
 | `gdxsv_round_counters.h` | round and win counts of a battle |
 | `gdxsv_slowdown.cpp/.h` | experimental arcade slowdown in DX battles |
 | `gdxsv_projectile_view.cpp/.h` | debug overlay of DX projectiles |

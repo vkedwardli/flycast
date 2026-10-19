@@ -75,6 +75,8 @@ void gdxsv_emu_flycast_init() {
 			gdxsv_multi_pov_host_gone())
 			throw FlycastException("Four-screen worker could not join its host");
 	}
+	// Publish the renderer and UI thread before the command-line loader starts.
+	gdxsv_multi_pov_viewer_tick();
 }
 
 void gdxsv_emu_start() {
@@ -228,7 +230,12 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 		gdxsv.HookMainUiLoop();
 	}
 	// Window calls must happen on the UI thread.
-	gdxsv_multi_pov_viewer_tick();
+	if (const char* error = gdxsv_multi_pov_viewer_tick(); error && gui_state != GuiState::Loading) {
+		emu.stop();
+		gdxsv.StopReplay();
+		gdxsv_multi_pov_close();
+		gdxsv_end_replay(error, /*user_exit=*/true);
+	}
 	gdxsv_multi_pov_tick();
 
 	if (rendered)
