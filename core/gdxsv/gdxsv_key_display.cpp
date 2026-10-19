@@ -2,20 +2,37 @@
 
 #include "gdxsv.h"
 #include "gdxsv_custom_texture_source.h"
+#include "gdxsv_video_hooks.h"
 #include "imgui/imgui.h"
 #include "ui/imgui_driver.h"
 #include "rend/transform_matrix.h"
 #include "types.h"
-
-const char* ButtonsTextureName = "BUTTONS.png";
-const char* ArrowsTextureName = "ARROWS.png";
-ImTextureID buttonsTexture = ImTextureID{};
-ImTextureID arrowsTexture = ImTextureID{};
+#include <memory>
+#include <stb_image.h>
 
 namespace {
+struct GdxsvKeyTexture {
+	const char* name;
+	bool failed = false;
+
+	ImTextureID Load() {
+		const auto texture = imguiDriver->getTexture(name);
+		if (texture != ImTextureID{} || failed) return texture;
+		int width, height;
+		std::unique_ptr<u8, decltype(&stbi_image_free)> data(GdxsvEmbedTextureSource::LoadExtraTexture(name, false, width, height),
+															 stbi_image_free);
+		// These bundled images do not change at runtime. Do not retry a
+		// missing image every frame; the text fallback remains available.
+		failed = data == nullptr;
+		return data ? imguiDriver->updateTexture(name, data.get(), width, height, false) : ImTextureID{};
+	}
+};
+GdxsvKeyTexture buttons{"BUTTONS.png"};
+GdxsvKeyTexture arrows{"ARROWS.png"};
+
 void getArrowsUV(u16 mcs_key, ImVec2& uv0, ImVec2& uv1);
 std::string getArrowsStr(u16 mcs_key);
-float getScale();
+float getScale(float w, float h);
 }  // namespace
 
 void GdxsvKeyDisplay::DisplayOSD() {
@@ -39,46 +56,38 @@ void GdxsvKeyDisplay::DisplayOSD() {
 	}
 	*/
 
-	if (buttonsTexture == ImTextureID{} || buttonsTexture != imguiDriver->getTexture(ButtonsTextureName)) {
-		int w, h;
-		u8* imgData = GdxsvEmbedTextureSource::LoadExtraTexture(ButtonsTextureName, false, w, h);
-
-		if (imgData) {
-			buttonsTexture = imguiDriver->updateTexture(ButtonsTextureName, imgData, w, h, false);
-		}
-	}
-
-	if (arrowsTexture == ImTextureID{} || arrowsTexture != imguiDriver->getTexture(ArrowsTextureName)) {
-		int w, h;
-		u8* imgData = GdxsvEmbedTextureSource::LoadExtraTexture(ArrowsTextureName, false, w, h);
-
-		if (imgData) {
-			arrowsTexture = imguiDriver->updateTexture(ArrowsTextureName, imgData, w, h, false);
-		}
-	}
-
-	const float w = ImGui::GetIO().DisplaySize.x;
-	const float h = ImGui::GetIO().DisplaySize.y;
-
 	if (history_[display_player_].empty()) return;
+	const auto buttonsTexture = buttons.Load();
+	const auto arrowsTexture = arrows.Load();
+	const auto display = ImGui::GetIO().DisplaySize;
+	int x = 0, y = 0, w = static_cast<int>(display.x), h = static_cast<int>(display.y);
+	if (gdxsv_video_grid_active) gdxsv_video_viewport(x, y, w, h);
+	if (w <= 0 || h <= 0) return;
+	const auto& style = ImGui::GetStyle();
+	const float scale = getScale(w, h);
+	// Text and spacing follow the same game-image scale as the button icons,
+	// including when this view is rendered in a hidden guest's smaller window.
+	const float display_scale = 16 * scale / style.FontSizeBase;
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f, ImGui::GetIO().DisplaySize.y / 2.f), ImGuiCond_Always,
-							ImVec2(0.5f, 0.5f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(style.WindowPadding.x * display_scale, style.WindowPadding.y * display_scale));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x * display_scale, style.ItemSpacing.y * display_scale));
+	ImGui::PushFont(nullptr, 16 * scale);
+	ImGui::SetNextWindowPos(ImVec2(x, y));
 	ImGui::SetNextWindowSize(ImVec2(w, h));
 	ImGui::SetNextWindowBgAlpha(0.0f);
 	ImGui::Begin("##gdxsv_keydisplay", NULL,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs |
 					 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing);
 
-	const float scale = getScale();
 	const auto button_size = ImVec2(16 * scale, 16 * scale);
 
 	ImGui::SetCursorPosY(100 * scale);
 	for (const auto& e : history_[display_player_]) {
 		const auto cursor_y = ImGui::GetCursorPosY();
-		ImGui::GetWindowDrawList()->AddRectFilled({0, cursor_y - 3}, {button_size.x * 4, cursor_y - 1}, ImColor(255, 255, 255, 64));
+		ImGui::GetWindowDrawList()->AddRectFilled({0, cursor_y - 3 * display_scale}, {button_size.x * 4, cursor_y - display_scale},
+												  ImColor(255, 255, 255, 64));
 
 		int frame = e.frame;
 		if (99 < frame) frame = 99;
@@ -86,7 +95,7 @@ void GdxsvKeyDisplay::DisplayOSD() {
 		ImGui::SameLine();
 
 		ImVec2 uv0, uv1;
-		if (buttonsTexture == ImTextureID{}) {
+		if (arrowsTexture == ImTextureID{}) {
 			const auto s = getArrowsStr(e.code);
 			ImGui::Text("%s", s.c_str());
 		} else {
@@ -148,12 +157,13 @@ void GdxsvKeyDisplay::DisplayOSD() {
 	}
 	if (!history_[display_player_].empty()) {
 		const auto cursor_y = ImGui::GetCursorPosY();
-		ImGui::GetWindowDrawList()->AddRectFilled({0, cursor_y - 3}, {button_size.x * 4, cursor_y - 1}, ImColor(255, 255, 255, 64));
+		ImGui::GetWindowDrawList()->AddRectFilled({0, cursor_y - 3 * display_scale}, {button_size.x * 4, cursor_y - display_scale},
+												  ImColor(255, 255, 255, 64));
 	}
 
 	ImGui::End();
-	ImGui::PopStyleVar();
-	ImGui::PopStyleVar();
+	ImGui::PopFont();
+	ImGui::PopStyleVar(4);
 }
 
 void GdxsvKeyDisplay::AppendInput(int player, u16 mcs_key) {
@@ -175,9 +185,7 @@ void GdxsvKeyDisplay::Clear() {
 }
 
 namespace {
-float getScale() {
-	const float w = ImGui::GetIO().DisplaySize.x;
-	const float h = ImGui::GetIO().DisplaySize.y;
+float getScale(float w, float h) {
 	const float renderAR = getOutputFramebufferAspectRatio();
 	const float screenAR = w / h;
 	float dx = 0;
