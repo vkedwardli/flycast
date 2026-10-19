@@ -765,6 +765,19 @@ TEST_F(GdxsvReplayInputTest, DownloadLoadingDoesNotAffectOfflineReplayOrExplicit
 	EXPECT_TRUE(PublishedUi().loading);
 }
 
+// ReplayPOV is 1-origin in the config, so ReplayPOV=0 arrives here as -1.
+TEST(GdxsvReplayPovTest, RejectsNegativePov) {
+	proto::BattleLogFile log;
+	for (int i = 0; i < 2; ++i) log.add_users()->set_user_id("u" + std::to_string(i));
+	log.add_inputs(0);
+	std::string bytes;
+	ASSERT_TRUE(log.SerializeToString(&bytes));
+	const std::vector<u8> buf(bytes.begin(), bytes.end());
+
+	GdxsvBackendReplay replay;
+	EXPECT_FALSE(replay.StartBuffer(buf, -1));
+}
+
 TEST_F(GdxsvReplayInputTest, LiveStarvationDoesNotQueueNeutralInput) {
 	for (int poll = 0; poll < 10; ++poll) {
 		Send(McsMessage::KeyMsg1);
