@@ -3,22 +3,30 @@
 import glob
 import os
 
-from lib import assets, recheck, replayfile
-from lib.case import Skip, case, result
+from lib import assets, emu, recheck, replayfile
+from lib.case import case, result
 from rollback import rbk_lib
 from cases.input import MATCH_LOCK
 from cases.replay import play
 
 
 def match(ctx, tag: str, seed: int = 55, env: dict = None, config: list = None):
-    if recheck.ACTIVE:
-        raise Skip("not recheckable: rbk_lib.run_match saves no record of its peers")
+    path = recheck.record_path("match")
+    if recheck.ACTIVE:  # the peers' logs and files are in the saved directories
+        rec = recheck.load(path, {})
+        m = rbk_lib.Match(tag, stalled=rec.get("stalled", []), timed_out=rec.get("timed_out", False),
+                          elapsed=rec.get("elapsed", 0.0))
+        m.peers = [rbk_lib.Peer(i + 1, emu.launch(ctx.exe, "", os.path.join(ctx.out, tag, f"p{i + 1}")))
+                   for i in range(rbk_lib.N)]
+        return m
     rom = ctx.rom("dc2")
     s = rbk_lib.Settings(exe=ctx.exe, rom=rom, out=ctx.out, state_dir=assets.state_dir(rom))
     os.makedirs(ctx.out, exist_ok=True)
     with MATCH_LOCK:
-        return rbk_lib.run_match(s, tag, [ctx.exe] * rbk_lib.N, [0] * rbk_lib.N, seed=seed, env=env,
-                                 config=config, timeout=600)
+        m = rbk_lib.run_match(s, tag, [ctx.exe] * rbk_lib.N, [0] * rbk_lib.N, seed=seed, env=env,
+                              config=config, timeout=600)
+    recheck.save(path, {"stalled": m.stalled, "timed_out": m.timed_out, "elapsed": m.elapsed})
+    return m
 
 
 def match_facts(m) -> dict:
