@@ -493,6 +493,7 @@ bool TcpClient::Connect(const char *host, int port) {
 	auto host_entry = gethostbyname(host);
 	if (host_entry == nullptr || host_entry->h_addr_list[0] == nullptr) {
 		WARN_LOG(COMMON, "Connect fail 2 gethostbyname");
+		closesocket(new_sock);
 		return false;
 	}
 
@@ -524,6 +525,7 @@ bool TcpClient::Connect(const char *host, int port) {
 	if (::connect(new_sock, (const sockaddr *)&addr, sizeof(addr)) != 0) {
 		if (get_last_error() != EINPROGRESS && get_last_error() != L_EWOULDBLOCK) {
 			WARN_LOG(COMMON, "Connect fail 2 %d", get_last_error());
+			closesocket(new_sock);
 			return false;
 		} else {
 			do {
@@ -535,6 +537,7 @@ bool TcpClient::Connect(const char *host, int port) {
 				res = select(new_sock + 1, NULL, &setW, &setE, &timeout);
 				if (res < 0 && errno != EINTR) {
 					WARN_LOG(COMMON, "Connect fail 3 %d", get_last_error());
+					closesocket(new_sock);
 					return false;
 				} else if (res > 0) {
 					int error;
@@ -545,17 +548,20 @@ bool TcpClient::Connect(const char *host, int port) {
 					if (getsockopt(new_sock, SOL_SOCKET, SO_ERROR, &error, &l) < 0 || error) {
 #endif
 						WARN_LOG(COMMON, "Connect fail 4 %d", error);
+						closesocket(new_sock);
 						return false;
 					}
 
 					if (FD_ISSET(new_sock, &setE)) {
 						WARN_LOG(COMMON, "Connect fail 5 %d", get_last_error());
+						closesocket(new_sock);
 						return false;
 					}
 
 					break;
 				} else {
 					WARN_LOG(COMMON, "Timeout in select() - Cancelling!");
+					closesocket(new_sock);
 					return false;
 				}
 			} while (1);
@@ -852,9 +858,13 @@ bool MessageBuffer::PushBattleMessage(const std::string &user_id, u8 *body, u32 
 const proto::Packet &MessageBuffer::Packet() { return packet_; }
 
 void MessageBuffer::ApplySeqAck(u32 seq, u32 ack) {
-	if (snd_seq_ <= ack) {
+	// The ack comes off the network: never delete past what is buffered.
+	if (snd_seq_ <= ack && ack < msg_seq_) {
 		packet_.mutable_battle_data()->DeleteSubrange(0, ack - snd_seq_ + 1);
 		snd_seq_ = ack + 1;
+	} else if (msg_seq_ <= ack) {
+		packet_.mutable_battle_data()->Clear();
+		snd_seq_ = msg_seq_;
 	}
 	if (packet_.ack() < seq) {
 		packet_.set_ack(seq);
