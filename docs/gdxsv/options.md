@@ -69,6 +69,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `LiveBufferFrames` | 30 | spectating: frames kept behind the live edge (10 to 3600) |
 | `AudioRateControl` | yes | replay and spectating: audio rate control (`no`: the queue can overflow or run dry) |
 | `ReplayFixedFrequency` | 2 | windowed replay and spectating: `rend.FixedFrequency` mode (3: 60 Hz, for tests) |
+| `VideoRoutingName` | empty | override the full Syphon/Spout sender name (up to 255 UTF-8 bytes); empty preserves the ordinary sender name; unified replay assigns its guests unique names using the session and player |
 | `MultiPovVolume` | 50 | four-screen replay: volume of each instance, 0 to 100 |
 | `SpectateSyncGroup` | empty | instances with the same name play the same frame (four-screen replay sets it) |
 | `SyncMaxWaitMs` | 2 | longest such a sync stalls a frame, 0 to 200 ms |

@@ -17,6 +17,7 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include "dx11_renderer.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 #include "dx11context.h"
 #include "hw/pvr/ta.h"
 #include "hw/pvr/pvr_mem.h"
@@ -540,6 +541,13 @@ void DX11Renderer::displayFramebuffer()
 	vp.Height = (FLOAT)settings.display.height;
 	vp.MinDepth = 0.f;
 	vp.MaxDepth = 1.f;
+	if (gdxsv_video_grid_active)
+	{
+		int x = 0, y = 0, w = settings.display.width, h = settings.display.height;
+		gdxsv_video_viewport(x, y, w, h);
+		vp.Width = (FLOAT)w;
+		vp.Height = (FLOAT)h;
+	}
 	deviceContext->RSSetViewports(1, &vp);
 
 	const D3D11_RECT r = { 0, 0, settings.display.width, settings.display.height };

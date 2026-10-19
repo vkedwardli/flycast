@@ -1,5 +1,6 @@
 #include "glcache.h"
 #include "gles.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 #include "quad.h"
 #include "rend/osd.h"
 #include "naomi2.h"
@@ -768,10 +769,15 @@ bool OpenGLRenderer::renderLastFrame()
 	int dy = 0;
 	glcache.Disable(GL_SCISSOR_TEST);
 	getWindowboxDimensions(settings.display.width, settings.display.height, gl.ofbo.aspectRatio, dx, dy, config::Rotate90);
+	// gdxsv: scale the final game image into the host's quadrant, before UI.
+	int displayWidth = settings.display.width - dx * 2;
+	int displayHeight = settings.display.height - dy * 2;
+	if (gdxsv_video_grid_active)
+		gdxsv_video_viewport(dx, dy, displayWidth, displayHeight, true);
 
 	if (gl.bogusBlitFramebuffer || config::Rotate90)
 	{
-		glViewport(dx, dy, settings.display.width - dx * 2, settings.display.height - dy * 2);
+		glViewport(dx, dy, displayWidth, displayHeight); // gdxsv: final presentation rectangle
 		glBindFramebuffer(GL_FRAMEBUFFER, gl.ofbo.origFbo);
 		glcache.ClearColor(VO_BORDER_COL.red(), VO_BORDER_COL.green(), VO_BORDER_COL.blue(), 1.f);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -803,7 +809,7 @@ bool OpenGLRenderer::renderLastFrame()
 		glcache.ClearColor(VO_BORDER_COL.red(), VO_BORDER_COL.green(), VO_BORDER_COL.blue(), 1.f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glBlitFramebuffer(-gl.ofbo.shiftX, -gl.ofbo.shiftY, framebuffer->getWidth() - gl.ofbo.shiftX, framebuffer->getHeight() - gl.ofbo.shiftY,
-				dx, settings.display.height - dy, settings.display.width - dx, dy,
+				dx, dy + displayHeight, dx + displayWidth, dy, // gdxsv: final presentation rectangle
 				GL_COLOR_BUFFER_BIT, config::LinearInterpolation ? GL_LINEAR : GL_NEAREST);
     	glBindFramebuffer(GL_FRAMEBUFFER, gl.ofbo.origFbo);
 #endif

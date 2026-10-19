@@ -20,7 +20,7 @@
 #include "dirent.h"
 #include "gdxsv.h"
 #include "gdxsv_multi_pov.h"
-#include "gdxsv_multi_pov_window.h"
+#include "gdxsv_multi_pov_viewer.h"
 #include "json.hpp"
 #include "libs.h"
 #ifdef _WIN32
@@ -379,8 +379,11 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 	{
 		const ImVec2 button_size = ScaledVec2(300, 50);
 		auto replay_button = [&](const char* label, int pov, bool four_screen, const char* disabled_hint) {
-			std::string button_label = !playable ? std::string("Load ") + disk_display_name(game_disk) + " to replay"
-				: disabled_hint != nullptr ? disabled_hint : label;
+			const char* disabled_label =
+				four_screen && users_size == kGdxsvMultiPovScreens ? ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable" : disabled_hint;
+			std::string button_label = !playable				  ? std::string("Load ") + disk_display_name(game_disk) + " to replay"
+									   : disabled_hint != nullptr ? disabled_label
+																  : label;
 			// Keep each action's ID stable as the selected player or hint changes.
 			button_label += four_screen ? "###replay-four-screen" : "###replay-single-screen";
 			ImGui::BeginDisabled(!playable || disabled_hint != nullptr);
@@ -404,8 +407,8 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 		const char* four_screen_hint = nullptr;
 		if (users_size != kGdxsvMultiPovScreens)
 			four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4-player battles only";
-		else if (!gdxsv_multi_pov_window_available())
-			four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable";
+		else
+			four_screen_hint = gdxsv_multi_pov_viewer_unavailable();
 		replay_button(ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)", 0, true, four_screen_hint);
 
 		if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
@@ -1367,11 +1370,14 @@ void gdxsv_replay_live_tab() {
 				const char* four_screen_hint = nullptr;
 				if (selected->users.size() != kGdxsvMultiPovScreens)
 					four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4-player battles only";
-				else if (!gdxsv_multi_pov_window_available())
-					four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable";
+				else
+					four_screen_hint = gdxsv_multi_pov_viewer_unavailable();
 				ImGui::BeginDisabled(!playable || four_screen_hint != nullptr);
 				const std::string four_screen_label =
-					std::string(four_screen_hint != nullptr ? four_screen_hint : ICON_FA_TABLE_CELLS_LARGE "  Watch (4 screens)") +
+					std::string(four_screen_hint != nullptr
+									? (selected->users.size() == kGdxsvMultiPovScreens ? ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable"
+																					   : four_screen_hint)
+									: ICON_FA_TABLE_CELLS_LARGE "  Watch (4 screens)") +
 					"###live-four-screen";
 				if (ImGui::ButtonEx(four_screen_label.c_str(), button_size)) {
 					gdxsv_start_live_spectate(selected->battle_code, 0, true);

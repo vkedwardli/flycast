@@ -3,12 +3,12 @@
 #include <string>
 #include <vector>
 
-// 4-player replay: one replay watched from all four POVs at once, as four
-// Flycast processes in a 2x2 grid ([1P, 2P] / [3P, 4P]).
+// 4-player replay: one replay watched from all four POVs at once, as a 2x2 grid in one
+// window ([1P, 2P] / [3P, 4P]).
 //
 // The 1P instance is the host: it reads the replay, spawns the three guests
-// (os_RunInstance) and drives playback and the window layout. The guests get
-// everything, the replay bytes included, through a file-backed shared memory
+// (os_RunInstance) and drives playback. The guests render in hidden windows
+// and receive everything, the replay bytes included, through a shared memory
 // session (same technique as GdxsvSpectateSync).
 //
 // Live Spectate works the same way: only the host talks to LBS, and it relays
@@ -34,12 +34,10 @@ struct GdxsvMultiPovRect {
 	bool operator!=(const GdxsvMultiPovRect& o) const { return !(*this == o); }
 };
 
-// The host's window layout. Guests place themselves relative to it.
+// Host geometry: hidden guests follow its display and quadrant size.
 struct GdxsvMultiPovHostWindow {
 	GdxsvMultiPovRect rect;		 // the host's own quadrant, in desktop coords
 	GdxsvMultiPovRect group;	 // the area the 2x2 grid covers
-	bool maximized = false;		 // the grid tiles the work area
-	bool fullscreen = false;	 // the grid tiles the whole display, borderless and on top (Alt+Enter)
 	uint32_t generation = 0;	 // bumped on every change
 };
 
@@ -120,20 +118,8 @@ bool gdxsv_multi_pov_read_playback(GdxsvMultiPovPlayback& out);
 void gdxsv_multi_pov_publish_host_window(const GdxsvMultiPovHostWindow& window);
 bool gdxsv_multi_pov_read_host_window(GdxsvMultiPovHostWindow& out);
 
-// Guest: its native window, for the host to keep above its own. Host: all of
-// them by screen index, 0 where not published.
-void gdxsv_multi_pov_publish_guest_window(int64_t handle);
-void gdxsv_multi_pov_read_guest_windows(int64_t out[kGdxsvMultiPovScreens]);
-
 // Guest: the host closed the session or its process is gone.
 bool gdxsv_multi_pov_host_gone();
-
-// ---- grid geometry ----------------------------------------------------
-
-// Splits `group` into out[0..3] = 1P top-left, 2P top-right, 3P bottom-left,
-// 4P bottom-right. Odd pixels go to the right and bottom cells, so the four
-// cover `group` exactly.
-void gdxsv_multi_pov_compute_grid(const GdxsvMultiPovRect& group, GdxsvMultiPovRect out[kGdxsvMultiPovScreens]);
 
 // ---- orchestration ----------------------------------------------------
 

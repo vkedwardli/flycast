@@ -17,7 +17,8 @@
 #include "gdxsv_frame_limiter.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
-#include "gdxsv_multi_pov_window.h"
+#include "gdxsv_multi_pov_viewer.h"
+#include "gdxsv_video_hooks.h"
 #include "gdxsv_platform.h"
 #include "gdxsv_save_state.h"
 #include "emulator.h"
@@ -55,7 +56,7 @@ bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
 bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov_guest_pov(); }
 
-bool gdxsv_emu_toggle_fullscreen() { return gdxsv_multi_pov_toggle_fullscreen(); }
+bool gdxsv_emu_toggle_fullscreen() { return gdxsv_video_hidden_window(); }
 
 bool gdxsv_is_ingame() { return gdxsv.InGame(); }
 
@@ -65,10 +66,21 @@ bool gdxsv_is_savestate_allowed() { return gdxsv.IsSaveStateAllowed(); }
 
 void gdxsv_emu_flycast_init() {
 	config::GGPOEnable = false;
+	if (gdxsv_video_hidden_window()) {
+		if (gui_state == GuiState::Onboarding) throw FlycastException("Four-screen worker has no configuration directory");
+		// Join before loading content, so a failed worker cannot become an
+		// invisible standalone emulator with no host to close it.
+		if (settings.content.path.empty() ||
+			!gdxsv_multi_pov_guest_open(config::loadStr("gdxsv", "MultiPovSession", ""), gdxsv_multi_pov_guest_pov()) ||
+			gdxsv_multi_pov_host_gone())
+			throw FlycastException("Four-screen worker could not join its host");
+	}
 }
 
 void gdxsv_emu_start() {
 	gdxsv.Reset();
+	const bool hidden_worker = gdxsv_video_hidden_window();
+	if (hidden_worker && !gdxsv.Enabled()) throw FlycastException("Four-screen worker loaded unsupported content");
 
 	if (gdxsv.Enabled()) {
 		const auto replay = config::loadStr("gdxsv", "replay", "");
@@ -96,6 +108,10 @@ void gdxsv_emu_start() {
 					dc_savestate(90);
 				}
 				dc_loadstate(99);
+				if (hidden_worker && !gdxsv.IsReplaying() && !g_live_guest_idle)
+					throw FlycastException("Four-screen worker could not load the replay savestate");
+			} else if (hidden_worker) {
+				throw FlycastException("Four-screen worker has no replay savestate");
 			}
 		} else if (!rbk_test.empty()) {
 			if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
@@ -167,13 +183,17 @@ void gdxsv_emu_end_frame() {
 // joins the emulation thread.
 static void gdxsv_multi_pov_tick() {
 	if (gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::Guest) return;
-	if (gdxsv_multi_pov_host_gone()) {
-		NOTICE_LOG(COMMON, "multi-pov: host is gone, closing this screen");
-		gdxsv_multi_pov_close();
+	// The loader owns the session until its future completes.
+	if (gui_state == GuiState::Loading) return;
+	const bool failed_worker = gdxsv_video_hidden_window() &&
+							   (gui_state == GuiState::Main || gui_state == GuiState::Settings || gui_state == GuiState::Onboarding);
+	if (failed_worker || gdxsv_multi_pov_host_gone()) {
+		NOTICE_LOG(COMMON, "multi-pov: %s, closing this screen", failed_worker ? "worker cannot continue playback" : "host is gone");
 		// The savestate reset lifts memwatch's page protection before the unload
 		// writes into guest memory from this thread.
 		emu.stop();
 		gdxsv_save_state.Reset();
+		gdxsv_multi_pov_close();
 		dc_exit();
 		return;
 	}
@@ -208,7 +228,7 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 		gdxsv.HookMainUiLoop();
 	}
 	// Window calls must happen on the UI thread.
-	gdxsv_multi_pov_window_tick();
+	gdxsv_multi_pov_viewer_tick();
 	gdxsv_multi_pov_tick();
 
 	if (rendered)
@@ -344,6 +364,10 @@ std::string gdxsv_connection_medium_or_setting() {
 }
 
 void gdxsv_emu_gui_display() {
+	// A failed worker must not start launcher dialogs or update requests
+	// whose pending futures could keep the hidden process alive at exit.
+	if (gdxsv_video_hidden_window()) return;
+	gdxsv_multi_pov_viewer_draw();
 	if (gui_state == GuiState::Main) {
 		gdxsv_update_popup();
 		gdxsv_texture_update_popup();
@@ -401,6 +425,7 @@ uint32_t gdxsv_emu_skip_rendering_addr() {
 }
 
 void gdxsv_gui_display_osd() {
+	gdxsv_multi_pov_viewer_draw();
 	gdxsv.DisplayOSD();
 	p2p_connection_toast();
 }
