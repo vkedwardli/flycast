@@ -55,6 +55,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_gui_settings.cpp/.h` | gdxsv settings tab and base settings |
 | `gdxsv_translation.cpp/.h`, `gdxsv_translation_patch.inc` | game translation; the `.inc` is generated from `gdxsv_langmod/` |
 | `gdxsv_custom_texture_source.cpp/.h`, `gdxsv_custom_texture_update.cpp/.h`, `Textures/`, `textures.rc` | bundled custom textures and their download |
+| `gdxsv_custom_texture_cells.cpp`, `gdxsv_custom_texture_hooks.h` | DC2 textures made of 32x32 glyph cells (battle name sheet) built from the glyph replacements |
 | `gdxsv_update.cpp/.h`, `gdxsv_update_apple.mm` | client self-update |
 | `gdxsv_https_latency*.cpp/.h/.mm` | HTTPS latency to each server region, per platform (`_win`, `_curl`, `_apple`) |
 | `gdxsv_prof.cpp/.h` | named timers for profiling |

@@ -133,7 +133,7 @@ bool CustomTextureSource::isTextureReplaced(u32 hash)
 	return texture_map.count(hash);
 }
 
-void CustomTexture::loadTexture(BaseTextureCacheData *texture)
+void CustomTexture::loadTexture(BaseTextureCacheData *texture, const std::shared_ptr<const GdxsvTextureCells>& gdxsv_cells)
 {
 	if (texture->custom_image_data != nullptr) {
 		free(texture->custom_image_data);
@@ -147,6 +147,9 @@ void CustomTexture::loadTexture(BaseTextureCacheData *texture)
 			image_data = loadTexture(texture->old_vqtexture_hash, width, height);
 		if (image_data == nullptr)
 			image_data = loadTexture(texture->old_texture_hash, width, height);
+		if (image_data == nullptr && gdxsv_cells)
+			image_data = gdxsv_custom_texture_load_cells(gdxsv_cells, [this](u32 hash, int& w, int& h) { return loadTexture(hash, w, h); },
+					width, height);
 		if (image_data != nullptr)
 		{
 			texture->custom_width = width;
@@ -185,6 +188,7 @@ bool CustomTexture::init()
 			// Add your source after the default `CustomTextureSource`(data/textures/<game id> folder), so end-users can override your textures.
 			addSource(std::make_unique<CustomTextureSource>(game_id));
 			// gdxsv: DC2 embedded textures and the downloaded texture pack
+			gdxsv_custom_texture_cells_on = game_id == "T13306M";
 			if (game_id == "T13306M") {
 				addSource(std::make_unique<GdxsvEmbedTextureSource>());
 				addSource(std::make_unique<GdxsvTexturePackSource>());
@@ -313,9 +317,10 @@ void CustomTexture::loadCustomTextureAsync(BaseTextureCacheData *texture_data)
 	if (!init())
 		return;
 
+	auto gdxsv_cells = gdxsv_custom_texture_cells(texture_data);
 	texture_data->custom_load_in_progress++;
-	loaderThread->run([this, texture_data]() {
-		loadTexture(texture_data);
+	loaderThread->run([this, texture_data, gdxsv_cells]() {
+		loadTexture(texture_data, gdxsv_cells);
 	});
 }
 

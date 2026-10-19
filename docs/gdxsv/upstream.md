@@ -63,7 +63,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |
 | Network | `core/network/miniupnp.cpp/.h` | UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
-| Textures | `core/rend/CustomTexture.cpp` | embedded and downloaded texture packs for the game (`T13306M`) |
+| Textures | `core/rend/CustomTexture.cpp/.h` | embedded and downloaded texture packs for the game (`T13306M`); its glyph-cell textures built from the glyph replacements |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
 | Build | `CMakeLists.txt`, `tests/CMakeLists.txt`, `resources/resources.cmake`, `.gitignore` | `include(core/gdxsv/gdxsv.cmake)` (gdxsv sources, protobuf), build options, gdxsv tests and resources; `comctl32` for the temporary Windows frame subclass |
@@ -235,6 +235,11 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rec-x64/rec_x64.cpp` |  | block linking |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
 | `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 embedded textures and the downloaded texture pack |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | `gdxsv_custom_texture_cells_on`: DC2 only |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::loadTexture(BaseTextureCacheData*, ...)` | `gdxsv_custom_texture_load_cells`: a texture made of 32x32 glyph cells without a replacement of its own is built from the glyph replacements |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_cells`: the cells are read from VRAM when the load is queued; passed to the loader thread |
+| `core/rend/CustomTexture.h` |  | include `gdxsv/gdxsv_custom_texture_hooks.h` |
+| `core/rend/CustomTexture.h` | `CustomTexture::loadTexture(BaseTextureCacheData*, ...)` | `gdxsv_cells` parameter |
 | `core/rend/norend/norend.cpp` |  | present once per rendered frame, as the real renderers do; a second Present (frame swap after an immediate one) would pace headless runs at half speed. |
 | `core/rend/norend/norend.cpp` |  | a framebuffer frame is presented once too |
 | `core/rend/norend/norend.cpp` |  | Render or RenderFramebuffer since the last Present |
