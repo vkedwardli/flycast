@@ -142,8 +142,10 @@ Follow the names already in `core/gdxsv/`:
 - Rig tests: scripts that run emulators with the game and check traces,
   hashes, replays or logs. Functional tests that keep running (e2e-like,
   through the feature's public path) may be added.
-- Unit tests that pin the implementation are not committed. Write them for
-  your own checks while working, then drop them. Exception: fine-grained
+- Unit tests that pin the implementation are not committed, a bug fix's
+  regression test included (malformed input, bounds, file handling,
+  cleanup). Write them for your own checks while working, then drop them
+  and say in the PR what they checked. Exception: fine-grained
   behavior an e2e test cannot reproduce (GGPO, packet loss or reordering,
   races, RAM edge cases) stays in `tests/src/Gdxsv*Test.cpp`.
 - Rig scripts live in `gdxsv_tests/rollback/`, added in the feature's PR. No copies
