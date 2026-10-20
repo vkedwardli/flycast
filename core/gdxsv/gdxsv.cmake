@@ -312,8 +312,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_multi_pov.cpp
 		core/gdxsv/gdxsv_multi_pov.h
 		core/gdxsv/gdxsv_multi_pov_launch.cpp
-		core/gdxsv/gdxsv_multi_pov_window.cpp
-		core/gdxsv/gdxsv_multi_pov_window.h
+		core/gdxsv/gdxsv_multi_pov_viewer.cpp
+		core/gdxsv/gdxsv_multi_pov_viewer.h
+		core/gdxsv/gdxsv_multi_pov_viewer_vulkan.h
+		core/gdxsv/gdxsv_video_hooks.h
 		core/gdxsv/gdxsv_spectate_sync.cpp
 		core/gdxsv/gdxsv_spectate_sync.h
 		core/gdxsv/gdxsv_spectator_downlink.cpp
@@ -353,16 +355,11 @@ if(APPLE)
 	endif()
 endif()
 
-# 4-player replay window backend
+# Four-screen video receivers
 if(WIN32 AND NOT WINDOWS_STORE)
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_win.cpp)
-	target_link_libraries(${PROJECT_NAME} PRIVATE comctl32)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_viewer_win.cpp core/gdxsv/gdxsv_multi_pov_viewer_vulkan_win.cpp)
 elseif(APPLE AND NOT IOS)
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_apple.mm)
-elseif(UNIX AND NOT APPLE AND NOT ANDROID AND NOT NINTENDO_SWITCH)
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_sdl.cpp)
-else()
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_window_none.cpp)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_multi_pov_viewer_apple.mm core/gdxsv/gdxsv_multi_pov_viewer_vulkan.cpp)
 endif()
 
 # Host services: machine id, connection medium, open URL

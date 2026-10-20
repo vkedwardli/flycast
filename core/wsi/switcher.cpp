@@ -24,6 +24,7 @@
 #include "oslib/i18n.h"
 #include "gdxsv/gdxsv_null_imgui_driver.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 
 #include "gl_context.h"
 #include "rend/dx9/dxcontext.h"
@@ -114,6 +115,7 @@ void termRenderApi()
 		imguiDriver.reset();
 		return;
 	}
+	gdxsv_video_term();
 	GraphicsContext::Term();
 }
 

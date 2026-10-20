@@ -1,6 +1,7 @@
 #if defined(USE_SDL)
 #include "types.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 #include "gdxsv/gdxsv_input_hooks.h"
 #include "cfg/cfg.h"
 #include "sdl/sdl.h"
@@ -40,8 +41,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
-#include <optional> // gdxsv: preservedWindowState
-#include <tuple>
 
 static SDL_Window* window = NULL;
 static u32 windowFlags;
@@ -54,15 +53,13 @@ static std::shared_ptr<SDLKeyboardDevice> sdl_keyboard;
 static bool window_fullscreen;
 static bool window_maximized;
 static SDL_Rect windowPos { SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT };
-// gdxsv: window state before the 4-player replay grid, saved at quit instead of the grid quadrant
-static std::optional<std::tuple<SDL_Rect, bool, bool>> preservedWindowState;
 static bool gameRunning;
 static bool mouseCaptured;
 static std::string clipboardText;
 static std::string barcode;
 static u64 lastBarcodeTime;
 
-// gdxsv: native window controls and the replay grid can change SDL's flags directly
+// gdxsv: native window controls can change SDL's flags directly
 static bool isWindowFullscreen()
 {
 	return window != nullptr && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
@@ -415,7 +412,7 @@ void input_sdl_handle()
 							&& ((event.key.keysym.sym == SDLK_RETURN && (event.key.keysym.mod & KMOD_ALT))
 								|| (event.key.keysym.sym == SDLK_F11 && (event.key.keysym.mod & (KMOD_ALT | KMOD_CTRL | KMOD_SHIFT | KMOD_GUI)) == 0)))
 					{
-						// gdxsv: 4-player replay handles full screen as a grid
+						// gdxsv: hidden replay guests must not enter full screen
 						if (gdxsv_emu_toggle_fullscreen())
 							break;
 						if (isWindowFullscreen())
@@ -770,18 +767,6 @@ static inline void get_window_state()
 
 }
 
-// gdxsv: the replay grid saves the window state before it moves the window
-void sdl_preserve_window_state(bool preserve)
-{
-	if (!preserve)
-		preservedWindowState.reset();
-	else if (window != nullptr && !preservedWindowState)
-	{
-		get_window_state();
-		preservedWindowState = std::make_tuple(windowPos, window_fullscreen, window_maximized);
-	}
-}
-
 #if defined(_WIN32) && !defined(TARGET_UWP)
 #include <windows.h>
 
@@ -939,6 +924,8 @@ bool sdl_recreate_window(u32 flags)
 	// and the grid comes out overlapping.
 	if (config::loadBool("gdxsv", "borderless", false))
 		flags |= SDL_WINDOW_BORDERLESS;
+	if (gdxsv_video_hidden_window())
+		flags = (flags & ~SDL_WINDOW_SHOWN) | SDL_WINDOW_HIDDEN;
 	window = SDL_CreateWindow("Flycast", windowPos.x, windowPos.y,
 			windowPos.w * hdpiScaling, windowPos.h * hdpiScaling, flags);
 	if (window == nullptr)
@@ -1055,7 +1042,7 @@ static int suspendEventFilter(void *userdata, SDL_Event *event)
 }
 #endif
 
-// gdxsv: the replay grid places the window
+// gdxsv: hidden replay guests follow the host window
 SDL_Window *sdl_get_window()
 {
 	return window;
@@ -1102,13 +1089,10 @@ void sdl_window_create()
 void sdl_window_destroy()
 {
 #ifndef __SWITCH__
-	// A 4-player replay guest is placed by the grid; don't save its geometry.
+	// gdxsv: hidden replay guests must not save their render-target geometry.
 	if (window != nullptr && !settings.naomi.slave && settings.naomi.drivingSimSlave == 0 && !gdxsv_is_multi_pov_guest())
 	{
 		get_window_state();
-		// Quitting during a replay grid must not persist its temporary quadrant.
-		if (preservedWindowState)
-			std::tie(windowPos, window_fullscreen, window_maximized) = *preservedWindowState;
 		config::saveInt("window", "left", windowPos.x);
 		config::saveInt("window", "top", windowPos.y);
 		config::saveInt("window", "width", windowPos.w);

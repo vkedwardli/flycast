@@ -27,6 +27,9 @@ bool gdxsv_is_savestate_allowed();
 
 void gdxsv_emu_flycast_init();
 
+// macOS: identify hidden guests before AppKit starts and suppress foreground activation.
+bool gdxsv_emu_app_init(int argc, const char* const argv[]);
+
 void gdxsv_emu_start();
 
 void gdxsv_emu_reset();
@@ -95,8 +98,8 @@ bool gdxsv_headless();
 // True in a 4-player replay guest (a screen spawned and driven by a host).
 bool gdxsv_is_multi_pov_guest();
 
-// Alt+Enter / F11. True when a 4-player replay session consumed the key; the
-// caller must then not toggle its own full-screen state.
+// Alt+Enter / F11. Hidden replay guests consume the key; the host uses
+// the ordinary SDL full-screen controls.
 bool gdxsv_emu_toggle_fullscreen();
 
 // Exit status the process should end with. gdxsv sets it from local test

@@ -1,4 +1,5 @@
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_multi_pov_viewer.h"
 
 #ifdef _WIN32
 // MinGW's libstdc++ defines this already, so guard it.
@@ -111,10 +112,11 @@ struct GdxsvMultiPovHeader {
 	// Window layout, written by the host whenever it moves or resizes.
 	std::atomic<int32_t> win_x, win_y, win_w, win_h;
 	std::atomic<int32_t> grp_x, grp_y, grp_w, grp_h;
-	std::atomic<uint32_t> maximized;
-	std::atomic<uint32_t> fullscreen;
+	// Reserved to preserve the shared session layout.
+	std::atomic<uint32_t> reserved_maximized;
+	std::atomic<uint32_t> reserved_fullscreen;
 	std::atomic<uint32_t> win_generation;
-	std::atomic<int64_t> guest_window[kGdxsvMultiPovScreens];
+	std::atomic<int64_t> reserved_guest_window[kGdxsvMultiPovScreens];
 
 	// Live session: the battle every screen watches. live_seq is a seqlock,
 	// odd while the host rewrites the code; seq / 2 is the battle generation.
@@ -273,7 +275,7 @@ static bool HostAlive(const GdxsvMultiPovHeader* h) {
 }
 
 std::string gdxsv_multi_pov_new_session_id() {
-	const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	const auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	return std::to_string(CurrentPid()) + "_" + std::to_string(now);
 }
 
@@ -436,6 +438,7 @@ bool gdxsv_multi_pov_guest_open(const std::string& session_id, int screen) {
 }
 
 void gdxsv_multi_pov_close() {
+	gdxsv_multi_pov_viewer_end();
 	if (g_session.map == nullptr) {
 		g_session.role = GdxsvMultiPovRole::None;
 		g_session.screen = -1;
@@ -629,8 +632,6 @@ void gdxsv_multi_pov_publish_host_window(const GdxsvMultiPovHostWindow& window) 
 	h->grp_y.store(window.group.y, std::memory_order_relaxed);
 	h->grp_w.store(window.group.w, std::memory_order_relaxed);
 	h->grp_h.store(window.group.h, std::memory_order_relaxed);
-	h->maximized.store(window.maximized ? 1u : 0u, std::memory_order_relaxed);
-	h->fullscreen.store(window.fullscreen ? 1u : 0u, std::memory_order_relaxed);
 	h->win_generation.store(window.generation, std::memory_order_release);
 }
 
@@ -647,21 +648,7 @@ bool gdxsv_multi_pov_read_host_window(GdxsvMultiPovHostWindow& out) {
 	out.group.y = h->grp_y.load(std::memory_order_relaxed);
 	out.group.w = h->grp_w.load(std::memory_order_relaxed);
 	out.group.h = h->grp_h.load(std::memory_order_relaxed);
-	out.maximized = h->maximized.load(std::memory_order_relaxed) != 0;
-	out.fullscreen = h->fullscreen.load(std::memory_order_relaxed) != 0;
 	return true;
-}
-
-void gdxsv_multi_pov_publish_guest_window(int64_t handle) {
-	GdxsvMultiPovHeader* h = g_session.header();
-	if (h == nullptr || g_session.role != GdxsvMultiPovRole::Guest) return;
-	h->guest_window[g_session.screen].store(handle, std::memory_order_release);
-}
-
-void gdxsv_multi_pov_read_guest_windows(int64_t out[kGdxsvMultiPovScreens]) {
-	const GdxsvMultiPovHeader* h = g_session.header();
-	for (int i = 0; i < kGdxsvMultiPovScreens; ++i)
-		out[i] = h == nullptr ? 0 : h->guest_window[i].load(std::memory_order_acquire);
 }
 
 bool gdxsv_multi_pov_host_gone() {
