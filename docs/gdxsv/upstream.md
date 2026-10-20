@@ -46,7 +46,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 
 | Area | Files | Why |
 |---|---|---|
-| Start, reset, save states | `core/nullDC.cpp`, `core/emulator.cpp/.h`, `core/serialize.cpp` | gdxsv init, start and reset hooks; restore hook after a state load; find content in the working directory |
+| Start, reset, save states | `core/nullDC.cpp`, `core/emulator.cpp/.h`, `core/serialize.cpp` | gdxsv init, start and reset hooks; restore hook after a state load; find content in the working directory; a load-state hotkey without threaded rendering loads after the frame (`core/ui/gui.cpp/.h`, `core/ui/mainui.cpp`) |
 | Game RPC | `core/hw/holly/sb_mem.cpp` | the payload's `gdx_rpc` call reaches the host through area 0 |
 | Frame hooks | `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp`, `core/rend/norend/norend.cpp` | vblank and end-of-frame hooks; headless skips rendering and presents once per frame; fast-forward counts in frame skip |
 | Rollback | `core/network/ggpo.cpp/.h` (session start and stats in `core/gdxsv/gdxsv_ggpo.cpp`, hash log in `core/gdxsv/gdxsv_ggpo_hooks.cpp`), `core/hw/pvr/elan.cpp`, `core/hw/mem/mem_watch.h`, `core/hw/maple/maple_cfg.h` | gdxsv rollback session on top of upstream GGPO; flag bits sent beside the pad input; state hash log; test logs; memory watch shared with gdxsv; a fault on an already-saved page no longer loops |
@@ -289,11 +289,15 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `gui_display_ui` | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui.cpp` | `gui_display_ui` | `gdxsv_emu_gui_display` |
 | `core/ui/gui.cpp` | `gui_draw_osd` | `gdxsv_gui_display_osd` |
+| `core/ui/gui.cpp` | `gui_loadDeferredState` | new: loads a state requested by a hotkey while the sh4 code ran |
+| `core/ui/gui.cpp` | `gui_loadState` | without threaded rendering a hotkey polled from the running sh4 code (maple DMA) defers the load to the frame end: loading there freed the dynarec block being executed (upstream bug) |
+| `core/ui/gui.h` |  | `gui_loadDeferredState` |
 | `core/ui/gui.h` |  | used by the gdxsv menu |
 | `core/ui/gui.h` |  | used by the replay UI |
 | `core/ui/gui.h` |  | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui_font.cpp` | `gui_loadFonts` | Japanese text is always needed. |
 | `core/ui/mainui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/ui/mainui.cpp` | `mainui_rend_frame` | `gui_loadDeferredState` after the frame |
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop_start` |
 | `core/ui/mainui.cpp` | `mainui_loop` | gdxsv_emu_mainui_loop gets whether a frame was rendered |
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_reinit_needed` |
