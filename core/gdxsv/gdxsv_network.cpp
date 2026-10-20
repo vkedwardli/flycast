@@ -399,6 +399,12 @@ int get_random_port_number() {
 	return dist(gen);
 }
 
+int valid_local_port_number(int port) {
+	// The socket would bind only the low 16 bits, while LBS is told the full value.
+	if (1 <= port && port <= 65535) return port;
+	return get_random_port_number();
+}
+
 std::string sockaddr_to_string(const sockaddr *addr) {
 	if (addr == nullptr) {
 		return "";

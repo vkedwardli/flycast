@@ -99,6 +99,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Opposite directions cancel (SOCD) for the game | always for the game | J3: SDL virtual gamepad, d-pad bound to the left stick | J3c |
 | gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
 | Settings from an older release's `emu.cfg` (gdxsv-1.9.6 layout) | always | C2: flycast and gdxsv values hold after the game start | C2c (sections renamed) |
+| Gdx UDP Port out of 1-65535 replaced by a random port | game start, settings screen | C3: 70000 and -5 from `emu.cfg` | C3c (65535 kept) |
 
 ## Releases and tools
 

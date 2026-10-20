@@ -76,9 +76,7 @@ void gdxsv_apply_base_settings() {
 
 	// Network
 	config::EnableUPnP = true;
-	if (config::GdxLocalPort == 0) {
-		config::GdxLocalPort = get_random_port_number();
-	}
+	config::GdxLocalPort = valid_local_port_number(config::GdxLocalPort);
 	config::GdxMinDelay = 2;
 
 	maple_ReconnectDevices();
@@ -308,9 +306,7 @@ void gdxsv_gui_settings_tab()
 	ImGui::SameLine();
 	ShowHelpMarker(T("UDP port number used for P2P communication. Cannot use the same number as another application using."));
 
-	if (config::GdxLocalPort == 0) {
-		config::GdxLocalPort = get_random_port_number();
-	}
+	config::GdxLocalPort = valid_local_port_number(config::GdxLocalPort);
 
 	static std::string upnp_result;
 	static std::future<std::string> upnp_future;
