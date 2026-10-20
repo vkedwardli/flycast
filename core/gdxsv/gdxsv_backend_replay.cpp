@@ -240,9 +240,11 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	const UiState ui = ui_snapshot_.Read();
 	if (ui.state == State::End) {
 		// A headless replay run is done the moment playback ends: exit with
-		// success so a backward-compat harness sees the replay played through.
+		// success so a backward-compat harness sees the replay played through,
+		// or with 4 when playback stopped on an error (a desync).
 		if (gdxsv_headless()) {
-			gdxsv_headless_exit(0);
+			if (!replay_error_.empty()) ERROR_LOG(COMMON, "headless replay stopped: %s", replay_error_.c_str());
+			gdxsv_headless_exit(replay_error_.empty() ? 0 : 4);
 		}
 		// Join emulation before resetting its state or restoring the lobby.
 		emu.stop();
@@ -2641,7 +2643,20 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
 		const auto random_data = gdxsv_ReadMem16(k_rnd0);
 		if (start_msg_count_ - 1 < log_file_.start_msg_randoms_size()) {
-			verify(random_data == (log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu));
+			// Desync: playback no longer matches the recording, so the rest of the
+			// replay would show a battle that never happened. Stop and tell the
+			// user instead of aborting.
+			const u16 recorded = log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu;
+			if (random_data != recorded) {
+				ERROR_LOG(COMMON, "Replay desync: round %d start RNG %04x, recorded %04x, key_msg_count %d", start_msg_count_, random_data,
+						  recorded, key_msg_count_);
+				replay_error_ =
+					"Replay desync: round " + std::to_string(start_msg_count_) + " did not start as recorded. Playback stopped.";
+				save_converted_log_ = false;
+				Stop();
+				PublishUiState();
+				return;
+			}
 		} else if (save_converted_log_) {
 			log_file_.add_start_msg_randoms(random_data);
 		}
