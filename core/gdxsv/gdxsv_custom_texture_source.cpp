@@ -4,6 +4,7 @@
 
 #include "gdxsv_custom_texture_source.h"
 #include "gdxsv_config.h"
+#include "gdxsv_custom_texture_cells.h"
 
 #include <stb_image.h>
 #include <zip.h>
@@ -50,6 +51,7 @@ static std::string get_textures_path() {
 }
 
 GdxsvEmbedTextureSource::GdxsvEmbedTextureSource() {
+	gdxsv_custom_texture_cells_add_source(this, false);
 #ifdef __APPLE__
 	textures_path = get_textures_path();
 	DIR* dir = flycast::opendir(textures_path.c_str());
@@ -219,10 +221,14 @@ u8* GdxsvEmbedTextureSource::LoadExtraTexture(const char* name, bool v_flip, int
 #endif
 }
 
+GdxsvEmbedTextureSource::~GdxsvEmbedTextureSource() { gdxsv_custom_texture_cells_remove_source(this); }
+
 GdxsvTexturePackSource::GdxsvTexturePackSource() {
+	gdxsv_custom_texture_cells_add_source(this, true);
 }
 
 GdxsvTexturePackSource::~GdxsvTexturePackSource() {
+	gdxsv_custom_texture_cells_remove_source(this);
 	if (texp_zip != nullptr) zip_close(texp_zip);
 	texp_zip = nullptr;
 }

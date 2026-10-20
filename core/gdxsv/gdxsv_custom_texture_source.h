@@ -11,6 +11,7 @@
 class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
    public:
 	GdxsvEmbedTextureSource();
+	~GdxsvEmbedTextureSource() override;
 	bool shouldReplace() const override { return !langmodDisabled(); }
 	bool shouldPreload() const override { return !langmodDisabled() && config::PreloadCustomTextures; }
 	bool loadMap() override;

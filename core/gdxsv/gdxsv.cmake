@@ -264,6 +264,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_audio.cpp
 		core/gdxsv/gdxsv_audio_hooks.h
 		core/gdxsv/gdxsv_custom_texture_cells.cpp
+		core/gdxsv/gdxsv_custom_texture_cells.h
 		core/gdxsv/gdxsv_custom_texture_hooks.h
 		core/gdxsv/gdxsv_custom_texture_source.cpp
 		core/gdxsv/gdxsv_custom_texture_source.h
