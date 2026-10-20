@@ -2641,7 +2641,12 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		const int k_rnd0 = gdxsv.Disk() == 1 ? 0x0c310800 : 0x0c3abf40;
 		const auto random_data = gdxsv_ReadMem16(k_rnd0);
 		if (start_msg_count_ - 1 < log_file_.start_msg_randoms_size()) {
-			verify(random_data == (log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu));
+			// Some recorded replays do not reproduce from their own inputs: the round
+			// ends at another frame and the RNG differs. Keep playing them.
+			const u16 recorded = log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu;
+			if (random_data != recorded)
+				WARN_LOG(COMMON, "Round %d start RNG %04x differs from the recorded %04x", start_msg_count_,
+						 random_data, recorded);
 		} else if (save_converted_log_) {
 			log_file_.add_start_msg_randoms(random_data);
 		}
