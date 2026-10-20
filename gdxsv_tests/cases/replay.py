@@ -273,6 +273,7 @@ def four_screen_run(ctx, name: str, four: bool) -> dict:
                   states=assets.state_dir(rom),
                   emu_cfg=f"[config]\nLuaFileName = {name}.lua\n\n[log]\nLogToFile = 1\nVerbosity = 3\n")
     d = os.path.join(ctx.out, name)
+    log_dir = os.path.dirname(p.inst.log_path)
     povs = {1: (p.e2e.get("side"), p.e2e.get("id"))}
     logs = {}
     for n in (2, 3, 4):
@@ -284,7 +285,7 @@ def four_screen_run(ctx, name: str, four: bool) -> dict:
             pass
         povs[n] = (vals.get("side"), vals.get("id"))
         try:
-            with open(os.path.join(d, f"flycast-{n}P.log"), encoding="utf-8", errors="replace") as f:
+            with open(os.path.join(log_dir, f"flycast-{n}P.log"), encoding="utf-8", errors="replace") as f:
                 logs[n] = f.read()
         except OSError:
             logs[n] = ""
