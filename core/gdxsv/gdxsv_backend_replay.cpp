@@ -449,6 +449,7 @@ void GdxsvBackendReplay::BeginSilentSeek() {
 }
 
 void GdxsvBackendReplay::RunSilentSeekFrame(bool skip_rendering) {
+	if (!emu.running()) return;  // stopped mid-burst
 	settings.gdxsv.skipRenderingAddr = skip_rendering ? settings.gdxsv.skipRenderingBaseAddr : 0;
 	emu.run();
 	end_of_frame_ = false;
@@ -1030,8 +1031,11 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	if (seeking_) return;
 
 	constexpr int save_interval = ReplaySeekFrames;
+	// emu.stop() from the UI thread (menu, window close) ends a seek burst.
+	if (emu.running()) emu_started_ = true;
+	auto emu_stopped = [&]() -> bool { return emu_started_ && !emu.running(); };
 	auto need_cancel = [&]() -> bool {
-		return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End;
+		return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End || emu_stopped();
 	};
 	auto regular_save_state = [&]() {
 		if ((IsInGame() || IsInBriefing()) && gdxsv_save_state.LastSavedFrame() + save_interval <= key_msg_count_ && recv_buf_.empty() && !takeover_) {
@@ -1167,6 +1171,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 						RunSilentSeekFrame(false);
 						EndSilentSeek();
 					}
+					if (emu_stopped()) return;
 					verify(recv_buf_.empty());
 					gdxsv_save_state.SaveState(key_msg_count_);
 					NOTICE_LOG(COMMON, "Save Menu Opened frame %d", key_msg_count_);
