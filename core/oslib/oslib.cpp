@@ -549,6 +549,10 @@ void registerCrash(const char *directory, const char *path)
 
 void uploadCrashes(const std::string& directory)
 {
+	// The four-screen replay guests start together and would each upload the same dumps.
+	// They stay in the list for the next normal start.
+	if (gdxsv_is_multi_pov_guest())
+		return;
 	FILE *f = nowide::fopen((directory + "/" FLYCAST_CRASH_LIST).c_str(), "rt");
 	if (f == nullptr)
 		return;
