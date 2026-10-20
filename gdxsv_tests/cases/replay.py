@@ -514,12 +514,16 @@ HOST_SEEK_RE = re.compile(r"multi-pov: seek (\d+) -> (\d+), generation")
 SYNC_RE = re.compile(r"^(\d+):(\d\d):(\d\d\d) .*spectate sync: frame (\d+)", re.M)
 # Frames per second of play between two "spectate sync" lines; 1x is 60, sped up measured 180.
 SPED_UP_FPS = 90
+# gdxsv:replay_target_round of V9: the screens start there, skipping round 2.
+JUMP_ROUND = 3
 
 
 def controls_run(ctx, name: str, four: bool) -> dict:
-    """In round 1's battle the host speeds up, seeks back, seeks forward and speeds up again,
-    then plays into round 2's battle; the processes still running are counted there."""
-    inst = four_screen_window(ctx, name, four, {"controls": True, "gap": 120, "after": 300})
+    """The host starts at round JUMP_ROUND. In its battle the host speeds up, seeks back, seeks
+    forward and speeds up again, then plays into the next round's battle; the processes still
+    running are counted there."""
+    inst = four_screen_window(ctx, name, four, {"controls": True, "gap": 120, "after": 300},
+                              [f"gdxsv:replay_target_round={JUMP_ROUND}"])
     saved = os.path.join(inst.dir, "controls.json")
     if recheck.ACTIVE:
         rec = recheck.load(saved, {})
@@ -542,27 +546,36 @@ def fastest_fps(log: str) -> float:
 
 def controls_checks(r: dict) -> list:
     e, starts = r["e2e"], r["starts"]
+    jump = f"ctrl_change_round_:{JUMP_ROUND} "
+    next_round = JUMP_ROUND + 1
+    after = f"StartMsg key_msg_count {starts[JUMP_ROUND]}" if len(starts) > JUMP_ROUND else None
     round2 = f"StartMsg key_msg_count {starts[1]}" if len(starts) > 1 else None
-    seeks = HOST_SEEK_RE.findall(r["host_log"])
+    # A seek inside the jumped-to round: both ends at or past its start.
+    floor = starts[JUMP_ROUND - 1] if len(starts) >= JUMP_ROUND else None
+    seeks = [(int(a), int(b)) for a, b in HOST_SEEK_RE.findall(r["host_log"])]
+    inside = [(a, b) for a, b in seeks if floor is not None and a >= floor and b >= floor]
     fps = fastest_fps(r["host_log"])
-    checks = [{"what": "host: speed up, seek back, seek forward, speed up, then round 2's battle",
+    checks = [{"what": "host: speed up, seek back, seek forward, speed up, then the next battle",
                "ok": all(k in e for k in CONTROL_STEPS) and e.get("next", "none") != "none" and "done" in e,
                "e2e": e},
+              {"what": f"host jumped once to round {JUMP_ROUND}, round 2 not played",
+               "ok": r["host_log"].count(jump) == 1 and round2 is not None and round2 not in r["host_log"]},
               {"what": f"host played faster than {SPED_UP_FPS} frames per second", "fps": fps,
                "ok": fps > SPED_UP_FPS},
-              {"what": "host published a seek back and a seek forward to its guests", "seeks": seeks,
-               "ok": any(int(b) < int(a) for a, b in seeks) and any(int(b) > int(a) for a, b in seeks)},
-              {"what": "all four processes ran into round 2", "running": r.get("running"),
+              {"what": f"host published a seek back and a seek forward in round {JUMP_ROUND} to its guests",
+               "seeks": seeks, "ok": any(b < a for a, b in inside) and any(b > a for a, b in inside)},
+              {"what": f"all four processes ran into round {next_round}", "running": r.get("running"),
                "ok": r.get("running") == 4 and r.get("host_exited") is None}]
     for n, log in r["logs"].items():
-        checks.append({"what": f"guest {n}P followed both seeks, then started round 2",
-                       "ok": len(FRAME_JUMP_RE.findall(log)) >= 2 and round2 is not None and round2 in log
-                       and GUEST_GONE not in log})
+        checks.append({"what": f"guest {n}P jumped to round {JUMP_ROUND}, followed both seeks, then started round "
+                       f"{next_round}",
+                       "ok": jump in log and len(FRAME_JUMP_RE.findall(log)) >= 2 and after is not None
+                       and after in log and GUEST_GONE not in log})
     return checks
 
 
-@case("V9", "four-screen replay: host speed up, seek back and seek forward keep all four screens playing into "
-      "the next round")
+@case("V9", "four-screen replay: gdxsv:replay_target_round=3 starts all four screens at round 3; host speed "
+      "up, seek back and seek forward keep them playing into the next round")
 def replay_four_screen_controls(ctx):
     return result(controls_checks(controls_run(ctx, "V9", True)))
 
@@ -571,8 +584,9 @@ def replay_four_screen_controls(ctx):
       control_of="V9")
 def replay_four_screen_controls_control(ctx):
     c = controls_checks(controls_run(ctx, "V9c", False))
-    return result([{"what": "host controls ran into round 2", "ok": c[0]["ok"]},
-                   {"what": "the seek, process and guest checks fail", "ok": not any(x["ok"] for x in c[2:])}],
+    return result([{"what": f"host jumped to round {JUMP_ROUND}, controls ran into the next round",
+                    "ok": c[0]["ok"] and c[1]["ok"]},
+                   {"what": "the seek, process and guest checks fail", "ok": not any(x["ok"] for x in c[3:])}],
                   detail=c)
 
 
