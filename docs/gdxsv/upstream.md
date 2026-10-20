@@ -56,17 +56,19 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade |
 | Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game |
-| Crash reports | `core/oslib/oslib.cpp/.h` | own crash list file; gdxsv log, tags and `emu.cfg` attached to a report |
-| Window | `core/sdl/sdl.cpp`, `core/wsi/sdl.cpp`, `core/wsi/switcher.cpp`, `core/linux-dist/main.cpp` | headless (no graphics API), borderless, window position for several instances, four-screen grid; frames duplicated on a monitor over 60 Hz only with `DupeFrames` |
+| Crash reports | `core/oslib/oslib.cpp/.h` | own crash list file; gdxsv log, tags and `emu.cfg` attached to a report; four-screen replay guests do not upload |
+| Window | `core/sdl/sdl.cpp`, `core/wsi/sdl.cpp`, `core/wsi/switcher.cpp`, `core/linux-dist/main.cpp` | headless (no graphics API), borderless, hidden rendering guests, window position for several instances, four-screen grid; frames duplicated on a monitor over 60 Hz only with `DupeFrames` |
+| Video routing | `core/wsi/switcher.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gldraw.cpp`, `core/rend/dx11/dx11_renderer.cpp`, `core/windows/winmain.cpp`, `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | Spout / Syphon sender names; the unified replay scales the final host image before UI drawing, receives guest video in gdxsv, and releases receivers before graphics shutdown |
 | Config | `core/cfg/cfg.cpp` | a new `emu.cfg` gets the gdxsv defaults |
 | UI | `core/ui/gui.cpp/.h`, `core/ui/settings*.cpp/.h`, `core/ui/gui_font.cpp`, `core/oslib/i18n.cpp` | gdxsv settings page, Live & Replays menu, update popup, gdxsv translations, Japanese fonts always loaded |
 | Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |
+| macOS application launch | `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` | `CustomApplicationMain` calls `gdxsv_emu_app_init` before AppKit initialization and skips foreground activation so hidden guests do not take keyboard focus |
 | Network | `core/network/miniupnp.cpp/.h` | UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
 | Textures | `core/rend/CustomTexture.cpp` | embedded and downloaded texture packs for the game (`T13306M`); its glyph-cell textures built from the glyph replacements |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
-| Build | `CMakeLists.txt`, `tests/CMakeLists.txt`, `resources/resources.cmake`, `.gitignore` | `include(core/gdxsv/gdxsv.cmake)` (gdxsv sources, protobuf), build options, gdxsv tests and resources; `comctl32` for the temporary Windows frame subclass |
+| Build | `CMakeLists.txt`, `tests/CMakeLists.txt`, `resources/resources.cmake`, `.gitignore` | `include(core/gdxsv/gdxsv.cmake)` (gdxsv sources, protobuf), build options, gdxsv tests and resources |
 | CI | `.github/workflows/c-cpp.yml`, `crowdin_translate.yml` | gdxsv builds and releases from `gdxsv-*` tags |
 
 ## Changed spots
@@ -118,6 +120,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
 | `core/emulator.cpp` | `Emulator::start` | fix blackout on threaded rendering |
+| `core/emulator.cpp` | `Emulator::stop` | stop the GGPO session the rollback backend started, so the emulator thread runs no rollback frame and restarts no CPU after the stop |
 | `core/emulator.cpp` | `Emulator::vblank` | `gdxsv_emu_end_frame` |
 | `core/emulator.h` |  | a rollback or replay session ended |
 | `core/hw/arm7/arm7_rec_x64.cpp` |  | cpuid is slow: probe the host once, not for every compiled block |
@@ -209,6 +212,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/nullDC.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/nullDC.cpp` | `flycast_init` | find content in the working directory |
 | `core/nullDC.cpp` | `flycast_init` | `gdxsv_emu_flycast_init` |
+| `core/nullDC.cpp` | `flycast_term` | `gdxsv_emu_flycast_term`: ends the boot network tests before static destruction |
 | `core/nullDC.cpp` | `dc_savestateAllowed` | `gdxsv_is_savestate_allowed` |
 | `core/nullDC.cpp` | `dc_savestate` | `gdxsv_emu_savestate` |
 | `core/nullDC.cpp` | `dc_loadstate` | `gdxsv_emu_loadstate` |
@@ -218,6 +222,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/oslib/i18n.cpp` | `reloadLanguage` | `dictMgr->add_directory("i18n-gdxsv");` |
 | `core/oslib/oslib.cpp` | `os_UpdateInputState` | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/oslib/oslib.cpp` | `registerCrash` | `gdxsv_crash_append_log` |
+| `core/oslib/oslib.cpp` | `uploadCrashes` | `gdxsv_is_multi_pov_guest` |
 | `core/oslib/oslib.cpp` | `uploadCrashes` | `gdxsv_crash_append_tag` |
 | `core/profiler/fc_profiler.h` |  | memset; no longer included through implot 0.18 |
 | `core/rec-ARM/rec_arm.cpp` | `Arm32Assembler::compileOp` | round the product before the add (no fused multiply-add) |
@@ -234,21 +239,28 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rec-x64/rec_x64.cpp` |  | cpuid is slow: probe the host once, not for every compiled block |
 | `core/rec-x64/rec_x64.cpp` |  | block linking |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::loadTexture` | `gdxsv_custom_texture_load_cells` |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::loadTexture` | `gdxsv_custom_texture_load_cells`: a texture made of 32x32 glyph cells without a replacement of its own is built from the glyph replacements |
 | `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 embedded textures and the downloaded texture pack |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_on_queue` |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_on_queue`: gdxsv copies the cells from VRAM when the load is queued and keeps them for the loader thread |
+| `core/rend/dx11/dx11_renderer.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
+| `core/rend/dx11/dx11_renderer.cpp` | `DX11Renderer::displayFramebuffer` | `gdxsv_video_grid_active`, `gdxsv_video_viewport` |
+| `core/rend/gles/gldraw.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
+| `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | scale the final game image into the host's quadrant, before UI. |
+| `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | final presentation rectangle |
+| `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | final presentation rectangle |
 | `core/rend/norend/norend.cpp` |  | present once per rendered frame, as the real renderers do; a second Present (frame swap after an immediate one) would pace headless runs at half speed. |
 | `core/rend/norend/norend.cpp` |  | a framebuffer frame is presented once too |
 | `core/rend/norend/norend.cpp` |  | Render or RenderFramebuffer since the last Present |
+| `core/rend/vulkan/vulkan_context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `gdxsv_video_vulkan_extensions` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::DrawFrame` | scale the final game image into the host's quadrant, before UI. |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
-| `core/sdl/sdl.cpp` |  | preservedWindowState |
-| `core/sdl/sdl.cpp` |  | window state before the 4-player replay grid, saved at quit instead of the grid quadrant |
-| `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls and the replay grid can change SDL's flags directly |
+| `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls can change SDL's flags directly |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `emuEventCallback` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_init` | XInput and DirectInput switches; joystick events on their own thread |
 | `core/sdl/sdl.cpp` | `input_sdl_init` | `gdxsv_input_attach_test_joystick` |
-| `core/sdl/sdl.cpp` | `input_sdl_handle` | 4-player replay handles full screen as a grid |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | hidden replay guests must not enter full screen |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | handle outside window for network stats hovering |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
@@ -258,13 +270,11 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | when polling mode is enabled, poll joystick state here (main thread) |
 | `core/sdl/sdl.cpp` | `get_window_state` | actual flag |
-| `core/sdl/sdl.cpp` | `sdl_preserve_window_state` | the replay grid saves the window state before it moves the window |
 | `core/sdl/sdl.cpp` | `sdl_recreate_window` | a capture rig tiles instances edge to edge, so it wants no border. |
-| `core/sdl/sdl.cpp` | `sdl_get_window` | the replay grid places the window |
+| `core/sdl/sdl.cpp` | `sdl_get_window` | hidden replay guests follow the host window |
 | `core/sdl/sdl.cpp` | `sdl_window_create` | a fullscreen window is not minimized on focus loss. |
-| `core/sdl/sdl.cpp` | `sdl_window_destroy` | `gdxsv_is_multi_pov_guest` |
+| `core/sdl/sdl.cpp` | `sdl_window_destroy` | hidden replay guests must not save their render-target geometry. |
 | `core/sdl/sdl.h` |  | nullptr before the window is created or in a headless run. |
-| `core/sdl/sdl.h` |  | preserve window preferences while a temporary layout is active. |
 | `core/serialize.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/serialize.cpp` | `dc_deserialize` | `gdxsv_emu_state_restored` |
 | `core/types.h` |  | replay fade, 0.0 = silent, 1.0 = full volume (for fade-in effects) |
@@ -303,12 +313,21 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/windows/winmain.cpp` |  | breakpad include path of the MSVC (clang-cl) build |
 | `core/windows/winmain.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/windows/winmain.cpp` | `main` | `gdxsv_exit_code` |
+| `core/windows/winmain.cpp` | `getThreadName` | include `gdxsv/gdxsv_video_hooks.h` |
+| `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
+| `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::init` | only duplicate frames on high refresh rate monitors when asked to |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::changeGLSwapInterval` | only duplicate frames on high refresh rate monitors when asked to |
 | `core/wsi/switcher.cpp` |  | include `gdxsv/gdxsv_null_imgui_driver.h` |
 | `core/wsi/switcher.cpp` | `initRenderApi` | `gdxsv_headless`, `GdxsvNullImGuiDriver` |
-| `core/wsi/switcher.cpp` | `termRenderApi` | `gdxsv_headless` |
+| `core/wsi/switcher.cpp` | `termRenderApi` | `gdxsv_headless`, `gdxsv_video_term` |
 | `shell/apple/common/http_client.mm` |  | delegate of the asynchronous NSURLSession request in http::get |
 | `shell/apple/common/http_client.mm` | `get` | use the asynchronous NSURLSession API and pump the run loop when called from the main thread |
 | `shell/apple/common/http_client.mm` | `get` | content was filled by the handler |
+| `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` | `CustomApplicationMain` | `gdxsv_emu_app_init` |
+| `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` | `CustomApplicationMain` | hidden workers must not take keyboard focus. |
+| `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | `os_RunInstance` | include `gdxsv/gdxsv_video_hooks.h` |
+| `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
+| `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
 <!-- upstream_spots end -->

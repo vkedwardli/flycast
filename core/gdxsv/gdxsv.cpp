@@ -161,9 +161,7 @@ void Gdxsv::Reset() {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	if (config::GdxLocalPort == 0) {
-		config::GdxLocalPort = get_random_port_number();
-	}
+	config::GdxLocalPort = valid_local_port_number(config::GdxLocalPort);
 
 	if (config::GdxLoginKey.get().empty()) {
 		config::GdxLoginKey = GenerateLoginKey();
@@ -629,6 +627,16 @@ void Gdxsv::StartP2PFeasibilityTest() {
 void Gdxsv::FetchPublicIP() {
 	public_ipv4_ = get_public_ip_address(false).share();
 	public_ipv6_ = get_public_ip_address(true).share();
+}
+
+void Gdxsv::StopNetworkTests() {
+	// The tests read config and gdxsv state. Waiting for them later, in the static
+	// destructor of these futures, lets them run on torn-down objects.
+	network_tests_stopped_ = true;
+	if (gcp_ping_test_result_.valid()) gcp_ping_test_result_.wait();
+	if (p2p_feasibility_result_.valid()) p2p_feasibility_result_.wait();
+	if (public_ipv4_.valid()) public_ipv4_.wait();
+	if (public_ipv6_.valid()) public_ipv6_.wait();
 }
 
 void Gdxsv::NotifyWanPort() const {

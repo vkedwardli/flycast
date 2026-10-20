@@ -47,7 +47,8 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_spectator_uplink.cpp/.h` | sends a player's confirmed inputs to LBS for live spectating |
 | `gdxsv_spectator_downlink.cpp/.h` | receives live inputs from LBS |
 | `gdxsv_spectate_sync.cpp/.h` | keeps spectator instances on one machine on the same frame |
-| `gdxsv_multi_pov*.cpp/.h/.mm` | 4-player replay grid: launch, window placement per platform (`_win`, `_sdl`, `_apple`, `_none`) |
+| `gdxsv_multi_pov.cpp/.h`, `gdxsv_multi_pov_launch.cpp` | four-player replay sessions, process launch and shared playback controls |
+| `gdxsv_multi_pov_viewer*.cpp/.h/.mm`, `gdxsv_video_hooks.h` | four views in the original window; Syphon and Spout receivers, Vulkan import of Metal/DirectX textures, shared Vulkan sampling resources, final presentation rectangle and sender names |
 | `gdxsv_round_counters.h` | round and win counts of a battle |
 | `gdxsv_slowdown.cpp/.h` | experimental arcade slowdown in DX battles |
 | `gdxsv_projectile_view.cpp/.h` | debug overlay of DX projectiles |
@@ -57,6 +58,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_custom_texture_source.cpp/.h`, `gdxsv_custom_texture_update.cpp/.h`, `Textures/`, `textures.rc` | bundled custom textures and their download |
 | `gdxsv_custom_texture_cells.cpp/.h`, `gdxsv_custom_texture_hooks.h` | DC2 textures made of 32x32 glyph cells (battle name sheet) built from the glyph replacements |
 | `gdxsv_update.cpp/.h`, `gdxsv_update_apple.mm` | client self-update |
+| `gdxsv_platform*.cpp/.h/.mm` | host services; macOS background-worker activation before application launch |
 | `gdxsv_https_latency*.cpp/.h/.mm` | HTTPS latency to each server region, per platform (`_win`, `_curl`, `_apple`) |
 | `gdxsv_prof.cpp/.h` | named timers for profiling |
 | `gdxsv_frame_limiter.cpp/.h` | FixedFrequency frame limiter of the main UI loop (period, replay trim) |

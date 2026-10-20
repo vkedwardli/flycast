@@ -255,7 +255,7 @@ msgid "Enable UPnP"
 msgstr "使用 UPnP"
 
 msgid "Joystick Polling"
-msgstr "搖桿ポーリング"
+msgstr "搖桿 Polling"
 
 msgid "Use polling instead of events for joystick input. May improve input latency in multi-threaded mode."
 msgstr "使用Polling而非Event Trigger來獲取搖桿輸入。可能會改善多線程模式下的輸入延遲。"
@@ -412,3 +412,6 @@ msgstr "SIDE 6 宙域"
 
 msgid "SIDE 7 (Inner)"
 msgstr "SIDE 7 內部"
+
+msgid "Choose the horizontal boundary used for the battle HUD:\n    4:3 (Original): Keep the stock positions\n    Up to 16:9: Use the viewport width, capped at a 16:9 safe area\n    Full Width: Move the HUD to the current viewport edges"
+msgstr "選擇戰鬥 HUD 的水平範圍：\n    4:3 (Original)：保持原本位置\n    Up to 16:9：跟畫面闊度，最多 16:9\n    Full Width：HUD 貼住畫面邊緣"

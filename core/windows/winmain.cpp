@@ -502,6 +502,7 @@ const char *getThreadName()
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #endif
 #include "SpoutSender.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 #include "SpoutDX.h"
 #ifndef _MSC_VER
 #pragma GCC diagnostic pop
@@ -518,7 +519,8 @@ void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w,
 		int boardID = config::loadInt("naomi", "BoardId");
 		char buf[32] = { 0 };
 		vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
-		spoutSender->SetSenderName(buf);
+		const std::string name = gdxsv_video_sender_name();
+		spoutSender->SetSenderName(name.empty() ? buf : name.c_str());
 	}	
 	spoutSender->SendTexture(texID, texTarget, w, h, true);
 }
@@ -549,7 +551,8 @@ void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
 			int boardID = config::loadInt("naomi", "BoardId");
 			char buf[32] = { 0 };
 			vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
-			spoutDXSender->SetSenderName(buf);
+			const std::string name = gdxsv_video_sender_name();
+			spoutDXSender->SetSenderName(name.empty() ? buf : name.c_str());
 		}
 		else
 		{

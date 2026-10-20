@@ -815,7 +815,11 @@ void Emulator::stop()
 		return;
 	// Avoid race condition with GGPO restarting the sh4 for a new frame
 	if (config::GGPOEnable)
+	{
 		NetworkHandshake::term();
+		// gdxsv: the rollback backend starts the GGPO session without NetworkHandshake
+		ggpo::stopSession();
+	}
 	{
 		const std::lock_guard<std::mutex> _(mutex);
 		// must be updated after GGPO is stopped since it may run some rollback frames

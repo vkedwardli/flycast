@@ -217,6 +217,7 @@ void os_RunInstance(int argc, const char *argv[])
 }
 
 #import <Syphon/Syphon.h>
+#include "gdxsv/gdxsv_video_hooks.h"
 #import <cfg/cfg.h>
 static SyphonOpenGLServer* syphonGLServer;
 
@@ -225,7 +226,8 @@ void os_VideoRoutingPublishFrameTexture(GLuint texID, GLuint texTarget, float w,
 	if (syphonGLServer == NULL)
 	{
 		int boardID = config::loadInt("naomi", "BoardId");
-		syphonGLServer = [[SyphonOpenGLServer alloc] initWithName:[NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] context:[SDL_GL_GetCurrentContext() CGLContextObj] options:nil];
+		const std::string name = gdxsv_video_sender_name();
+		syphonGLServer = [[SyphonOpenGLServer alloc] initWithName:(name.empty() ? [NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] : [NSString stringWithUTF8String:name.c_str()]) context:[SDL_GL_GetCurrentContext() CGLContextObj] options:nil];
 	}
 	CGLLockContext([syphonGLServer context]);
 	[syphonGLServer publishFrameTexture:texID textureTarget:texTarget imageRegion:NSMakeRect(0, 0, w, h) textureDimensions:NSMakeSize(w, h) flipped:NO];
@@ -253,7 +255,8 @@ void os_VideoRoutingPublishFrameTexture(const vk::Device& device, const vk::Imag
 		device.exportMetalObjectsEXT(&objectsInfo);
 		
 		int boardID = config::loadInt("naomi", "BoardId");
-		syphonMtlServer = [[SyphonMetalServer alloc] initWithName:[NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] device:deviceInfo.mtlDevice options:nil];
+		const std::string name = gdxsv_video_sender_name();
+		syphonMtlServer = [[SyphonMetalServer alloc] initWithName:(name.empty() ? [NSString stringWithFormat:(boardID == 0 ? @"Video Content" : @"Video Content - %d"), boardID] : [NSString stringWithUTF8String:name.c_str()]) device:deviceInfo.mtlDevice options:nil];
 	}
 	
 	auto textureInfo = vk::ExportMetalTextureInfoEXT(image);

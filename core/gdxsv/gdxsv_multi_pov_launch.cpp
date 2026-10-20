@@ -9,9 +9,10 @@
 #include <vector>
 
 #include "cfg/cfg.h"
+#include "cfg/option.h"
 #include "gdxsv.pb.h"
 #include "gdxsv_multi_pov.h"
-#include "gdxsv_multi_pov_window.h"
+#include "gdxsv_multi_pov_viewer.h"
 #include "log/LogManager.h"
 #include <nowide/cstdio.hpp>
 
@@ -92,12 +93,11 @@ static bool IsFourPlayerBattle(const std::vector<uint8_t>& replay) {
 	return true;
 }
 
-// Where the grid starts, from the saved window geometry. The window layer
-// re-lays it out from the host's real rect once it is up.
-static GdxsvMultiPovRect InitialGroupRect() {
+// Initial hidden render-target size; the viewer follows the actual host window.
+static GdxsvMultiPovRect InitialGuestRect() {
 	GdxsvMultiPovRect group;
-	group.w = std::max(320, config::loadInt("window", "width", 1280)) * 2;
-	group.h = std::max(240, config::loadInt("window", "height", 720)) * 2;
+	group.w = std::max(320, config::loadInt("window", "width", 1280)) / 2;
+	group.h = std::max(240, config::loadInt("window", "height", 720)) / 2;
 	group.x = config::loadInt("window", "left", 0);
 	group.y = config::loadInt("window", "top", 0);
 	return group;
@@ -117,8 +117,16 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 	const std::string maximized = "window:maximized=no";
 	const std::string fullscreen = "window:fullscreen=no";
 	const std::string content = settings.content.path;
+	const std::string sender = "gdxsv:VideoRoutingName=Flycast " + session_id + " " + std::to_string(screen + 1) + "P";
+	RenderType guest_renderer = config::RendererType;
+#ifdef _WIN32
+	// Spout sends OpenGL and DirectX 11; a Vulkan host imports the latter.
+	if (isVulkan(guest_renderer))
+		guest_renderer = guest_renderer == RenderType::Vulkan_OIT ? RenderType::DirectX11_OIT : RenderType::DirectX11;
+#endif
+	const std::string renderer = "config:pvr.rend=" + std::to_string(static_cast<int>(guest_renderer));
 
-	const char* args[] = {
+	std::vector<const char*> args = {
 		"-config", session.c_str(),
 		"-config", screen_arg.c_str(),
 		"-config", sync_group.c_str(),
@@ -129,27 +137,20 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 		"-config", height.c_str(),
 		"-config", maximized.c_str(),
 		"-config", fullscreen.c_str(),
-		content.c_str(),
-#ifdef __APPLE__
-		// After a crash AppKit asks whether to reopen windows, and a guest
-		// would sit in that alert. Must come after the content path.
-		"-ApplePersistenceIgnoreState", "YES",
-#endif
+		"-config", sender.c_str(),
+		"-config", renderer.c_str(),
+		"-config", "config:rend.VideoRouting=yes",
+		"-config", "config:rend.VideoRoutingScale=no",
 	};
+
+	args.push_back(content.c_str());
+#ifdef __APPLE__
+	// After a crash AppKit asks whether to reopen windows, and a guest
+	// would sit in that alert. Must come after the content path.
+	args.insert(args.end(), {"-ApplePersistenceIgnoreState", "YES"});
+#endif
 	NOTICE_LOG(COMMON, "multi-pov: spawning %dP at %d,%d %dx%d", screen + 1, quadrant.x, quadrant.y, quadrant.w, quadrant.h);
-	os_RunInstance(static_cast<int>(std::size(args)), args);
-}
-
-void gdxsv_multi_pov_compute_grid(const GdxsvMultiPovRect& group, GdxsvMultiPovRect out[kGdxsvMultiPovScreens]) {
-	const int32_t left_w = group.w / 2;
-	const int32_t top_h = group.h / 2;
-	const int32_t right_w = group.w - left_w;
-	const int32_t bottom_h = group.h - top_h;
-
-	out[0] = {group.x, group.y, left_w, top_h};
-	out[1] = {group.x + left_w, group.y, right_w, top_h};
-	out[2] = {group.x, group.y + top_h, left_w, bottom_h};
-	out[3] = {group.x + left_w, group.y + top_h, right_w, bottom_h};
+	os_RunInstance(static_cast<int>(args.size()), args.data());
 }
 
 bool gdxsv_multi_pov_take_four_screen_request() {
@@ -174,9 +175,11 @@ std::string gdxsv_multi_pov_log_file_name() {
 	return "flycast-" + std::to_string(screen + 1) + "P.log";
 }
 
-static bool FourScreenWindowAvailable() {
-	if (gdxsv_multi_pov_window_available()) return true;
-	WARN_LOG(COMMON, "multi-pov: four-screen playback is unavailable without a supported desktop window");
+static bool FourScreenWindowAvailable(std::string* error) {
+	const std::string reason = gdxsv_multi_pov_viewer_prepare();
+	if (error) *error = reason;
+	if (reason.empty()) return true;
+	WARN_LOG(COMMON, "multi-pov: %s", reason.c_str());
 	return false;
 }
 
@@ -184,39 +187,47 @@ static void SpawnGuests(const std::string& session_id) {
 	// The host joins the same frame-sync group as its guests.
 	config::setTransient("gdxsv", "SpectateSyncGroup", session_id);
 
-	GdxsvMultiPovRect quadrants[kGdxsvMultiPovScreens];
-	gdxsv_multi_pov_compute_grid(InitialGroupRect(), quadrants);
+	const GdxsvMultiPovRect quadrant = InitialGuestRect();
 
 	for (int screen = 1; screen < kGdxsvMultiPovScreens; ++screen) {
-		SpawnGuest(screen, session_id, quadrants[screen]);
+		SpawnGuest(screen, session_id, quadrant);
 		++g_spawned_guests;
 	}
 	NOTICE_LOG(COMMON, "multi-pov: host session %s with %d guests", session_id.c_str(), g_spawned_guests);
 }
 
-bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out) {
+bool gdxsv_multi_pov_begin_host_session(const std::string& replay_source, std::vector<uint8_t>& replay_out, std::string* video_error) {
 	g_spawned_guests = 0;
 
-	if (!FourScreenWindowAvailable()) return false;
-
-	if (!LoadReplaySource(replay_source, replay_out)) return false;
-	if (!IsFourPlayerBattle(replay_out)) return false;
+	if (!FourScreenWindowAvailable(video_error) || !LoadReplaySource(replay_source, replay_out) || !IsFourPlayerBattle(replay_out)) {
+		gdxsv_multi_pov_close();
+		return false;
+	}
 
 	const std::string session_id = gdxsv_multi_pov_new_session_id();
-	if (!gdxsv_multi_pov_host_create(session_id, replay_out)) return false;
-
+	if (!gdxsv_multi_pov_host_create(session_id, replay_out)) {
+		gdxsv_multi_pov_close();
+		return false;
+	}
+	gdxsv_multi_pov_viewer_begin(session_id);
 	SpawnGuests(session_id);
 	return true;
 }
 
-bool gdxsv_multi_pov_begin_live_host_session(const std::string& battle_code) {
+bool gdxsv_multi_pov_begin_live_host_session(const std::string& battle_code, std::string* video_error) {
 	g_spawned_guests = 0;
 
-	if (!FourScreenWindowAvailable()) return false;
+	if (!FourScreenWindowAvailable(video_error)) {
+		gdxsv_multi_pov_close();
+		return false;
+	}
 
 	const std::string session_id = gdxsv_multi_pov_new_session_id();
-	if (!gdxsv_multi_pov_host_create_live(session_id, battle_code)) return false;
-
+	if (!gdxsv_multi_pov_host_create_live(session_id, battle_code)) {
+		gdxsv_multi_pov_close();
+		return false;
+	}
+	gdxsv_multi_pov_viewer_begin(session_id);
 	SpawnGuests(session_id);
 	return true;
 }
