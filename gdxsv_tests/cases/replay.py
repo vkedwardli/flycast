@@ -274,6 +274,7 @@ def four_screen_run(ctx, name: str, four: bool) -> dict:
                   emu_cfg=f"[config]\nLuaFileName = {name}.lua\n\n[log]\nLogToFile = 1\nVerbosity = 3\n")
     d = os.path.join(ctx.out, name)
     povs = {1: (p.e2e.get("side"), p.e2e.get("id"))}
+    warning_gains = {1: p.e2e.get("warning_gain")}
     logs = {}
     for n in (2, 3, 4):
         vals = {}
@@ -283,12 +284,13 @@ def four_screen_run(ctx, name: str, four: bool) -> dict:
         except OSError:
             pass
         povs[n] = (vals.get("side"), vals.get("id"))
+        warning_gains[n] = vals.get("warning_gain")
         try:
             with open(os.path.join(d, f"flycast-{n}P.log"), encoding="utf-8", errors="replace") as f:
                 logs[n] = f.read()
         except OSError:
             logs[n] = ""
-    return {"clean": p.clean, "host_log": p.log, "povs": povs, "logs": logs,
+    return {"clean": p.clean, "host_log": p.log, "povs": povs, "warning_gains": warning_gains, "logs": logs,
             **p.facts()}
 
 
@@ -299,6 +301,8 @@ def four_screen_checks(r: dict) -> list:
     for n, (side, id) in r["povs"].items():
         checks.append({"what": f"screen {n}: the game plays as player {n}", "side": side, "id": id,
                        "ok": side == str(n - 1) and id == str(n)})
+        gain = r["warning_gains"][n]
+        checks.append({"what": f"screen {n}: warning gain selector is 20", "gain": gain, "ok": gain == "20"})
     for n, log in r["logs"].items():
         checks.append({"what": f"guest {n}P joined the host's sync group and plays the host's replay",
                        "ok": session is not None and f"joined group {session}" in log
@@ -307,21 +311,23 @@ def four_screen_checks(r: dict) -> list:
     return checks
 
 
-@case("V5", "four-screen replay: the host starts three guests on one sync group, each plays as its player")
+@case("V5", "four-screen replay: three guests on one sync group, each plays as its player with a quieter warning")
 def replay_four_screen(ctx):
     r = four_screen_run(ctx, "V5", True)
     return result([{"what": "probe ran", "ok": r["clean"]}] + four_screen_checks(r))
 
 
-@case("V5c", "V5's checks on a replay played without ReplayFourScreen: no guests, the guest checks fail",
+@case("V5c", "V5 without ReplayFourScreen: no guests, stock warning gain; the four-screen checks fail",
       control_of="V5")
 def replay_four_screen_control(ctx):
     r = four_screen_run(ctx, "V5c", False)
     c = four_screen_checks(r)
-    guests = [x for x in c if "guest" in x["what"] or x["what"].startswith(("screen 2", "screen 3", "screen 4"))]
+    must_fail = [x for x in c if "guest" in x["what"] or "warning gain" in x["what"]
+                 or x["what"].startswith(("screen 2", "screen 3", "screen 4"))]
     return result([{"what": "probe ran", "ok": r["clean"]},
-                   {"what": "every guest check fails", "failed": [x["what"] for x in guests if not x["ok"]],
-                    "ok": all(not x["ok"] for x in guests)}], detail=c)
+                   {"what": "single screen keeps the stock warning gain", "ok": r["warning_gains"][1] == "32"},
+                   {"what": "every four-screen check fails", "failed": [x["what"] for x in must_fail if not x["ok"]],
+                    "ok": all(not x["ok"] for x in must_fail)}], detail=c)
 
 
 RECEIVING_RE = re.compile(r"multi-pov viewer: receiving .* (\d)P")

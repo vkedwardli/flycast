@@ -79,6 +79,7 @@ class Gdxsv {
 	void WritePatchDisk1();
 	void WritePatchDisk2();
 	void WriteWidescreenPatch();
+	void WriteWarningSoundVolume();
 	bool WidescreenSitesKnown();
 
 	NetMode netmode_ = NetMode::Offline;
