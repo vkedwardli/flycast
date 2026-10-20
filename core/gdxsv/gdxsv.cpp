@@ -168,6 +168,12 @@ void Gdxsv::Reset() {
 		config::GdxLoginKey.save();
 	}
 
+	// The lobby moved from zdxsv.net to lbs.gdxsv.net (2026-10); emu.cfg keeps the old default.
+	if (config::GdxLobbyServer.get() == "zdxsv.net") {
+		config::GdxLobbyServer = "lbs.gdxsv.net";
+		config::GdxLobbyServer.save();
+	}
+
 	NOTICE_LOG(COMMON, "gdxsv disk:%d server:%s loginkey:%s udp_port:%d", (int)disk_, config::GdxLobbyServer.get().c_str(),
 			   config::GdxLoginKey.get().c_str(), config::GdxLocalPort.get());
 

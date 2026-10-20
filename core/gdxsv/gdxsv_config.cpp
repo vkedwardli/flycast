@@ -4,7 +4,7 @@
 
 namespace config {
 
-Option<std::string> GdxLobbyServer("server", "zdxsv.net", "gdxsv");
+Option<std::string> GdxLobbyServer("server", "lbs.gdxsv.net", "gdxsv");
 Option<std::string> GdxLoginKey("loginkey", "", "gdxsv");
 Option<int> GdxLanguage("language", -1, "gdxsv");
 Option<bool> GdxUseTexturePack("UseTexturePack", false, "gdxsv");
