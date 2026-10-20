@@ -120,6 +120,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
 | `core/emulator.cpp` | `Emulator::start` | fix blackout on threaded rendering |
+| `core/emulator.cpp` | `Emulator::stop` | stop the GGPO session the rollback backend started, so the emulator thread runs no rollback frame and restarts no CPU after the stop |
 | `core/emulator.cpp` | `Emulator::vblank` | `gdxsv_emu_end_frame` |
 | `core/emulator.h` |  | a rollback or replay session ended |
 | `core/hw/arm7/arm7_rec_x64.cpp` |  | cpuid is slow: probe the host once, not for every compiled block |
