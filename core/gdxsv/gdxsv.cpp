@@ -15,6 +15,7 @@
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv_key_display.h"
+#include "gdxsv_multi_pov.h"
 #include "gdxsv_patch_abi.h"
 #include "gdxsv_platform.h"
 #include "gdxsv_prof.h"
@@ -303,6 +304,8 @@ void Gdxsv::HookNextFrame() {
 	if (netmode_ == NetMode::Replay) {
 		gdxsv.replay_net_.OnNextFrame();
 	}
+	// A seek in OnNextFrame can restore the stock sound descriptor.
+	WriteWarningSoundVolume();
 }
 
 void Gdxsv::HookMainUiLoop() {
@@ -1018,6 +1021,28 @@ void Gdxsv::WriteWidescreenPatch() {
 		NOTICE_LOG(COMMON, "widescreen patch %s: aspect=%.6f hud-aspect=%.6f disk=%d",
 			enabled ? "refreshed" : "removed", aspect, hud_aspect, int(disk_));
 	}
+}
+
+void Gdxsv::WriteWarningSoundVolume() {
+	if (disk_ != 1 && disk_ != 2) return;
+
+	// Both discs share the descriptor layout, at different addresses.
+	const u32 kSoundTablePointer = disk_ == 1 ? 0x0c18a2c8 : 0x0c1e8b00;  // Common sound descriptor table pointer.
+	const u32 kSoundTable = disk_ == 1 ? 0x0c189390 : 0x0c1e7b40;		  // Expected common sound descriptor table.
+	const u32 kWarningGainSelector = kSoundTable + 7 * 6 + 4;			  // Gain selector in common sound descriptor 7.
+	constexpr u32 kWarningSoundAndChannel = 0x0c0740a9;					  // Warning request 0x0740a9 and parameter channel 12.
+	constexpr u8 kStockSelector = 32;									  // Stock normal/attenuated gains: 127/95.
+	constexpr u8 kQuietSelector = 20;									  // Normal/attenuated gains: 110/82, roughly half amplitude.
+
+	const u8 desired = IsReplaying() && gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::None ? kQuietSelector : kStockSelector;
+	const u8 current = gdxsv_ReadMem8(kWarningGainSelector);
+	if (current == desired || (current != kStockSelector && current != kQuietSelector)) return;
+	// The descriptor is only 16-bit aligned; validate its sound and channel before writing.
+	if (gdxsv_ReadMem32(kSoundTablePointer) != kSoundTable ||
+		gdxsv_ReadMem16(kWarningGainSelector - 4) != (kWarningSoundAndChannel & 0xffff) ||
+		gdxsv_ReadMem16(kWarningGainSelector - 2) != (kWarningSoundAndChannel >> 16))
+		return;
+	gdxsv_WriteMem8(kWarningGainSelector, desired);
 }
 
 bool Gdxsv::StartReplayFile(const char *path, int pov) {
