@@ -84,6 +84,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Game patches (`gdxsv_patch.inc`), rewritten every vblank | always for the game | P1 (Disc 1, Disc 2) | P1c |
 | NAOMI version (`gundmxgd`) boots | the NAOMI game files | N1 | N1c |
 | Texture pack, downloaded and updated | settings `UseTexturePack`, `TexturePackChannel` | X1: a local channel, 3 chunks checked by hash and installed; the next start finds it current (`gdxsv:TexturePackUrl`); the pack is not loaded in a game (a fake pack) | X1c |
+| Glyph-cell textures (DC2 battle name sheet) | on for `T13306M` when the downloaded texture pack (Use Texture Pack) or the embedded textures replace 32x32 glyphs; a `data/textures/T13306M` folder does not apply to cells | no committed test; manual: a replay with and without a glyph pack, the in-battle pilot names change | the same replay without the pack |
 | Widescreen HUD layout | setting `WidescreenHudLayout` | W1 (known failure: not written under `rend.ThreadedRendering=yes`, the default) | W1c (known failure) |
 | Slow idle loop hack | setting `SlowIdleLoopHack` | H1: unthrottled, over 2 x the fps without the hack | H1c |
 | Projectile view (debug overlay, Disc 2) | setting `ProjectileView` (ini only) | none | none |

@@ -35,6 +35,7 @@
 #include <stb_image_write.h>
 
 #include "gdxsv/gdxsv_custom_texture_source.h"
+#include "gdxsv/gdxsv_custom_texture_hooks.h"
 
 CustomTexture custom_texture;
 
@@ -147,6 +148,8 @@ void CustomTexture::loadTexture(BaseTextureCacheData *texture)
 			image_data = loadTexture(texture->old_vqtexture_hash, width, height);
 		if (image_data == nullptr)
 			image_data = loadTexture(texture->old_texture_hash, width, height);
+		if (image_data == nullptr)
+			image_data = gdxsv_custom_texture_load_cells(texture, width, height);
 		if (image_data != nullptr)
 		{
 			texture->custom_width = width;
@@ -314,6 +317,7 @@ void CustomTexture::loadCustomTextureAsync(BaseTextureCacheData *texture_data)
 		return;
 
 	texture_data->custom_load_in_progress++;
+	gdxsv_custom_texture_on_queue(texture_data);
 	loaderThread->run([this, texture_data]() {
 		loadTexture(texture_data);
 	});
