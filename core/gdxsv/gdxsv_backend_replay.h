@@ -70,7 +70,7 @@ class GdxsvBackendReplay {
 	void DeliverKeyMsgBatch();
 	void ApplyPatch(bool first_time);
 	void RestorePatch();
-	void BeginSilentSeek();
+	void BeginSilentSeek(bool capture_audio = false);
 	void RunSilentSeekFrame(bool skip_rendering);
 	void EndSilentSeek();
 	void BeginSilentSeekWithAudioReset();
@@ -329,6 +329,7 @@ class GdxsvBackendReplay {
 	// ---- 4-player replay ----
 	bool multi_pov_host_ = false;
 	bool multi_pov_guest_ = false;
+	bool multi_pov_speed_burst_ = false;
 	bool MultiPov() const { return multi_pov_host_ || multi_pov_guest_; }
 
 	// Host: the position last published; a jump from it becomes a seek the

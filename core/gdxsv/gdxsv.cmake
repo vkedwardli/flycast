@@ -313,6 +313,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_sleep.cpp
 		core/gdxsv/gdxsv_sleep.h
 		core/gdxsv/gdxsv_multi_pov.cpp
+		core/gdxsv/gdxsv_multi_pov_audio.cpp
+		core/gdxsv/gdxsv_multi_pov_audio.h
 		core/gdxsv/gdxsv_multi_pov.h
 		core/gdxsv/gdxsv_multi_pov_launch.cpp
 		core/gdxsv/gdxsv_multi_pov_viewer.cpp
