@@ -1327,7 +1327,7 @@ void GdxsvBackendRollback::SaveReplay() const {
 
 		std::vector<http::PostField> fields;
 		fields.emplace_back("file", replay_file, "application/octet-stream");
-		int rc = http::post("https://asia-northeast1-gdxsv-274515.cloudfunctions.net/uploader", fields);
+		int rc = http::post("https://lbs.gdxsv.net:8443/lbs/replay_upload", fields);
 		if (rc == 200 || rc == 409) {
 			NOTICE_LOG(COMMON, "SaveReplay: upload OK");
 		} else {

@@ -172,7 +172,7 @@ int filtered_replay_pov(const std::vector<proto::BattleLogUser>& users) {
 }
 
 std::string replay_api_url(const char* path) {
-	return config::loadStr("gdxsv", "ReplayApiUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi") + path;
+	return config::loadStr("gdxsv", "ReplayApiUrl", "https://lbs.gdxsv.net:8443/lbs") + path;
 }
 
 std::shared_future<std::vector<UserEntry>> fetch_user_entry_future_;
@@ -1087,7 +1087,7 @@ void fetch_live_json() {
 		std::vector<u8> dl;
 		std::string content_type;
 		http::init();
-		const std::string url = config::loadStr("gdxsv", "LiveApiUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi") + "/status";
+		const std::string url = config::loadStr("gdxsv", "LiveApiUrl", "https://lbs.gdxsv.net:8443/lbs") + "/status";
 
 		fetch_live_entry_http_status = http::get(url, dl, content_type);
 		if (fetch_live_entry_http_status != 200) {
@@ -1861,7 +1861,7 @@ int gdxsv_live_viewer_count(const std::string& battle_code, bool force_refresh) 
 			std::string content_type;
 			http::init();
 			const std::string url =
-				config::loadStr("gdxsv", "LiveApiUrl", "https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi") +
+				config::loadStr("gdxsv", "LiveApiUrl", "https://lbs.gdxsv.net:8443/lbs") +
 				"/spectators?battle_code=" + http::urlEncode(battle_code);
 			if (http::get(url, dl, content_type) != 200) return last_known;
 			try {
