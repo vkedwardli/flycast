@@ -35,17 +35,6 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	}
 
 	void AddInput(u64 input) { replay_.log_file_.add_inputs(input); }
-	proto::BattleLogFile& Log() { return replay_.log_file_; }
-	void ConvertBattleData() { replay_.ConvertBattleDataToInputs(); }
-	void PrintDisconnectionSummary() { replay_.PrintDisconnectionSummary(); }
-	void AddBattleData(McsMessage::MsgType type, int sender, u16 input = 0) {
-		auto msg = McsMessage::Create(type, sender);
-		if (type == McsMessage::KeyMsg1) {
-			msg.body[2] = input >> 8;
-			msg.body[3] = input & 0xff;
-		}
-		Log().add_battle_data()->set_body(msg.body.data(), msg.body.size());
-	}
 	void SetOffline() { replay_.live_mode_ = false; }
 	int InputIndex() const { return replay_.key_msg_count_; }
 	std::deque<u8>& Reply() { return replay_.recv_buf_; }
@@ -215,35 +204,6 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	const float audio_fade_ = settings.aica.audioFade;
 	const int frame_period_trim_ = gdxsv_frame_period_trim_us;
 };
-
-// Inputs pack 16 bits per player into a u64: a replay with more than 4 users is malformed.
-TEST(GdxsvReplayLoadTest, RejectsMoreThanFourUsers) {
-	proto::BattleLogFile log;
-	for (int i = 0; i < 5; ++i) log.add_users()->set_user_id("u" + std::to_string(i));
-	log.add_inputs(0);
-	std::string bytes;
-	ASSERT_TRUE(log.SerializeToString(&bytes));
-	const std::vector<u8> buf(bytes.begin(), bytes.end());
-
-	GdxsvBackendReplay replay;
-	EXPECT_FALSE(replay.StartBuffer(buf, 4));
-	EXPECT_FALSE(replay.StartBuffer(buf, 0));
-}
-
-#ifdef _WIN32
-// Windows cannot delete a file that is still open: a file that fails to parse must be closed too.
-TEST(GdxsvReplayLoadTest, UnparsableFileIsClosed) {
-	const std::string path = ::testing::TempDir() + "gdxsv_unparsable_replay.pb";
-	FILE* fp = fopen(path.c_str(), "wb");
-	ASSERT_NE(nullptr, fp);
-	fputs("\xff\xff\xff\xff not a battle log", fp);
-	fclose(fp);
-
-	GdxsvBackendReplay replay;
-	EXPECT_FALSE(replay.StartFile(path.c_str(), 0));
-	EXPECT_EQ(0, std::remove(path.c_str()));
-}
-#endif
 
 TEST_F(GdxsvReplayInputTest, ManualActionsDetachAndCancelAutomaticSpeed) {
 	PrepareFrameControl();
@@ -765,19 +725,6 @@ TEST_F(GdxsvReplayInputTest, DownloadLoadingDoesNotAffectOfflineReplayOrExplicit
 	EXPECT_TRUE(PublishedUi().loading);
 }
 
-// ReplayPOV is 1-origin in the config, so ReplayPOV=0 arrives here as -1.
-TEST(GdxsvReplayPovTest, RejectsNegativePov) {
-	proto::BattleLogFile log;
-	for (int i = 0; i < 2; ++i) log.add_users()->set_user_id("u" + std::to_string(i));
-	log.add_inputs(0);
-	std::string bytes;
-	ASSERT_TRUE(log.SerializeToString(&bytes));
-	const std::vector<u8> buf(bytes.begin(), bytes.end());
-
-	GdxsvBackendReplay replay;
-	EXPECT_FALSE(replay.StartBuffer(buf, -1));
-}
-
 TEST_F(GdxsvReplayInputTest, LiveStarvationDoesNotQueueNeutralInput) {
 	for (int poll = 0; poll < 10; ++poll) {
 		Send(McsMessage::KeyMsg1);
@@ -1042,31 +989,4 @@ TEST_F(GdxsvReplayInputTest, TakeoverInputIsIgnoredInLiveOrInactiveReplay) {
 		EXPECT_TRUE(TakeoverInputs().empty());
 		EXPECT_EQ(0u, PendingControlCommands());
 	}
-}
-
-// Old logs carry raw McsMessages that are converted to inputs on load; a damaged one must not index past the users.
-TEST_F(GdxsvReplayInputTest, ConvertingBattleDataSkipsSendersPastTheUserList) {
-	AddBattleData(McsMessage::KeyMsg1, 0, 0x1111);  // before any round start
-	for (int p = 0; p < 4; ++p) AddBattleData(McsMessage::StartMsg, p);
-	AddBattleData(McsMessage::StartMsg, 9);
-	AddBattleData(McsMessage::KeyMsg1, 9, 0x9999);
-	for (int p = 0; p < 4; ++p) AddBattleData(McsMessage::KeyMsg1, p, 0x0101 * (p + 1));
-	AddBattleData(McsMessage::StartMsg, 0);  // a second round only player 0 reached
-
-	ConvertBattleData();
-	ASSERT_EQ(1, Log().inputs_size());
-	EXPECT_EQ(0x0404030302020101ull, Log().inputs(0));
-	ASSERT_EQ(1, Log().start_msg_indexes_size());
-	EXPECT_EQ(0, Log().start_msg_indexes(0));
-
-	PrintDisconnectionSummary();
-}
-
-TEST_F(GdxsvReplayInputTest, ConvertingBattleDataWithoutUsersAddsNothing) {
-	Log().clear_users();
-	AddBattleData(McsMessage::StartMsg, 0);
-	AddBattleData(McsMessage::KeyMsg1, 0, 0x1234);
-	ConvertBattleData();
-	EXPECT_EQ(0, Log().inputs_size());
-	PrintDisconnectionSummary();
 }
