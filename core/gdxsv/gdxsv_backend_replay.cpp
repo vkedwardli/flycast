@@ -1032,8 +1032,8 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 
 	constexpr int save_interval = ReplaySeekFrames;
 	// emu.stop() from the UI thread (menu, window close) ends a seek burst.
-	const bool emu_was_running = emu.running();
-	auto emu_stopped = [&]() -> bool { return emu_was_running && !emu.running(); };
+	if (emu.running()) emu_started_ = true;
+	auto emu_stopped = [&]() -> bool { return emu_started_ && !emu.running(); };
 	auto need_cancel = [&]() -> bool {
 		return ctrl_commands_.contains(ReplayCtrlCommand::SaveFirstFrame) || state_ == State::End || emu_stopped();
 	};

@@ -216,6 +216,7 @@ class GdxsvBackendReplay {
 	int recv_delay_ = 0;
 	bool end_of_frame_ = false;
 	bool seeking_ = false;
+	bool emu_started_ = false;  // the emulator has run since this backend was created
 	int target_round_ = 0;
 	int target_frame_ = 0;
 	int takeover_frame_ = 0;
