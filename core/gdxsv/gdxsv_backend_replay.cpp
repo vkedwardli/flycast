@@ -2645,13 +2645,11 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 		if (start_msg_count_ - 1 < log_file_.start_msg_randoms_size()) {
 			// Desync: playback no longer matches the recording, so the rest of the
 			// replay would show a battle that never happened. Stop and tell the
-			// user instead of aborting, and still send a crash report so that a
-			// desync bug gets noticed.
+			// user instead of aborting.
 			const u16 recorded = log_file_.start_msg_randoms(start_msg_count_ - 1) & 0xffffu;
 			if (random_data != recorded) {
 				ERROR_LOG(COMMON, "Replay desync: round %d start RNG %04x, recorded %04x, key_msg_count %d", start_msg_count_, random_data,
 						  recorded, key_msg_count_);
-				if (!gdxsv_write_minidump()) WARN_LOG(COMMON, "Replay desync: no crash report written");
 				replay_error_ =
 					"Replay desync: round " + std::to_string(start_msg_count_) + " did not start as recorded. Playback stopped.";
 				save_converted_log_ = false;

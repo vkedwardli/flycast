@@ -90,13 +90,6 @@ void gdxsv_crash_append_log(FILE* f);
 
 void gdxsv_crash_append_tag(const std::string& logfile, std::vector<http::PostField>& post_fields);
 
-// Crash report without a crash: the platform main registers its crash
-// handler's dump writer; gdxsv_write_minidump() writes a dump of the running
-// process, sent with the next start's crash reports. False when no writer is
-// registered (no breakpad, macOS) or the dump failed.
-void gdxsv_set_minidump_writer(bool (*writer)(void* ctx), void* ctx);
-bool gdxsv_write_minidump();
-
 bool gdxsv_is_using_memwatch();
 
 // Headless test mode (gdxsv:headless=yes): no window, no graphics API, the

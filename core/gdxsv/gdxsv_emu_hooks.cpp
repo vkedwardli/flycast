@@ -857,15 +857,6 @@ bool gdxsv_headless() {
 	return config::loadBool("gdxsv", "headless", false);
 }
 
-static struct {
-	bool (*write)(void*) = nullptr;
-	void* ctx = nullptr;
-} gdxsv_minidump_writer_;
-
-void gdxsv_set_minidump_writer(bool (*writer)(void* ctx), void* ctx) { gdxsv_minidump_writer_ = {writer, ctx}; }
-
-bool gdxsv_write_minidump() { return gdxsv_minidump_writer_.write != nullptr && gdxsv_minidump_writer_.write(gdxsv_minidump_writer_.ctx); }
-
 static int gdxsv_exit_code_ = 0;
 
 void gdxsv_set_exit_code(int code) {
