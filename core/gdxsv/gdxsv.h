@@ -53,6 +53,9 @@ class Gdxsv {
 	void StartP2PFeasibilityTest();
 	std::shared_future<P2PFeasibility> P2PFeasibilityResult() const { return p2p_feasibility_result_; }
 	void FetchPublicIP();
+	// Ends the ping, public IP and P2P tests and waits for them. Called on exit.
+	void StopNetworkTests();
+	bool NetworkTestsStopped() const { return network_tests_stopped_; }
 	std::shared_future<std::pair<bool, std::string>> PublicIPv4() const { return public_ipv4_; }
 	std::shared_future<std::pair<bool, std::string>> PublicIPv6() const { return public_ipv6_; }
 	void NotifyWanPort() const;
@@ -83,6 +86,7 @@ class Gdxsv {
 	std::atomic<int> disk_;
 	std::atomic<int> maxlag_;
 	std::atomic<int> maxrebattle_;
+	std::atomic<bool> network_tests_stopped_{false};
 	std::string user_id_;
 	std::string pingResult = "Latency check...";
 	std::string p2pStatus;

@@ -631,6 +631,16 @@ void Gdxsv::FetchPublicIP() {
 	public_ipv6_ = get_public_ip_address(true).share();
 }
 
+void Gdxsv::StopNetworkTests() {
+	// The tests read config and gdxsv state. Waiting for them later, in the static
+	// destructor of these futures, lets them run on torn-down objects.
+	network_tests_stopped_ = true;
+	if (gcp_ping_test_result_.valid()) gcp_ping_test_result_.wait();
+	if (p2p_feasibility_result_.valid()) p2p_feasibility_result_.wait();
+	if (public_ipv4_.valid()) public_ipv4_.wait();
+	if (public_ipv6_.valid()) public_ipv6_.wait();
+}
+
 void Gdxsv::NotifyWanPort() const {
 	if (netmode_ != NetMode::Lbs) {
 		return;

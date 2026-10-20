@@ -211,6 +211,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/nullDC.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/nullDC.cpp` | `flycast_init` | find content in the working directory |
 | `core/nullDC.cpp` | `flycast_init` | `gdxsv_emu_flycast_init` |
+| `core/nullDC.cpp` | `flycast_term` | `gdxsv_emu_flycast_term`: ends the boot network tests before static destruction |
 | `core/nullDC.cpp` | `dc_savestateAllowed` | `gdxsv_is_savestate_allowed` |
 | `core/nullDC.cpp` | `dc_savestate` | `gdxsv_emu_savestate` |
 | `core/nullDC.cpp` | `dc_loadstate` | `gdxsv_emu_loadstate` |

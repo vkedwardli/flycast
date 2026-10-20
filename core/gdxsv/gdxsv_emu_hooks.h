@@ -26,6 +26,7 @@ bool gdxsv_is_online();
 bool gdxsv_is_savestate_allowed();
 
 void gdxsv_emu_flycast_init();
+void gdxsv_emu_flycast_term();
 
 // macOS: identify hidden guests before AppKit starts and suppress foreground activation.
 bool gdxsv_emu_app_init(int argc, const char* const argv[]);

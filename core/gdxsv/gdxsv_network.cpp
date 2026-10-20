@@ -51,6 +51,7 @@ std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6) {
 
 		int rc = 0;
 		for (const auto &url : urls) {
+			if (gdxsv.NetworkTestsStopped()) break;
 			rc = http::get(url, myip, dummy);
 			if (!http::success(rc)) {
 				continue;
@@ -71,7 +72,7 @@ std::future<std::pair<bool, std::string>> get_public_ip_address(bool ipv6) {
 }
 
 static bool run_udp_reachability_test(UdpClient &udp, int port, const std::string &myip) {
-	if (myip.empty()) return false;
+	if (myip.empty() || gdxsv.NetworkTestsStopped()) return false;
 
 	std::vector<http::PostField> fields;
 	fields.emplace_back("addr", myip + ":" + std::to_string(port));
@@ -79,7 +80,7 @@ static bool run_udp_reachability_test(UdpClient &udp, int port, const std::strin
 						fields);
 	if (!http::success(rc)) return false;
 
-	for (int t = 0; t < 30; t++) {
+	for (int t = 0; t < 30 && !gdxsv.NetworkTestsStopped(); t++) {
 		char buf[128];
 		sockaddr_storage sender{};
 		socklen_t addrlen = sizeof(sockaddr_storage);
@@ -93,6 +94,7 @@ static bool run_udp_reachability_test(UdpClient &udp, int port, const std::strin
 
 static std::string run_nat_mapping_test(UdpClient &udp, int &mapped_port) {
 	auto get_mapped_addr = [&](const char *host, int port, juice_mapped_addr_t &mapped) -> bool {
+		if (gdxsv.NetworkTestsStopped()) return false;
 		UdpRemote server;
 		if (!server.Open(host, port, UdpRemote::IpPref::V4Only)) return false;
 		
@@ -115,7 +117,7 @@ static std::string run_nat_mapping_test(UdpClient &udp, int &mapped_port) {
 		int len = juice_stun_write_binding_request(buf, sizeof(buf), tid);
 		if (len <= 0) return false;
 		if (udp.SendTo((const char *)buf, len, server) <= 0) return false;
-		for (int t = 0; t < 20; t++) {
+		for (int t = 0; t < 20 && !gdxsv.NetworkTestsStopped(); t++) {
 			sockaddr_storage sender{};
 			socklen_t addrlen = sizeof(sender);
 			int n = udp.RecvFrom((char *)buf, sizeof(buf), &sender, &addrlen);
@@ -181,6 +183,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 		}
 		public_addr_future.wait();
 		auto [ok, myip] = public_addr_future.get();
+		if (gdxsv.NetworkTestsStopped()) return res;
 
 		// 1. Initial Check
 		set_p2p_status("Testing Open Port...", true);
@@ -218,7 +221,7 @@ std::future<P2PFeasibility> test_p2p_feasibility(int port) {
 		}
 
 		// 3. Try to activate UPnP
-		if (config::EnableUPnP) {
+		if (config::EnableUPnP && !gdxsv.NetworkTestsStopped()) {
 			set_p2p_status("Adding UPnP rule to your router...");
 			auto &upnp = gdxsv.UPnP();
 			if (upnp.Init() && upnp.AddPortMapping(port, false)) {
@@ -373,7 +376,7 @@ std::future<std::map<std::string, int>> gcp_ping_test() {
 					it = futures.erase(it);
 
 					// Start a new task if there are more regions to process
-					if (next_region_idx < total_regions) {
+					if (next_region_idx < total_regions && !gdxsv.NetworkTestsStopped()) {
 						futures.push_back(std::async(std::launch::async, test_region, gcp_region_hosts[next_region_idx++]));
 					}
 				} else {

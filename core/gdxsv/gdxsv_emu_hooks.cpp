@@ -79,6 +79,8 @@ void gdxsv_emu_flycast_init() {
 	gdxsv_multi_pov_viewer_tick();
 }
 
+void gdxsv_emu_flycast_term() { gdxsv.StopNetworkTests(); }
+
 void gdxsv_emu_start() {
 	gdxsv.Reset();
 	const bool hidden_worker = gdxsv_video_hidden_window();
