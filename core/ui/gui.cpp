@@ -1583,9 +1583,30 @@ void gui_error(const std::string& what) {
 	error_msg = what;
 }
 
+// gdxsv: a state load requested by a hotkey while the sh4 runs on this thread: 1 slot, 2 in RAM,
+// -1 while it is loaded after the frame
+static int deferredLoadState;
+
+void gui_loadDeferredState()
+{
+	if (deferredLoadState <= 0)
+		return;
+	const bool inRam = deferredLoadState == 2;
+	deferredLoadState = -1;
+	gui_loadState(inRam);
+	deferredLoadState = 0;
+}
+
 void gui_loadState(bool inRam)
 {
 	const LockGuard lock(guiMutex);
+	// gdxsv: without threaded rendering the hotkeys are also polled from inside the running sh4 code
+	// (maple DMA), where a state load frees the dynarec block being executed. Load after the frame.
+	if (!config::ThreadedRendering && emu.running() && deferredLoadState != -1)
+	{
+		deferredLoadState = inRam ? 2 : 1;
+		return;
+	}
 	if (gui_state == GuiState::Closed && dc_savestateAllowed())
 	{
 		try {

@@ -59,7 +59,9 @@ bool mainui_rend_frame()
 	else
 	{
 		try {
-			if (!emu.render())
+			const bool rendered = emu.render();
+			gui_loadDeferredState(); // gdxsv: a load-state hotkey polled by the sh4 code
+			if (!rendered)
 				return false;
 			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
 				gui_display_profiler();

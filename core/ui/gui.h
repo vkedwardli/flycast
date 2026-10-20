@@ -51,6 +51,7 @@ void gui_start_game(const std::string& path);
 void gui_error(const std::string& what);
 void gui_setOnScreenKeyboardCallback(void (*callback)(bool show));
 void gui_loadState(bool inRam = false);
+void gui_loadDeferredState(); // gdxsv: call after a frame, outside the sh4 code
 void gui_saveState(bool stopRestart = true, bool inRam = false);
 void gui_cycleSaveStateSlot(int step);
 void gui_togglePause();
