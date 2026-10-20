@@ -3,9 +3,10 @@
 import concurrent.futures
 import os
 import re
+import time
 
-from lib import assets, recheck, replayfile
-from lib.case import case, result
+from lib import assets, emu, image, recheck, replayfile
+from lib.case import case, result, write_lua
 
 STARTS_RE = re.compile(r"start_msg_indexes = ([\d ]*)")
 ROUND_RE = re.compile(r"StartMsg key_msg_count (\d+)")
@@ -321,6 +322,259 @@ def replay_four_screen_control(ctx):
     return result([{"what": "probe ran", "ok": r["clean"]},
                    {"what": "every guest check fails", "failed": [x["what"] for x in guests if not x["ok"]],
                     "ok": all(not x["ok"] for x in guests)}], detail=c)
+
+
+RECEIVING_RE = re.compile(r"multi-pov viewer: receiving .* (\d)P")
+GUEST_GONE = "host is gone, closing this screen"
+
+
+def four_screen_window(ctx, name: str, four: bool, params: dict, extra: list = ()):
+    """Newest Disc 2 replay in a 960x720 window, driven by fourscreen_host.lua. The script
+    goes in the host's --config (its guests run without it); logging in emu.cfg reaches all."""
+    rom = ctx.rom("dc2")
+    os.makedirs(ctx.out, exist_ok=True)
+    lua = write_lua(os.path.join(ctx.out, name + ".lua"), "fourscreen_host.lua", {"max": 30000, **params})
+    cfg = [f"gdxsv:replay={assets.replay(newest_dc2())}", "window:width=960", "window:height=720", *extra]
+    if four:
+        cfg.append("gdxsv:ReplayFourScreen=yes")
+    return emu.launch(ctx.exe, rom, os.path.join(ctx.out, name), config=cfg, headless=False, lua=lua,
+                      state_dir=assets.state_dir(rom), emu_cfg="[log]\nLogToFile = 1\nVerbosity = 3\n")
+
+
+def e2e_values(inst) -> dict:
+    try:
+        with open(os.path.join(inst.dir, "e2e.log"), encoding="utf-8", errors="replace") as f:
+            return dict(l[4:].strip().split("=", 1) for l in f if l.startswith("E2E ") and "=" in l)
+    except OSError:
+        return {}
+
+
+def wait_for(fn, timeout: float) -> bool:
+    end = time.time() + timeout
+    while time.time() < end:
+        if fn():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def guest_logs(inst) -> dict:
+    logs = {}
+    for n in (2, 3, 4):
+        try:
+            with open(os.path.join(inst.dir, f"flycast-{n}P.log"), encoding="utf-8", errors="replace") as f:
+                logs[n] = f.read()
+        except OSError:
+            logs[n] = ""
+    return logs
+
+
+def stop_all(inst) -> None:
+    for pid in emu.processes(inst.run_exe):
+        emu.kill(pid)
+    inst.proc.wait(10)
+
+
+def receiving(log: str) -> list:
+    return sorted({int(n) for n in RECEIVING_RE.findall(log)})
+
+
+def display_run(ctx, name: str, four: bool) -> dict:
+    """Two grabs of the host window 1 s apart, once the battle is on and (four-screen) the host
+    receives every guest's video."""
+    inst = four_screen_window(ctx, name, four, {})
+    shots = [os.path.join(inst.dir, f"shot{i}.png") for i in (0, 1)]
+    if not recheck.ACTIVE:
+        try:
+            ready = wait_for(lambda: "battle" in e2e_values(inst) and (not four or len(receiving(inst.log)) == 3), 120)
+            time.sleep(3)
+            with image.SCREEN_LOCK:
+                for i, path in enumerate(shots):
+                    if i:
+                        time.sleep(1)
+                    image.grab(inst.proc.pid, path)
+        finally:
+            stop_all(inst)
+    return {"host_log": inst.log, "shots": shots}
+
+
+def quadrants(path: str) -> list:
+    """Top left, top right, bottom left, bottom right quarter of the image at path, in RGB."""
+    from PIL import Image
+    im = Image.open(path).convert("RGB")
+    w, h = im.size
+    return [im.crop((x, y, x + w // 2, y + h // 2)) for y in (0, h // 2) for x in (0, w // 2)]
+
+
+def mean_diff(a, b) -> float:
+    from PIL import ImageChops, ImageStat
+    return round(sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3, 1)
+
+
+def timer_mask(quadrant) -> list:
+    """Near-white pixels (all channels over 200) in the battle timer's box, scaled to 64x32."""
+    w, h = quadrant.size
+    box = quadrant.crop(tuple(int(f * s) for f, s in zip(TIMER_BOX, (w, h, w, h)))).resize((64, 32))
+    return [min(px) > 200 for px in box.getdata()]
+
+
+def display_checks(r: dict) -> list:
+    if not all(os.path.isfile(p) for p in r["shots"]):
+        return [{"what": "host window grabbed twice", "ok": False}]
+    a, b = quadrants(r["shots"][0]), quadrants(r["shots"][1])
+    moved = [mean_diff(x, y) for x, y in zip(a, b)]
+    apart = [mean_diff(a[i], a[j]) for i in range(4) for j in range(i + 1, 4)]
+    # Every viewpoint shows the battle timer at the same place in its frame: in a 2x2 grid,
+    # each quadrant's timer box has the top left one's white digits.
+    masks = [timer_mask(q) for q in a]
+    white = [i for i, v in enumerate(masks[0]) if v]
+    recall = [round(sum(1 for i in white if m[i]) / len(white), 2) if white else 0.0 for m in masks[1:]]
+    return [{"what": "host receives the video of 2P, 3P and 4P", "ok": receiving(r["host_log"]) == [2, 3, 4]},
+            {"what": "every quadrant changes between the grabs (live)", "mean_diff": moved,
+             "ok": all(m >= LIVE_DIFF for m in moved)},
+            {"what": "the four quadrants differ (four viewpoints)", "mean_diff": apart,
+             "ok": all(m >= LIVE_DIFF for m in apart)},
+            {"what": "each quadrant has the battle timer at the same place (a 2x2 grid of game screens)",
+             "white_pixels": len(white), "recall": recall,
+             "ok": len(white) >= TIMER_MIN_WHITE and all(x >= TIMER_RECALL for x in recall)}]
+
+
+# Measured on windows-mini, 960x720 window: quadrants move by 6.9 or more in 1 s.
+LIVE_DIFF = 2.0
+TIMER_BOX = (0.60, 0.03, 0.82, 0.15)  # of a game screen: the TIME digits, top right
+TIMER_MIN_WHITE = 50
+TIMER_RECALL = 0.8
+
+
+@case("V7", "four-screen replay: the host window shows four live viewpoints in a 2x2 grid")
+def replay_four_screen_display(ctx):
+    return result(display_checks(display_run(ctx, "V7", True)))
+
+
+@case("V7c", "V7's checks on a replay played without ReplayFourScreen: the grid check fails", control_of="V7")
+def replay_four_screen_display_control(ctx):
+    c = display_checks(display_run(ctx, "V7c", False))
+    return result([{"what": "window grabbed, live", "ok": len(c) == 4 and c[1]["ok"]},
+                   {"what": "the grid check fails", "ok": len(c) == 4 and not c[3]["ok"]}], detail=c)
+
+
+CLOSE_WAIT = 15  # seconds after the close; guests exit within 1 s on windows-mini
+
+
+def close_run(ctx, name: str, close: bool) -> dict:
+    """Four-screen replay in battle with every guest's video arriving; then the host window is
+    closed (WM_CLOSE) or left open, and the guests still running are counted for CLOSE_WAIT s."""
+    inst = four_screen_window(ctx, name, True, {})
+    saved = os.path.join(inst.dir, "close.json")
+    if recheck.ACTIVE:
+        rec = recheck.load(saved, {})
+    else:
+        try:
+            ready = wait_for(lambda: "battle" in e2e_values(inst) and len(receiving(inst.log)) == 3, 120)
+            before = len(emu.processes(inst.run_exe)) - 1
+            if close:
+                emu.close(inst.proc.pid)
+            t0, left = time.time(), before
+            while time.time() - t0 < CLOSE_WAIT:
+                left = len(emu.processes(inst.run_exe)) - (1 if inst.poll() is None else 0)
+                if left == 0:
+                    break
+                time.sleep(0.5)
+            rec = {"ready": ready, "guests_before": before, "guests_left": left,
+                   "seconds": round(time.time() - t0, 1), "host_rc": inst.poll()}
+        finally:
+            stop_all(inst)
+        recheck.save(saved, rec)
+    return {**rec, "logs": guest_logs(inst)}
+
+
+def close_checks(r: dict) -> list:
+    return [{"what": "three guests ran, every video arriving", "ok": r.get("ready") and r.get("guests_before") == 3},
+            {"what": f"every guest exited within {CLOSE_WAIT} s", "left": r.get("guests_left"),
+             "seconds": r.get("seconds"), "ok": r.get("guests_left") == 0},
+            {"what": "each guest logged that its host is gone",
+             "ok": all(GUEST_GONE in log for log in r["logs"].values())},
+            {"what": "the host exited with 0", "ok": r.get("host_rc") == 0}]
+
+
+@case("V8", "four-screen replay: closing the host window ends its three guests")
+def replay_four_screen_close(ctx):
+    return result(close_checks(close_run(ctx, "V8", True)))
+
+
+@case("V8c", "V8's checks with the host window left open: the exit checks fail", control_of="V8")
+def replay_four_screen_close_control(ctx):
+    c = close_checks(close_run(ctx, "V8c", False))
+    return result([{"what": "three guests ran", "ok": c[0]["ok"]},
+                   {"what": "the exit checks fail", "ok": not any(x["ok"] for x in c[1:])}], detail=c)
+
+
+CONTROL_STEPS = ("speed_up", "seek_back", "seek_forward", "speed_up2")
+HOST_SEEK_RE = re.compile(r"multi-pov: seek (\d+) -> (\d+), generation")
+SYNC_RE = re.compile(r"^(\d+):(\d\d):(\d\d\d) .*spectate sync: frame (\d+)", re.M)
+# Frames per second of play between two "spectate sync" lines; 1x is 60, sped up measured 180.
+SPED_UP_FPS = 90
+
+
+def controls_run(ctx, name: str, four: bool) -> dict:
+    """In round 1's battle the host speeds up, seeks back, seeks forward and speeds up again,
+    then plays into round 2's battle; the processes still running are counted there."""
+    inst = four_screen_window(ctx, name, four, {"controls": True, "gap": 120, "after": 300})
+    saved = os.path.join(inst.dir, "controls.json")
+    if recheck.ACTIVE:
+        rec = recheck.load(saved, {})
+    else:
+        try:
+            wait_for(lambda: inst.poll() is not None or any(k in e2e_values(inst) for k in ("done", "error")), 300)
+            rec = {"running": len(emu.processes(inst.run_exe)), "host_exited": inst.poll()}
+        finally:
+            stop_all(inst)
+        recheck.save(saved, rec)
+    starts = replayfile.start_indexes(assets.replay(newest_dc2()))
+    return {**rec, "e2e": e2e_values(inst), "host_log": inst.log, "logs": guest_logs(inst), "starts": starts}
+
+
+def fastest_fps(log: str) -> float:
+    marks = [((int(h) * 60 + int(m)) * 1000 + int(ms), int(f)) for h, m, ms, f in SYNC_RE.findall(log)]
+    rates = [(f1 - f0) * 1000 / (t1 - t0) for (t0, f0), (t1, f1) in zip(marks, marks[1:]) if t1 > t0]
+    return round(max(rates), 1) if rates else 0.0
+
+
+def controls_checks(r: dict) -> list:
+    e, starts = r["e2e"], r["starts"]
+    round2 = f"StartMsg key_msg_count {starts[1]}" if len(starts) > 1 else None
+    seeks = HOST_SEEK_RE.findall(r["host_log"])
+    fps = fastest_fps(r["host_log"])
+    checks = [{"what": "host: speed up, seek back, seek forward, speed up, then round 2's battle",
+               "ok": all(k in e for k in CONTROL_STEPS) and e.get("next", "none") != "none" and "done" in e,
+               "e2e": e},
+              {"what": f"host played faster than {SPED_UP_FPS} frames per second", "fps": fps,
+               "ok": fps > SPED_UP_FPS},
+              {"what": "host published a seek back and a seek forward to its guests", "seeks": seeks,
+               "ok": any(int(b) < int(a) for a, b in seeks) and any(int(b) > int(a) for a, b in seeks)},
+              {"what": "all four processes ran into round 2", "running": r.get("running"),
+               "ok": r.get("running") == 4 and r.get("host_exited") is None}]
+    for n, log in r["logs"].items():
+        checks.append({"what": f"guest {n}P followed both seeks, then started round 2",
+                       "ok": len(FRAME_JUMP_RE.findall(log)) >= 2 and round2 is not None and round2 in log
+                       and GUEST_GONE not in log})
+    return checks
+
+
+@case("V9", "four-screen replay: host speed up, seek back and seek forward keep all four screens playing into "
+      "the next round")
+def replay_four_screen_controls(ctx):
+    return result(controls_checks(controls_run(ctx, "V9", True)))
+
+
+@case("V9c", "V9 on a replay played without ReplayFourScreen: the seek, process and guest checks fail",
+      control_of="V9")
+def replay_four_screen_controls_control(ctx):
+    c = controls_checks(controls_run(ctx, "V9c", False))
+    return result([{"what": "host controls ran into round 2", "ok": c[0]["ok"]},
+                   {"what": "the seek, process and guest checks fail", "ok": not any(x["ok"] for x in c[2:])}],
+                  detail=c)
+
 
 
 TAKEOVER_FRAME = 3000
