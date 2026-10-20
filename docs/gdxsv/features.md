@@ -55,6 +55,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
+| Desync check: a round that starts with another RNG than recorded stops playback with an error and writes a crash report (sent at the next start, Windows and Linux); headless runs exit rc 4 | always | no test: needs a replay that does not reproduce from its inputs | none |
 | Save a battle as a replay, upload it | settings `SaveReplay`, `UploadReplay`, `ReplayPath` | R3: a local rollback match (`RBK_SAVE_REPLAY`, never uploaded) saves one replay per peer, the same inputs, it plays to the end with the match's winner | R3c (`SaveReplay=no`) |
 | Replay browser: Local, Server, Live tabs | menu "Live & Replays" | G2: each tab lists its fake or local entry (window grabs, golden images) | G2c |
 | Play a replay file | menu, or `gdxsv:replay=FILE` | R1 (every replay format), R2: plays to the end with the recorded winners | R2c |

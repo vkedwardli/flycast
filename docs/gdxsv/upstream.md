@@ -61,7 +61,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Video routing | `core/wsi/switcher.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gldraw.cpp`, `core/rend/dx11/dx11_renderer.cpp`, `core/windows/winmain.cpp`, `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | Spout / Syphon sender names; the unified replay scales the final host image before UI drawing, receives guest video in gdxsv, and releases receivers before graphics shutdown |
 | Config | `core/cfg/cfg.cpp` | a new `emu.cfg` gets the gdxsv defaults |
 | UI | `core/ui/gui.cpp/.h`, `core/ui/settings*.cpp/.h`, `core/ui/gui_font.cpp`, `core/oslib/i18n.cpp` | gdxsv settings page, Live & Replays menu, update popup, gdxsv translations, Japanese fonts always loaded |
-| Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); Windows: breakpad include path under MSVC |
+| Process exit | `core/windows/winmain.cpp`, `core/linux-dist/main.cpp` | exit code set by gdxsv (`gdxsv_exit_code`); crash handler dump writer for gdxsv (`gdxsv_set_minidump_writer`); Windows: breakpad include path under MSVC |
 | macOS application launch | `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` | `CustomApplicationMain` calls `gdxsv_emu_app_init` before AppKit initialization and skips foreground activation so hidden guests do not take keyboard focus |
 | Network | `core/network/miniupnp.cpp/.h` | UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
@@ -157,6 +157,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/input/gamepad_device.h` |  | `gdxsv_input_digital_axis` |
 | `core/input/gamepad_device.h` |  | start point of axis detection |
 | `core/linux-dist/main.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/linux-dist/main.cpp` | `main` | `gdxsv_set_minidump_writer` |
 | `core/linux-dist/main.cpp` | `main` | without a display server SDL has nothing to open; fall back to its dummy driver so headless runs (gdxsv:headless=yes) get past initialization. |
 | `core/linux-dist/main.cpp` | `main` | `gdxsv_exit_code` |
 | `core/linux/posix_vmem.cpp` | `allocate_shared_filemem` | one name per process: instances sharing a data dir (4-player replay) could otherwise open the same file before either unlinks it. |
@@ -310,6 +311,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/windows/win_vmem.cpp` | `init` | place base_alloc so that ram_base (base_alloc + sizeof(Sh4RCB)) lands on a 0x10000000 boundary. |
 | `core/windows/winmain.cpp` |  | breakpad include path of the MSVC (clang-cl) build |
 | `core/windows/winmain.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/windows/winmain.cpp` | `main` | `gdxsv_set_minidump_writer` |
 | `core/windows/winmain.cpp` | `main` | `gdxsv_exit_code` |
 | `core/windows/winmain.cpp` | `getThreadName` | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |

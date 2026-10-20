@@ -239,6 +239,7 @@ int main(int argc, char* argv[])
 #if defined(USE_BREAKPAD)
 	google_breakpad::MinidumpDescriptor descriptor("/tmp");
 	google_breakpad::ExceptionHandler eh(descriptor, nullptr, dumpCallback, nullptr, true, -1);
+	gdxsv_set_minidump_writer([](void* h) { return static_cast<google_breakpad::ExceptionHandler*>(h)->WriteMinidump(); }, &eh);
 #endif
 
 	LogManager::Init();

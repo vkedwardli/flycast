@@ -345,6 +345,7 @@ int main(int argc, char* argv[])
 		&custom_info);
 	// crash on die() and failing verify()
 	handler.set_handle_debug_exceptions(true);
+	gdxsv_set_minidump_writer([](void* h) { return static_cast<google_breakpad::ExceptionHandler*>(h)->WriteMinidump(); }, &handler);
 #endif
 
 #if defined(_WIN32) && defined(LOG_TO_PTY)
