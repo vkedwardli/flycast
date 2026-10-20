@@ -12,6 +12,7 @@
 #include "ui/gui.h"
 #include "oslib/oslib.h"
 #include "sdl/sdl.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 #ifdef USE_BREAKPAD
 #include "client/mac/handler/exception_handler.h"
@@ -313,10 +314,12 @@ static void CustomApplicationMain (int argc, char **argv)
     NSAutoreleasePool    *pool = [[NSAutoreleasePool alloc] init];
     SDLApplicationDelegate                *appDelegate;
 
+    const bool background = gdxsv_emu_app_init(argc, argv);
     /* Ensure the application object is initialised */
     [NSApplication sharedApplication];
     
 #ifdef SDL_USE_CPS
+    if (!background) // gdxsv: hidden workers must not take keyboard focus.
     {
         CPSProcessSerNum PSN;
         /* Tell the dock about us */

@@ -1,10 +1,47 @@
 // SPDX-FileCopyrightText: 2026 gdxsv contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "gdxsv_platform.h"
+#include "gdxsv_emu_hooks.h"
+
+#include <string_view>
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
 
 #import <AppKit/AppKit.h>
 #import <IOKit/IOKitLib.h>
 #import <SystemConfiguration/SystemConfiguration.h>
+
+bool gdxsv_emu_app_init(int argc, const char *const argv[]) {
+#if defined(VIDEO_ROUTING) && defined(USE_SDL) && !defined(LIBRETRO)
+	// Only the host's explicit worker arguments suppress application activation.
+	// The ordinary configuration is not loaded until after AppKit starts.
+	std::string_view session, screen;
+	for (int i = 1; i < argc; ++i) {
+		const std::string_view arg = argv[i];
+		if ((arg == "-config" || arg == "--config") && i + 1 < argc) {
+			const std::string_view option = argv[++i];
+			const auto equals = option.find('=');
+			if (equals == std::string_view::npos) continue;
+			const auto key = option.substr(0, equals);
+			const auto value = option.substr(equals + 1);
+			if (key == "gdxsv:MultiPovSession")
+				session = value;
+			else if (key == "gdxsv:MultiPovScreen")
+				screen = value;
+		} else if (!arg.empty() && arg.front() != '-') {
+			break;	// The content path ends Flycast's option parsing.
+		}
+	}
+	if (session.empty() || (screen != "1" && screen != "2" && screen != "3")) return false;
+	SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");
+	if (![[NSApplication sharedApplication] setActivationPolicy:NSApplicationActivationPolicyAccessory])
+		NSLog(@"multi-pov: could not hide the guest from the Dock");
+	return true;
+#else
+	return false;
+#endif
+}
 
 void gdxsv_open_url(const std::string& url) {
     NSString *urlString = [NSString stringWithUTF8String:url.c_str()];

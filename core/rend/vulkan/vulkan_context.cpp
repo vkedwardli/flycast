@@ -19,6 +19,7 @@
     along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include "vulkan_context.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 #include "vulkan_renderer.h"
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
@@ -464,6 +465,10 @@ bool VulkanContext::InitDevice()
 
 		// Required swapchain extension
 		tryAddDeviceExtension(vk::KHRSwapchainExtensionName);
+
+#if defined(_WIN32) && defined(VIDEO_ROUTING) && !defined(LIBRETRO)
+		gdxsv_video_vulkan_extensions(physicalDeviceProperties.apiVersion, supportedExtensions, enabledExtensions);
+#endif
 
 #ifdef VK_ENABLE_BETA_EXTENSIONS
 		tryAddDeviceExtension(vk::KHRPortabilitySubsetExtensionName);
@@ -1131,9 +1136,14 @@ void VulkanContext::DrawFrame(vk::ImageView imageView, const vk::Extent2D& exten
 	int dy = 0;
 	getWindowboxDimensions(width, height, aspectRatio, dx, dy, config::Rotate90);
 	
-	vk::Viewport viewport(dx, dy, width - dx * 2, height - dy * 2);
+	// gdxsv: scale the final game image into the host's quadrant, before UI.
+	int displayWidth = width - dx * 2;
+	int displayHeight = height - dy * 2;
+	if (gdxsv_video_grid_active)
+		gdxsv_video_viewport(dx, dy, displayWidth, displayHeight);
+	vk::Viewport viewport(dx, dy, displayWidth, displayHeight);
 	commandBuffer.setViewport(0, viewport);
-	commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(dx, dy), vk::Extent2D(width - dx * 2, height - dy * 2)));
+	commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(dx, dy), vk::Extent2D(displayWidth, displayHeight))); // gdxsv: match the viewport
 	if (config::Rotate90)
 		quadRotateDrawer->Draw(commandBuffer, imageView, vtx, !config::LinearInterpolation);
 	else
