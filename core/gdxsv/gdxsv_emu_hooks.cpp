@@ -67,6 +67,8 @@ void gdxsv_emu_flycast_init() {
 	config::GGPOEnable = false;
 }
 
+void gdxsv_emu_flycast_term() { gdxsv.StopNetworkTests(); }
+
 void gdxsv_emu_start() {
 	gdxsv.Reset();
 

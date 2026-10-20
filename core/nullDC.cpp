@@ -178,6 +178,7 @@ void flycast_term()
 	os_DestroyWindow();
 	gui_term();
 	os_TermInput();
+	gdxsv_emu_flycast_term();
 }
 
 bool dc_savestateAllowed() {
