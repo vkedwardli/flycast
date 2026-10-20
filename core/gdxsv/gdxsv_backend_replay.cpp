@@ -1720,6 +1720,12 @@ bool GdxsvBackendReplay::StartBuffer(const std::vector<u8>& buf, int pov) {
 
 	pov_ = pov;
 
+	// A four-screen host starts here too. Its guests follow the host's jump.
+	if (gdxsv_multi_pov_current_role() != GdxsvMultiPovRole::Guest) {
+		target_round_ = config::loadInt("gdxsv", "replay_target_round", 0);
+		target_frame_ = config::loadInt("gdxsv", "replay_target_frame", 0);
+	}
+
 	return Start();
 }
 
