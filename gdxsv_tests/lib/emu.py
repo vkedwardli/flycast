@@ -286,6 +286,41 @@ def suspend(pid: int, on: bool) -> None:
         kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
+def close(pid: int) -> None:
+    """Ask pid to quit as a user would: WM_CLOSE to its windows (Windows), else SIGTERM."""
+    if IS_WINDOWS:
+        subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True)
+    else:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+def processes(exe: str) -> List[int]:
+    """The pids of the running processes started from exe (Windows only: an instance's
+    run_exe, so the processes it started from itself too)."""
+    if not IS_WINDOWS:
+        raise NotImplementedError("processes: Windows only")
+    kernel32, psapi = ctypes.windll.kernel32, ctypes.windll.psapi
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    pids = (ctypes.c_ulong * 8192)()
+    got = ctypes.c_ulong()
+    psapi.EnumProcesses(pids, ctypes.sizeof(pids), ctypes.byref(got))
+    want = os.path.normcase(os.path.abspath(exe))
+    found = []
+    for pid in pids[:got.value // ctypes.sizeof(ctypes.c_ulong)]:
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            continue
+        buf, size = ctypes.create_unicode_buffer(1024), ctypes.c_ulong(1024)
+        if (kernel32.QueryFullProcessImageNameW(ctypes.c_void_p(handle), 0, buf, ctypes.byref(size))
+                and os.path.normcase(buf.value) == want):
+            found.append(pid)
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+    return found
+
+
 def _process_memory(pid: int, fn):
     """fn(kernel32, handle) on a handle with VM read and operation rights (Windows only)."""
     kernel32 = ctypes.windll.kernel32
