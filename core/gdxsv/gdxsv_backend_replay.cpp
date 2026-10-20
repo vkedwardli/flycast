@@ -622,9 +622,10 @@ constexpr int kSyncSubFrames = 1024;  // ~17s of stall before it could overflow
 // included). Four times that is no longer a pause in the battle.
 constexpr int kMaxFramesWithoutInput = 1800;
 
-// 4-player replay: a host position move larger than this (or backwards) in
-// one frame is a seek the guests must follow.
-constexpr int kMultiPovSeekSlack = 60;
+// 4-player replay: input movement above this (or backwards) is a seek.
+// Leave room above 3x playback and below a one-second seek, whose 60
+// emulated frames can consume fewer inputs.
+constexpr int kMultiPovSeekSlack = 30;
 
 // 4-player replay: how far past the host's position a guest may run before it
 // waits for the host, in position units.
