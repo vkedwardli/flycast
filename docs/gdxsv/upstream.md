@@ -286,6 +286,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_emu_gui_display_commands` |
 | `core/ui/gui.cpp` | `drawBoxartBackground` | not static, the gdxsv menu calls it |
+| `core/ui/gui.cpp` | `gui_network_start` | the handshake can be gone while this dialog is still drawn |
 | `core/ui/gui.cpp` | `gui_display_ui` | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui.cpp` | `gui_display_ui` | `gdxsv_emu_gui_display` |
 | `core/ui/gui.cpp` | `gui_draw_osd` | `gdxsv_gui_display_osd` |
