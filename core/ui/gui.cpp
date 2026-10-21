@@ -1152,7 +1152,8 @@ static void gui_network_start()
 		else
 		{
 			ImGui::Text("%s", T("Starting Network..."));
-			if (NetworkHandshake::instance->canStartNow())
+			// gdxsv: the handshake can be gone while this dialog is still drawn
+			if (NetworkHandshake::instance != nullptr && NetworkHandshake::instance->canStartNow())
 				ImGui::TextWrapped("%s", T("Press Start to start the game now."));
 		}
 		ImGui::Text("%s", get_notification().c_str());
