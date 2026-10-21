@@ -821,8 +821,10 @@ bool nextFrame()
 		return false;
 	}
 
-	// gdxsv: gdxsv rollback battles add the input before the advance and its rollback
-	if (gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
+	// gdxsv: gdxsv rollback battles add the input before the advance and its rollback.
+	// Not at frame 0, which can run before the session starts: an input added before the first
+	// input read lets GGPO discard frames that frame 1 still reads. The frame delay fills them.
+	if (gdxsv_ggpo_state.inputBeforeAdvance && frame != 0 && !addLocalInput())
 		return false;
 
 	// will call save_game_state

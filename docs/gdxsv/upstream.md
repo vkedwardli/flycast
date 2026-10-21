@@ -196,7 +196,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_sleep_us` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | the local input part of `nextFrame` split out as `addLocalInput`, to run it before or after the advance |
-| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | gdxsv rollback battle (`gdxsv_ggpo_state.inputBeforeAdvance`): the local input added before `ggpo_advance_frame`, then `gdxsv_ggpo_wait_prediction_barrier`; `addLocalInput` no longer starts the executor (`nextFrame` does) |
+| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | gdxsv rollback battle (`gdxsv_ggpo_state.inputBeforeAdvance`): the local input added before `ggpo_advance_frame` (none at frame 0: no input before the first input read), then `gdxsv_ggpo_wait_prediction_barrier`; `addLocalInput` no longer starts the executor (`nextFrame` does) |
 | `core/network/ggpo.cpp` | `poll` | rollback check between frames, for the gdxsv session |
 | `core/network/ggpo.cpp` | `startNetwork` | `gdxsv_sleep_us` |
 | `core/network/ggpo.cpp` | `displayStats` | per-peer stats of the 4-player session |
