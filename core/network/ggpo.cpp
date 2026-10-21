@@ -821,11 +821,8 @@ bool nextFrame()
 		return false;
 	}
 
-	// gdxsv: gdxsv:RollbackInputBeforeAdvance adds the input before the advance and its rollback,
-	// usually already in gdxsv_ggpo_frame_end
-	if (gdxsv_ggpo_state.localInputAdded)
-		gdxsv_ggpo_state.localInputAdded = false;
-	else if (gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
+	// gdxsv: gdxsv:RollbackInputBeforeAdvance adds the input before the advance and its rollback
+	if (gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
 		return false;
 
 	// will call save_game_state
@@ -1196,19 +1193,6 @@ void gdxsv_ggpo_frame_top()
 		addLocalInput();
 }
 
-void gdxsv_ggpo_frame_end()
-{
-	using namespace ggpo;
-	// nextFrame skips this frame's input on a skipped frame: nothing to add
-	if (!gdxsv_ggpo_state.inputBeforeAdvance || inRollback || !_endOfFrame || skipInputOccurred)
-		return;
-	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-	if (ggpoSession == nullptr)
-		return;
-	addLocalInput();
-	gdxsv_ggpo_state.localInputAdded = true;
-}
-
 #else // LIBRETRO
 
 namespace ggpo
@@ -1249,8 +1233,5 @@ void receiveChatMessages(void (*callback)(int playerNum, const std::string& msg)
 }
 
 void gdxsv_ggpo_frame_top() {
-}
-
-void gdxsv_ggpo_frame_end() {
 }
 #endif

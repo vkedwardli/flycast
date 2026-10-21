@@ -40,7 +40,6 @@ struct GdxsvGgpoState {
 	bool inputAtFrameTop;    // gdxsv:RollbackInputAtFrameTop, read at session start
 	bool localInputPending;  // nextFrame left the local input to gdxsv_ggpo_frame_top
 	bool inputBeforeAdvance;  // gdxsv:RollbackInputBeforeAdvance, read at session start
-	bool localInputAdded;     // gdxsv_ggpo_frame_end added this frame's local input (RollbackInputBeforeAdvance)
 };
 extern GdxsvGgpoState gdxsv_ggpo_state;
 
@@ -62,6 +61,3 @@ GdxsvGgpoUpstream gdxsv_ggpo_upstream(void* cb);
 // Defined in core/network/ggpo.cpp. Top of an emulated frame, rollbacks excluded: adds the local input
 // nextFrame left pending (gdxsv:RollbackInputAtFrameTop).
 void gdxsv_ggpo_frame_top();
-// Defined in core/network/ggpo.cpp. End of an emulated frame, before its Present, rollbacks excluded: adds the
-// local input with gdxsv:RollbackInputBeforeAdvance, so a blocking Present does not delay its read and send.
-void gdxsv_ggpo_frame_end();
