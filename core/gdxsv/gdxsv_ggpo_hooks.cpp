@@ -36,6 +36,7 @@ void gdxsv_ggpo_session_start() {
 	gdxsv_ggpo_state.inputBeforeAdvance = config::GdxRollbackInputBeforeAdvance;
 	gdxsv_ggpo_state.inputAtFrameTop = config::GdxRollbackInputAtFrameTop && !gdxsv_ggpo_state.inputBeforeAdvance;
 	gdxsv_ggpo_state.localInputPending = false;
+	gdxsv_ggpo_state.localInputAdded = false;
 	if (gdxsv_ggpo_state.inputAtFrameTop) NOTICE_LOG(NETWORK, "GGPO local input read at the frame top");
 	if (gdxsv_ggpo_state.inputBeforeAdvance) NOTICE_LOG(NETWORK, "GGPO local input added before the frame advance");
 	CloseHashLog();
@@ -52,6 +53,7 @@ void gdxsv_ggpo_session_start() {
 void gdxsv_ggpo_session_stop() {
 	CloseHashLog();
 	gdxsv_ggpo_state.localInputPending = false;
+	gdxsv_ggpo_state.localInputAdded = false;
 }
 
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len) {

@@ -232,6 +232,7 @@ void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
+	gdxsv_ggpo_frame_end();
 	// Without threaded rendering, mainui_loop presents after ggpo::nextFrame: a rollback there
 	// delays the picture. Present the frame rendered at its start of render now instead; mainui_loop
 	// then has nothing left to present. Rollback frames render nothing (renderer disabled).
