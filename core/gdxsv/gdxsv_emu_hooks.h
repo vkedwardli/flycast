@@ -42,9 +42,10 @@ void gdxsv_emu_vblank();
 
 void gdxsv_emu_end_frame();
 
-// Emulator::run and the emulation thread: before a frame runs, after it ran (before ggpo::nextFrame).
-void gdxsv_emu_frame_top();
+// Emulator::run and the emulation thread: after a frame ran (before ggpo::nextFrame).
 void gdxsv_emu_next_frame();
+// The emulation thread (threaded rendering): after ggpo::nextFrame.
+void gdxsv_emu_frame_end();
 
 // mainui_loop: before the first frame, once per frame after the renderer
 // switch (the FixedFrequency wait when the frame was rendered), at exit.

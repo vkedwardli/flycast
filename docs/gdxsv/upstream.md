@@ -119,7 +119,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/emulator.cpp` | `Emulator::unloadGame` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
-| `core/emulator.cpp` | `Emulator::run`, `Emulator::start` | `gdxsv_emu_frame_top` |
+| `core/emulator.cpp` | `Emulator::start` | `gdxsv_emu_frame_end` after `ggpo::nextFrame` (the frame limiter of a rollback battle with threaded rendering) |
 | `core/emulator.cpp` | `Emulator::start` | fix blackout on threaded rendering |
 | `core/emulator.cpp` | `Emulator::stop` | stop the GGPO session the rollback backend started, so the emulator thread runs no rollback frame and restarts no CPU after the stop |
 | `core/emulator.cpp` | `Emulator::vblank` | `gdxsv_emu_end_frame` |
@@ -184,7 +184,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `free_buffer` | during a rollback the freed state is one of the frames about to be re-simulated (frame > lastSavedFrame), whose skip count is still needed by advance_frame. |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_state` |
-| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_frame_delay`: GGPO frame delay +1 with `gdxsv:RollbackInputBeforeAdvance` |
+| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_frame_delay`: GGPO frame delay +1 in a gdxsv rollback battle |
 | `core/network/ggpo.cpp` | `stopSession` | `gdxsv_ggpo_session_stop`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
@@ -195,9 +195,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_enabled` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_sleep_us` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
-| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | the local input part of `nextFrame` split out as `addLocalInput`; left pending for `gdxsv_ggpo_frame_top` with `gdxsv:RollbackInputAtFrameTop` |
-| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | `gdxsv:RollbackInputBeforeAdvance`: the local input added before `ggpo_advance_frame`, then `gdxsv_ggpo_wait_prediction_barrier`; `addLocalInput` no longer starts the executor (`nextFrame` does) |
-| `core/network/ggpo.cpp` | `gdxsv_ggpo_frame_top` | adds the pending local input at the top of the next frame, rollbacks excluded |
+| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | the local input part of `nextFrame` split out as `addLocalInput`, to run it before or after the advance |
+| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | gdxsv rollback battle (`gdxsv_ggpo_state.inputBeforeAdvance`): the local input added before `ggpo_advance_frame`, then `gdxsv_ggpo_wait_prediction_barrier`; `addLocalInput` no longer starts the executor (`nextFrame` does) |
 | `core/network/ggpo.cpp` | `poll` | rollback check between frames, for the gdxsv session |
 | `core/network/ggpo.cpp` | `startNetwork` | `gdxsv_sleep_us` |
 | `core/network/ggpo.cpp` | `displayStats` | per-peer stats of the 4-player session |

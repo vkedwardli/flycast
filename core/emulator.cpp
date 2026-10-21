@@ -979,7 +979,6 @@ void Emulator::run()
 	if (!singleStep && stepRangeTo == 0)
 		getSh4Executor()->Start();
 	try {
-		gdxsv_emu_frame_top();
 		runInternal();
 		gdxsv_emu_next_frame();
 		if (ggpo::active())
@@ -1025,10 +1024,10 @@ void Emulator::start()
 						if (!singleStep && stepRangeTo == 0)
 							emu.getSh4Executor()->Start(); // gdxsv: fix blackout on threaded rendering
 						startTime = sh4_sched_now64();
-						gdxsv_emu_frame_top();
 						runInternal();
 						gdxsv_emu_next_frame();
 						if (ggpo::active()) ggpo::nextFrame();
+						gdxsv_emu_frame_end();
 					}
 					TermAudio();
 				} catch (...) {

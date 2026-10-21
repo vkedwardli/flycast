@@ -783,7 +783,7 @@ int getSkippedFrames(int frame)
 	return skippedFrames[frame];
 }
 
-static bool addLocalInput(); // gdxsv: the input part of nextFrame, run there or by gdxsv_ggpo_frame_top
+static bool addLocalInput(); // gdxsv: the input part of nextFrame, run before or after the advance
 
 bool nextFrame()
 {
@@ -821,7 +821,7 @@ bool nextFrame()
 		return false;
 	}
 
-	// gdxsv: gdxsv:RollbackInputBeforeAdvance adds the input before the advance and its rollback
+	// gdxsv: gdxsv rollback battles add the input before the advance and its rollback
 	if (gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
 		return false;
 
@@ -850,10 +850,8 @@ bool nextFrame()
 		}
 	}
 
-	// gdxsv: gdxsv:RollbackInputAtFrameTop reads the input after the frame limiter wait, for the same GGPO frame
-	if (gdxsv_ggpo_state.inputAtFrameTop)
-		gdxsv_ggpo_state.localInputPending = true;
-	else if (!gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
+	// gdxsv: gdxsv rollback battles added the input before the advance
+	if (!gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
 		return false;
 	if (active()) {
 		emu.getSh4Executor()->Start();
@@ -1182,17 +1180,6 @@ GdxsvGgpoUpstream gdxsv_ggpo_upstream(void *cb)
 	return { &ggpoSession, &ggpoMutex, &localPlayerNum, &localPlayer, &remotePlayer, &synchronized, &analogAxes, &inputSize, &timesyncOccurred };
 }
 
-void gdxsv_ggpo_frame_top()
-{
-	using namespace ggpo;
-	if (!gdxsv_ggpo_state.localInputPending || inRollback)
-		return;
-	std::lock_guard<std::recursive_mutex> lock(ggpoMutex);
-	gdxsv_ggpo_state.localInputPending = false;
-	if (ggpoSession != nullptr)
-		addLocalInput();
-}
-
 #else // LIBRETRO
 
 namespace ggpo
@@ -1230,8 +1217,5 @@ void sendChatMessage(int playerNum, const std::string& msg) {
 void receiveChatMessages(void (*callback)(int playerNum, const std::string& msg)) {
 }
 
-}
-
-void gdxsv_ggpo_frame_top() {
 }
 #endif

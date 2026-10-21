@@ -36,6 +36,7 @@ void StartSession(const char* sessionCode, int me, const std::vector<std::string
 	GdxsvGgpoUpstream u = gdxsv_ggpo_upstream(&cb);
 	GdxsvGgpoState& s = gdxsv_ggpo_state;
 	gdxsv_ggpo_session_start();
+	s.inputBeforeAdvance = true;
 	s.testLog = getenv("GGPO_TEST_LOG") != nullptr;
 	s.testNoSkipReplay = getenv("GGPO_TEST_NO_SKIP_REPLAY") != nullptr;
 	memset(s.playerHandles, 0, sizeof(s.playerHandles));

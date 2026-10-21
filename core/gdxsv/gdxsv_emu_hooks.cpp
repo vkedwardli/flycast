@@ -58,6 +58,11 @@ std::atomic<int> gdxsv_frame_period_trim_us{0};
 static uint32_t g_live_guest_generation = 0;
 static bool g_live_guest_idle = false;
 
+namespace {
+// A GGPO session of a gdxsv battle: its frame order differs from upstream's netplay.
+bool RollbackBattle() { return ggpo::active() && gdxsv.Enabled(); }
+}  // namespace
+
 bool gdxsv_enabled() { return gdxsv.Enabled(); }
 
 bool gdxsv_is_multi_pov_guest() { return 0 <= gdxsv_multi_pov_guest_pov(); }
@@ -235,8 +240,7 @@ void gdxsv_emu_next_frame() {
 	// Without threaded rendering, mainui_loop presents after ggpo::nextFrame: a rollback there
 	// delays the picture. Present the frame rendered at its start of render now instead; mainui_loop
 	// then has nothing left to present. Rollback frames render nothing (renderer disabled).
-	if (!config::ThreadedRendering && ggpo::active() && rend_is_enabled() && config::GdxRollbackEarlyPresent &&
-		gdxsv.Enabled() && imguiDriver != nullptr) {
+	if (!config::ThreadedRendering && RollbackBattle() && rend_is_enabled() && imguiDriver != nullptr) {
 		try {
 			imguiDriver->present();
 		} catch (const FlycastException&) {
@@ -245,7 +249,11 @@ void gdxsv_emu_next_frame() {
 	}
 }
 
-void gdxsv_emu_frame_top() { gdxsv_ggpo_frame_top(); }
+void gdxsv_emu_frame_end() {
+	// With threaded rendering, a rollback battle paces the emulation thread, after the local input is sent and the
+	// rollback ran; the UI thread renders and presents each queued frame at once.
+	if (config::ThreadedRendering && RollbackBattle()) gdxsv_frame_limiter_wait();
+}
 
 void gdxsv_emu_mainui_loop(bool rendered) {
 	if (gdxsv.Enabled()) {
@@ -260,7 +268,7 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 	}
 	gdxsv_multi_pov_tick();
 
-	if (rendered)
+	if (rendered && !(config::ThreadedRendering && RollbackBattle()))
 		gdxsv_frame_limiter_wait();
 }
 

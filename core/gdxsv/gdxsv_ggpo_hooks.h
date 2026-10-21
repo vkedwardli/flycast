@@ -15,10 +15,10 @@ void gdxsv_ggpo_session_stop();
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len);
 // Draws the network stats of the gdxsv session (one block per peer). False when not a gdxsv session.
 bool gdxsv_ggpo_display_stats();
-// GGPO frame delay for the frame delay setting: +1 with gdxsv:RollbackInputBeforeAdvance, whose input is
-// added before ggpo_advance_frame increments the frame.
+// GGPO frame delay for the frame delay setting: +1 in a gdxsv rollback battle, whose input is added
+// before ggpo_advance_frame increments the frame.
 int gdxsv_ggpo_frame_delay(int delay);
-// gdxsv:RollbackInputBeforeAdvance, after ggpo_advance_frame: waits (pumping GGPO) while the prediction barrier
+// gdxsv rollback battle, after ggpo_advance_frame: waits (pumping GGPO) while the prediction barrier
 // would reject the next local input, so that input never waits before the advance, where a rollback would load a
 // state older than the emulated frame. False on a GGPO error.
 bool gdxsv_ggpo_wait_prediction_barrier();
@@ -37,9 +37,7 @@ struct GdxsvGgpoState {
 	bool useRandInput;
 	u32 randInputMask;
 	std::mt19937 randSource;
-	bool inputAtFrameTop;    // gdxsv:RollbackInputAtFrameTop, read at session start
-	bool localInputPending;  // nextFrame left the local input to gdxsv_ggpo_frame_top
-	bool inputBeforeAdvance;  // gdxsv:RollbackInputBeforeAdvance, read at session start
+	bool inputBeforeAdvance;  // gdxsv rollback battle: the local input is added before ggpo_advance_frame
 };
 extern GdxsvGgpoState gdxsv_ggpo_state;
 
@@ -58,6 +56,3 @@ struct GdxsvGgpoUpstream {
 };
 // Defined in core/network/ggpo.cpp. Fills cb (a GGPOSessionCallbacks) with upstream's callbacks.
 GdxsvGgpoUpstream gdxsv_ggpo_upstream(void* cb);
-// Defined in core/network/ggpo.cpp. Top of an emulated frame, rollbacks excluded: adds the local input
-// nextFrame left pending (gdxsv:RollbackInputAtFrameTop).
-void gdxsv_ggpo_frame_top();
