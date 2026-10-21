@@ -32,9 +32,12 @@ void CloseHashLog() {
 }  // namespace
 
 void gdxsv_ggpo_session_start() {
-	gdxsv_ggpo_state.inputAtFrameTop = config::GdxRollbackInputAtFrameTop;
+	// RollbackInputBeforeAdvance wins over RollbackInputAtFrameTop: the input is already added at the frame end
+	gdxsv_ggpo_state.inputBeforeAdvance = config::GdxRollbackInputBeforeAdvance;
+	gdxsv_ggpo_state.inputAtFrameTop = config::GdxRollbackInputAtFrameTop && !gdxsv_ggpo_state.inputBeforeAdvance;
 	gdxsv_ggpo_state.localInputPending = false;
 	if (gdxsv_ggpo_state.inputAtFrameTop) NOTICE_LOG(NETWORK, "GGPO local input read at the frame top");
+	if (gdxsv_ggpo_state.inputBeforeAdvance) NOTICE_LOG(NETWORK, "GGPO local input added before the frame advance");
 	CloseHashLog();
 	if (config::loadBool("gdxsv", "hashlog", false)) {
 		std::string path = get_writable_data_path("hashlog.txt");
@@ -54,3 +57,5 @@ void gdxsv_ggpo_session_stop() {
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len) {
 	if (hashLogFile != nullptr) fprintf(hashLogFile, "%d %08x %d\n", frame, XXH32(buffer, len, 7), len);
 }
+
+int gdxsv_ggpo_frame_delay(int delay) { return gdxsv_ggpo_state.inputBeforeAdvance ? delay + 1 : delay; }

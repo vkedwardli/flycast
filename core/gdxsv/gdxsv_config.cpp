@@ -19,6 +19,7 @@ Option<bool> GdxSkipRenderingHack("SkipRenderingHack", true, "gdxsv");
 Option<bool> GdxSlowIdleLoopHack("SlowIdleLoopHack", true, "gdxsv");
 Option<bool> GdxRollbackEarlyPresent("RollbackEarlyPresent", true, "gdxsv");
 Option<bool> GdxRollbackInputAtFrameTop("RollbackInputAtFrameTop", false, "gdxsv");
+Option<bool> GdxRollbackInputBeforeAdvance("RollbackInputBeforeAdvance", false, "gdxsv");
 Option<int> GdxMaxFrameLatency("MaxFrameLatency", 0, "gdxsv");
 
 Option<bool> GdxReplayHideName("ReplayHideName", false, "gdxsv");

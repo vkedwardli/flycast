@@ -22,6 +22,7 @@ extern Option<bool> GdxSkipRenderingHack;
 extern Option<bool> GdxSlowIdleLoopHack;
 extern Option<bool> GdxRollbackEarlyPresent;      // threaded rendering off: present before ggpo::nextFrame
 extern Option<bool> GdxRollbackInputAtFrameTop;  // read the local input at the top of the next frame, after the limiter wait
+extern Option<bool> GdxRollbackInputBeforeAdvance;  // add the local input before ggpo_advance_frame and its rollback
 extern Option<int> GdxMaxFrameLatency;           // DX11: frames DXGI may queue for display; 0: driver default
 extern Option<bool> GdxReplayHideName;
 extern Option<bool> GdxReplayShowAllyHP;

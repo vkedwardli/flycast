@@ -107,6 +107,7 @@ emulated frames to catch up that sound playback.
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | J1 (polling on), J2 (off): SDL virtual gamepad; J4: the two switches (Windows) | J1c, J4c |
 | Rollback battle, threaded rendering off: the frame is presented before `ggpo::nextFrame` (save, rollback, input), not after it; same picture (rollback frames render nothing) | setting `gdxsv:RollbackEarlyPresent` | `run_suite.py` B3 (the match completes and agrees; the present time is not checked) | B3c |
 | Rollback battle: the local input read at the top of the next frame, after the frame limiter wait, for the same GGPO frame | `gdxsv:RollbackInputAtFrameTop` | `run_suite.py` B4 (threaded rendering off) | B4c |
+| Rollback battle: the local input added before `ggpo_advance_frame` (and its rollback), same target frame and prediction limit | `gdxsv:RollbackInputBeforeAdvance` | `run_suite.py` B5 (threaded rendering off) | B5c |
 | DirectX 11: frames queued for display | `gdxsv:MaxFrameLatency` | no test | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | J3: SDL virtual gamepad, d-pad bound to the left stick | J3c |
 | gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
