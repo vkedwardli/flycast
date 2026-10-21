@@ -25,6 +25,7 @@
 #include "hw/pvr/Renderer_if.h"
 #include "emulator.h"
 #include "dx11_driver.h"
+#include "gdxsv/gdxsv_video_hooks.h"
 #include "imgui_impl_dx11.h"
 #include <dxgi1_6.h>
 #ifdef TARGET_UWP
@@ -117,6 +118,8 @@ bool DX11Context::init(bool keepCurrentWindow)
 
 	ComPtr<IDXGIDevice2> dxgiDevice;
 	pDevice.as(dxgiDevice);
+	if (int latency = gdxsv_video_max_frame_latency())
+		dxgiDevice->SetMaximumFrameLatency(latency);
 
 	dxgiAdapter.reset();
 	dxgiDevice->GetAdapter(&dxgiAdapter.get());

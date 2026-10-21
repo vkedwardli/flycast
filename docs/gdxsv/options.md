@@ -30,6 +30,9 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `ReplayPath` | empty | replay folder; empty is `data/replays` |
 | `SkipRenderingHack` | yes | replay seek runs only the game logic of skipped frames |
 | `SlowIdleLoopHack` | yes | dynarec hack for the game's idle loop |
+| `RollbackEarlyPresent` | yes | rollback battle, threaded rendering off: show a frame before GGPO saves, rolls back and reads the input |
+| `RollbackInputAtFrameTop` | no | rollback battle: read the local input at the top of the next frame, after the frame limiter wait, instead of at the end of the frame; same GGPO frame |
+| `MaxFrameLatency` | 0 | DirectX 11: frames DXGI may queue for display (1 to 16); 0 keeps the driver default; read when the renderer starts |
 | `ReplayHideName` | no | replay: generic player names |
 | `ReplayShowAllyHP` | yes | replay: the total HP field shows the ally's HP |
 | `ReplayKeyDisplay` | yes | replay: show the inputs |

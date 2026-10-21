@@ -2,6 +2,7 @@
 #include "gdxsv_config.h"
 #include <cstdlib>
 
+#include <algorithm>
 #include <chrono>
 #include <locale>
 #include <regex>
@@ -35,6 +36,10 @@
 #include "oslib/http_client.h"
 #include "ui/gui_util.h"
 #include "ui/IconsFontAwesome6.h"
+#include "ui/imgui_driver.h"
+#include "hw/pvr/Renderer_if.h"
+#include "network/ggpo.h"
+#include "gdxsv_ggpo_hooks.h"
 #include "stdclass.h"
 #include "xxhash.h"
 
@@ -227,7 +232,20 @@ void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
+	// Without threaded rendering, mainui_loop presents after ggpo::nextFrame: a rollback there
+	// delays the picture. Present the frame rendered at its start of render now instead; mainui_loop
+	// then has nothing left to present. Rollback frames render nothing (renderer disabled).
+	if (!config::ThreadedRendering && ggpo::active() && rend_is_enabled() && config::GdxRollbackEarlyPresent &&
+		gdxsv.Enabled() && imguiDriver != nullptr) {
+		try {
+			imguiDriver->present();
+		} catch (const FlycastException&) {
+			// mainui_loop presents again and recreates the context on failure
+		}
+	}
 }
+
+void gdxsv_emu_frame_top() { gdxsv_ggpo_frame_top(); }
 
 void gdxsv_emu_mainui_loop(bool rendered) {
 	if (gdxsv.Enabled()) {
@@ -873,3 +891,5 @@ void gdxsv_headless_exit(int code) {
 	fflush(nullptr);
 	std::_Exit(code);
 }
+
+int gdxsv_video_max_frame_latency() { return std::clamp(config::GdxMaxFrameLatency.get(), 0, 16); }

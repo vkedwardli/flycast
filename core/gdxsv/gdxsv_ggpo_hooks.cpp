@@ -9,6 +9,7 @@
 #include <string>
 
 #include "cfg/cfg.h"
+#include "gdxsv_config.h"
 #include "log/Log.h"
 #include "stdclass.h"
 
@@ -31,6 +32,9 @@ void CloseHashLog() {
 }  // namespace
 
 void gdxsv_ggpo_session_start() {
+	gdxsv_ggpo_state.inputAtFrameTop = config::GdxRollbackInputAtFrameTop;
+	gdxsv_ggpo_state.localInputPending = false;
+	if (gdxsv_ggpo_state.inputAtFrameTop) NOTICE_LOG(NETWORK, "GGPO local input read at the frame top");
 	CloseHashLog();
 	if (config::loadBool("gdxsv", "hashlog", false)) {
 		std::string path = get_writable_data_path("hashlog.txt");
@@ -42,7 +46,10 @@ void gdxsv_ggpo_session_start() {
 	}
 }
 
-void gdxsv_ggpo_session_stop() { CloseHashLog(); }
+void gdxsv_ggpo_session_stop() {
+	CloseHashLog();
+	gdxsv_ggpo_state.localInputPending = false;
+}
 
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len) {
 	if (hashLogFile != nullptr) fprintf(hashLogFile, "%d %08x %d\n", frame, XXH32(buffer, len, 7), len);

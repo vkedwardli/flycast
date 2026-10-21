@@ -30,6 +30,8 @@ struct GdxsvGgpoState {
 	bool useRandInput;
 	u32 randInputMask;
 	std::mt19937 randSource;
+	bool inputAtFrameTop;    // gdxsv:RollbackInputAtFrameTop, read at session start
+	bool localInputPending;  // nextFrame left the local input to gdxsv_ggpo_frame_top
 };
 extern GdxsvGgpoState gdxsv_ggpo_state;
 
@@ -48,3 +50,6 @@ struct GdxsvGgpoUpstream {
 };
 // Defined in core/network/ggpo.cpp. Fills cb (a GGPOSessionCallbacks) with upstream's callbacks.
 GdxsvGgpoUpstream gdxsv_ggpo_upstream(void* cb);
+// Defined in core/network/ggpo.cpp. Top of an emulated frame, rollbacks excluded: adds the local input
+// nextFrame left pending (gdxsv:RollbackInputAtFrameTop).
+void gdxsv_ggpo_frame_top();

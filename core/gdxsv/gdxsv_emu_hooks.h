@@ -42,6 +42,8 @@ void gdxsv_emu_vblank();
 
 void gdxsv_emu_end_frame();
 
+// Emulator::run and the emulation thread: before a frame runs, after it ran (before ggpo::nextFrame).
+void gdxsv_emu_frame_top();
 void gdxsv_emu_next_frame();
 
 // mainui_loop: before the first frame, once per frame after the renderer

@@ -192,6 +192,20 @@ def b3_control(s: Settings) -> Result:
     return control(common(m), [summary(m)], DESYNC_SIGNS)
 
 
+INPUT_AT_FRAME_TOP = THREADED_OFF + ["gdxsv:RollbackInputAtFrameTop=yes"]
+
+
+def b4_input_at_frame_top(s: Settings) -> Result:
+    m = lib.run_match(s, "B4", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=INPUT_AT_FRAME_TOP)
+    return verdict(common(m), [summary(m)])
+
+
+def b4_control(s: Settings) -> Result:
+    m = lib.run_match(s, "B4c", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=INPUT_AT_FRAME_TOP,
+                      lua={2: DESYNC})
+    return control(common(m), [summary(m)], DESYNC_SIGNS)
+
+
 # --- C. Disconnect and session lifecycle --------------------------------------
 
 def c1_peer_drop(s: Settings) -> Result:
@@ -572,6 +586,8 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
     "B3c": ("control: B3 with desync.lua on peer 2", b3_control, 2, False),
+    "B4": ("threaded rendering off, input read at the frame top", b4_input_at_frame_top, 2, False),
+    "B4c": ("control: B4 with desync.lua on peer 2", b4_control, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
     "C1c": ("control: C1 with p1 frozen for 15 s after the drop, its window stops responding", c1_control, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
