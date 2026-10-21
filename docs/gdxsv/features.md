@@ -100,6 +100,7 @@ does not run extra emulated frames to catch up that sound playback.
 | NAOMI version (`gundmxgd`) boots | the NAOMI game files | N1 | – |
 | Texture pack, downloaded and updated | settings `UseTexturePack`, `TexturePackChannel` | X1: a local channel, 3 chunks checked by hash and installed; the next start finds it current (`gdxsv:TexturePackUrl`); the pack is not loaded in a game (a fake pack); X2: one chunk with a wrong hash, the pack is not installed | – |
 | Glyph-cell textures (DC2 battle name sheet) | on for `T13306M` when the downloaded texture pack (Use Texture Pack) or the embedded textures replace 32x32 glyphs; a `data/textures/T13306M` folder does not apply to cells | no committed test; manual: a replay with and without a glyph pack, the in-battle pilot names change | the same replay without the pack |
+| Game font glyphs drawn from an outline font (DC2) | setting `FontRaster` | no test: a rig run checks the log line `FontRaster: ... loaded` and the pilot name on screen; table from `gdxsv_langmod/gen_font_glyphs.py` | `FontRaster=no` shows the bitmap glyph |
 | Widescreen HUD layout | setting `WidescreenHudLayout` | W1 (under the default `rend.ThreadedRendering=yes`: a change stops the SH4 once so that the patch goes in between SH4 runs) | – |
 | Slow idle loop hack | setting `SlowIdleLoopHack` | H1: unthrottled, over 2 x the fps without the hack | H1c |
 | Projectile view (debug overlay, Disc 2) | setting `ProjectileView` (ini only) | none | none |
