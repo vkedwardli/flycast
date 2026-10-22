@@ -26,6 +26,7 @@
 #include "audio/audiostream.h"
 #include "hw/gdrom/gdrom_if.h"
 #include "cfg/option.h"
+#include "network/ggpo.h" // gdxsv: rollback rerun in ChannelEx::Step
 #include "serialize.h"
 
 #include <algorithm>
@@ -701,9 +702,9 @@ struct ChannelEx
 
 	void Step(SampleType& mixl, SampleType& mixr)
 	{
-		if (settings.aica.muteAudio && settings.gdxsv.replayModeActive && !config::DSPEnabled)
+		if (settings.aica.muteAudio && (settings.gdxsv.replayModeActive || ggpo::rollbacking()) && !config::DSPEnabled)
 		{
-			// gdxsv: muted replay seek, no DSP: the mix is never heard, step the channel state only
+			// gdxsv: muted replay seek or rollback rerun, no DSP: the mix is never heard, step the channel state only
 			if (!enabled)
 				return;
 			(this->*StepAEG)();
