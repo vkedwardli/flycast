@@ -373,7 +373,12 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 		}
 
 		if (ok) {
-			int delay = std::max<int>({2, config::GdxMinDelay.get(), static_cast<int>(max_rtt / 2.0 / 16.0 + 0.9999)});
+			// The one-way latency is split into a rollback budget and an input delay budget.
+			constexpr double kFrameMs = 1000.0 / 59.94;
+			constexpr double kRollbackBudgetFrames = 1.5;
+			const double latency_frames = max_rtt / 2.0 / kFrameMs;
+			const double delay_budget_frames = latency_frames - kRollbackBudgetFrames;
+			int delay = std::max<int>({2, config::GdxMinDelay.get(), static_cast<int>(std::ceil(delay_budget_frames))});
 			// Local test only: a fixed input delay, so a large GGPO_NETWORK_DELAY means deep prediction.
 			if (const char* fixed = is_local_test_ ? getenv("TEST_GGPO_DELAY") : nullptr) {
 				delay = atoi(fixed);
