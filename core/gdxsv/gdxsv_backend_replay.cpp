@@ -206,6 +206,7 @@ void GdxsvBackendReplay::Reset() {
 	multi_pov_speed_burst_ = false;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+	multi_pov_step_target_ = -1;
 	multi_pov_system_move_ = false;
 	multi_pov_round_jump_ = false;
 	multi_pov_seek_round_ = 0;
@@ -642,6 +643,9 @@ constexpr int64_t kMultiPovHostLeadSlack = 2 * 1024;
 // takes several frames to recover from a missing input, a visible hitch.
 constexpr int kSyncHoldLeadFrames = 2;
 constexpr int kSyncCatchUpWaitMs = 500;
+// A paused step passes through a cached host snapshot and a prefetched input.
+// Allow those two extra frames before holding for a stalled guest.
+constexpr int32_t kPausedStepExtraSlack = 2 * kSyncSubFrames;
 
 }  // namespace
 
@@ -762,7 +766,7 @@ void GdxsvBackendReplay::OnNextFrame() {
 	if (MultiPov())
 		gdxsv_multi_pov_audio_frame(key_msg_count_, start_msg_count_, multi_pov_seek_generation_,
 									ctrl_pause_ || pause_menu_opend_ ? 0 : ctrl_play_speed_,
-									settings.input.fastForwardMode || settings.aica.muteAudio, pause_menu_opend_);
+									settings.input.fastForwardMode || settings.aica.muteAudio, pause_menu_opend_, ctrl_pause_);
 	// Must run here, on the emulation thread, before the early-returns below.
 	//
 	// Thread: DeliverKeyMsgBatch reads log_file_ on the emulation thread while
@@ -892,6 +896,7 @@ void GdxsvBackendReplay::WaitForMultiPovHost() {
 // Guest: applies what the host published, as the commands the user's input
 // would have queued on this screen.
 void GdxsvBackendReplay::FollowMultiPovHost() {
+	multi_pov_step_target_ = -1;
 	if (!multi_pov_guest_) return;
 	if (state_ == State::None || state_ == State::End) return;
 
@@ -950,17 +955,21 @@ void GdxsvBackendReplay::FollowMultiPovHost() {
 	// Paused on both: walk to the host's frame. A step forward moves the host
 	// by one, inside kMultiPovSeekSlack, so it is never published as a seek.
 	// This also lines up a guest that paused a frame or two off the host.
-	// Only once the next input is waiting in recv_buf_: a step or jump bumps
-	// key_msg_count_ a frame after it runs, and walking in between overshoots.
+	// Cache one target per run for OnSockRead. Following steps must use the
+	// same path with audio routing disabled and in headless replay rigs.
 	const auto pending = [this](ReplayCtrlCommand::Command c) {
 		return ui_commands_.contains(c) || ctrl_commands_.contains(c);
 	};
-	if (st.paused && ctrl_pause_ && !ctrl_step_frame_ && !recv_buf_.empty() && !pending(ReplayCtrlCommand::TogglePause) &&
-		!pending(ReplayCtrlCommand::StepFrame) && !pending(ReplayCtrlCommand::JumpToKeyMsg)) {
-		if (key_msg_count_ < st.seek_target)
-			ui_commands_.emplace_back(ReplayCtrlCommand::StepFrame);
-		else if (st.seek_target < key_msg_count_)
+	if (st.paused && ctrl_pause_ && !st.menu_open && !ctrl_step_frame_ && !seeking_ && !takeover_ &&
+		!pending(ReplayCtrlCommand::TogglePause) && !pending(ReplayCtrlCommand::StepFrame) &&
+		!pending(ReplayCtrlCommand::JumpToKeyMsg) && !pending(ReplayCtrlCommand::SetRound)) {
+		multi_pov_step_target_ = st.seek_target;
+		// A jump bumps the prefetched input counter a frame after it runs.
+		// Wait for the pending reply before deciding that a guest overshot.
+		if (st.seek_target < key_msg_count_ && !recv_buf_.empty()) {
+			multi_pov_step_target_ = -1;
 			ui_commands_.emplace_back(ReplayCtrlCommand::JumpToKeyMsg, static_cast<int>(st.seek_target) - 1);
+		}
 	}
 }
 
@@ -1014,7 +1023,11 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 				if (live_mode_ && ++lead_log_counter % 600 == 0)
 					NOTICE_LOG(COMMON, "spectate sync: live frame %d, lead %d frames", key_msg_count_, lead_frames);
 			}
-			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), wait_ms);
+			// Paused input follows an older host snapshot. The barrier must
+			// tolerate that delay throughout its wait, including the wakeup
+			// condition, while still holding for larger viewpoint stalls.
+			const int32_t extra_slack = MultiPov() && ctrl_pause_ ? kPausedStepExtraSlack : 0;
+			spectate_sync_.WaitForPeers(static_cast<int32_t>(pos), wait_ms, extra_slack);
 		}
 	}
 	WaitForMultiPovHost();
@@ -1026,7 +1039,7 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	//
 	// Offline replay only. In live mode the pacing controller owns the trim -
 	// the buffer target has to win over group alignment, or playback starves.
-	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_) {
+	if (spectate_sync_.Active() && !live_mode_ && !takeover_ && !seeking_ && !(MultiPov() && ctrl_pause_)) {
 		const int64_t pos = static_cast<int64_t>(key_msg_count_) * kSyncSubFrames + sync_subframe_;
 		const int lead_frames = spectate_sync_.LeadOverSlowest(static_cast<int32_t>(pos)) / kSyncSubFrames;
 		const int excess = lead_frames - kSyncHoldLeadFrames;
@@ -2071,9 +2084,7 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 	}
 
 	if (ctrl_pause_ && !seeking_) {
-		if (!ctrl_step_frame_) {
-			return 0;
-		}
+		if (!ctrl_step_frame_ && (!multi_pov_guest_ || key_msg_count_ >= multi_pov_step_target_)) return 0;
 		ctrl_step_frame_ = false;
 	}
 
@@ -2156,6 +2167,7 @@ bool GdxsvBackendReplay::Start() {
 	multi_pov_speed_burst_ = false;
 	multi_pov_published_frame_ = -1;
 	multi_pov_seek_generation_ = 0;
+	multi_pov_step_target_ = -1;
 	multi_pov_system_move_ = false;
 	multi_pov_round_jump_ = false;
 	multi_pov_seek_round_ = 0;
