@@ -168,6 +168,7 @@ struct MemPages
 	memwatch::PageMap elanram;
 };
 static std::unordered_map<int, MemPages> deltaStates;
+static std::vector<unsigned char *> stateBufferPool; // gdxsv: freed save state buffers, reused
 static int lastSavedFrame = -1;
 
 // gdxsv: frames of the last rollback, for the skip frame replay and its test log
@@ -400,7 +401,14 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 	lastSavedFrame = frame;
 	// TODO this is way too much memory
 	size_t allocSize = settings.platform.isNaomi() ? 20_MB : 10_MB;
-	*buffer = (unsigned char *)malloc(allocSize);
+	// gdxsv: reuse a freed buffer; a fresh block page-faults on each first write
+	if (stateBufferPool.empty())
+		*buffer = (unsigned char *)malloc(allocSize);
+	else
+	{
+		*buffer = stateBufferPool.back();
+		stateBufferPool.pop_back();
+	}
 	if (*buffer == nullptr)
 	{
 		WARN_LOG(NETWORK, "Memory alloc failed");
@@ -521,7 +529,7 @@ static void free_buffer(void *buffer)
 		// (frame > lastSavedFrame), whose skip count is still needed by advance_frame.
 		if (frame < lastSavedFrame)
 			skippedFrames.erase(frame);
-		free(buffer);
+		stateBufferPool.push_back((unsigned char *)buffer); // gdxsv: freed in stopSession
 	}
 }
 
@@ -694,6 +702,10 @@ void stopSession()
 	ggpo_close_session(ggpoSession);
 	ggpoSession = nullptr;
 	skippedFrames.clear();
+	// gdxsv: free the reused save state buffers
+	for (unsigned char *buffer : stateBufferPool)
+		free(buffer);
+	stateBufferPool.clear();
 	gdxsv_ggpo_session_stop();
 	gdxsv_ggpo_state.disconnectFlags = 0;
 	miniupnp.Term();
