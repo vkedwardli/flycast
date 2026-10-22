@@ -64,6 +64,12 @@ public:
 		static_cast<T&>(*this).unprotectMem(0, 0xffffffff);
 	}
 
+	// gdxsv: a rollback restores single pages
+	void unprotectPage(u32 addr)
+	{
+		static_cast<T&>(*this).unprotectMem(addr, PAGE_SIZE);
+	}
+
 	void reset()
 	{
 		started = false;

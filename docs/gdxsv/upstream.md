@@ -132,6 +132,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/mem/mem_watch.h` |  | already saved, yet it faulted: something protected the page again (gdxsv). |
 | `core/hw/mem/mem_watch.h` | `writeAccess` | `gdxsv_is_using_memwatch` |
 | `core/hw/mem/mem_watch.h` | `protect` | `gdxsv_is_using_memwatch` |
+| `core/hw/mem/mem_watch.h` | `Watcher::unprotectPage` | unprotect one page, for `load_game_state` |
 | `core/hw/pvr/Renderer_if.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_create_renderer` | `gdxsv_headless` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_end_frame` |
@@ -180,6 +181,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `load_game_state` | test log |
 | `core/network/ggpo.cpp` | `load_game_state` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `load_game_state` | free_buffer keeps the skip counts of the frames after it |
+| `core/network/ggpo.cpp` | `load_game_state` | unprotects each restored page once (`unprotectPage`) instead of the whole RAM, VRAM and AICA RAM; include `<unordered_set>` |
 | `core/network/ggpo.cpp` | `save_game_state` | `gdxsv_ggpo_state_saved` |
 | `core/network/ggpo.cpp` | `free_buffer` | during a rollback the freed state is one of the frames about to be re-simulated (frame > lastSavedFrame), whose skip count is still needed by advance_frame. |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
