@@ -27,6 +27,7 @@
 #include "oslib/i18n.h"
 #include <algorithm>
 #include <unordered_map>
+#include <unordered_set> // gdxsv: pages restored by load_game_state
 
 #include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
@@ -361,18 +362,23 @@ static bool load_game_state(unsigned char *buffer, int len)
 	if (gdxsv_ggpo_state.testLog)
 		NOTICE_LOG(NETWORK, "RBKTEST load seek=%d from=%d", frame, seekToFrame);
 	loadedFrame = frame;
-	memwatch::unprotect();
+	// gdxsv: unprotect each restored page once, not the whole memory
+	std::unordered_set<u32> unprotected[4];
+	auto restore = [&unprotected](auto& watcher, const memwatch::PageMap& saved, int area) {
+		for (const auto& pair : saved)
+		{
+			if (unprotected[area].insert(pair.first).second)
+				watcher.unprotectPage(pair.first);
+			memcpy(watcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		}
+	};
 	for (int f = lastSavedFrame - 1; f >= frame; f--)
 	{
 		const MemPages& pages = deltaStates[f];
-		for (const auto& pair : pages.ram)
-			memcpy(memwatch::ramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
-		for (const auto& pair : pages.vram)
-			memcpy(memwatch::vramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
-		for (const auto& pair : pages.aram)
-			memcpy(memwatch::aramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
-		for (const auto& pair : pages.elanram)
-			memcpy(memwatch::elanWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		restore(memwatch::ramWatcher, pages.ram, 0);
+		restore(memwatch::vramWatcher, pages.vram, 1);
+		restore(memwatch::aramWatcher, pages.aram, 2);
+		restore(memwatch::elanWatcher, pages.elanram, 3);
 		DEBUG_LOG(NETWORK, "Restored frame %d pages: %d ram, %d vram, %d eram, %d aica ram", f, (u32)pages.ram.size(),
 					(u32)pages.vram.size(), (u32)pages.elanram.size(), (u32)pages.aram.size());
 	}
