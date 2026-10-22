@@ -102,7 +102,7 @@ emulated frames to catch up that sound playback.
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
+| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) on an absolute schedule: a frame late by less than a period is paid back; a longer stall skips whole periods, with no burst of short frames | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
 | Audio sync as a setting | setting `config:aica.LimitFPS` | F2: audio paces the game at 59.94 fps | F2c |
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | J1 (polling on), J2 (off): SDL virtual gamepad; J4: the two switches (Windows) | J1c, J4c |
 | Rollback battle frame order: the local input is read and added before `ggpo_advance_frame` (save, rollback), not after it; same target frame (GGPO frame delay +1) and prediction limit (the barrier is waited for after the advance). Upstream netplay keeps upstream's order | always in a gdxsv rollback battle, no setting | `run_suite.py` A1, B2 (threaded rendering on), B3 (off): the match completes and agrees; the input timing is not checked | B2c, B3c |
