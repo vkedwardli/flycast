@@ -182,6 +182,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `load_game_state` | free_buffer keeps the skip counts of the frames after it |
 | `core/network/ggpo.cpp` | `save_game_state` | `gdxsv_ggpo_state_saved` |
 | `core/network/ggpo.cpp` | `free_buffer` | during a rollback the freed state is one of the frames about to be re-simulated (frame > lastSavedFrame), whose skip count is still needed by advance_frame. |
+| `core/network/ggpo.cpp` |  | include `gdxsv/gdxsv_perf_trace.h` |
+| `core/network/ggpo.cpp` | `advance_frame`, `load_game_state`, `save_game_state`, `nextFrame`, `addLocalInput` | `GDXSV_PERF_TRACE` events (rerun, load, save, frame, input read and add) for the pre-release perf check; off unless env `GDXSV_PERF_TRACE` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_frame_delay`: GGPO frame delay +1 in a gdxsv rollback battle |

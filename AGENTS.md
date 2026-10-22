@@ -126,6 +126,11 @@ Follow the names already in `core/gdxsv/`:
 - Test and diagnostic code ships in every build: the rigs run against
   released builds too. There is no test-build flag. Code that costs
   performance while unused is not acceptable.
+- Do not add build (CMake) options for gdxsv features. A feature that is
+  off by default and costs no performance while off ships in every build and
+  is switched at runtime. New build options only when that is impossible,
+  with the reason in the PR. More options mean more build combinations and
+  longer builds.
 - State in structs, not file-scope variables. State a rollback or replay key
   restores: one struct, saved and restored whole.
 - Reset gdxsv state, threads, sockets and sessions on emulator stop and

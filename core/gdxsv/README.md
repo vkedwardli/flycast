@@ -63,6 +63,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_https_latency*.cpp/.h/.mm` | HTTPS latency to each server region, per platform (`_win`, `_curl`, `_apple`) |
 | `gdxsv_prof.cpp/.h` | named timers for profiling |
 | `gdxsv_frame_limiter.cpp/.h` | FixedFrequency frame limiter of the main UI loop (period, replay trim) |
+| `gdxsv_perf_trace.cpp/.h` | event trace for the pre-release perf check, on with env `GDXSV_PERF_TRACE` |
 | `gdxsv_sleep.cpp/.h` | precise sleep for the frame limiter and network threads |
 | `gdxsv_null_imgui_driver.h` | UI driver that draws nothing (headless runs) |
 | `libs.h` | guest memory access helpers |
