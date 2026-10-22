@@ -9,6 +9,7 @@ Where flycast keeps its files:
 - macOS: $HOME/.flycast when it exists, so HOME is set to <dir>.
 """
 import ctypes
+import hashlib
 import os
 import re
 import shutil
@@ -356,11 +357,20 @@ def reserve_memory(pid: int, address: int, size: int) -> bool:
     return _process_memory(pid, reserve)
 
 
+# sha256 of the savestates published until 2026-10 (cost 295 in RAM); flycast fetches them again too.
+OUTDATED_STATES = {"f2385a508a9960777bc275101b29a6f9a3bac0e36fc13f0df9fb325e3cacd786",
+                   "6a2da41d1b3224c97970e53dc81289724b5bd2ce4ff636c15b54e29f7461904b"}
+
+
 def ensure_state(state_dir: str, rom: str) -> None:
-    """The game boots from <rom name>_99.state; fetch it once if missing."""
+    """The game boots from <rom name>_99.state; fetch it once if missing or outdated."""
     os.makedirs(state_dir, exist_ok=True)
     name = os.path.splitext(os.path.basename(rom))[0] + "_99.state"
     path = os.path.join(state_dir, name)
+    if os.path.isfile(path):
+        with open(path, "rb") as f:
+            if hashlib.sha256(f.read()).hexdigest() in OUTDATED_STATES:
+                os.remove(path)
     if not os.path.isfile(path):
         print(f"downloading {name}")
         urllib.request.urlretrieve(STATE_URL.format(name=name), path)

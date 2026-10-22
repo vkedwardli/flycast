@@ -1294,7 +1294,7 @@ void GdxsvBackendRollback::SaveReplay() const {
 	auto log = std::make_unique<proto::BattleLogFile>();
 	log->set_game_disk(gdxsv.Disk() == 1 ? "dc1" : "dc2");
 	log->set_battle_code(matching_.battle_code());
-	log->set_log_file_version(20230730);
+	log->set_log_file_version(20261023);
 	for (int i = 0; i < gdxsv.patch_list_.patches_size(); ++i) {
 		log->add_patches()->CopyFrom(gdxsv.patch_list_.patches(i));
 	}
