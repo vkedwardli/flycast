@@ -196,6 +196,7 @@ void GdxsvBackendReplay::Reset() {
 	pause_menu_opend_ = false;
 	lbs_first_skip_ = false;
 	ctrl_play_speed_ = 0;
+	fast_forward_pending_ = false;
 	ctrl_step_frame_ = false;
 	ctrl_pause_ = false;
 	ctrl_loading_ = false;
@@ -240,6 +241,8 @@ void GdxsvBackendReplay::Reset() {
 }
 
 void GdxsvBackendReplay::OnMainUiLoop() {
+	// Consume even when controls are blocked, so a press cannot leak past a menu or loading screen.
+	const bool fast_forward = fast_forward_pending_.exchange(false);
 	const UiState ui = ui_snapshot_.Read();
 	if (ui.state == State::End) {
 		// A headless replay run is done the moment playback ends: exit with
@@ -310,7 +313,7 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 		}
 		const u32 pressed = ~((input.kcode ^ prev_kcode) & ~input.kcode);
 
-		if (input.kcode != prev_kcode) {
+		if (input.kcode != prev_kcode || fast_forward) {
 			if (ui.takeover) {
 				if (~pressed & DC_BTN_START) {
 					ui_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
@@ -338,14 +341,21 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 					}
 					flash_left_ = 0.3f;
 				}
+				// Fast-forward shares the speed controls, but never interrupts loading or live bootstrap.
+				else if (fast_forward && !ui.loading && (!ui.liveMode || ui.inGame) && ui.takeoverCountdown == 0 &&
+						 !(~input.kcode & (DC_DPAD_LEFT | DC_DPAD_RIGHT))) {
+					ui_commands_.emplace_back(ReplayCtrlCommand::ToggleFastForward);
+					(ui.playSpeed == ReplayMaxSpeed ? flash_down_ : flash_up_) = 0.3f;
+					ctrl_bar_idle_timer_ = 3.0f;
+				}
 				// Up/Down: Speed control (ignored while Left/Right is held)
 				else if ((~pressed & DC_DPAD_UP) && !(~input.kcode & DC_DPAD_LEFT) && !(~input.kcode & DC_DPAD_RIGHT)) {
 					ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
-					flash_up_ = 0.3f;
+					if (ui.playSpeed < ReplayMaxSpeed) flash_up_ = 0.3f;
 				}
 				else if ((~pressed & DC_DPAD_DOWN) && !(~input.kcode & DC_DPAD_LEFT) && !(~input.kcode & DC_DPAD_RIGHT)) {
 					ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
-					flash_down_ = 0.3f;
+					if (ui.playSpeed > -2) flash_down_ = 0.3f;
 				}
 			}
 		}
@@ -1500,11 +1510,15 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 			ctrl_commands_.pop_front();
 		}
 
-		if (ctrl.cmd == ReplayCtrlCommand::SetSpeed || ctrl.cmd == ReplayCtrlCommand::NextSpeed) {
-			int speed = ctrl.cmd == ReplayCtrlCommand::SetSpeed ? ctrl.arg1 : ctrl_play_speed_ + ctrl.arg1;
-			speed = std::max<int>(-2, std::min<int>(2, speed));
+		if (ctrl.cmd == ReplayCtrlCommand::SetSpeed || ctrl.cmd == ReplayCtrlCommand::NextSpeed ||
+			ctrl.cmd == ReplayCtrlCommand::ToggleFastForward) {
+			int speed = ctrl.cmd == ReplayCtrlCommand::ToggleFastForward ? (ctrl_play_speed_ == ReplayMaxSpeed ? 0 : ReplayMaxSpeed)
+						: ctrl.cmd == ReplayCtrlCommand::SetSpeed		 ? ctrl.arg1
+																		 : ctrl_play_speed_ + ctrl.arg1;
+			speed = std::clamp(speed, -2, ReplayMaxSpeed);
 			if (speed != ctrl_play_speed_) {
 				ctrl_play_speed_ = speed;
+				NOTICE_LOG(COMMON, "Replay speed: %s", SpeedText(speed));
 			}
 			ctrl_commands_.pop_front();
 		}
@@ -1631,6 +1645,8 @@ void GdxsvBackendReplay::OnNextFrameInternal() {
 	// handler was skipped. No pending command still needs the Loading HUD.
 	ctrl_loading_ = false;
 }
+
+void GdxsvBackendReplay::OnFastForward() { fast_forward_pending_ = true; }
 
 bool GdxsvBackendReplay::OnOpenMenu() {
 	if (ui_snapshot_.Read().state <= State::LbsStartBattleFlow) {
@@ -1853,7 +1869,7 @@ void GdxsvBackendReplay::ProcessUiCommands() {
 			cmd.cmd == ReplayCtrlCommand::JumpToKeyMsg || cmd.cmd == ReplayCtrlCommand::SeekBackward ||
 			cmd.cmd == ReplayCtrlCommand::StepFrameBackward || cmd.cmd == ReplayCtrlCommand::TogglePause ||
 			cmd.cmd == ReplayCtrlCommand::TogglePauseMenu || cmd.cmd == ReplayCtrlCommand::SetSpeed ||
-			cmd.cmd == ReplayCtrlCommand::NextSpeed)) {
+			cmd.cmd == ReplayCtrlCommand::NextSpeed || cmd.cmd == ReplayCtrlCommand::ToggleFastForward)) {
 			if (live_initial_catchup_)
 				NOTICE_LOG(COMMON, "Initial live catch-up cancelled by control=%d at frame=%d", int(cmd.cmd), key_msg_count_);
 			if (live_following_)
@@ -2136,6 +2152,8 @@ bool GdxsvBackendReplay::Start() {
 		settings.input.fastForwardMode = true;
 		config::FixedFrequency.override(0);
 	} else {
+		// A lobby fast-forward must not leave replay uncapped and muted.
+		settings.input.fastForwardMode = false;
 		// ReplayFixedFrequency (ini only) lets a test run the clock off the
 		// device's rate, e.g. 3 (60Hz) for audio rate control.
 		config::FixedFrequency.override(config::loadInt("gdxsv", "ReplayFixedFrequency", 2));
@@ -3301,14 +3319,14 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 	// Up/Down guide icons (for speed control)
 	ImVec2 udSize = ImGui::CalcTextSize(ICON_FA_ANGLE_UP);
 	const float udSlotW = std::max(udSize.x, uiScaled(20.0f));
-	const bool canSpeedUp = ui.playSpeed < 2;
+	const bool canSpeedUp = ui.playSpeed < ReplayMaxSpeed;
 	const bool canSpeedDown = ui.playSpeed > -2;
 	const ImVec2 upCenter(cx + udSlotW * 0.5f, barY + barH * 0.25f);
 	const ImVec2 downCenter(cx + udSlotW * 0.5f, barY + barH * 0.75f);
 	const ImVec2 upPos = upCenter - udSize * 0.5f;
 	const ImVec2 downPos = downCenter - udSize * 0.5f;
-	dl->AddText(upPos, canSpeedUp ? flashCol(flash_up_) : disabledCol, ICON_FA_ANGLE_UP);
-	dl->AddText(downPos, canSpeedDown ? flashCol(flash_down_) : disabledCol, ICON_FA_ANGLE_DOWN);
+	dl->AddText(upPos, (canSpeedUp || flash_up_ > 0.0f) ? flashCol(flash_up_) : disabledCol, ICON_FA_ANGLE_UP);
+	dl->AddText(downPos, (canSpeedDown || flash_down_ > 0.0f) ? flashCol(flash_down_) : disabledCol, ICON_FA_ANGLE_DOWN);
 	if (iconButton("##gdxsv-speed-up", upCenter, ImVec2(udSlotW, barH * 0.5f), canSpeedUp)) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
 		flash_up_ = 0.3f;

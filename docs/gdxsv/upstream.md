@@ -55,7 +55,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Memory | `core/windows/win_vmem.cpp`, `core/linux/posix_vmem.cpp` | Windows: fixed RAM base (host address low 28 bits = guest address); Linux: one shared-memory name per process (four-screen replay) |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp`, `core/hw/aica/sgc_if.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade; a muted replay seek or rollback rerun steps the channels without mixing |
-| Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game |
+| Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game; mapped Fast-forward uses gdxsv playback speed during replays |
 | Crash reports | `core/oslib/oslib.cpp/.h` | own crash list file; gdxsv log, tags and `emu.cfg` attached to a report; four-screen replay guests do not upload |
 | Window | `core/sdl/sdl.cpp`, `core/wsi/sdl.cpp`, `core/rend/dx11/dx11context.cpp`, `core/wsi/switcher.cpp`, `core/linux-dist/main.cpp` | headless (no graphics API), borderless, hidden rendering guests, window position for several instances, four-screen grid; frames duplicated on a monitor over 60 Hz only with `DupeFrames` (OpenGL, DirectX 11) |
 | Video routing | `core/wsi/switcher.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gldraw.cpp`, `core/rend/dx11/dx11_renderer.cpp`, `core/windows/winmain.cpp`, `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | Spout / Syphon sender names; the unified replay scales the final host image before UI drawing, receives guest video in gdxsv, and releases receivers before graphics shutdown |
@@ -154,7 +154,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/sh4/sh4_mmr.cpp` | `deserialize` | doSqWrite was saved as null |
 | `core/input/gamepad_device.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/input/gamepad_device.cpp` | `GamepadDevice::handleButtonInput` | `gdxsv_is_ingame` |
-| `core/input/gamepad_device.cpp` | `GamepadDevice::handleButtonInput` | `gdxsv_is_ingame` |
+| `core/input/gamepad_device.cpp` | `GamepadDevice::handleButtonInput` | `gdxsv_is_ingame`, `gdxsv_input_toggle_fast_forward` |
 | `core/input/gamepad_device.cpp` | `GamepadDevice::gamepad_axis_input` | last raw value per axis, the start point of axis detection (triggers that rest away from 0) |
 | `core/input/gamepad_device.cpp` | `GamepadDevice::detectInput` | detection starts from the axes' current values |
 | `core/input/gamepad_device.cpp` | `GamepadDevice::RampAnalog` | `gdxsv_enabled` |
