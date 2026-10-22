@@ -335,7 +335,7 @@ static bool advance_frame(int)
 	}
 
 	if (!frameRan) {
-		settings.gdxsv.skipRenderingAddr = gdxsv_emu_skip_rendering_addr();
+		settings.gdxsv.skipRenderingAddr = gdxsv_emu_skip_rendering_addr(frame + 1 == seekToFrame);
 		emu.run();
 	}
 	ggpo_advance_frame(ggpoSession);
