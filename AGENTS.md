@@ -154,6 +154,11 @@ Follow the names already in `core/gdxsv/`:
   races, RAM edge cases) stays in `tests/src/Gdxsv*Test.cpp`.
 - Rig scripts live in `gdxsv_tests/rollback/`, added in the feature's PR. No copies
   elsewhere. No game, BIOS, save state or machine paths in them.
+- Measurement and profiling tools for flycast (benchmarks, probes,
+  profilers, their analysis scripts) that will be used again are committed
+  to this repository (`gdxsv_tests/`), in a PR. One-off scripts are thrown
+  away. They do not go to other repositories: those hold game
+  reverse-engineering tools and results only.
 - `docs/gdxsv/features.md`: per feature, how to enable, test command, pass
   criterion, control. Updated in the feature's PR; "no test" is stated.
 - A test is one command, exit 0 on pass. An agreement test has a control that
