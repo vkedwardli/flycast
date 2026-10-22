@@ -27,6 +27,7 @@
 #include "rend/TexCache.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
 #include <unordered_map>
+#include <unordered_set> // gdxsv: Watcher::protectRestored
 #include <memory>
 
 namespace memwatch
@@ -68,6 +69,16 @@ public:
 	void unprotectPage(u32 addr)
 	{
 		static_cast<T&>(*this).unprotectMem(addr, PAGE_SIZE);
+	}
+
+	// gdxsv: after a rollback, protect the restored pages and the pages written since the last
+	// save. Every other page is still protected from its last save.
+	void protectRestored(const std::unordered_set<u32>& restored)
+	{
+		protect();
+		for (u32 addr : restored)
+			static_cast<T&>(*this).protectMem(addr, PAGE_SIZE);
+		pages.clear();
 	}
 
 	void reset()

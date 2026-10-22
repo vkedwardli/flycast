@@ -390,8 +390,11 @@ static bool load_game_state(unsigned char *buffer, int len)
 		die("fatal");
 	}
 	rend_allow_rollback();	// ggpo might load another state right after this one
-	memwatch::reset();
-	memwatch::protect();
+	// gdxsv: protect only what was unprotected, not the whole memory
+	memwatch::ramWatcher.protectRestored(unprotected[0]);
+	memwatch::vramWatcher.protectRestored(unprotected[1]);
+	memwatch::aramWatcher.protectRestored(unprotected[2]);
+	memwatch::elanWatcher.protectRestored(unprotected[3]);
 	return true;
 }
 
