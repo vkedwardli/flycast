@@ -79,6 +79,7 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | `cases/*.py` | the cases |
 | `corpus/replays.json` | replays of every format, with sha256 and the winners per round |
 | `rollback/` | rollback suite `run_suite.py` (A1 to D8), see its README |
+| `perf/` | measurement tools, not cases: `seek_bench.py` (replay seek ms per frame, builds alternated per round), `sampler.cpp` + `rip_profile.py` (Windows sampling profile of the seek); usage in each file |
 
 ## Cases
 
