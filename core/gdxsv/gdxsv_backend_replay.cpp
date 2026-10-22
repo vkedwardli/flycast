@@ -2741,6 +2741,21 @@ void GdxsvBackendReplay::ProcessMcsMessage(const McsMessage& msg) {
 	}
 }
 
+// Logs older than this were recorded while the emulator itself forced cost 300 to 295;
+// newer ones carry it as a game patch when the lobby enables it.
+constexpr int kLogFileVersionCostGamePatch = 20261023;
+
+static void WriteLegacyCostPatch(int disk, u16 cost) {
+	if (disk == 1) {
+		gdxsv_WriteMem16(0x0c1b0fd0, cost);
+	}
+	if (disk == 2) {
+		gdxsv_WriteMem16(0x0c21bfec, cost);
+		gdxsv_WriteMem16(0x0c21bff4, cost);
+		gdxsv_WriteMem16(0x0c21c034, cost);
+	}
+}
+
 void GdxsvBackendReplay::ApplyPatch(bool first_time) {
 	if (state_ == State::None || state_ == State::End) {
 		return;
@@ -2763,6 +2778,10 @@ void GdxsvBackendReplay::ApplyPatch(bool first_time) {
 		gdxsv_WriteMem8(0x0c3abb90, 1);
 	}
 
+	if (log_file_.log_file_version() < kLogFileVersionCostGamePatch) {
+		WriteLegacyCostPatch(disk, 295);
+	}
+
 	// Online Patch
 	for (const auto& patch : log_file_.patches()) {
 		for (const auto& code : patch.codes()) {
@@ -2779,6 +2798,10 @@ void GdxsvBackendReplay::RestorePatch() {
 	if (gdxsv.Disk() == 2) {
 		gdxsv_WriteMem16(0x8c045f64, 0x410b);
 		gdxsv_WriteMem8(0x0c3abb90, 2);
+	}
+
+	if (log_file_.log_file_version() < kLogFileVersionCostGamePatch) {
+		WriteLegacyCostPatch(gdxsv.Disk(), 300);
 	}
 
 	// Online Patch

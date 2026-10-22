@@ -126,6 +126,10 @@ Follow the names already in `core/gdxsv/`:
 - Test and diagnostic code ships in every build: the rigs run against
   released builds too. There is no test-build flag. Code that costs
   performance while unused is not acceptable.
+- No build (CMake) options for gdxsv features. A feature that is off by
+  default and costs nothing while off ships in every build and is switched at
+  runtime. A new build option only when that is impossible, with the reason
+  in the PR: each option adds build combinations and build time.
 - State in structs, not file-scope variables. State a rollback or replay key
   restores: one struct, saved and restored whole.
 - Reset gdxsv state, threads, sockets and sessions on emulator stop and
@@ -150,6 +154,10 @@ Follow the names already in `core/gdxsv/`:
   races, RAM edge cases) stays in `tests/src/Gdxsv*Test.cpp`.
 - Rig scripts live in `gdxsv_tests/rollback/`, added in the feature's PR. No copies
   elsewhere. No game, BIOS, save state or machine paths in them.
+- Measurement and profiling tools for flycast (benchmarks, probes,
+  profilers, their analysis scripts) that will be used again are committed
+  to this repository (`gdxsv_tests/`), in a PR. One-off scripts are thrown
+  away.
 - `docs/gdxsv/features.md`: per feature, how to enable, test command, pass
   criterion, control. Updated in the feature's PR; "no test" is stated.
 - A test is one command, exit 0 on pass. An agreement test has a control that

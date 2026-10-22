@@ -462,7 +462,10 @@ void gdxsv_emu_apply_base_settings() {
 
 const char* gdxsv_emu_settings_text_for_preparing_font() { return gdxsv_gui_settings_text_for_preparing_font(); }
 
-uint32_t gdxsv_emu_skip_rendering_addr() {
+uint32_t gdxsv_emu_skip_rendering_addr(bool last_frame) {
+	// Outside the fight (intro, "operation start" banner, after the round is decided) the ground flickers black
+	// after a rollback unless the stage draw ran on the frame before, so the last rollback frame renders in full there.
+	if (last_frame && !gdxsv.InBattlePlay()) return 0;
 	return config::GdxSkipRenderingHack ? settings.gdxsv.skipRenderingBaseAddr : 0;
 }
 

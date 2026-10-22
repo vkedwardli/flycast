@@ -27,6 +27,7 @@
 #include "oslib/i18n.h"
 #include <algorithm>
 #include <unordered_map>
+#include <unordered_set> // gdxsv: pages restored by load_game_state
 
 #include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
@@ -163,12 +164,21 @@ struct MemPages
 		memwatch::aramWatcher.getPages(aram);
 		memwatch::elanWatcher.getPages(elanram);
 	}
+	// gdxsv: protect and take the pages, keeping often written pages unprotected
+	void save()
+	{
+		memwatch::ramWatcher.save(ram);
+		memwatch::vramWatcher.save(vram);
+		memwatch::aramWatcher.save(aram);
+		memwatch::elanWatcher.save(elanram);
+	}
 	memwatch::PageMap ram;
 	memwatch::PageMap vram;
 	memwatch::PageMap aram;
 	memwatch::PageMap elanram;
 };
 static std::unordered_map<int, MemPages> deltaStates;
+static std::vector<unsigned char *> stateBufferPool; // gdxsv: freed save state buffers, reused
 static int lastSavedFrame = -1;
 
 // gdxsv: frames of the last rollback, for the skip frame replay and its test log
@@ -327,7 +337,7 @@ static bool advance_frame(int)
 	}
 
 	if (!frameRan) {
-		settings.gdxsv.skipRenderingAddr = gdxsv_emu_skip_rendering_addr();
+		settings.gdxsv.skipRenderingAddr = gdxsv_emu_skip_rendering_addr(frame + 1 == seekToFrame);
 		emu.run();
 	}
 	ggpo_advance_frame(ggpoSession);
@@ -364,18 +374,28 @@ static bool load_game_state(unsigned char *buffer, int len)
 	if (gdxsv_ggpo_state.testLog)
 		NOTICE_LOG(NETWORK, "RBKTEST load seek=%d from=%d", frame, seekToFrame);
 	loadedFrame = frame;
-	memwatch::unprotect();
+	// gdxsv: unprotect each restored page once, not the whole memory
+	std::unordered_set<u32> unprotected[4];
+	auto restore = [&unprotected](auto& watcher, const memwatch::PageMap& saved, int area) {
+		for (const auto& pair : saved)
+		{
+			if (unprotected[area].insert(pair.first).second)
+				watcher.unprotectPage(pair.first);
+			memcpy(watcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		}
+	};
+	// gdxsv: hot pages back to the last save first
+	memwatch::ramWatcher.restoreHot();
+	memwatch::vramWatcher.restoreHot();
+	memwatch::aramWatcher.restoreHot();
+	memwatch::elanWatcher.restoreHot();
 	for (int f = lastSavedFrame - 1; f >= frame; f--)
 	{
 		const MemPages& pages = deltaStates[f];
-		for (const auto& pair : pages.ram)
-			memcpy(memwatch::ramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
-		for (const auto& pair : pages.vram)
-			memcpy(memwatch::vramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
-		for (const auto& pair : pages.aram)
-			memcpy(memwatch::aramWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
-		for (const auto& pair : pages.elanram)
-			memcpy(memwatch::elanWatcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
+		restore(memwatch::ramWatcher, pages.ram, 0);
+		restore(memwatch::vramWatcher, pages.vram, 1);
+		restore(memwatch::aramWatcher, pages.aram, 2);
+		restore(memwatch::elanWatcher, pages.elanram, 3);
 		DEBUG_LOG(NETWORK, "Restored frame %d pages: %d ram, %d vram, %d eram, %d aica ram", f, (u32)pages.ram.size(),
 					(u32)pages.vram.size(), (u32)pages.elanram.size(), (u32)pages.aram.size());
 	}
@@ -387,8 +407,11 @@ static bool load_game_state(unsigned char *buffer, int len)
 		die("fatal");
 	}
 	rend_allow_rollback();	// ggpo might load another state right after this one
-	memwatch::reset();
-	memwatch::protect();
+	// gdxsv: protect only what was unprotected, not the whole memory
+	memwatch::ramWatcher.protectRestored(unprotected[0]);
+	memwatch::vramWatcher.protectRestored(unprotected[1]);
+	memwatch::aramWatcher.protectRestored(unprotected[2]);
+	memwatch::elanWatcher.protectRestored(unprotected[3]);
 	GDXSV_PERF_TRACE("load_e", frame, 0);
 	return true;
 }
@@ -406,7 +429,14 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 	lastSavedFrame = frame;
 	// TODO this is way too much memory
 	size_t allocSize = settings.platform.isNaomi() ? 20_MB : 10_MB;
-	*buffer = (unsigned char *)malloc(allocSize);
+	// gdxsv: reuse a freed buffer; a fresh block page-faults on each first write
+	if (stateBufferPool.empty())
+		*buffer = (unsigned char *)malloc(allocSize);
+	else
+	{
+		*buffer = stateBufferPool.back();
+		stateBufferPool.pop_back();
+	}
 	if (*buffer == nullptr)
 	{
 		WARN_LOG(NETWORK, "Memory alloc failed");
@@ -429,7 +459,8 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 #endif
 	gdxsv_ggpo_state_saved(frame, *buffer, *len);
 	GDXSV_PERF_TRACE("save_e", frame, 0);
-	memwatch::protect();
+	if (frame <= 0) // gdxsv: otherwise MemPages::save protects
+		memwatch::protect();
 	if (frame > 0)
 	{
 #ifdef SYNC_TEST
@@ -477,7 +508,7 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 		}
 #endif
 		// Save the delta to frame-1
-		deltaStates[frame - 1].load();
+		deltaStates[frame - 1].save(); // gdxsv: with hot pages
 		DEBUG_LOG(NETWORK, "Saved frame %d pages: %d ram, %d vram, %d eram, %d aica ram", frame - 1, (u32)deltaStates[frame - 1].ram.size(),
 				(u32)deltaStates[frame - 1].vram.size(), (u32)deltaStates[frame - 1].elanram.size(), (u32)deltaStates[frame - 1].aram.size());
 	}
@@ -528,7 +559,7 @@ static void free_buffer(void *buffer)
 		// (frame > lastSavedFrame), whose skip count is still needed by advance_frame.
 		if (frame < lastSavedFrame)
 			skippedFrames.erase(frame);
-		free(buffer);
+		stateBufferPool.push_back((unsigned char *)buffer); // gdxsv: freed in stopSession
 	}
 }
 
@@ -701,6 +732,10 @@ void stopSession()
 	ggpo_close_session(ggpoSession);
 	ggpoSession = nullptr;
 	skippedFrames.clear();
+	// gdxsv: free the reused save state buffers
+	for (unsigned char *buffer : stateBufferPool)
+		free(buffer);
+	stateBufferPool.clear();
 	gdxsv_ggpo_session_stop();
 	gdxsv_ggpo_state.disconnectFlags = 0;
 	miniupnp.Term();

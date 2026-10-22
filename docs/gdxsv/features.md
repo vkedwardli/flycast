@@ -59,6 +59,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 | Save a battle as a replay, upload it | settings `SaveReplay`, `UploadReplay`, `ReplayPath` | R3: a local rollback match (`RBK_SAVE_REPLAY`, never uploaded) saves one replay per peer, the same inputs, it plays to the end with the match's winner | R3c (`SaveReplay=no`) |
 | Replay browser: Local, Server, Live tabs | menu "Live & Replays" | G2: each tab lists its fake or local entry (window grabs, golden images) | G2c |
 | Play a replay file | menu, or `gdxsv:replay=FILE` | R1 (every replay format), R2: plays to the end with the recorded winners | R2c |
+| Cost 300->295: a lobby game patch (gdxsv `m_patch`), no longer written by the emulator. Replays before `log_file_version` 20261023 and live battles from older lobby servers get 295 from the replay backend. A cached slot-99 savestate published before (cost 295 in RAM) is downloaded again | lobby setting `patch_names` | R5: older replays (Disc 1, Disc 2) and a 20261023 copy with the patch read 295 | R5c (20261023 copy without the patch: 300) |
 | Playback controls: pause (A), step or seek (Left/Right), speed (Up/Down), round jump, control bar | during a replay | unit: `GdxsvReplayInputTest.*`, `GdxsvReplayUi.*`; V2, V3: round jump and seek at start (`replay_target_round`, `replay_target_frame`) | V2c, V3c |
 | Takeover: play on from a replay frame, retry with START | pause menu, or `gdxsv:replay_takeover_frame` | V6: the pad plays from the frame, START retries from it | V6c |
 | Round results kept across seeks and round jumps | always | S2: a spectator joining a live battle in its last round sees each player's wins, losses and draws of the earlier rounds (`fake_live_lbs.py`); unit: `GdxsvRoundCountersTest.*` | S2c |
@@ -102,12 +103,13 @@ emulated frames to catch up that sound playback.
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
+| Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) on an absolute schedule: a frame late by less than a period is paid back; a longer stall skips whole periods, with no burst of short frames | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
 | Audio sync as a setting | setting `config:aica.LimitFPS` | F2: audio paces the game at 59.94 fps | F2c |
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | J1 (polling on), J2 (off): SDL virtual gamepad; J4: the two switches (Windows) | J1c, J4c |
 | Rollback battle frame order: the local input is read and added before `ggpo_advance_frame` (save, rollback), not after it; same target frame (GGPO frame delay +1) and prediction limit (the barrier is waited for after the advance). Upstream netplay keeps upstream's order | always in a gdxsv rollback battle, no setting | `run_suite.py` A1, B2 (threaded rendering on), B3 (off): the match completes and agrees; the input timing is not checked | B2c, B3c |
 | Rollback battle, threaded rendering off: the frame is presented before `ggpo::nextFrame`, not after it; same picture (rollback frames render nothing) | always in a gdxsv rollback battle, no setting | `run_suite.py` B3 (the present time is not checked) | B3c |
 | Rollback battle, threaded rendering on: the `FixedFrequency` frame limiter runs on the emulation thread after `ggpo::nextFrame`; the UI thread renders and presents each queued frame at once, without the limiter | always in a gdxsv rollback battle, no setting | `run_suite.py` B2 (the frame times are not checked) | B2c |
+| OpenGL and DirectX 11: frames duplicated on a monitor over 60 Hz only when asked to; otherwise vsync swaps every `gameSwapInterval` vblanks (1 for the game) | setting `config:rend.DupeFrames` | no test: needs a display above 60 Hz | none |
 | DirectX 11: at most 1 frame queued for display (default changed from the driver's) | setting `gdxsv:MaxFrameLatency` (0: driver default) | no test | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | J3: SDL virtual gamepad, d-pad bound to the left stick | J3c |
 | gdxsv defaults on a new config file | first start | C1: the defaults hold after the game start | C1c (an `emu.cfg` already there) |
