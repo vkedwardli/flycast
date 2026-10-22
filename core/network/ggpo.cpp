@@ -653,7 +653,7 @@ void startSession(int localPort, int localPlayerNum)
 		stopSession();
 		throw FlycastException("GGPO cannot add local player");
 	}
-	ggpo_set_frame_delay(ggpoSession, localPlayer, config::GGPODelay.get());
+	ggpo_set_frame_delay(ggpoSession, localPlayer, gdxsv_ggpo_frame_delay(config::GGPODelay.get()));
 
 	size_t colon = config::NetworkServer.get().find(':');
 	std::string peerIp = config::NetworkServer.get().substr(0, colon);
@@ -783,6 +783,8 @@ int getSkippedFrames(int frame)
 	return skippedFrames[frame];
 }
 
+static bool addLocalInput(); // gdxsv: the input part of nextFrame, run before or after the advance
+
 bool nextFrame()
 {
 	if (!_endOfFrame)
@@ -819,12 +821,20 @@ bool nextFrame()
 		return false;
 	}
 
+	// gdxsv: gdxsv rollback battles add the input before the advance and its rollback.
+	// Not at frame 0, which can run before the session starts: an input added before the first
+	// input read lets GGPO discard frames that frame 1 still reads. The frame delay fills them.
+	if (gdxsv_ggpo_state.inputBeforeAdvance && frame != 0 && !addLocalInput())
+		return false;
+
 	// will call save_game_state
 	GGPOErrorCode error = ggpo_advance_frame(ggpoSession);
 
 	// may rollback
 	if (error == GGPO_OK)
 		error = ggpo_idle(ggpoSession, 0);
+	if (error == GGPO_OK && gdxsv_ggpo_state.inputBeforeAdvance && !gdxsv_ggpo_wait_prediction_barrier())
+		error = GGPO_ERRORCODE_GENERAL_FAILURE;
 	if (error != GGPO_OK)
 	{
 		stopSession();
@@ -842,6 +852,19 @@ bool nextFrame()
 		}
 	}
 
+	// gdxsv: gdxsv rollback battles added the input before the advance
+	if (!gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
+		return false;
+	if (active()) {
+		emu.getSh4Executor()->Start();
+		return true;
+	}
+	return false;
+}
+
+static bool addLocalInput()
+{
+	GGPOErrorCode error;
 	// may call save_game_state
 	int loop_count = 0;
 	do {
@@ -940,11 +963,8 @@ bool nextFrame()
 			WARN_LOG(NETWORK, "ggpo_add_local_input(%d) failed %d", i, result);
 	}
 #endif
-	if (active()) {
-		emu.getSh4Executor()->Start();
-		return true;
-	}
-	return false;
+	// gdxsv: nextFrame starts the executor
+	return active();
 }
 
 bool active()
