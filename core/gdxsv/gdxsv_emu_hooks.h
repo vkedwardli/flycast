@@ -82,8 +82,8 @@ void gdxsv_emu_settings_replay_folder();
 void gdxsv_emu_settings_advanced();
 
 // settings.gdxsv.skipRenderingAddr for a rollback frame run: the skip
-// rendering hook address, or 0 when the hack is off.
-uint32_t gdxsv_emu_skip_rendering_addr();
+// rendering hook address, or 0 to render in full.
+uint32_t gdxsv_emu_skip_rendering_addr(bool last_frame);
 
 const char* gdxsv_emu_settings_text_for_preparing_font();
 

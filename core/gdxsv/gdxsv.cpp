@@ -85,6 +85,17 @@ static const u32 dc1RenderOnlyFuncs[] = {
 
 bool Gdxsv::InGame() const { return enabled_ && (netmode_ == NetMode::McsUdp || netmode_ == NetMode::McsRollback); }
 
+// The players fight: game mode 2/7 (not the briefing and intro 2/5, nor 2/13 after the round),
+// past the "operation start" banner and before the winner is set.
+bool Gdxsv::InBattlePlay() const {
+	constexpr u32 kBannerFrames = 300;
+	const u32 mode = disk_ == 1 ? 0x0c336254 : 0x0c3d16d4;
+	const u32 battle_frame = disk_ == 1 ? 0x0c3363b0 : 0x0c3d17d8;
+	const u32 win_team = disk_ == 1 ? 0x0c3364b6 : 0x0c3d1948;
+	return enabled_ && gdxsv_ReadMem8(mode) == 2 && gdxsv_ReadMem8(mode + 1) == 7 &&
+		   kBannerFrames <= gdxsv_ReadMem32(battle_frame) && gdxsv_ReadMem8(win_team) == 0;
+}
+
 bool Gdxsv::IsOnline() const {
 	return enabled_ &&
 		   (netmode_ == NetMode::McsUdp || netmode_ == NetMode::McsRollback || netmode_ == NetMode::Lbs || lbs_net_.IsConnected());

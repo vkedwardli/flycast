@@ -31,6 +31,7 @@ class Gdxsv {
 
 	bool Enabled() const;
 	bool InGame() const;
+	bool InBattlePlay() const;
 	bool IsOnline() const;
 	bool IsSaveStateAllowed() const;
 	bool IsReplaying() const;
