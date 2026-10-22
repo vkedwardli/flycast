@@ -163,6 +163,14 @@ struct MemPages
 		memwatch::aramWatcher.getPages(aram);
 		memwatch::elanWatcher.getPages(elanram);
 	}
+	// gdxsv: protect and take the pages, keeping often written pages unprotected
+	void save()
+	{
+		memwatch::ramWatcher.save(ram);
+		memwatch::vramWatcher.save(vram);
+		memwatch::aramWatcher.save(aram);
+		memwatch::elanWatcher.save(elanram);
+	}
 	memwatch::PageMap ram;
 	memwatch::PageMap vram;
 	memwatch::PageMap aram;
@@ -372,6 +380,11 @@ static bool load_game_state(unsigned char *buffer, int len)
 			memcpy(watcher.getMemPage(pair.first), &pair.second.data[0], PAGE_SIZE);
 		}
 	};
+	// gdxsv: hot pages back to the last save first
+	memwatch::ramWatcher.restoreHot();
+	memwatch::vramWatcher.restoreHot();
+	memwatch::aramWatcher.restoreHot();
+	memwatch::elanWatcher.restoreHot();
 	for (int f = lastSavedFrame - 1; f >= frame; f--)
 	{
 		const MemPages& pages = deltaStates[f];
@@ -439,7 +452,8 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 	//*checksum = XXH3_64bits(*buffer, usedSize);
 #endif
 	gdxsv_ggpo_state_saved(frame, *buffer, *len);
-	memwatch::protect();
+	if (frame <= 0) // gdxsv: otherwise MemPages::save protects
+		memwatch::protect();
 	if (frame > 0)
 	{
 #ifdef SYNC_TEST
@@ -487,7 +501,7 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 		}
 #endif
 		// Save the delta to frame-1
-		deltaStates[frame - 1].load();
+		deltaStates[frame - 1].save(); // gdxsv: with hot pages
 		DEBUG_LOG(NETWORK, "Saved frame %d pages: %d ram, %d vram, %d eram, %d aica ram", frame - 1, (u32)deltaStates[frame - 1].ram.size(),
 				(u32)deltaStates[frame - 1].vram.size(), (u32)deltaStates[frame - 1].elanram.size(), (u32)deltaStates[frame - 1].aram.size());
 	}

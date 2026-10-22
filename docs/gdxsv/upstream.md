@@ -134,7 +134,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/mem/mem_watch.h` | `writeAccess` | `gdxsv_is_using_memwatch` |
 | `core/hw/mem/mem_watch.h` | `protect` | `gdxsv_is_using_memwatch` |
 | `core/hw/mem/mem_watch.h` | `Watcher::unprotectPage` | unprotect one page, for `load_game_state` |
-| `core/hw/mem/mem_watch.h` | `Watcher::protectRestored` | protect the restored and the dirty pages after `load_game_state`; include `<unordered_set>` |
+| `core/hw/mem/mem_watch.h` | `Watcher::protectRestored` | protect the restored and the dirty pages after `load_game_state`, not the hot pages; take the hot pages' copies again; include `<unordered_set>` |
+| `core/hw/mem/mem_watch.h` | `Watcher` (`hot`, `faultStreak`), `Watcher::save`, `Watcher::restoreHot`, `Watcher::hit`, `Watcher::reset` | hot pages for the rollback save: a page written in 2 consecutive saves stays unprotected and is compared with its copy at each save instead of faulting; protected again after 60 unchanged saves |
 | `core/hw/pvr/Renderer_if.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_create_renderer` | `gdxsv_headless` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_end_frame` |
@@ -183,8 +184,9 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `load_game_state` | test log |
 | `core/network/ggpo.cpp` | `load_game_state` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `load_game_state` | free_buffer keeps the skip counts of the frames after it |
-| `core/network/ggpo.cpp` | `load_game_state` | unprotects each restored page once (`unprotectPage`) instead of the whole RAM, VRAM and AICA RAM, and protects only those and the dirty pages again (`protectRestored`); include `<unordered_set>` |
+| `core/network/ggpo.cpp` | `load_game_state` | unprotects each restored page once (`unprotectPage`) instead of the whole RAM, VRAM and AICA RAM, and protects only those and the dirty pages again (`protectRestored`); include `<unordered_set>`; hot pages back to the last save first (`restoreHot`) |
 | `core/network/ggpo.cpp` | `save_game_state` | `gdxsv_ggpo_state_saved` |
+| `core/network/ggpo.cpp` | `save_game_state`, `MemPages::save` | the delta is taken with hot pages (`Watcher::save`, which also protects) |
 | `core/network/ggpo.cpp` | `free_buffer` | during a rollback the freed state is one of the frames about to be re-simulated (frame > lastSavedFrame), whose skip count is still needed by advance_frame. |
 | `core/network/ggpo.cpp` | `save_game_state`, `free_buffer`, `stopSession` | freed save state buffers kept in `stateBufferPool` and reused (a fresh 10 MB block page-faults on its first writes each frame); freed at session stop |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
