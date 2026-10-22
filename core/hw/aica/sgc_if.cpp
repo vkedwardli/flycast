@@ -701,6 +701,20 @@ struct ChannelEx
 
 	void Step(SampleType& mixl, SampleType& mixr)
 	{
+		if (settings.aica.muteAudio && settings.gdxsv.replayModeActive && !config::DSPEnabled)
+		{
+			// gdxsv: muted replay seek, no DSP: the mix is never heard, step the channel state only
+			if (!enabled)
+				return;
+			(this->*StepAEG)();
+			if (enabled)
+			{
+				(this->*StepFEG)();
+				(this->*StepStream)();
+				lfo.Step();
+			}
+			return;
+		}
 		SampleType oLeft, oRight, oDsp;
 
 		Step(oLeft, oRight, oDsp);
