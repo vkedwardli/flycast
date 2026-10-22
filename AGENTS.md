@@ -157,8 +157,8 @@ Follow the names already in `core/gdxsv/`:
 - Measurement and profiling tools for flycast (benchmarks, probes,
   profilers, their analysis scripts) that will be used again are committed
   to this repository (`gdxsv_tests/`), in a PR. One-off scripts are thrown
-  away. They do not go to other repositories: those hold game
-  reverse-engineering tools and results only.
+  away. They do not go to the reverse-engineering notebook repository: it
+  holds the game's reverse-engineering tools and results only.
 - `docs/gdxsv/features.md`: per feature, how to enable, test command, pass
   criterion, control. Updated in the feature's PR; "no test" is stated.
 - A test is one command, exit 0 on pass. An agreement test has a control that
