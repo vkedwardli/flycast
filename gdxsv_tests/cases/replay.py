@@ -70,7 +70,7 @@ def replay_newest(ctx):
 
 
 def newest_dc2() -> dict:
-    return max((e for e in assets.corpus() if e["disk"] == "dc2"), key=lambda e: e["date"])
+    return newest("dc2")
 
 
 @case("R2c", "R2 on a copy with the inputs cut in the third round: the check fails it", control_of="R2")
@@ -124,6 +124,59 @@ def replay_pov_control(ctx):
     c = pov_checks([r], [2])[0]
     return result([{"what": "probe ran", "ok": r["clean"]},
                    {"what": "POV 2 check fails (player 1 by default)", "ok": not c["ok"] and r["id"] == "1"}],
+                  detail=c)
+
+
+# Cost 300->295 (core/gdxsv/gdxsv_backend_replay.cpp WriteLegacyCostPatch). Files before
+# log_file_version 20261023 were recorded while the emulator forced it; newer files get it only
+# from their game patches, as the lobby sends it (gdxsv m_patch).
+COST = {"dc1": [0x0c1b0fd0], "dc2": [0x0c21bfec, 0x0c21bff4, 0x0c21c034]}
+COST_VERSION = 20261023
+
+
+def newest(disk: str) -> dict:
+    return max((e for e in assets.corpus() if e["disk"] == disk), key=lambda e: e["date"])
+
+
+def cost_run(ctx, name: str, disk: str, version: int = None, patch: bool = False) -> dict:
+    """Read the cost values at POV_FRAME of the newest replay of `disk`; with `version`, a copy
+    of it with that log_file_version, plus the cost game patch when `patch`."""
+    entry = newest(disk)
+    pb = assets.replay(entry)
+    if version is not None:
+        os.makedirs(ctx.out, exist_ok=True)
+        dst = os.path.join(ctx.out, f"{name}.pb")
+        if not recheck.ACTIVE:
+            codes = [(16, a, 300, 295) for a in COST[disk]]
+            replayfile.rewrite_header(pb, dst, version, [replayfile.game_patch(disk, "cost295", codes)] if patch else [])
+        pb = dst
+    p = ctx.probe(name, ctx.rom(disk), "memread.lua",
+                  {"frame": POV_FRAME, "reads": [[a, 2] for a in COST[disk]]},
+                  frames=POV_FRAME + 20, config=[f"gdxsv:replay={pb}", "gdxsv:ReplaySeekStates=no"],
+                  loadstate=False, until_done=True, timeout=300)
+    return {"disk": disk, "version": version or entry["log_file_version"], "patch": patch,
+            "cost": [p.e2e.get(f"0x{a:08x}:2") for a in COST[disk]], "clean": p.clean, **p.facts()}
+
+
+def cost_check(what: str, r: dict, want: int) -> dict:
+    return {"what": what, "ok": r["clean"] and r["cost"] == [str(want)] * len(r["cost"]), **r}
+
+
+@case("R5", "cost 300->295 in replays: older files keep it, newer ones take it from their game patch (Disc 1, Disc 2)")
+def replay_cost(ctx):
+    runs = [(f"{d}: recorded file (version before {COST_VERSION}): 295", (f"R5_{d}_old", d), 295) for d in COST]
+    runs += [(f"dc2: version {COST_VERSION} with the cost295 game patch: 295", ("R5_dc2_patch", "dc2", COST_VERSION, True), 295)]
+    with concurrent.futures.ThreadPoolExecutor(3) as ex:
+        got = list(ex.map(lambda r: cost_run(ctx, *r[1]), runs))
+    return result([cost_check(what, g, want) for (what, _, want), g in zip(runs, got)])
+
+
+@case("R5c", f"R5's check on a copy with version {COST_VERSION} and no cost game patch: it fails (300)", control_of="R5")
+def replay_cost_control(ctx):
+    r = cost_run(ctx, "R5c", "dc2", COST_VERSION)
+    c = cost_check("295 check", r, 295)
+    return result([{"what": "probe ran", "ok": r["clean"]},
+                   {"what": "295 check fails, the stock cost 300", "ok": not c["ok"] and r["cost"] == ["300"] * 3}],
                   detail=c)
 
 

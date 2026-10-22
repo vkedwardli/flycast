@@ -789,9 +789,6 @@ void Gdxsv::WritePatchDisk1() {
 	// Max Rebattle Patch
 	gdxsv_WriteMem8(0x0c0345b0, maxrebattle_);
 
-	// Fix cost 300 to 295
-	gdxsv_WriteMem16(0x0c1b0fd0, 295);
-
 	// Send key message every frame
 	gdxsv_WriteMem8(0x0c310450, 1);
 
@@ -855,11 +852,6 @@ void Gdxsv::WritePatchDisk2() {
 
 	// Max Rebattle Patch
 	gdxsv_WriteMem8(0x0c0219ec, maxrebattle_);
-
-	// Fix cost 300 to 295
-	gdxsv_WriteMem16(0x0c21bfec, 295);
-	gdxsv_WriteMem16(0x0c21bff4, 295);
-	gdxsv_WriteMem16(0x0c21c034, 295);
 
 	// Send key message every frame
 	gdxsv_WriteMem8(0x0c3abb90, 1);
