@@ -901,3 +901,5 @@ void gdxsv_headless_exit(int code) {
 }
 
 int gdxsv_video_max_frame_latency() { return std::clamp(config::GdxMaxFrameLatency.get(), 0, 16); }
+
+bool gdxsv_video_swap_every_vblank() { return config::FixedFrequency != 0; }

@@ -248,6 +248,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_on_queue`: gdxsv copies the cells from VRAM when the load is queued and keeps them for the loader thread |
 | `core/rend/dx11/dx11context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/dx11/dx11context.cpp` | `DX11Context::init` | `gdxsv_video_max_frame_latency`: `SetMaximumFrameLatency` (`gdxsv:MaxFrameLatency`) |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::Present` | `gdxsv_video_swap_every_vblank`: swap interval 1 while the frame limiter runs, not from the startup refresh rate |
 | `core/rend/dx11/dx11_renderer.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/dx11/dx11_renderer.cpp` | `DX11Renderer::displayFramebuffer` | `gdxsv_video_grid_active`, `gdxsv_video_viewport` |
 | `core/rend/gles/gldraw.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
@@ -260,6 +261,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/vulkan/vulkan_context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `gdxsv_video_vulkan_extensions` |
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::DrawFrame` | scale the final game image into the host's quadrant, before UI. |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::Present` | `gdxsv_video_swap_every_vblank`: no `DupeFrames` duplicate presents while the frame limiter runs |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls can change SDL's flags directly |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |

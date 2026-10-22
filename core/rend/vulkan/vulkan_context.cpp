@@ -1067,7 +1067,7 @@ void VulkanContext::Present() noexcept
 			currentSemaphore = (currentSemaphore + 1) % renderCompleteSemaphores.size();
 #ifndef SWAPPY
 			if (lastFrameView && IsValid() && !gui_is_open()
-					&& swapOnVSync && config::DupeFrames)
+					&& swapOnVSync && config::DupeFrames && !gdxsv_video_swap_every_vblank())
 			{
 				const int interval = swapInterval * gameSwapInterval;
 				for (int i = 1; i < interval; i++)

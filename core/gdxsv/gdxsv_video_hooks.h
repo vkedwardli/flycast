@@ -9,6 +9,9 @@ void gdxsv_video_viewport(int& x, int& y, int& width, int& height, bool bottom_o
 void gdxsv_video_term();
 // DXGI frame latency for the DX11 device (gdxsv:MaxFrameLatency); 0 keeps the driver default.
 int gdxsv_video_max_frame_latency();
+// The FixedFrequency limiter paces the game, so vsync swaps every vblank: no swap interval or
+// duplicated presents from the refresh rate read at startup, which can be another display's.
+bool gdxsv_video_swap_every_vblank();
 
 // A background replay worker still renders, but never shows its SDL window.
 bool gdxsv_video_hidden_window();
