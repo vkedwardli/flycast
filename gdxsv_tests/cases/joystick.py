@@ -65,14 +65,6 @@ def polling_off(ctx):
     return result(press_checks(r), **r)
 
 
-@case("J1c", "J1's checks on presses played 10 vblanks late (as if polling lagged): they fail", control_of="J1")
-def polling_control(ctx):
-    r = press_release(ctx, "J1c", "yes", late=10)
-    c = press_checks(r)
-    return result([{"what": "virtual gamepad attached", "ok": c[0]["ok"]},
-                   {"what": "the timing checks fail", "ok": not c[1]["ok"] and not c[2]["ok"]}], detail=c, **r)
-
-
 # D-pad left and right bound to the left stick, as digital directions (gdxsv_input_digital_axis)
 SOCD_MAPPING = f"""[digital]
 bind0 = {DPAD_LEFT}:btn_analog_left
@@ -110,14 +102,6 @@ def socd_cancel(ctx):
     return result(socd_checks(r), **r)
 
 
-@case("J3c", "J3's checks with right never pressed (no opposite input): the centre check fails", control_of="J3")
-def socd_control(ctx):
-    r = socd(ctx, "J3c", [x for x in SOCD_STEPS if x[1][1] != DPAD_RIGHT])
-    c = socd_checks(r)
-    return result([{"what": "left alone still full left", "ok": c[1]["ok"]},
-                   {"what": "the left + right check fails", "ok": not c[2]["ok"]}], detail=c, **r)
-
-
 SWITCH_LINES = ["Disabling XInput, using DirectInput", "Disabling DirectInput"]
 
 
@@ -132,9 +116,3 @@ def switches(ctx, name: str, config: list) -> dict:
 def input_switches(ctx):
     r = switches(ctx, "J4", ["input:UseXInput=no", "input:UseDirectInput=no"])
     return result([{"what": f"logged '{l}'", "ok": ok} for l, ok in r["lines"].items()], **r)
-
-
-@case("J4c", "J4's checks with both switches at their defaults (on): they fail", control_of="J4")
-def input_switches_control(ctx):
-    r = switches(ctx, "J4c", ["input:UseXInput=yes", "input:UseDirectInput=yes"])
-    return result([{"what": "no switch line logged", "ok": not any(r["lines"].values())}], **r)

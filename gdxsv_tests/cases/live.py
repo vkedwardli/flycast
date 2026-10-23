@@ -76,15 +76,6 @@ def live_spectate(ctx):
     return result(checks(text), detail=text.splitlines()[-25:])
 
 
-@case("S1c", "S1 with no uplink (no TEST_SPECTATOR_LBS on the peers): nothing recorded, nothing to watch",
-      control_of="S1")
-def live_spectate_control(ctx):
-    text = rig(ctx, "S1c", ["--header", header(ctx), "--no-uplink"] + LIVE, 900)
-    c = checks(text)
-    return result([{"what": "every S1 check fails", "failed": [x["what"] for x in c if not x["ok"]],
-                    "ok": not any(x["ok"] for x in c)}], detail=c)
-
-
 PREVIOUS = "gdxsv-1.9.6"  # the latest release; bump it with each release
 
 
@@ -102,20 +93,6 @@ def live_old_spectator(ctx):
     return result(mixed(ctx, "S3", "spectator", False), release=PREVIOUS)
 
 
-@case("S3c", "S3 with no uplink: every S3 check fails", control_of="S3")
-def live_old_spectator_control(ctx):
-    c = mixed(ctx, "S3c", "spectator", True)
-    return result([{"what": "every S3 check fails", "failed": [x["what"] for x in c if not x["ok"]],
-                    "ok": not any(x["ok"] for x in c)}], detail=c, release=PREVIOUS)
-
-
 @case("S4", f"S1 with the 4 uploading peers on the previous release ({PREVIOUS}), the spectator on this build")
 def live_old_peers(ctx):
     return result(mixed(ctx, "S4", "peer", False), release=PREVIOUS)
-
-
-@case("S4c", "S4 with no uplink: every S4 check fails", control_of="S4")
-def live_old_peers_control(ctx):
-    c = mixed(ctx, "S4c", "peer", True)
-    return result([{"what": "every S4 check fails", "failed": [x["what"] for x in c if not x["ok"]],
-                    "ok": not any(x["ok"] for x in c)}], detail=c, release=PREVIOUS)

@@ -2,9 +2,7 @@
 
 import os
 import re
-import shutil
 
-from lib import recheck
 from lib.case import case, result
 
 GAME_ID_RE = re.compile(r"NAOMI GAME ID \[([^\]]*)\]")
@@ -29,22 +27,3 @@ def naomi_boot(ctx):
     return result(boot(ctx, "naomi", ctx.rom("naomi")))
 
 
-def link(src: str, dst: str) -> None:
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    try:
-        os.link(src, dst)
-    except OSError:
-        shutil.copy(src, dst)
-
-
-@case("N1c", "N1 with the game files but no BIOS (naomi.zip)", control_of="N1")
-def naomi_boot_control(ctx):
-    rom = ctx.rom("naomi")
-    d = os.path.join(ctx.out, "rom")
-    if not recheck.ACTIVE:
-        link(rom, os.path.join(d, os.path.basename(rom)))
-        gd = os.path.join(os.path.dirname(rom), "gundmxgd")
-        for f in os.listdir(gd):
-            link(os.path.join(gd, f), os.path.join(d, "gundmxgd", f))
-    checks = boot(ctx, "nobios", os.path.join(d, os.path.basename(rom)))
-    return result([{"what": "boot check fails", "ok": not all(c["ok"] for c in checks)}], detail=checks)

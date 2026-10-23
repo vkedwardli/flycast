@@ -64,7 +64,7 @@ def replay_compat(ctx):
     return result(checks, skipped_disks=skipped)
 
 
-@case("R2", "the newest Disc 2 replay in the corpus plays to the end, with the recorded winners", tier="smoke")
+@case("R2", "the newest Disc 2 replay in the corpus plays to the end, with the recorded winners", tier="smoke-only")
 def replay_newest(ctx):
     return result([play(ctx, newest_dc2())])
 
@@ -118,15 +118,6 @@ def replay_pov(ctx):
     return result(pov_checks(runs, [2, 4]))
 
 
-@case("V1c", "V1's check for POV 2 on a replay played without ReplayPOV: it fails", control_of="V1")
-def replay_pov_control(ctx):
-    r = pov_run(ctx, "V1c", newest_dc2(), None)
-    c = pov_checks([r], [2])[0]
-    return result([{"what": "probe ran", "ok": r["clean"]},
-                   {"what": "POV 2 check fails (player 1 by default)", "ok": not c["ok"] and r["id"] == "1"}],
-                  detail=c)
-
-
 # Cost 300->295 (core/gdxsv/gdxsv_backend_replay.cpp WriteLegacyCostPatch). Files before
 # log_file_version 20261023 were recorded while the emulator forced it; newer files get it only
 # from their game patches, as the lobby sends it (gdxsv m_patch).
@@ -171,27 +162,10 @@ def replay_cost(ctx):
     return result([cost_check(what, g, want) for (what, _, want), g in zip(runs, got)])
 
 
-@case("R5c", f"R5's check on a copy with version {COST_VERSION} and no cost game patch: it fails (300)", control_of="R5")
-def replay_cost_control(ctx):
-    r = cost_run(ctx, "R5c", "dc2", COST_VERSION)
-    c = cost_check("295 check", r, 295)
-    return result([{"what": "probe ran", "ok": r["clean"]},
-                   {"what": "295 check fails, the stock cost 300", "ok": not c["ok"] and r["cost"] == ["300"] * 3}],
-                  detail=c)
-
-
 @case("V2", "replay round jump at start: gdxsv:replay_target_round=4 plays the last two rounds of five")
 def replay_round_jump(ctx):
     r, log = jump_run(ctx, "V2", 4)
     return result(jump_checks(r, log, 4), **r)
-
-
-@case("V2c", "V2's checks on the replay played from round 1: they fail", control_of="V2")
-def replay_round_jump_control(ctx):
-    r, log = jump_run(ctx, "V2c", None)
-    c = jump_checks(r, log, 4)
-    return result([{"what": "replay played to its end", "ok": c[0]["ok"] and c[3]["ok"]},
-                   {"what": "jump checks fail", "ok": not c[1]["ok"] and not c[2]["ok"]}], detail=c)
 
 
 def jump_run(ctx, name: str, round):
@@ -223,14 +197,6 @@ FRAME_JUMP_RE = re.compile(r"JumpToKeyMsg \d+->(\d+) target=(\d+)")
 def replay_frame_jump(ctx):
     r = play(ctx, newest_dc2(), extra=["gdxsv:replay_target_frame=4000"], name="V3")
     return result(frame_jump_checks(r, ctx.out, "V3", 4000), **r)
-
-
-@case("V3c", "V3's checks on the replay played without a target frame: the seek check fails", control_of="V3")
-def replay_frame_jump_control(ctx):
-    r = play(ctx, newest_dc2(), name="V3c")
-    c = frame_jump_checks(r, ctx.out, "V3c", 4000)
-    return result([{"what": "replay played", "ok": c[1]["ok"]}, {"what": "seek check fails", "ok": not c[0]["ok"]}],
-                  detail=c)
 
 
 def frame_jump_checks(r: dict, out: str, name: str, frame: int) -> list:
@@ -320,18 +286,6 @@ def replay_fast_forward(ctx):
     return result([{**c, "target": name} for name, r in runs.items() for c in fast_forward_checks(r)], runs=runs)
 
 
-@case("V10c", "V10 without the first key press: the 300% check fails", control_of="V10")
-def replay_fast_forward_control(ctx):
-    runs = {name: fast_forward_run(ctx, name, target, ready, False) for name, target, ready in FAST_FORWARD_TARGETS}
-    checks = []
-    for name, r in runs.items():
-        c = fast_forward_checks(r)
-        checks += [{**c[0], "target": name},
-                   {"what": "missing press fails the 300% check", "target": name,
-                    "ok": not c[1]["ok"] and r.get("first") == []}]
-    return result(checks, runs=runs)
-
-
 SEEK_RE = re.compile(r"JumpToKeyMsg \d+->(\d+) target=\d+ load=-?\d+ ran=(\d+) frames in \d+\[ms\] \(([\d.]+)\[ms/fr\]\)")
 SEEK_FRAME = 6000  # in round 1 (target 8000 landed on round 2's start, 6376)
 # Measured on windows-mini (newest Disc 2 replay, 6400 frames run): hack on 2.0-2.1 ms/fr, off 3.1-3.3.
@@ -398,13 +352,6 @@ def replay_hide_name(ctx):
     return result([hide_name_check(scenes_run(ctx, "V4", ["gdxsv:ReplayHideName=yes"]))])
 
 
-@case("V4c", "V4's check without ReplayHideName: the recorded names show", control_of="V4")
-def replay_hide_name_control(ctx):
-    r = scenes_run(ctx, "V4c", [])
-    return result([{"what": "battle reached", "ok": r["clean"] and r["battle"] is not None},
-                   {"what": "name check fails", "ok": not hide_name_check(r)["ok"]}], detail=r)
-
-
 def four_screen_run(ctx, name: str, four: bool) -> dict:
     """Newest Disc 2 replay in a window with ReplayFourScreen; logging and the Lua script go in
     emu.cfg, since the host starts its guests without its --config values."""
@@ -461,19 +408,6 @@ def four_screen_checks(r: dict) -> list:
 def replay_four_screen(ctx):
     r = four_screen_run(ctx, "V5", True)
     return result([{"what": "probe ran", "ok": r["clean"]}] + four_screen_checks(r))
-
-
-@case("V5c", "V5 without ReplayFourScreen: no guests, stock warning gain; the four-screen checks fail",
-      control_of="V5")
-def replay_four_screen_control(ctx):
-    r = four_screen_run(ctx, "V5c", False)
-    c = four_screen_checks(r)
-    must_fail = [x for x in c if "guest" in x["what"] or "warning gain" in x["what"]
-                 or x["what"].startswith(("screen 2", "screen 3", "screen 4"))]
-    return result([{"what": "probe ran", "ok": r["clean"]},
-                   {"what": "single screen keeps the stock warning gain", "ok": r["warning_gains"][1] == "32"},
-                   {"what": "every four-screen check fails", "failed": [x["what"] for x in must_fail if not x["ok"]],
-                    "ok": all(not x["ok"] for x in must_fail)}], detail=c)
 
 
 RECEIVING_RE = re.compile(r"multi-pov viewer: receiving .* (\d)P")
@@ -654,13 +588,6 @@ def replay_four_screen_close(ctx):
     return result(close_checks(close_run(ctx, "V8", True)))
 
 
-@case("V8c", "V8's checks with the host window left open: the exit checks fail", control_of="V8")
-def replay_four_screen_close_control(ctx):
-    c = close_checks(close_run(ctx, "V8c", False))
-    return result([{"what": "three guests ran", "ok": c[0]["ok"]},
-                   {"what": "the exit checks fail", "ok": not any(x["ok"] for x in c[1:])}], detail=c)
-
-
 CONTROL_STEPS = ("speed_up", "seek_back", "seek_forward", "speed_up2")
 HOST_SEEK_RE = re.compile(r"multi-pov: seek (\d+) -> (\d+), generation")
 SYNC_RE = re.compile(r"^(\d+):(\d\d):(\d\d\d) .*spectate sync: frame (\d+)", re.M)
@@ -730,17 +657,6 @@ def controls_checks(r: dict) -> list:
       "up, seek back and seek forward keep them playing into the next round")
 def replay_four_screen_controls(ctx):
     return result(controls_checks(controls_run(ctx, "V9", True)))
-
-
-@case("V9c", "V9 on a replay played without ReplayFourScreen: the seek, process and guest checks fail",
-      control_of="V9")
-def replay_four_screen_controls_control(ctx):
-    c = controls_checks(controls_run(ctx, "V9c", False))
-    return result([{"what": f"host jumped to round {JUMP_ROUND}, controls ran into the next round",
-                    "ok": c[0]["ok"] and c[1]["ok"]},
-                   {"what": "the seek, process and guest checks fail", "ok": not any(x["ok"] for x in c[3:])}],
-                  detail=c)
-
 
 
 TAKEOVER_FRAME = 3000

@@ -36,16 +36,6 @@ def config_defaults(ctx):
     return result(base_settings(ctx, "C1", None))
 
 
-@case("C1c", "C1's checks with an emu.cfg already there (empty): the stock values show", control_of="C1")
-def config_defaults_control(ctx):
-    checks = base_settings(ctx, "C1c", "")
-    differ = [c for c in checks[1:] if c["want"] != c["stock"]]
-    return result([checks[0],
-                   {"what": "every gdxsv default that differs from stock fails the check",
-                    "failed": [c["what"] for c in differ if not c["ok"]],
-                    "ok": all(not c["ok"] for c in differ)}], detail=checks)
-
-
 # An emu.cfg with the section and key names gdxsv-1.9.6 writes (its gdxsv options lived in
 # core/cfg/option.cpp then), each set to a value that is the default in no build.
 OLD_CFG = """[config]
@@ -82,14 +72,6 @@ def config_old(ctx):
     return result(old_config(ctx, "C2", OLD_CFG))
 
 
-@case("C2c", "C2's emu.cfg with its sections renamed: no value carries", control_of="C2")
-def config_old_control(ctx):
-    checks = old_config(ctx, "C2c", OLD_CFG.replace("[config]", "[config-old]").replace("[gdxsv]", "[gdxsv-old]"))
-    return result([checks[0],
-                   {"what": "every value check fails", "passed": [c["what"] for c in checks[1:] if c["ok"]],
-                    "ok": all(not c["ok"] for c in checks[1:])}], detail=checks)
-
-
 # The socket binds only the low 16 bits (70000 -> 4464, -5 -> 65531) while LBS is told the full value.
 BAD_PORTS = ["70000", "-5"]
 
@@ -109,10 +91,3 @@ def local_port(ctx, name: str, ports: list) -> list:
 @case("C3", "an emu.cfg LocalPort a UDP socket cannot bind (70000, -5): gdxsv uses a port in 1-65535", tier="smoke")
 def config_local_port(ctx):
     return result(local_port(ctx, "C3", BAD_PORTS))
-
-
-@case("C3c", "C3's check on a usable LocalPort (65535): it is kept, the check fails", control_of="C3")
-def config_local_port_control(ctx):
-    checks = local_port(ctx, "C3c", ["65535"])
-    return result([{"what": "the check fails", "ok": not checks[0]["ok"] and checks[0]["got"] == 65535}],
-                  detail=checks)

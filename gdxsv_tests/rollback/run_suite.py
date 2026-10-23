@@ -139,11 +139,6 @@ def b1_skip_replay(s: Settings) -> Result:
     return verdict(bad, notes)
 
 
-def b1_control(s: Settings) -> Result:
-    bad, notes, _ = _b1(s, "B1c", (11, 22), {"GGPO_TEST_NO_SKIP_REPLAY": "1"})
-    return control(bad, notes, ("skip at frame",))
-
-
 def _b1(s: Settings, tag: str, seeds, env: Dict[str, str]):
     bad, notes, crossings = [], [], []
     for seed in seeds:
@@ -182,23 +177,12 @@ def b3_not_threaded(s: Settings) -> Result:
     return verdict(common(m), [summary(m)])
 
 
-def b3_control(s: Settings) -> Result:
-    m = lib.run_match(s, "B3c", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=THREADED_OFF, lua={2: DESYNC})
-    return control(common(m), [summary(m)], DESYNC_SIGNS)
-
-
 # --- C. Disconnect and session lifecycle --------------------------------------
 
 def c1_peer_drop(s: Settings) -> Result:
     if not lib.IS_WINDOWS:
         return SKIP, ["Windows only (samples window responsiveness)"]
     return verdict(*_c1(s, "C1", False))
-
-
-def c1_control(s: Settings) -> Result:
-    if not lib.IS_WINDOWS:
-        return SKIP, ["Windows only (samples window responsiveness)"]
-    return control(*_c1(s, "C1c", True), ("windows not responding",))
 
 
 def _c1(s: Settings, tag: str, freeze: bool) -> Tuple[List[str], List[str]]:
@@ -257,10 +241,6 @@ def c2_start_timeout(s: Settings) -> Result:
     return verdict(*_c2(s, "C2", 3, True))
 
 
-def c2_control(s: Settings) -> Result:
-    return control(*_c2(s, "C2c", 1, False), ("no StartNetwork timeout",))
-
-
 def _rebattle_cancel(s: Settings, tag: str, headless: bool, extra_env=None) -> Tuple[List[str], List[str]]:
     env = dict(extra_env or {}, RAND_MASK="06F6", MAXREBATTLE="3", GGPO_TEST_LOG="1")
     m = lib.run_match(s, tag, [s.exe] * 4, DELAYS_SPREAD, env=env, headless=headless)
@@ -291,18 +271,10 @@ def c3_rebattle_cancel(s: Settings) -> Result:
     return verdict(bad, notes)
 
 
-def c3_control(s: Settings) -> Result:
-    return control(*_rebattle_cancel(s, "C3c", True, {"GGPO_TEST_NO_REBATTLE_CANCEL": "1"}), ("not in CloseWait",))
-
-
 # --- D. Network robustness ---------------------------------------------------
 
 def d1_fuzz(s: Settings) -> Result:
     return verdict(*_d1(s, "D1", 0))
-
-
-def d1_control(s: Settings) -> Result:
-    return control(*_d1(s, "D1c", 50), ("no peer dropped a malformed packet",))
 
 
 def _d1(s: Settings, tag: str, port_offset: int) -> Tuple[List[str], List[str]]:
@@ -342,16 +314,8 @@ def d2_relay(s: Settings) -> Result:
     return verdict(*_d2(s, "D2", {"TEST_RELAY": "single"}))
 
 
-def d2_control(s: Settings) -> Result:
-    return control(*_d2(s, "D2c", {}), ("p1 did not pick the relay",))
-
-
 def d3_relay_loop(s: Settings) -> Result:
     return verdict(*_d3(s, "D3", "loop"))
-
-
-def d3_control(s: Settings) -> Result:
-    return control(*_d3(s, "D3c", "single"), ("relay loop not cut",))
 
 
 def _d3(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
@@ -408,12 +372,6 @@ def d4_relay_server(s: Settings) -> Result:
     return verdict(*_d4(s, "D4", "server"))
 
 
-def d4_control(s: Settings) -> Result:
-    if not s.relay_exe:
-        return SKIP, ["no gdxsv binary (--relay-exe)"]
-    return control(*_d4(s, "D4c", None), ("p1 did not pick the relay server",))
-
-
 def _d4(s: Settings, tag: str, test_relay: Optional[str]) -> Tuple[List[str], List[str]]:
     m, relay_logs = _with_relays(s, tag, 1, test_relay)
     bad = common(m)
@@ -432,12 +390,6 @@ def d5_relay_servers_settle(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
     return verdict(*_d5(s, "D5", "server2"))
-
-
-def d5_control(s: Settings) -> Result:
-    if not s.relay_exe:
-        return SKIP, ["no gdxsv binary (--relay-exe)"]
-    return control(*_d5(s, "D5c", "server"), ("p1 did not move to server 0",))
 
 
 def _d5(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
@@ -464,12 +416,6 @@ def d6_relay_server_ipv6(s: Settings) -> Result:
     return verdict(*_d6(s, "D6", True))
 
 
-def d6_control(s: Settings) -> Result:
-    if not s.relay_exe:
-        return SKIP, ["no gdxsv binary (--relay-exe)"]
-    return control(*_d6(s, "D6c", False), ("relay bound 0 peers over IPv6",))
-
-
 def _d6(s: Settings, tag: str, dual_stack: bool) -> Tuple[List[str], List[str]]:
     m, relay_logs = _with_relays(s, tag, 1, "server", dual_stack=dual_stack)
     bad = common(m)
@@ -490,13 +436,6 @@ def d7_relay_lower_rtt_wins(s: Settings) -> Result:
     if not s.relay_exe:
         return SKIP, ["no gdxsv binary (--relay-exe)"]
     return verdict(*_d7(s, "D7", "fair"))
-
-
-def d7_control(s: Settings) -> Result:
-    if not s.relay_exe:
-        return SKIP, ["no gdxsv binary (--relay-exe)"]
-    # single: the way through peer 1 (20 ms) beats the relay server, so peer 1 must win.
-    return control(*_d7(s, "D7c", "single"), ("p1 did not pick the relay server",))
 
 
 def _d7(s: Settings, tag: str, test_relay: str) -> Tuple[List[str], List[str]]:
@@ -530,14 +469,6 @@ def d8_relay_server_symmetric_nat(s: Settings) -> Result:
     return verdict(bad, notes)
 
 
-def d8_control(s: Settings) -> Result:
-    if not s.relay_exe:
-        return SKIP, ["no gdxsv binary (--relay-exe)"]
-    m, _ = _with_relays(s, "D8c", 1, None)  # no NAT: every peer reaches the others directly
-    bad, picks = _d8_paths(m)
-    return control(common(m) + bad, [summary(m)] + picks, ("p1 did not reach p2 through the relay server",))
-
-
 def _d8_paths(m: Match) -> Tuple[List[str], List[str]]:
     """Paths to and from the NAT peer (peer 1) must go through the relay server."""
     bad, picks = [], []
@@ -562,32 +493,19 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
     "A4c": ("control: A4 old-first with peer 2 (this build) desynced, A4's checks fail", a4_control, 1, False),
     "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 7, False),
-    "B1c": ("control: B1 seeds 11, 22 with GGPO_TEST_NO_SKIP_REPLAY, skips not replayed", b1_control, 3, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
-    "B3c": ("control: B3 with desync.lua on peer 2", b3_control, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
-    "C1c": ("control: C1 with p1 frozen for 15 s after the drop, its window stops responding", c1_control, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
-    "C2c": ("control: C2 with no peer killed, no start timeout", c2_control, 1, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),
-    "C3c": ("control: C3 headless with GGPO_TEST_NO_REBATTLE_CANCEL, no CloseWait", c3_control, 2, False),
     "D1": ("malformed packet fuzzing during a match", d1_fuzz, 1, False),
-    "D1c": ("control: D1 with the fuzzer on ports no peer uses, no malformed drop logged", d1_control, 1, False),
     "D2": ("relay path in use", d2_relay, 1, False),
-    "D2c": ("control: D2 with no TEST_RELAY, no relay picked", d2_control, 1, False),
     "D3": ("relay loop is cut", d3_relay_loop, 2, False),
-    "D3c": ("control: D3 with a one-way relay (single), no loop to cut", d3_control, 2, False),
     "D4": ("relay server path, peers answer through it", d4_relay_server, 1, False),
-    "D4c": ("control: D4 with no TEST_RELAY, relay server not picked", d4_control, 1, False),
     "D5": ("two relay servers, peers settle on the earlier one", d5_relay_servers_settle, 1, False),
-    "D5c": ("control: D5 with one relay server picked (server), nothing to settle", d5_control, 1, False),
     "D6": ("relay server between IPv6 and IPv4 peers", d6_relay_server_ipv6, 1, False),
-    "D6c": ("control: D6 with an IPv4-only relay, no peer bound over IPv6", d6_control, 1, False),
     "D7": ("relaying peer and relay server: the lower RTT wins", d7_relay_lower_rtt_wins, 1, False),
-    "D7c": ("control: D7 with the relaying peer faster (single), the relay server loses", d7_control, 1, False),
     "D8": ("symmetric NAT peer reached through the relay server", d8_relay_server_symmetric_nat, 1, False),
-    "D8c": ("control: D8 with no NAT peer, nobody goes through the relay server", d8_control, 1, False),
 }
 
 

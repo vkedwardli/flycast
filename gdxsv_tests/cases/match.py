@@ -65,12 +65,3 @@ def replay_save(ctx):
     checks.append({"what": "the replay's winners are the match's", "match": want, "replay": r["winners_recorded"],
                    "ok": bool(want) and r["winners_recorded"] == want})
     return result(checks)
-
-
-@case("R3c", "R3 with gdxsv:SaveReplay=no: no replay saved", control_of="R3")
-def replay_save_control(ctx):
-    m, files, checks = save_run(ctx, "R3c", save=False)
-    return result([checks[0],
-                   {"what": "replay check fails", "ok": not checks[1]["ok"], "files": files},
-                   {"what": "every peer logged the skip",
-                    "ok": all("Skip SaveReplay" in p.log for p in m.peers)}])

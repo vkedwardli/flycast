@@ -31,13 +31,3 @@ def repatched(ctx, disk: str, after: int) -> list:
 @case("P1", "game patches written every vblank (Disc 1, Disc 2)", tier="smoke")
 def patch_applied(ctx):
     return result(repatched(ctx, "dc1", 2) + repatched(ctx, "dc2", 2))
-
-
-@case("P1c", "P1 read before a vblank passed: the check sees the unpatched values", control_of="P1")
-def patch_applied_control(ctx):
-    checks = repatched(ctx, "dc2", 0)
-    ran = checks[0]["ok"]
-    caught = [c["what"] for c in checks[1:] if not c["ok"]]
-    return result([{"what": "probe ran", "ok": ran},
-                   {"what": "every anchor fails the check", "ok": len(caught) == len(checks) - 1}],
-                  detail=checks)

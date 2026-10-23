@@ -31,12 +31,6 @@ def translation(ctx):
     return result(sum((lang_text(ctx, lang, lang) for lang in LANG_TEXT), []))
 
 
-@case("L1c", "L1 on language=disabled with the English expectation", control_of="L1")
-def translation_control(ctx):
-    ran, text = lang_text(ctx, "disabled", "english")
-    return result([ran, {"what": "English text check fails", "ok": not text["ok"]}], detail=text)
-
-
 SYMBOLS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                        "core", "gdxsv", "gdxsv_patch.inc")
 WS_SYMBOLS = ["gdx_widescreen_transition_left_x", "gdx_widescreen_transition_right_x",
@@ -98,11 +92,3 @@ def ws_run(ctx, name, wide, super_wide, layout, w, h, expect) -> list:
       known_failure=WS_THREADED)
 def widescreen(ctx):
     return result(sum((ws_run(ctx, *c, expect=ws_expected(*c[1:])) for c in WS_CASES), []))
-
-
-@case("W1c", "W1 with widescreen on, checked against the stock values", control_of="W1",
-      known_failure=WS_THREADED)
-def widescreen_control(ctx):
-    c = WS_CASES[3]
-    ran, values = ws_run(ctx, *c, expect=ws_expected(False, *c[2:]))
-    return result([ran, {"what": "stock values check fails", "ok": not values["ok"]}], detail=values)

@@ -51,32 +51,19 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A4 | Mixed with an older release | same as A3 | common checks |
 | A4c | Control of A4 | as A3c, with the older release | A4 fails on last frames or round winners |
 | B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks) | every rollback whose re-simulated range contains a skip after the seek frame replays it |
-| B1c | Control of B1 | seeds 11, 22, `GGPO_TEST_NO_SKIP_REPLAY=1` | B1 fails on "skip at frame N not replayed" |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
-| B3c | Control of B3 | as B3, peer 2 loads `desync.lua` | B3 fails on last frames or round winners |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |
-| C1c | Control of C1 | as C1, p1 suspended for 15 s right after the drop (`emu.suspend`) | C1 fails on "windows not responding" |
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
-| C2c | Control of C2 | as C2, no peer killed, 1 run | C2 fails on "no StartNetwork timeout" |
 | C3 | Re-battle cancel ends the match | `RAND_MASK=06F6`, `MAXREBATTLE=3`, `GGPO_TEST_LOG=1`; headless and windowed | all peers enter scene 4/3 on the same frame and are in CloseWait at 4/4; common checks |
-| C3c | Control of C3 | as C3 headless, `GGPO_TEST_NO_REBATTLE_CANCEL=1` | C3 fails on "not in CloseWait at the friend save scene" |
 | D1 | Malformed packets | ~45 s of `fuzz.py` during the battle (oversized AppData/Input, truncated, unknown types, bogus relays), `GGPO_TEST_LOG=1` | a peer logs `RBKTEST malformed drop` (relayed malformed AppData); common checks |
-| D1c | Control of D1 | as D1, the fuzzer sends to ports 50 above the peers' | D1 fails on "no peer dropped a malformed packet" |
 | D2 | Relay in use | `TEST_RELAY=single` | p1 picks the relay (`Relay:1`), p2 forwards, common checks |
-| D2c | Control of D2 | as D2, no `TEST_RELAY` | D2 fails on "did not pick the relay" |
 | D3 | Relay loop | `TEST_RELAY=loop` | peers 1 and 2 cut the loop (a few `relay drop-return-to-sender` lines, not a flood), no crash; session start times out as expected |
-| D3c | Control of D3 | as D3, `TEST_RELAY=single` (one-way relay) | D3 fails on "relay loop not cut" |
 | D4 | Relay server | a local `gdxsv relay` (`--relay-exe`, default `../gdxsv/bin/gdxsv.exe`), `TEST_RELAY=server` | p1 picks the server (`Relay:2`), every peer sends through it (the others after p1's packets reach them through it), the relay bound all four peers, common checks. Skipped without the binary |
-| D4c | Control of D4 | as D4, no `TEST_RELAY` | D4 fails on "did not pick the relay server" |
 | D5 | Two relay servers | two local relays, `TEST_RELAY=server2` | p1 starts on server 1 for peer 1 and moves to server 0, which peer 1 picked; peer 1 stays on server 0; peers 2 and 3 answer peer 0 through server 1; common checks |
-| D5c | Control of D5 | as D5, `TEST_RELAY=server` (p1 picks a server, p2 stays direct) | D5 fails on "p1 did not move to server 0" |
 | D6 | Relay server across IP families | a dual-stack local relay, `TEST_RELAY=server`, `TEST_RELAY_IPV6=::1` | peers 1-2 get only a reachable IPv6 address for the relay and pick it, peers 3-4 use IPv4 (the relay binds 2 and 2), peer 0 relays to everyone, common checks. The relay listens on all addresses, which may raise a firewall prompt |
-| D6c | Control of D6 | as D6, IPv4-only relay, no `TEST_RELAY_IPV6` | D6 fails on "relay bound 0 peers over IPv6" |
 | D7 | Lower RTT wins between relays | a local relay, `TEST_RELAY=fair` | p1 reaches p4 through the relay server (~35 ms) rather than through p2 (50 ms), though the server is less than 16 ms faster; common checks |
-| D7c | Control of D7 | as D7, `TEST_RELAY=single` (the way through p2 is 20 ms) | D7 fails on "p1 did not pick the relay server" |
 | D8 | Symmetric NAT peer | a local relay, `TEST_RELAY=nat` | p2 reaches only p4 in the ping test, and the way through p4 is slow; p1 and p3 reach p2, and p2 reaches them, through the relay server (`Relay:2`), using the relay RTTs p4 passed on; common checks. With `--old-exe`/`--old-release`, again with p2 on that build: p1 and p3 still pick the relay server and p2 answers through it |
-| D8c | Control of D8 | as D8, no `TEST_RELAY` (no NAT peer) | D8 fails on "p1 did not reach p2 through the relay server" |
 
 ## Test-only switches (environment variables)
 
@@ -92,10 +79,10 @@ These do nothing unless set.
 | `RBK_SAVE_REPLAY` | Saves the match to `data/replays/0123456.pb` when it ends (never uploaded) | local test |
 | `TEST_PORT_BASE` | First of the peers' ports (default 20010, peer N uses base + N), so local tests can run at once | local test |
 | `GGPO_TEST_LOG` | Logs `RBKTEST` lines: timesync skip record/replay, rollback loads, scene changes, relay forwards and loop drops, malformed packet drops, relay server use | any session |
-| `GGPO_TEST_NO_SKIP_REPLAY` | A rollback does not replay the timesync skips after its seek frame (control of B1) | local test |
+| `GGPO_TEST_NO_SKIP_REPLAY` | A rollback does not replay the timesync skips after its seek frame | local test |
 | `TEST_GGPO_DELAY` | Fixed input delay in frames instead of one derived from the ping test, so a large `GGPO_NETWORK_DELAY` means deep prediction rather than more delay | local test |
 | `TEST_FAKE_TIMESYNC` | Peer 0 takes a timesync skip every K frames (K = value), as a peer whose clock runs fast does. Peers on one machine rarely get them | local test |
-| `GGPO_TEST_NO_REBATTLE_CANCEL` | The re-battle-cancel scene does not close the match (control of C3) | local test |
+| `GGPO_TEST_NO_REBATTLE_CANCEL` | The re-battle-cancel scene does not close the match | local test |
 | `TEST_SPECTATOR_LBS` | Streams the peers' confirmed inputs to a local lbs (`ip:port`) started with `-spectator_test_session` | local test |
 | `TEST_SPECTATOR_UPLINK` | Which peer lbs would ask to stream (peer number, default 1), or `all` as clients from before lbs picked one did | local test |
 | `TEST_UPLINK_ROUND_DELAY` | Sends round starts to lbs N frames late, so spectators reach StartMsg before the round's start index | local test |

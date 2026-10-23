@@ -112,7 +112,7 @@ def main() -> int:
         for c in CASES.values():
             ctl = f"  (control of {c.control_of})" if c.control_of else ""
             kf = f"  (known failure: {c.known_failure})" if c.known_failure else ""
-            print(f"{c.id:6} {c.tier:6} {c.title}{ctl}{kf}")
+            print(f"{c.id:6} {c.tier:10} {c.title}{ctl}{kf}")
         return 0
     if a.cases:
         unknown = [i for i in a.cases.split(",") if i not in CASES]
@@ -120,7 +120,7 @@ def main() -> int:
             ap.error("unknown case: " + ",".join(unknown))
         selected = [CASES[i] for i in a.cases.split(",")]
     else:
-        selected = [c for c in CASES.values() if a.tier == "full" or c.tier == "smoke"]
+        selected = [c for c in CASES.values() if c.tier != ("smoke-only" if a.tier == "full" else "full")]
     saved = None
     if a.recheck:
         saved = os.path.abspath(a.recheck)

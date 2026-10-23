@@ -6,6 +6,7 @@ Skip marks it skipped (missing ROM). A control case (control_of=<id>) runs its c
 check on input where the feature is absent and passes when the check catches it.
 A case with known_failure=<reason> fails for a reason not fixed yet: the runner reports
 that failure as "known" (exit code 0) and flags a pass, so the mark gets dropped.
+A case with tier="smoke-only" runs in the smoke tier, not the full one (a part of a full case).
 """
 
 import json
@@ -35,7 +36,7 @@ class Case:
 
 def case(id: str, title: str, tier: str = "full", control_of: Optional[str] = None,
          known_failure: Optional[str] = None):
-    assert tier in ("smoke", "full"), tier
+    assert tier in ("smoke", "full", "smoke-only"), tier
 
     def register(fn):
         assert id not in CASES, id
