@@ -9,7 +9,8 @@ upstream code and the fork point are in [upstream.md](upstream.md).
   emulators with the game and checks the result. The game image is not in the
   repository.
 - **Control** is the variant of a test that must fail. It shows the test can
-  detect the problem.
+  detect the problem. Only agreement and comparison checks have one; "–" in
+  the Control column means the check needs none.
 - "none" means the feature has no automated test.
 - This file does not record results. A result belongs to the commit it ran on.
 - A feature's PR updates its row; "none" is stated, not left out.
