@@ -48,7 +48,7 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A2 | 20 rounds (`--long`) | `MAXREBATTLE=20` | common checks; used MS and StartMsg/LoadEndMsg join frames identical on all peers |
 | A3 | Mixed with the previous release | old ×2 + new ×2, run with peer 0 old and with peer 0 new | common checks |
 | A4 | Mixed with an older release | same as A3 | common checks |
-| B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks) | every rollback whose re-simulated range contains a skip after the seek frame replays it |
+| B1 | Timesync skip replayed in a rollback | one match, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks), `TEST_FAKE_TIMESYNC=20` (peer 0 skips every 20 frames) | at least one rollback re-simulates a skip after its seek frame; every such rollback replays it |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |

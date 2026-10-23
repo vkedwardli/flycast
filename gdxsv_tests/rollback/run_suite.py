@@ -121,30 +121,21 @@ def a4_mixed_older(s: Settings) -> Result:
 # --- B. Rollback -------------------------------------------------------------
 
 def b1_skip_replay(s: Settings) -> Result:
-    bad, notes, crossings = _b1(s, "B1", (11, 22, 33, 44, 55, 66), {})
-    if not bad and not crossings:
-        return INCONCLUSIVE, notes + ["no rollback crossed a skip; rerun or add seeds"]
-    return verdict(bad, notes)
-
-
-def _b1(s: Settings, tag: str, seeds, env: Dict[str, str]):
-    bad, notes, crossings = [], [], []
-    for seed in seeds:
-        # Input delay 1: rollbacks of up to 6 frames, long enough to span the skips taken every few hundred frames.
-        m = lib.run_match(s, f"{tag}-{seed}", [s.exe] * 4, DELAYS, seed=seed,
-                          env=dict(env, GGPO_TEST_LOG="1", TEST_GGPO_DELAY="1"))
-        # Peers stop up to the 100 ms sender's 6 frames apart when the input delay is 1; a desync is ~100 (A1c).
-        bad += [f"seed {seed}: {b}" for b in common(m, slack=8)]
-        for p in m.peers:
-            for seek, frm, skip, replayed in lib.skip_crossings(p):
-                if skip > seek:
-                    crossings.append((seed, p.index, seek, frm, skip, replayed))
-    notes.append(f"rollbacks over a skip after the seek frame: {len(crossings)}")
+    # TEST_FAKE_TIMESYNC: peer 0 takes a skip every 20 frames, so rollbacks over a skip are certain.
+    # Input delay 1: rollbacks of up to 6 frames, long enough to span them.
+    m = lib.run_match(s, "B1", [s.exe] * 4, DELAYS,
+                      env={"GGPO_TEST_LOG": "1", "TEST_GGPO_DELAY": "1", "TEST_FAKE_TIMESYNC": "20"})
+    # Peers stop up to the 100 ms sender's 6 frames apart when the input delay is 1; a desync is ~100 (A1c).
+    bad = common(m, slack=8)
+    crossings = [(p.index, seek, frm, skip, replayed)
+                 for p in m.peers for seek, frm, skip, replayed in lib.skip_crossings(p) if skip > seek]
+    notes = [summary(m), f"rollbacks over a skip after the seek frame: {len(crossings)}"]
+    if not crossings:
+        bad.append("no rollback crossed a skip")
     for c in crossings:
-        notes.append("  seed=%d p%d seek=%d from=%d skip=%d replayed=%s" % c)
-        if not c[5]:
-            bad.append("skip at frame %d not replayed (seed %d p%d)" % (c[4], c[0], c[1]))
-    return bad, notes, crossings
+        if not c[4]:
+            bad.append("p%d seek=%d from=%d: skip at frame %d not replayed" % c[:4])
+    return verdict(bad, notes)
 
 
 def _b2(s: Settings, tag: str, delays: List[int], env: Dict[str, str]) -> Tuple[List[str], List[str]]:
@@ -478,7 +469,7 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "A2": ("20-round match", a2_long, 21, True),
     "A3": ("mixed with --old-exe, both peer 0 sides", a3_mixed_old, 2, False),
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
-    "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 7, False),
+    "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 1, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),

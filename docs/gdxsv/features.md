@@ -45,7 +45,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 |---|---|---|---|
 | Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off; O3: from a local gdxsv P2P lobby, O4: two clients | A1c |
 | Compatibility with older releases | always | `run_suite.py` A3, A4 (`--old-release`, `--older-release`); live spectating: S3 (spectator), S4 (uploading peers) on the previous release | A1c (same checks) |
-| Timesync skips replayed in a rollback | always | `run_suite.py` B1 (`GGPO_TEST_LOG=1`) | – |
+| Timesync skips replayed in a rollback | always | `run_suite.py` B1 (`GGPO_TEST_LOG=1`, `TEST_FAKE_TIMESYNC=20`) | – |
 | Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | – |
 | Malformed packets dropped | always | `run_suite.py` D1 (`fuzz.py`) | – |
 | Local test match without servers | `gdxsv:rbk_test=N/4`, `gdxsv:rand_input=SEED` | it is the tool of the cases above | none |
