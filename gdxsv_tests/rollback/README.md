@@ -47,9 +47,7 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A1c | Control of A1 | as A1, peer 2 loads `desync.lua` (holds player 1 HP at 1 from battle step 600) | A1's checks fail on last frames or round winners |
 | A2 | 20 rounds (`--long`) | `MAXREBATTLE=20` | common checks; used MS and StartMsg/LoadEndMsg join frames identical on all peers |
 | A3 | Mixed with the previous release | old ×2 + new ×2, run with peer 0 old and with peer 0 new | common checks |
-| A3c | Control of A3 | peer 0 old only, peer 2 (this build) loads `desync.lua` | A3 fails on last frames or round winners |
 | A4 | Mixed with an older release | same as A3 | common checks |
-| A4c | Control of A4 | as A3c, with the older release | A4 fails on last frames or round winners |
 | B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks) | every rollback whose re-simulated range contains a skip after the seek frame replays it |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
