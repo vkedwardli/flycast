@@ -6,7 +6,7 @@ change every PATTERN_FRAMES vblanks, so peer 1's rollbacks do not overlap. Input
 Each cell: metrics from analyze.py -> <out>/<cell>_<run>.json; with --baseline, compare.py judges them and a
 failing cell is re-run up to 2 more times and judged on the median.
 
-usage: battle.py --exe flycast.exe [--cells all|20_tr1_vs1,...] [--runs N] [--baseline baseline.json]
+usage: battle.py --exe flycast.exe [--cells all|20_tr1_vs1,...] [--runs N] [--baseline gdxsv_tests/perf/baseline.json]
                  [--out DIR] [--presentmon PresentMon.exe] [--write-baseline FILE]
 Environment as run.py (GDXSV_ROM_DIR); GDXSV_STATE_DIR: the rollback suite's state dir; PRESENTMON: PresentMon 2.x exe.
 """
