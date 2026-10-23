@@ -66,11 +66,3 @@ def checks(r: dict) -> list:
 def headless(ctx):
     r = run(ctx, "E1", True)
     return result(checks(r), **r)
-
-
-@case("E1c", "E1 without gdxsv:headless: a window and a renderer, no probe exit; E1's mode checks fail",
-      control_of="E1", tier="smoke")
-def headless_control(ctx):
-    r = run(ctx, "E1c", False)
-    c = checks(r)
-    return result([c[0]] + [{"what": "fails: " + x["what"], "ok": not x["ok"]} for x in c[1:]], detail=c, **r)

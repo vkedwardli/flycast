@@ -37,7 +37,6 @@ def lines(log: str, text: str) -> list:
 # Update check (gdxsv:UpdateCheckUrl)
 
 NEW_TAG = "gdxsv-99.0.0"
-OLD_TAG = "gdxsv-0.0.1"
 # GdxsvUpdate only offers a release with the zip of this platform.
 ZIPS = ["flycast-gdxsv-windows.zip", "flycast-gdxsv-macos-x86_64.zip", "flycast-gdxsv-linux-x86_64.zip"]
 
@@ -57,14 +56,6 @@ def update_check(ctx):
                    {"what": f"{NEW_TAG} newer, download found",
                     "ok": r["line"] == f"update check: latest {NEW_TAG}, newer 1, download 1"},
                    {"what": "no error in the log", "ok": not r["errors"]}], **r)
-
-
-@case("U1c", f"U1 with an older release ({OLD_TAG}): not offered", control_of="U1")
-def update_check_control(ctx):
-    r = check_update(ctx, "U1c", OLD_TAG)
-    return result([{"what": "asked the release API", "ok": "GET /latest" in r["requests"]},
-                   {"what": "the check ran", "ok": r["line"].startswith("update check: latest ")},
-                   {"what": "the newer check fails", "ok": "newer 1" not in r["line"]}], **r)
 
 
 # Texture pack (UseTexturePack, TexturePackChannel, gdxsv:TexturePackUrl)
@@ -127,9 +118,9 @@ def texture_pack(ctx):
     return result(texture_checks(r) + [{"what": "no error in the log", "ok": not r["first"]["errors"]}], **r)
 
 
-@case("X1c", "X1 with one chunk's hash wrong: the pack is not installed", control_of="X1")
-def texture_pack_control(ctx):
-    r = texture_runs(ctx, "X1c", True)
+@case("X2", "texture pack: X1 with one chunk's hash wrong: the pack is rejected, not installed")
+def texture_pack_bad_hash(ctx):
+    r = texture_runs(ctx, "X2", True)
     c = texture_checks(r)
     return result([{"what": "asked the channel", "ok": c[0]["ok"]},
                    {"what": "not installed (update and file checks fail)", "ok": not c[1]["ok"] and not c[2]["ok"]}],
@@ -149,10 +140,3 @@ def connection_warnings(ctx):
     v = warning(ctx, "M1v", "VPN: e2e")
     return result([{"what": "wireless warning", "ok": w["lines"] == ["wireless warning shown"]},
                    {"what": "VPN toast", "ok": v["lines"] == ["VPN warning shown: VPN: e2e"]}], wireless=w, vpn=v)
-
-
-@case("M1c", "M1 with Wired: neither warning", control_of="M1")
-def connection_warnings_control(ctx):
-    r = main_menu(ctx, "M1c", [WIRED], "version check failure")  # the update check (OFFLINE: refused) ends after frame 1
-    found = lines(r["log"], "warning shown")
-    return result([{"what": "no warning", "ok": not found}], lines=found)

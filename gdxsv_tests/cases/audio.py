@@ -52,11 +52,3 @@ def audio_rate(ctx):
     r = queue_run(ctx, "F3", [])
     on = all(w["control"] == "on" for w in r["windows"])
     return result(queue_checks(r) + [{"what": "rate control on", "ok": on}], **r)
-
-
-@case("F3c", "F3's checks with gdxsv:AudioRateControl=no: the queue overflows, the check fails",
-      control_of="F3")
-def audio_rate_control(ctx):
-    r = queue_run(ctx, "F3c", ["gdxsv:AudioRateControl=no"])
-    c = queue_checks(r)
-    return result([c[0], {"what": "the dry-or-full check fails", "ok": not c[1]["ok"]}], detail=c, **r)

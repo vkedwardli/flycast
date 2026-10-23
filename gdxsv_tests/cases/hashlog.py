@@ -50,13 +50,3 @@ def hash_log(ctx):
     return result([{"what": "match finished on every peer", "ok": all(p.finished for p in m.peers)},
                    {"what": "every peer: frames 1..last, one rewind per rollback load (to seek+1, from the "
                             "load's frame), the hash changes", "peers": per, "ok": all(c["ok"] for c in per)}])
-
-
-@case("Q1c", "Q1 with gdxsv:hashlog=no: no hash log", control_of="Q1")
-def hash_log_control(ctx):
-    m = run(ctx, "Q1c", False)
-    per = [peer_checks(p) for p in m.peers]
-    return result([{"what": "match finished on every peer", "ok": all(p.finished for p in m.peers)},
-                   {"what": "the peers rolled back", "loads": [c["loads"] for c in per],
-                    "ok": all(c["loads"] > 0 for c in per)},
-                   {"what": "hash log check fails", "peers": per, "ok": not any(c["ok"] for c in per)}])

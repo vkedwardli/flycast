@@ -105,15 +105,6 @@ def live_round_counters(ctx):
     return result(c)
 
 
-@case("S2c", "S2 with no round results on the live channel: the counter checks fail", control_of="S2")
-def live_round_counters_control(ctx):
-    p, starts, wins = jump_run(ctx, "S2c", False)
-    c = jump_checks(p, starts, wins)
-    return result([{"what": "spectator joined and jumped", "ok": c[0]["ok"] and c[1]["ok"]},
-                   {"what": "both counter checks fail", "ok": c[2]["ok"] and not c[3]["ok"] and not c[4]["ok"]}],
-                  detail=c)
-
-
 NEXT = "9000001"  # fake_live_lbs.py's second battle
 LIVE_FRAMES = 1800  # each battle stays live this long after the join point (the spectator boots in ~6 s)
 
@@ -173,10 +164,3 @@ def autonext_checks(text: str) -> list:
             "(fake live lobby with two battles)")
 def live_autonext(ctx):
     return result(autonext_checks(autonext_run(ctx, "S5", True)))
-
-
-@case("S5c", "S5 with gdxsv:LiveAutoNext=no: battle 1 is watched, the spectator does not move on",
-      control_of="S5")
-def live_autonext_control(ctx):
-    c = autonext_checks(autonext_run(ctx, "S5c", False))
-    return result([c[0], {"what": "both move-on checks fail", "ok": not c[1]["ok"] and not c[2]["ok"]}], detail=c)

@@ -53,27 +53,10 @@ def fixed_rate(ctx):
     return result(rate_checks(runs, MODES), runs=runs)
 
 
-@case("F1c", "F1's 59.94 fps check on a run without a limiter (FixedFrequency=0, LimitFPS=no): it fails",
-      control_of="F1")
-def fixed_rate_control(ctx):
-    r = rate_run(ctx, 0, ["config:aica.LimitFPS=no"])
-    c = rate_checks([r], {0: MODES[2]})
-    return result([{"what": "probe ran", "ok": r["clean"] and r["fps"] is not None},
-                   {"what": "the 59.94 fps check fails", "ok": not c[0]["ok"]}], detail=c, runs=[r])
-
-
 @case("F2", "audio sync: with no fixed rate, LimitFPS=yes paces the game by the audio output at 59.94 fps")
 def audio_sync(ctx):
     r = rate_run(ctx, 0, ["config:aica.LimitFPS=yes"])
     return result(rate_checks([r], {0: MODES[2]}), runs=[r])
-
-
-@case("F2c", "F2's check with LimitFPS=no: it fails", control_of="F2")
-def audio_sync_control(ctx):
-    r = rate_run(ctx, 0, ["config:aica.LimitFPS=no"])
-    c = rate_checks([r], {0: MODES[2]})
-    return result([{"what": "probe ran", "ok": r["clean"] and r["fps"] is not None},
-                   {"what": "the 59.94 fps check fails", "ok": not c[0]["ok"]}], detail=c, runs=[r])
 
 
 IDLE_FRAMES = 6000

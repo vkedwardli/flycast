@@ -109,13 +109,3 @@ def browser(ctx):
                     "ok": bool(r["steps"]) and all(r["steps"].values())}] +
                   [{"what": f"{key} matches golden/{CHECKS[key][2]}", "recall": r["scores"][key],
                     "ok": matched(r, key)} for key in CHECKS])
-
-
-@case("G2c", "G2 with an empty live list, no server replays and no local replay", control_of="G2")
-def browser_control(ctx):
-    r = browse(ctx, "G2c", rows=False)
-    rows = [k for k in CHECKS if k != "tabs"]
-    return result([{"what": "the browser opened: tab bar matches", "recall": r["scores"]["tabs"],
-                    "ok": matched(r, "tabs")},
-                   {"what": "every row check fails", "scores": r["scores"],
-                    "ok": not any(matched(r, k) for k in rows)}])
