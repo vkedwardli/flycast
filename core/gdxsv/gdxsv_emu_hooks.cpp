@@ -40,6 +40,7 @@
 #include "hw/pvr/Renderer_if.h"
 #include "network/ggpo.h"
 #include "gdxsv_ggpo_hooks.h"
+#include "gdxsv_perf_trace.h"
 #include "stdclass.h"
 #include "xxhash.h"
 
@@ -76,6 +77,7 @@ bool gdxsv_is_online() { return gdxsv.IsOnline(); }
 bool gdxsv_is_savestate_allowed() { return gdxsv.IsSaveStateAllowed(); }
 
 void gdxsv_emu_flycast_init() {
+	gdxsv_perf_trace_init();
 	config::GGPOEnable = false;
 	if (gdxsv_video_hidden_window()) {
 		if (gui_state == GuiState::Onboarding) throw FlycastException("Four-screen worker has no configuration directory");
@@ -189,6 +191,7 @@ void gdxsv_emu_vblank() {
 }
 
 void gdxsv_emu_end_frame() {
+	GDXSV_PERF_TRACE("end_frame", -1, 0);
 	if (gdxsv.Enabled()) {
 		gdxsv.HookEndOfFrame();
 	}
@@ -243,6 +246,7 @@ void gdxsv_emu_next_frame() {
 	if (!config::ThreadedRendering && RollbackBattle() && rend_is_enabled() && imguiDriver != nullptr) {
 		try {
 			imguiDriver->present();
+			GDXSV_PERF_TRACE("present", -1, 0);
 		} catch (const FlycastException&) {
 			// mainui_loop presents again and recreates the context on failure
 		}
@@ -268,6 +272,7 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 	}
 	gdxsv_multi_pov_tick();
 
+	if (rendered) GDXSV_PERF_TRACE("ui_rendered", -1, 0);
 	if (rendered && !(config::ThreadedRendering && RollbackBattle()))
 		gdxsv_frame_limiter_wait();
 }

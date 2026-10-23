@@ -97,6 +97,9 @@ Tests only; they do nothing unless set. Effects are in
 | `GGPO_DELAY` | GGPO input delay 0 to 64, over the setting |
 | `GGPO_TEST_NO_REBATTLE_CANCEL` | `rbk_test` match (control of rollback case C3) |
 | `VITAL`, `MAXREBATTLE`, `RAND_MASK`, `RBK_SAVE_REPLAY`, `TEST_PORT_BASE`, `TEST_GGPO_DELAY`, `TEST_FAKE_TIMESYNC` | `rbk_test` match |
+| `TEST_PING_MS` | `rbk_test` match: P2P ping test length, ms (default 7500) |
+| `GDXSV_PERF_TRACE=<csv path>` | any run: event trace for the perf check (`gdxsv_perf_trace.h`), off when unset |
+| `GDXSV_PRESS_SWEEP=<player>,<start ms>,<hold ms>,<gap min ms>,<gap max ms>` | `rbk_test` match with `GDXSV_TEST_JOYSTICK`: random-time dpad presses on that player |
 | `TEST_RELAY`, `TEST_RELAY_SERVER`, `TEST_RELAY_TOKEN`, `TEST_RELAY_IPV6` | `rbk_test` relays |
 | `TEST_SPECTATOR_LBS`, `TEST_SPECTATOR_UPLINK`, `TEST_UPLINK_ROUND_DELAY` | `rbk_test` live uplink |
 | `GDXSV_SPECTATOR_TEST_REPLAY` | unit test `GdxsvSpectator` |

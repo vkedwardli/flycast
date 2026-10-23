@@ -4,10 +4,10 @@ End-to-end tests of the gdxsv features: each case runs the emulator with the
 game and checks RAM values, logs or hash logs. One case covers one row of
 [`docs/gdxsv/features.md`](../docs/gdxsv/features.md), whose Test and Control
 columns name the case ids. A control (`<id>c`) runs the case's check on input
-where the feature is absent and passes when the check catches it. Controls are kept
-only for checks that compare two observed things (two runs, peers, quadrants, a
-golden, the recorded result); a check against a constant, a count, a log line or
-an exit has none.
+where the feature is absent and passes when the check catches it. A case has a
+control only when its check is an agreement or comparison (hashes, round
+winners, a golden, a recorded result), which a broken check would pass
+silently.
 
 Python 3 standard library and Lua only (Pillow for image compares). Not run in
 GitHub CI.
@@ -179,6 +179,7 @@ the mark`. The fix is postponed: it may move the other patches' timing too.
   so `--recheck` can replay it.
 - Judge by RAM values, logs and hash logs; an image only for what is visual by
   nature, cropped and downscaled into `golden/`.
-- Name the case in `docs/gdxsv/features.md`; add a control only for a comparison
-  check (see the top), else `–` in the Control column.
+- Name the case in `docs/gdxsv/features.md`. Add a control only for an
+  agreement or comparison check, and name it there too; else `–` in the
+  Control column.
 - A failure a human chose not to fix yet: `known_failure="<why>"` on the case (and its control).

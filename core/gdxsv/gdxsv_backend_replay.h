@@ -343,6 +343,8 @@ class GdxsvBackendReplay {
 	// guests follow. Guest: the last seek generation applied.
 	int multi_pov_published_frame_ = -1;
 	uint32_t multi_pov_seek_generation_ = 0;
+	// Guest: paused input may advance only to the host snapshot for this run.
+	int64_t multi_pov_step_target_ = -1;
 	// Host: the replay is moving the position itself (round change, briefing
 	// skip), which every screen does on its own, so it is not a seek.
 	bool multi_pov_system_move_ = false;
