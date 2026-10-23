@@ -15,6 +15,7 @@
 #include "gdxsv.h"
 #include "gdxsv_round_counters.h"
 #include "gdxsv_emu_hooks.h"
+#include "gdxsv_press_sweep.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv.pb.h"
 #include "imgui/imgui.h"
@@ -534,6 +535,7 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 		NOTICE_LOG(COMMON, "RandomInput Seed=%d Mask=%04x", seed + me, mask);
 		gdxsv_ggpo_random_input(true, seed + me, mask);
 	}
+	gdxsv_press_sweep_start(me);
 	// Team vitals (Renpo, Zeon), little endian. VITAL=600 for a full-length battle.
 	const int vital = getenv("VITAL") ? atoi(getenv("VITAL")) : 1;
 	DummyRuleData[6] = vital & 0xff;
@@ -550,7 +552,7 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 	matching.set_rule_bin(DummyRuleData, sizeof(DummyRuleData));
 	matching.set_peer_id(me);
 	matching.set_session_id(12345);
-	matching.set_ping_test_duration(7500);
+	matching.set_ping_test_duration(getenv("TEST_PING_MS") ? atoi(getenv("TEST_PING_MS")) : 7500);
 	matching.set_player_count(n);
 	// The peer lbs would ask to stream for live spectators: TEST_SPECTATOR_UPLINK=<peer number>, or "all" as clients
 	// from before lbs picked one did. Peer 1 by default.

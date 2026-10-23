@@ -34,6 +34,7 @@
 #include "gdxsv/gdxsv_input_hooks.h"
 #include "gdxsv/gdxsv_prof.h"
 #include "gdxsv/gdxsv_ggpo_hooks.h"
+#include "gdxsv/gdxsv_perf_trace.h"
 
 void UpdateInputState();
 
@@ -308,6 +309,7 @@ static bool advance_frame(int)
 	INFO_LOG(NETWORK, "advance_frame");
 	int frame;
 	getCurrentFrame(&frame);
+	GDXSV_PERF_TRACE("rerun_b", frame, 0);
 
 	settings.aica.muteAudio = true;
 	settings.gdxsv.skipRenderingAddr = settings.gdxsv.skipRenderingBaseAddr;
@@ -347,6 +349,7 @@ static bool advance_frame(int)
 	_endOfFrame = false;
 
 	gdxsv_ggpo_state.totalRollbackFrames++;
+	GDXSV_PERF_TRACE("rerun_e", frame, 0);
 	return true;
 }
 
@@ -361,6 +364,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 {
 	INFO_LOG(NETWORK, "load_game_state");
 	ggpo::getCurrentFrame(&seekToFrame); // gdxsv: test log
+	GDXSV_PERF_TRACE("load_b", seekToFrame, 0);
 
 	rend_start_rollback();
 	// FIXME dynarecs
@@ -408,6 +412,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 	memwatch::vramWatcher.protectRestored(unprotected[1]);
 	memwatch::aramWatcher.protectRestored(unprotected[2]);
 	memwatch::elanWatcher.protectRestored(unprotected[3]);
+	GDXSV_PERF_TRACE("load_e", frame, 0);
 	return true;
 }
 
@@ -420,6 +425,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int frame)
 {
 	verify(!emu.getSh4Executor()->IsCpuRunning());
+	GDXSV_PERF_TRACE("save_b", frame, 0);
 	lastSavedFrame = frame;
 	// TODO this is way too much memory
 	size_t allocSize = settings.platform.isNaomi() ? 20_MB : 10_MB;
@@ -452,6 +458,7 @@ static bool save_game_state(unsigned char **buffer, int *len, int *checksum, int
 	//*checksum = XXH3_64bits(*buffer, usedSize);
 #endif
 	gdxsv_ggpo_state_saved(frame, *buffer, *len);
+	GDXSV_PERF_TRACE("save_e", frame, 0);
 	if (frame <= 0) // gdxsv: otherwise MemPages::save protects
 		memwatch::protect();
 	if (frame > 0)
@@ -844,6 +851,7 @@ bool nextFrame()
 
 	int frame;
 	getCurrentFrame(&frame);
+	GDXSV_PERF_TRACE("next_b", frame, 0);
 	if (skipInputOccurred) {
 		skipInputOccurred = false;
 		skippedFrames[frame]++;
@@ -868,6 +876,7 @@ bool nextFrame()
 	// may rollback
 	if (error == GGPO_OK)
 		error = ggpo_idle(ggpoSession, 0);
+	GDXSV_PERF_TRACE("idle_e", frame, error);
 	if (error == GGPO_OK && gdxsv_ggpo_state.inputBeforeAdvance && !gdxsv_ggpo_wait_prediction_barrier())
 		error = GGPO_ERRORCODE_GENERAL_FAILURE;
 	if (error != GGPO_OK)
@@ -903,6 +912,7 @@ static bool addLocalInput()
 	// may call save_game_state
 	int loop_count = 0;
 	do {
+		GDXSV_PERF_TRACE("input_read", -1, loop_count);
 		if (!gdxsv_ggpo_state.useRandInput) {
 			if (!config::ThreadedRendering)
 				os_UpdateInputState();
@@ -960,6 +970,7 @@ static bool addLocalInput()
 		error = ggpo_add_local_input(ggpoSession, localPlayer, &inputs, inputSize);
 		if (error == GGPO_OK)
 		{
+			GDXSV_PERF_TRACE("add", -1, inputs.kcode);
 			if (0 < loop_count) {
 				if (loop_count * 5 <= 30) gdxsv_ggpo_state.inputBlockCount[0]++;
 				else if (loop_count * 5 <= 500) gdxsv_ggpo_state.inputBlockCount[1]++;
@@ -998,6 +1009,7 @@ static bool addLocalInput()
 			WARN_LOG(NETWORK, "ggpo_add_local_input(%d) failed %d", i, result);
 	}
 #endif
+	GDXSV_PERF_TRACE("next_e", -1, 0);
 	// gdxsv: nextFrame starts the executor
 	return active();
 }

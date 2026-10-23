@@ -110,14 +110,16 @@ class Match:
 def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: int = 55,
               env: Optional[Dict[str, str]] = None, headless: bool = True, config: Optional[List[str]] = None,
               lua=None, timeout: int = 900, stall_sec: int = 20, on_start=None,
-              keep_exe: bool = False) -> Match:
+              keep_exe: bool = False, peer_env: Optional[Dict[int, Dict[str, str]]] = None,
+              peer_config: Optional[Dict[int, List[str]]] = None) -> Match:
     """Run one 4-player local match and wait for it to end.
 
     A peer whose hashlog frame stops moving for stall_sec, before it reports
     the local test finished, counts as stalled and ends the match. on_start is
     called with the Match once every peer has been launched. config: more
     "section:key=value" entries; lua: a script every peer loads, or
-    {peer index (1-based): script} for some peers only.
+    {peer index (1-based): script} for some peers only. peer_env, peer_config:
+    {peer index: env or config} added for that peer only (its config after config).
     """
     base = os.path.join(s.out, tag)
     match = Match(tag)
@@ -134,8 +136,8 @@ def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: i
         if not headless:
             cfg += [f"window:left={40 + (i % 2) * 660}", f"window:top={40 + (i // 2) * 520}",
                     "window:width=640", "window:height=480"]
-        cfg += config or []
-        penv = dict(env or {})
+        cfg += (config or []) + (peer_config or {}).get(i + 1, [])
+        penv = {**(env or {}), **(peer_env or {}).get(i + 1, {})}
         penv["GGPO_NETWORK_DELAY"] = str(delays[i])
         if port_base() != DEFAULT_PORT_BASE:
             penv["TEST_PORT_BASE"] = str(port_base())
