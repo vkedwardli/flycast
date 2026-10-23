@@ -40,6 +40,7 @@ class Gdxsv {
 	const char* NetModeString() const;
 	void Reset();
 	bool HookOpenMenu();
+	bool HookFastForward();
 	void HookVBlank();
 	void HookMainUiLoop();
 	void HookEndOfFrame();

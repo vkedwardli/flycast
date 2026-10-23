@@ -6,7 +6,7 @@ import re
 import time
 
 from lib import assets, emu, image, recheck, replayfile
-from lib.case import case, result, write_lua
+from lib.case import Skip, case, result, write_lua
 
 STARTS_RE = re.compile(r"start_msg_indexes = ([\d ]*)")
 ROUND_RE = re.compile(r"StartMsg key_msg_count (\d+)")
@@ -238,6 +238,98 @@ def frame_jump_checks(r: dict, out: str, name: str, frame: int) -> list:
         jumps = FRAME_JUMP_RE.findall(f.read())
     return [{"what": f"one seek, landed on input {frame}", "ok": jumps == [(str(frame), str(frame))], "jumps": jumps},
             {"what": "every round played to the end with the recorded winners", "ok": r["ok"]}]
+
+
+SPEED_RE = re.compile(r"Replay speed: (\d+%)")
+FAST_FORWARD_TARGETS = [("round-jump", "gdxsv:replay_target_round=4", "ctrl_change_round_:4"),
+                        ("frame-seek", "gdxsv:replay_target_frame=4000", "target=4000")]
+
+
+def fast_forward_run(ctx, name: str, target: str, ready: str, press: bool) -> dict:
+    """Use the mapped keyboard key after a round jump or frame seek; save each observed speed
+    sequence so --recheck can apply the same checks without sending input."""
+    saved = os.path.join(ctx.out, name + ".json")
+    if recheck.ACTIVE:
+        return recheck.load(saved, {})
+    if not (emu.IS_WINDOWS or emu.IS_MAC):
+        raise Skip("mapped keyboard input requires Windows or macOS")
+    rom = ctx.rom("dc2")
+    cfg = [f"gdxsv:replay={assets.replay(newest_dc2())}", target,
+           "gdxsv:ReplayFourScreen=no", "gdxsv:ReplaySeekStates=no", "gdxsv:ReplaySkipMsSelection=yes",
+           "config:rend.Resolution=480", "config:rend.vsync=no", "log:LogToFile=yes", "log:Verbosity=3"]
+    with image.SCREEN_LOCK:
+        inst = emu.launch(ctx.exe, rom, os.path.join(ctx.out, name), config=cfg,
+                          state_dir=assets.state_dir(rom), headless=False)
+        r = {}
+
+        def speeds(expected):
+            wait_for(lambda: inst.poll() is not None or SPEED_RE.findall(inst.log) == expected, 3)
+            return SPEED_RE.findall(inst.log)
+
+        try:
+            r["ready"] = wait_for(lambda: inst.poll() is not None or ready in inst.log, 120) and inst.poll() is None
+            if r["ready"]:
+                time.sleep(3)  # allow Loading and the control bar to disappear
+                pid = inst.proc.pid
+                if press:
+                    emu.press_key(0x20, pid, hold=0.8)
+                r["first"] = speeds(["300%"])
+                if press:
+                    time.sleep(1)
+                    r["released"] = SPEED_RE.findall(inst.log)
+                    emu.press_key(0x20, pid)
+                    r["second"] = speeds(["300%", "100%"])
+                    emu.press_key(0x09, pid)  # Tab: replay pause menu
+                    r["menu_open"] = wait_for(lambda: "Save Menu Opened frame" in inst.log, 3)
+                    emu.press_key(0x20, pid)
+                    time.sleep(0.5)
+                    emu.press_key(0x09, pid)
+                    time.sleep(0.5)
+                    r["menu"] = SPEED_RE.findall(inst.log)
+                    emu.press_key(0x20, pid)
+                    r["after_menu"] = speeds(["300%", "100%", "300%"])
+                    emu.press_key(0x20, pid)
+                    r["final"] = speeds(["300%", "100%", "300%", "100%"])
+            r.update(errors=inst.errors, running=inst.poll() is None)
+        except NotImplementedError as e:
+            raise Skip(str(e))
+        finally:
+            inst.kill()
+            inst.proc.wait(10)
+            inst.remove_exe()
+        recheck.save(saved, r)
+    return r
+
+
+def fast_forward_checks(r: dict) -> list:
+    return [{"what": "replay reached its target and stayed running without errors",
+             "ok": r.get("ready") and r.get("running") and not r.get("errors")},
+            {"what": "held Fast-forward selects 300% once", "ok": r.get("first") == ["300%"]},
+            {"what": "release does not toggle; the next press restores 100%",
+             "ok": r.get("released") == ["300%"] and r.get("second") == ["300%", "100%"]},
+            {"what": "menu press neither changes speed nor leaks after closing",
+             "ok": r.get("menu_open") and r.get("menu") == ["300%", "100%"]},
+            {"what": "fresh presses after the menu toggle 300% then 100%",
+             "ok": r.get("after_menu") == ["300%", "100%", "300%"]
+             and r.get("final") == ["300%", "100%", "300%", "100%"]}]
+
+
+@case("V10", "mapped Fast-forward toggles 100%/300% after a round jump and frame seek; pause menu ignores it")
+def replay_fast_forward(ctx):
+    runs = {name: fast_forward_run(ctx, name, target, ready, True) for name, target, ready in FAST_FORWARD_TARGETS}
+    return result([{**c, "target": name} for name, r in runs.items() for c in fast_forward_checks(r)], runs=runs)
+
+
+@case("V10c", "V10 without the first key press: the 300% check fails", control_of="V10")
+def replay_fast_forward_control(ctx):
+    runs = {name: fast_forward_run(ctx, name, target, ready, False) for name, target, ready in FAST_FORWARD_TARGETS}
+    checks = []
+    for name, r in runs.items():
+        c = fast_forward_checks(r)
+        checks += [{**c[0], "target": name},
+                   {"what": "missing press fails the 300% check", "target": name,
+                    "ok": not c[1]["ok"] and r.get("first") == []}]
+    return result(checks, runs=runs)
 
 
 SEEK_RE = re.compile(r"JumpToKeyMsg \d+->(\d+) target=\d+ load=-?\d+ ran=(\d+) frames in \d+\[ms\] \(([\d.]+)\[ms/fr\]\)")

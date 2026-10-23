@@ -160,8 +160,15 @@ Follow the names already in `core/gdxsv/`:
   away.
 - `docs/gdxsv/features.md`: per feature, how to enable, test command, pass
   criterion, control. Updated in the feature's PR; "no test" is stated.
-- A test is one command, exit 0 on pass. An agreement test has a control that
-  must fail.
+- A test is one command, exit 0 on pass.
+- A control (a variant that must fail) only for a check that would pass
+  silently if the check itself were broken: agreement or comparison (hashes or
+  round winners across peers, a golden, a recorded result). Not for counting
+  that something happened, a value range, a log line or an exit.
+- A failure is a regression only after an interleaved A/B with the last
+  release on an idle machine. Run cases in parallel first, then re-run the
+  failures one at a time. A case that fails alone on both builds is a broken
+  test: fix or remove it. No bisect without the owner's approval.
 - A result names its commit.
 
 ### Documentation

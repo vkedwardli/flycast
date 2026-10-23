@@ -261,14 +261,48 @@ def click(pid: int, x: int, y: int) -> bool:
     return True
 
 
-def press_key(vk: int) -> None:
-    """Press and release a key (Windows virtual-key code) in the foreground window."""
+def press_key(vk: int, pid: Optional[int] = None, hold: float = 0.1) -> None:
+    """Press and release a Windows virtual-key code; pid selects the target window on macOS."""
+    if IS_MAC:
+        if pid is None:
+            raise ValueError("macOS key injection needs a target pid")
+        codes = {0x20: 49, 0x09: 48, 0x1b: 53}  # Space, Tab, Escape
+        code = codes[vk]
+        cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+        cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        ctypes.CDLL("/System/Library/Frameworks/AppKit.framework/AppKit")
+        objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.objc_getClass.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = ctypes.c_void_p
+        running = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int)(("objc_msgSend", objc))
+        activate = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong)(("objc_msgSend", objc))
+        app = running(objc.objc_getClass(b"NSRunningApplication"),
+                      objc.sel_registerName(b"runningApplicationWithProcessIdentifier:"), pid)
+        if not activate(app, objc.sel_registerName(b"activateWithOptions:"), 2):
+            raise RuntimeError("Could not focus the test emulator")
+        cg.CGEventCreateKeyboardEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint16, ctypes.c_bool]
+        cg.CGEventCreateKeyboardEvent.restype = ctypes.c_void_p
+        cg.CGEventPostToPid.argtypes = [ctypes.c_int, ctypes.c_void_p]
+        cf.CFRelease.argtypes = [ctypes.c_void_p]
+        for down in (True, False):
+            event = cg.CGEventCreateKeyboardEvent(None, code, down)
+            if not event:
+                raise RuntimeError("Could not create keyboard event")
+            cg.CGEventPostToPid(pid, event)
+            cf.CFRelease(event)
+            if down:
+                time.sleep(hold)
+        return
     if not IS_WINDOWS:
-        raise NotImplementedError("press_key: Windows only")
+        raise NotImplementedError("press_key: Windows and macOS only")
+    if pid is not None:
+        window_rect(pid)  # raises the target window
     user32 = ctypes.windll.user32
     scan = user32.MapVirtualKeyW(vk, 0)
     user32.keybd_event(vk, scan, 0, 0)
-    time.sleep(0.1)
+    time.sleep(hold)
     user32.keybd_event(vk, scan, 0x2, 0)  # KEYEVENTF_KEYUP
 
 
