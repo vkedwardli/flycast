@@ -33,6 +33,35 @@ python gdxsv_tests/run.py --recheck gdxsv_tests/out --cases K1      # checks onl
   and defaults to exit 0 and no requests. Try a new or changed check here on an
   earlier run's directory before a run with flycast.
 
+## Pre-release check
+
+One command, about an hour: the full tier and the rollback suite, then a
+verdict per failed case.
+
+```
+python gdxsv_tests/precheck.py --exe build/flycast.exe --old-exe <last release>/flycast-gdxsv.exe \
+    --release gdxsv-1.10.0 --rom <Disc 2 GDI> --state-dir work/state --relay-exe <gdxsv.exe>
+```
+
+- Idle box: no build, rig, bench or other job while it runs. It refuses to
+  start while flycast, ninja or a compiler runs.
+- Parallel first: `run.py --tier full --jobs 4`, then `run_suite.py --jobs 3`.
+  Most of a case is real-time play (battles at 59.94 fps, boot, ping test), not
+  CPU, so cases share the box well. Tune `--jobs` / `--suite-jobs` per machine
+  from measured runs.
+- Then each failed case alone. Passes alone: failed under load, not a failure.
+- Still fails: 3 runs interleaved with the last release (`--old-exe`).
+  - Fails on both: a broken test. It does not block the release; fix its
+    setup, timing assumption or check in a test PR. There is no list of
+    tolerated flaky cases.
+  - Fails on this build only: a regression, printed with the PRs merged since
+    `--release`. Only this A/B makes a failure a regression.
+- No bisect without the maintainer's approval.
+- Time box: no new step starts after `--minutes` (default 60); cases not
+  reached show as `not run`.
+- Output: `gdxsv_tests/out/precheck/` (`parallel/`, `alone/`, `ab/`, each
+  runner's log, `precheck.json`).
+
 ## Environment
 
 | Variable | Content |
