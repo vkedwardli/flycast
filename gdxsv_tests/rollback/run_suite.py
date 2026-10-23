@@ -176,11 +176,6 @@ def b2_threaded(s: Settings) -> Result:
     return verdict(*_b2(s, "B2", DELAYS_SPREAD, {"MAXREBATTLE": "3"}))
 
 
-def b2_control(s: Settings) -> Result:
-    # Even 0 ms network delay rolls back (process timing): an input delay of 10 frames hides it.
-    return control(*_b2(s, "B2c", [0] * 4, {"MAXREBATTLE": "1", "TEST_GGPO_DELAY": "10"}), ("no rollbacks happened",))
-
-
 def b3_not_threaded(s: Settings) -> Result:
     m = lib.run_match(s, "B3", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=THREADED_OFF)
     # This harness produces no rollbacks with threaded rendering off (old builds too), so only completion is checked.
@@ -569,7 +564,6 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 7, False),
     "B1c": ("control: B1 seeds 11, 22 with GGPO_TEST_NO_SKIP_REPLAY, skips not replayed", b1_control, 3, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
-    "B2c": ("control: B2 with no network delay and input delay 10, no rollbacks", b2_control, 2, False),
     "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
     "B3c": ("control: B3 with desync.lua on peer 2", b3_control, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),

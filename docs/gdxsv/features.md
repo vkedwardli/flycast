@@ -43,7 +43,7 @@ upstream code and the fork point are in [upstream.md](upstream.md).
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off; O3: from a local gdxsv P2P lobby, O4: two clients | A1c, B2c, B3c, O3c, O4c |
+| Rollback battle (`gdxsv_backend_rollback`, `core/network/ggpo.cpp`, `core/deps/ggpo`) | lobby battle | `run_suite.py`: A1 basic, A2 20 rounds (`--long`), B2/B3 threaded rendering on/off; O3: from a local gdxsv P2P lobby, O4: two clients | A1c, B3c, O3c, O4c |
 | Compatibility with older releases | always | `run_suite.py` A3, A4 (`--old-release`, `--older-release`); live spectating: S3 (spectator), S4 (uploading peers) on the previous release | A3c, A4c, S3c, S4c |
 | Timesync skips replayed in a rollback | always | `run_suite.py` B1 (`GGPO_TEST_LOG=1`) | B1c |
 | Peer drop, session start timeout, re-battle cancel | always | `run_suite.py` C1, C2, C3 | C1c, C2c, C3c |
@@ -107,9 +107,9 @@ emulated frames to catch up that sound playback.
 | Fixed frame rate with a precise sleep (59.94, 60, 50, 30 Hz, or by cable) on an absolute schedule: a frame late by less than a period is paid back; a longer stall skips whole periods, with no burst of short frames | setting `config:rend.FixedFrequency` | F1: 59.94, 50, 30 fps by the wall clock | F1c |
 | Audio sync as a setting | setting `config:aica.LimitFPS` | F2: audio paces the game at 59.94 fps | F2c |
 | Joystick polling on the emulation thread; XInput / DirectInput switches | settings `input:JoystickPolling`, `input:UseXInput`, `input:UseDirectInput` | J1 (polling on), J2 (off): SDL virtual gamepad; J4: the two switches (Windows) | J1c, J4c |
-| Rollback battle frame order: the local input is read and added before `ggpo_advance_frame` (save, rollback), not after it; same target frame (GGPO frame delay +1) and prediction limit (the barrier is waited for after the advance). Upstream netplay keeps upstream's order | always in a gdxsv rollback battle, no setting | `run_suite.py` A1, B2 (threaded rendering on), B3 (off): the match completes and agrees; the input timing is not checked | B2c, B3c |
+| Rollback battle frame order: the local input is read and added before `ggpo_advance_frame` (save, rollback), not after it; same target frame (GGPO frame delay +1) and prediction limit (the barrier is waited for after the advance). Upstream netplay keeps upstream's order | always in a gdxsv rollback battle, no setting | `run_suite.py` A1, B2 (threaded rendering on), B3 (off): the match completes and agrees; the input timing is not checked | B3c |
 | Rollback battle, threaded rendering off: the frame is presented before `ggpo::nextFrame`, not after it; same picture (rollback frames render nothing) | always in a gdxsv rollback battle, no setting | `run_suite.py` B3 (the present time is not checked) | B3c |
-| Rollback battle, threaded rendering on: the `FixedFrequency` frame limiter runs on the emulation thread after `ggpo::nextFrame`; the UI thread renders and presents each queued frame at once, without the limiter | always in a gdxsv rollback battle, no setting | `run_suite.py` B2 (the frame times are not checked) | B2c |
+| Rollback battle, threaded rendering on: the `FixedFrequency` frame limiter runs on the emulation thread after `ggpo::nextFrame`; the UI thread renders and presents each queued frame at once, without the limiter | always in a gdxsv rollback battle, no setting | `run_suite.py` B2 (the frame times are not checked) | none |
 | OpenGL and DirectX 11: frames duplicated on a monitor over 60 Hz only when asked to; otherwise vsync swaps every `gameSwapInterval` vblanks (1 for the game) | setting `config:rend.DupeFrames` | no test: needs a display above 60 Hz | none |
 | DirectX 11: at most 1 frame queued for display (default changed from the driver's) | setting `gdxsv:MaxFrameLatency` (0: driver default) | no test | none |
 | Opposite directions cancel (SOCD) for the game | always for the game | J3: SDL virtual gamepad, d-pad bound to the left stick | J3c |

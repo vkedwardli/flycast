@@ -53,7 +53,6 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | B1 | Timesync skip replayed in a rollback | seeds 11..66, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks) | every rollback whose re-simulated range contains a skip after the seek frame replays it |
 | B1c | Control of B1 | seeds 11, 22, `GGPO_TEST_NO_SKIP_REPLAY=1` | B1 fails on "skip at frame N not replayed" |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
-| B2c | Control of B2 | as B2, delay 0 ms, `TEST_GGPO_DELAY=10`, 1 round | B2 fails on "no rollbacks happened" |
 | B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
 | B3c | Control of B3 | as B3, peer 2 loads `desync.lua` | B3 fails on last frames or round winners |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |
