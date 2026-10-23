@@ -286,6 +286,12 @@ bool Gdxsv::HookOpenMenu() {
 	return true;
 }
 
+bool Gdxsv::HookFastForward() {
+	if (!IsReplaying()) return false;
+	replay_net_.OnFastForward();
+	return true;
+}
+
 void Gdxsv::HookVBlank() {
 	if (netmode_ != NetMode::Lbs && lbs_net_.IsConnected()) {
 		lbs_net_.OnSockPoll();
