@@ -332,6 +332,7 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kInputSendIntervalFieldNumber = 35,
     kPresentIntervalFieldNumber = 36,
     kRollbackBudgetFieldNumber = 37,
+    kRollbackFrameTimeFieldNumber = 40,
     kSessionIdFieldNumber = 2,
     kPlayerCountFieldNumber = 3,
     kPeerIdFieldNumber = 4,
@@ -647,6 +648,24 @@ class P2PMatchingReport PROTOBUF_FINAL :
       ::proto::TimingStats* rollback_budget);
   ::proto::TimingStats* unsafe_arena_release_rollback_budget();
 
+  // .proto.TimingStats rollback_frame_time = 40;
+  bool has_rollback_frame_time() const;
+  private:
+  bool _internal_has_rollback_frame_time() const;
+  public:
+  void clear_rollback_frame_time();
+  const ::proto::TimingStats& rollback_frame_time() const;
+  ::proto::TimingStats* release_rollback_frame_time();
+  ::proto::TimingStats* mutable_rollback_frame_time();
+  void set_allocated_rollback_frame_time(::proto::TimingStats* rollback_frame_time);
+  private:
+  const ::proto::TimingStats& _internal_rollback_frame_time() const;
+  ::proto::TimingStats* _internal_mutable_rollback_frame_time();
+  public:
+  void unsafe_arena_set_allocated_rollback_frame_time(
+      ::proto::TimingStats* rollback_frame_time);
+  ::proto::TimingStats* unsafe_arena_release_rollback_frame_time();
+
   // int32 session_id = 2;
   void clear_session_id();
   ::PROTOBUF_NAMESPACE_ID::int32 session_id() const;
@@ -836,6 +855,7 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::proto::TimingStats* input_send_interval_;
   ::proto::TimingStats* present_interval_;
   ::proto::TimingStats* rollback_budget_;
+  ::proto::TimingStats* rollback_frame_time_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 player_count_;
   ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
@@ -980,6 +1000,7 @@ class TimingStats PROTOBUF_FINAL :
     kP99UsFieldNumber = 6,
     kMaxUsFieldNumber = 7,
     kOffPeriodFieldNumber = 8,
+    kP50UsFieldNumber = 9,
   };
   // int32 count = 1;
   void clear_count();
@@ -1053,6 +1074,15 @@ class TimingStats PROTOBUF_FINAL :
   void _internal_set_off_period(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 p50_us = 9;
+  void clear_p50_us();
+  ::PROTOBUF_NAMESPACE_ID::int32 p50_us() const;
+  void set_p50_us(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_p50_us() const;
+  void _internal_set_p50_us(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.TimingStats)
  private:
   class _Internal;
@@ -1068,6 +1098,7 @@ class TimingStats PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 p99_us_;
   ::PROTOBUF_NAMESPACE_ID::int32 max_us_;
   ::PROTOBUF_NAMESPACE_ID::int32 off_period_;
+  ::PROTOBUF_NAMESPACE_ID::int32 p50_us_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -7561,6 +7592,89 @@ P2PMatchingReport::mutable_budget_exhausted_depth_hist() {
   return _internal_mutable_budget_exhausted_depth_hist();
 }
 
+// .proto.TimingStats rollback_frame_time = 40;
+inline bool P2PMatchingReport::_internal_has_rollback_frame_time() const {
+  return this != internal_default_instance() && rollback_frame_time_ != nullptr;
+}
+inline bool P2PMatchingReport::has_rollback_frame_time() const {
+  return _internal_has_rollback_frame_time();
+}
+inline void P2PMatchingReport::clear_rollback_frame_time() {
+  if (GetArena() == nullptr && rollback_frame_time_ != nullptr) {
+    delete rollback_frame_time_;
+  }
+  rollback_frame_time_ = nullptr;
+}
+inline const ::proto::TimingStats& P2PMatchingReport::_internal_rollback_frame_time() const {
+  const ::proto::TimingStats* p = rollback_frame_time_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& P2PMatchingReport::rollback_frame_time() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.rollback_frame_time)
+  return _internal_rollback_frame_time();
+}
+inline void P2PMatchingReport::unsafe_arena_set_allocated_rollback_frame_time(
+    ::proto::TimingStats* rollback_frame_time) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_frame_time_);
+  }
+  rollback_frame_time_ = rollback_frame_time;
+  if (rollback_frame_time) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.P2PMatchingReport.rollback_frame_time)
+}
+inline ::proto::TimingStats* P2PMatchingReport::release_rollback_frame_time() {
+  
+  ::proto::TimingStats* temp = rollback_frame_time_;
+  rollback_frame_time_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* P2PMatchingReport::unsafe_arena_release_rollback_frame_time() {
+  // @@protoc_insertion_point(field_release:proto.P2PMatchingReport.rollback_frame_time)
+  
+  ::proto::TimingStats* temp = rollback_frame_time_;
+  rollback_frame_time_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* P2PMatchingReport::_internal_mutable_rollback_frame_time() {
+  
+  if (rollback_frame_time_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    rollback_frame_time_ = p;
+  }
+  return rollback_frame_time_;
+}
+inline ::proto::TimingStats* P2PMatchingReport::mutable_rollback_frame_time() {
+  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.rollback_frame_time)
+  return _internal_mutable_rollback_frame_time();
+}
+inline void P2PMatchingReport::set_allocated_rollback_frame_time(::proto::TimingStats* rollback_frame_time) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete rollback_frame_time_;
+  }
+  if (rollback_frame_time) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_frame_time);
+    if (message_arena != submessage_arena) {
+      rollback_frame_time = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, rollback_frame_time, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  rollback_frame_time_ = rollback_frame_time;
+  // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.rollback_frame_time)
+}
+
 // -------------------------------------------------------------------
 
 // TimingStats
@@ -7723,6 +7837,26 @@ inline void TimingStats::_internal_set_off_period(::PROTOBUF_NAMESPACE_ID::int32
 inline void TimingStats::set_off_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_off_period(value);
   // @@protoc_insertion_point(field_set:proto.TimingStats.off_period)
+}
+
+// int32 p50_us = 9;
+inline void TimingStats::clear_p50_us() {
+  p50_us_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 TimingStats::_internal_p50_us() const {
+  return p50_us_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 TimingStats::p50_us() const {
+  // @@protoc_insertion_point(field_get:proto.TimingStats.p50_us)
+  return _internal_p50_us();
+}
+inline void TimingStats::_internal_set_p50_us(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  p50_us_ = value;
+}
+inline void TimingStats::set_p50_us(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_p50_us(value);
+  // @@protoc_insertion_point(field_set:proto.TimingStats.p50_us)
 }
 
 // -------------------------------------------------------------------

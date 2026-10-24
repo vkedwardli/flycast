@@ -3,9 +3,11 @@
 #pragma once
 #include <cstdint>
 
-// Timing statistics of a rollback battle for P2PMatchingReport: rollbacks, Present and input intervals, and
-// the frame limiter's slack. Recorded while a GGPO session runs (the recording hooks are in
-// gdxsv_ggpo_hooks.h); the samples of the last session are kept until the next one or a reset.
+// Timing statistics of a rollback battle for P2PMatchingReport: rollbacks and
+// their time per frame, Present and input intervals, and the frame limiter's
+// slack. Recorded while a GGPO session runs (the recording hooks are in
+// gdxsv_ggpo_hooks.h) in fixed-size histograms, without locks or allocation;
+// those of the last session are kept until the next one or a reset.
 
 namespace proto {
 class P2PMatchingReport;
