@@ -284,7 +284,11 @@ UdpProtocol::OnLoopPoll(void *cookie)
    case Disconnected:
       if (_shutdown_timeout < now) {
          Log("udpproto%d | Shutting down udp connection.", _queue);
-         _udp = NULL;
+         if (_udp != NULL) {
+            // gdxsv: SendUnmanagedMsg reads _udp on the network thread.
+            std::lock_guard<std::mutex> lock(_udp->NetMutex());
+            _udp = NULL;
+         }
          _shutdown_timeout = 0;
       }
       break;
