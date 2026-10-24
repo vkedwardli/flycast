@@ -251,6 +251,7 @@ void gui_updateStyle()
 
 void gui_keyboard_input(u32 wc)
 {
+	const LockGuard lock(guiMutex);	// gdxsv: the render thread may be drawing the OSD
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureKeyboard)
 		io.AddInputCharacter(wc);
@@ -258,6 +259,7 @@ void gui_keyboard_input(u32 wc)
 
 void gui_keyboard_inputUTF8(const std::string& s)
 {
+	const LockGuard lock(guiMutex);	// gdxsv: the render thread may be drawing the OSD
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureKeyboard)
 		io.AddInputCharactersUTF8(s.c_str());
@@ -270,6 +272,7 @@ void gui_keyboard_key(u8 keyCode, bool pressed)
 	ImGuiKey key = keycodeToImGuiKey(keyCode);
 	if (key == ImGuiKey_None)
 		return;
+	const LockGuard lock(guiMutex);	// gdxsv: the render thread may be drawing the OSD
 	if (!pressed && ImGui::IsKeyDown(key))
 	{
 		keysUpNextFrame[keyCode] = true;
@@ -1493,6 +1496,7 @@ void gui_draw_osd()
 }
 
 void gui_display_osd() {
+	const LockGuard lock(guiMutex);	// gdxsv: on the render thread while the main thread adds input events
 	gui_draw_osd();
 	gui_endFrame(gui_is_open());
 }

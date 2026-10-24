@@ -38,6 +38,8 @@ public:
 	virtual bool hasPerPixel() { return false; }
 	// Set the game swap interval: 1 for 60 FPS, 2 for 30 FPS
 	virtual void setSwapInterval(int interval) {}
+	// gdxsv: the render thread (core/ui/render_thread.h) takes the context from the main thread and gives it back
+	virtual void makeCurrent(bool current) {}
 
 	void setWindow(void *window, void *display = nullptr) {
 		this->window = window;

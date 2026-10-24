@@ -116,6 +116,12 @@ bool SDLGLGraphicsContext::init()
 	return true;
 }
 
+// gdxsv: render thread
+void SDLGLGraphicsContext::makeCurrent(bool current)
+{
+	SDL_GL_MakeCurrent((SDL_Window *)window, current ? glcontext : nullptr);
+}
+
 void SDLGLGraphicsContext::swap()
 {
 	do_swap_automation();

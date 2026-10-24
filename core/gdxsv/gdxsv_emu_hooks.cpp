@@ -284,11 +284,16 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 	gdxsv_multi_pov_tick();
 
 	if (rendered) GDXSV_PERF_TRACE("ui_rendered", -1, 0);
-	// With threaded rendering, mainui_loop presented the frame just now.
+	// Threaded rendering without the render thread (a renderer change): mainui_loop presented the frame just now.
 	if (rendered && config::ThreadedRendering && RollbackBattle()) gdxsv_net_report_present();
 	// With threaded rendering the emulation thread is paced (gdxsv_emu_frame_queued, gdxsv_emu_frame_end).
 	if (rendered && !config::ThreadedRendering)
 		gdxsv_frame_limiter_wait();
+}
+
+void gdxsv_emu_render_presented() {
+	GDXSV_PERF_TRACE("ui_rendered", -1, 0);
+	if (RollbackBattle()) gdxsv_net_report_present();
 }
 
 void gdxsv_emu_rpc() {

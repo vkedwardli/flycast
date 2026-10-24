@@ -28,6 +28,7 @@ upstream ([flyinghead/flycast](https://github.com/flyinghead/flycast)
 | `core/deps/protobuf-3.13.0/` | protobuf runtime (`gdxsv.pb.cc`) |
 | `core/hw/mem/vram_protect.cpp/.h` | VRAM protection with owners (texture cache, memwatch, write tracker) and the VRAM write tracker |
 | `core/hw/pvr/render_snapshot.cpp/.h` | render snapshots: threaded rendering renders each frame from a copy of VRAM, palette and fog table |
+| `core/ui/render_thread.cpp/.h` | render thread: while the game runs with threaded rendering, frames are rendered and presented there and the main thread only handles window events |
 | `resources/i18n-gdxsv/` | UI translations of the gdxsv pages |
 | `tests/src/Gdxsv*.cpp`, `tests/src/test_stubs.cpp` | unit tests |
 | `gdxsv_tests/` | e2e tests: `lib/` (launching instances, hash logs), `rollback/` (rollback and live spectating rigs) |
@@ -56,6 +57,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games; a linked exit is patched to a direct jump); output-only game functions skipped on seek frames (hook call); slow idle loop hack; ARM7 `cpuid` probed once |
 | Memory | `core/windows/win_vmem.cpp`, `core/linux/posix_vmem.cpp` | Windows: fixed RAM base (host address low 28 bits = guest address); Linux: one shared-memory name per process (four-screen replay) |
 | Render snapshots | `core/rend/TexCache.cpp/.h`, `core/rend/texconv.cpp/.h`, `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp/.h`, `core/hw/pvr/pvr_mem.cpp/.h`, `core/hw/mem/mem_watch.h`, `core/emulator.cpp`, `core/hw/mem/CMakeLists.txt`, `core/hw/pvr/CMakeLists.txt` | threaded rendering: the emulation thread no longer waits for the render thread (render end, rollback VRAM, full queue); a new frame replaces the queued one; VRAM protection goes through its owners. Not marked one by one: the texture cache and `ReadFramebuffer` read `texSource` instead of `vram` and the registers, and `palette_update` converts a given palette RAM |
+| Render thread | `core/ui/mainui.cpp`, `core/ui/gui.cpp`, `core/ui/CMakeLists.txt`, `core/sdl/sdl.cpp`, `core/wsi/context.h`, `core/wsi/sdl.cpp/.h` | while the game runs with threaded rendering, `mainui_loop` hands the context to the render thread and only reads the window events; it stops the render thread for the GUI, renderer changes and exit; a window resize is applied by the render thread; ImGui input events and the OSD frame under `guiMutex` |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp`, `core/hw/aica/sgc_if.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade; a muted replay seek or rollback rerun steps the channels without mixing |
 | Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game; mapped Fast-forward uses gdxsv playback speed during replays |
@@ -303,6 +305,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `gdxsv_video_vulkan_extensions` |
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::DrawFrame` | scale the final game image into the host's quadrant, before UI. |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/sdl/sdl.cpp` |  | render thread |
 | `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls can change SDL's flags directly |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `emuEventCallback` | `settings.gdxsv.replayModeActive` |
@@ -311,6 +314,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | hidden replay guests must not enter full screen |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | handle outside window for network stats hovering |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | the render thread may be rendering |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | actual flag |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
@@ -327,7 +331,11 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/serialize.cpp` | `dc_deserialize` | `gdxsv_emu_state_restored` |
 | `core/types.h` |  | replay fade, 0.0 = silent, 1.0 = full volume (for fade-in effects) |
 | `core/types.h` |  | `} gdxsv;` |
+| `core/ui/CMakeLists.txt` |  | render thread |
 | `core/ui/gui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/ui/gui.cpp` | `gui_keyboard_input` | the render thread may be drawing the OSD |
+| `core/ui/gui.cpp` | `gui_keyboard_inputUTF8` | the render thread may be drawing the OSD |
+| `core/ui/gui.cpp` | `gui_keyboard_key` | the render thread may be drawing the OSD |
 | `core/ui/gui.cpp` | `delayedKeysUp` | not static, the replay UI calls it |
 | `core/ui/gui.cpp` | `gui_open_settings` | gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats) |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
@@ -338,6 +346,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `gui_display_ui` | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui.cpp` | `gui_display_ui` | `gdxsv_emu_gui_display` |
 | `core/ui/gui.cpp` | `gui_draw_osd` | `gdxsv_gui_display_osd` |
+| `core/ui/gui.cpp` | `gui_draw_osd` | on the render thread while the main thread adds input events |
 | `core/ui/gui.cpp` | `gui_error` | a state load requested by a hotkey while the sh4 runs on this thread: 1 slot, 2 in RAM, -1 while it is loaded after the frame |
 | `core/ui/gui.cpp` | `gui_loadState` | without threaded rendering the hotkeys are also polled from inside the running sh4 code (maple DMA), where a state load frees the dynarec block being executed. |
 | `core/ui/gui.h` |  | used by the gdxsv menu |
@@ -345,13 +354,14 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.h` |  | call after a frame, outside the sh4 code |
 | `core/ui/gui.h` |  | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui_font.cpp` | `gui_loadFonts` | Japanese text is always needed. |
-| `core/ui/mainui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/ui/mainui.cpp` |  | render thread |
 | `core/ui/mainui.cpp` | `mainui_rend_frame` | a load-state hotkey polled by the sh4 code |
+| `core/ui/mainui.cpp` | `renderThreadWanted` | the render thread renders while the game runs with threaded rendering and nothing else needs the context |
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop_start` |
 | `core/ui/mainui.cpp` | `mainui_loop` | gdxsv_emu_mainui_loop gets whether a frame was rendered |
-| `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_reinit_needed` |
+| `core/ui/mainui.cpp` | `mainui_loop` | the render thread gives the context back first |
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop` |
-| `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop_end` |
+| `core/ui/mainui.cpp` | `mainui_loop` | render thread |
 | `core/ui/settings.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/ui/settings.cpp` | `gui_settings_advanced` | `gdxsv_emu_settings_advanced` |
 | `core/ui/settings.cpp` | `gui_display_settings` | `Gdxsv`, `gdxsv_emu_settings_gdxsv_tab` |
@@ -369,8 +379,11 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/windows/winmain.cpp` | `getThreadName` | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
+| `core/wsi/context.h` |  | the render thread (core/ui/render_thread.h) takes the context from the main thread and gives it back |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::init` | only duplicate frames on high refresh rate monitors when asked to |
+| `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::makeCurrent` | render thread |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::changeGLSwapInterval` | only duplicate frames on high refresh rate monitors when asked to |
+| `core/wsi/sdl.h` |  | render thread |
 | `core/wsi/switcher.cpp` |  | include `gdxsv/gdxsv_null_imgui_driver.h` |
 | `core/wsi/switcher.cpp` | `initRenderApi` | `gdxsv_headless`, `GdxsvNullImGuiDriver` |
 | `core/wsi/switcher.cpp` | `termRenderApi` | `gdxsv_headless`, `gdxsv_video_term` |

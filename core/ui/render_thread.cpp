@@ -1,0 +1,171 @@
+/*
+	This file is part of Flycast.
+
+    Flycast is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
+
+    Flycast is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Flycast.  If not, see <https://www.gnu.org/licenses/>.
+*/
+// gdxsv: added by the fork (docs/gdxsv/upstream.md)
+#include "render_thread.h"
+#include "mainui.h"
+#include "gui.h"
+#include "imgui_driver.h"
+#include "emulator.h"
+#include "cfg/option.h"
+#include "oslib/oslib.h"
+#include "stdclass.h"
+#include "wsi/context.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
+
+#include <atomic>
+#include <chrono>
+#include <thread>
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
+
+namespace renderthread
+{
+
+static std::thread thread;
+static std::atomic<bool> stopRequested;
+static std::atomic<bool> done;
+static std::exception_ptr error;
+static bool reinit;
+static std::atomic<bool> resizePending;
+static std::atomic<bool> stylePending;
+
+static void wakeMainThread()
+{
+#ifdef USE_SDL
+	static const u32 type = SDL_RegisterEvents(1);
+	if (type != (u32)-1)
+	{
+		SDL_Event event{};
+		event.type = type;
+		SDL_PushEvent(&event);
+	}
+#endif
+}
+
+// Headless: no context
+static void makeCurrent(bool current)
+{
+	if (GraphicsContext::Instance() != nullptr)
+		GraphicsContext::Instance()->makeCurrent(current);
+}
+
+static void applyDisplayChange()
+{
+	if (resizePending.exchange(false) && GraphicsContext::Instance() != nullptr)
+		GraphicsContext::Instance()->resize();
+	if (stylePending.exchange(false))
+		gui_updateStyle();
+}
+
+static void loop()
+{
+	ThreadName _("Flycast-render");
+	INFO_LOG(RENDERER, "Render thread started");
+	makeCurrent(true);
+	try {
+		while (!stopRequested && emu.running() && !gui_is_open())
+		{
+			applyDisplayChange();
+			if (!emu.render())
+				continue;
+			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
+				gui_display_profiler();
+			try {
+				imguiDriver->present();
+			} catch (const FlycastException&) {
+				reinit = true;
+				break;
+			}
+			MainFrameCount++;
+			gdxsv_emu_render_presented();
+		}
+	} catch (...) {
+		error = std::current_exception();
+	}
+	makeCurrent(false);
+	done = true;
+	wakeMainThread();
+}
+
+void start()
+{
+	if (thread.joinable())
+		return;
+	stopRequested = false;
+	done = false;
+	error = nullptr;
+	reinit = false;
+	makeCurrent(false);
+	thread = std::thread(loop);
+}
+
+bool started() {
+	return thread.joinable();
+}
+
+bool finished() {
+	return done;
+}
+
+std::exception_ptr stop()
+{
+	if (!thread.joinable())
+		return nullptr;
+	stopRequested = true;
+	thread.join();
+	makeCurrent(true);
+	// a change that came while it stopped
+	applyDisplayChange();
+	done = false;
+	std::exception_ptr e = error;
+	error = nullptr;
+	return e;
+}
+
+bool takeReinit()
+{
+	bool r = reinit;
+	reinit = false;
+	return r;
+}
+
+void waitEvents(int timeoutMs)
+{
+#ifdef USE_SDL
+	SDL_WaitEventTimeout(nullptr, timeoutMs);
+#else
+	std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
+}
+
+void displayChanged(bool scaleChanged)
+{
+	if (thread.joinable())
+	{
+		resizePending = true;
+		if (scaleChanged)
+			stylePending = true;
+		return;
+	}
+	if (GraphicsContext::Instance() != nullptr)
+		GraphicsContext::Instance()->resize();
+	if (scaleChanged)
+		gui_updateStyle();
+}
+
+} // namespace renderthread
