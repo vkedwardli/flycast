@@ -47,6 +47,17 @@ void gdxsv_emu_next_frame();
 // The emulation thread (threaded rendering): after ggpo::nextFrame.
 void gdxsv_emu_frame_end();
 
+// Waits of the emulation thread, timed for P2PMatchingReport while a rollback battle runs
+// (gdxsv_net_report.cpp). gdxsv_wait_begin returns 0 when off; gdxsv_wait_end then does nothing.
+enum class GdxsvWait { Present, Render, Rollback, Queue, Count };
+extern std::atomic<bool> gdxsv_net_report_on;
+int64_t gdxsv_net_report_ticks();
+void gdxsv_net_report_wait(GdxsvWait wait, int64_t beginTicks);
+inline int64_t gdxsv_wait_begin() { return gdxsv_net_report_on.load(std::memory_order_relaxed) ? gdxsv_net_report_ticks() : 0; }
+inline void gdxsv_wait_end(GdxsvWait wait, int64_t beginTicks) {
+	if (beginTicks != 0) gdxsv_net_report_wait(wait, beginTicks);
+}
+
 // mainui_loop: before the first frame, once per frame after the renderer
 // switch (the FixedFrequency wait when the frame was rendered), at exit.
 void gdxsv_emu_mainui_loop_start();

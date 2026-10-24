@@ -1,5 +1,4 @@
 #include "gdxsv_backend_rollback.h"
-#include "gdxsv_config.h"
 
 #include <algorithm>
 #include <array>
@@ -13,11 +12,13 @@
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
-#include "gdxsv_round_counters.h"
+#include "gdxsv.pb.h"
+#include "gdxsv_config.h"
 #include "gdxsv_emu_hooks.h"
+#include "gdxsv_net_report.h"
 #include "gdxsv_press_sweep.h"
 #include "gdxsv_replay_util.h"
-#include "gdxsv.pb.h"
+#include "gdxsv_round_counters.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
 #include "input/gamepad_device.h"
@@ -26,9 +27,9 @@
 #include "network/ggpo.h"
 #include "network/net_platform.h"
 #include "oslib/http_client.h"
+#include "rend/transform_matrix.h"
 #include "ui/IconsFontAwesome6.h"
 #include "ui/gui_util.h"
-#include "rend/transform_matrix.h"
 
 extern ImFont *boldFont;
 
@@ -124,6 +125,7 @@ void GdxsvBackendRollback::Reset() {
 	lbs_tx_reader_.Clear();
 	matching_.Clear();
 	report_.Clear();
+	gdxsv_net_report_reset();
 	ping_pong_.Reset();
 	spectator_uplink_.Stop();
 	start_network_ = std::future<bool>();
@@ -367,6 +369,20 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 				max_rtt = std::max(max_rtt, rtt);
 				std::tie(ips[i], ports[i]) = get_ip_port(addr_storage);
 				NOTICE_LOG(COMMON, "Peer%d %.2fms IP:%s Port:%d Relay:%d", i, rtt, mask_ip_address(ips[i]).c_str(), ports[i], relays[i]);
+				auto* remote = report_.add_remote_peers();
+				remote->set_peer_id(i);
+				if (relays[i] == 2)
+					remote->set_route("server:" + matching_.relays(server_idx).region());
+				else if (relays[i] == 1)
+					remote->set_route("peer:" + std::to_string(relay_peer));
+				else
+					remote->set_route("direct");
+				int ping_min, ping_median, ping_max;
+				if (ping_pong_.GetRttStats(i, &ping_min, &ping_median, &ping_max)) {
+					remote->set_ping_min_ms(ping_min);
+					remote->set_ping_median_ms(ping_median);
+					remote->set_ping_max_ms(ping_max);
+				}
 			} else {
 				ok = false;
 				NOTICE_LOG(COMMON, "Peer%d unreachable", i);
@@ -385,6 +401,10 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 				delay = atoi(fixed);
 			}
 			NOTICE_LOG(COMMON, "max_rtt=%.2f delay=%d", max_rtt, delay);
+			report_.set_input_delay(delay);
+			report_.mutable_render()->set_threaded_rendering(config::ThreadedRendering);
+			report_.mutable_render()->set_vsync(config::VSync);
+			report_.mutable_render()->set_renderer(static_cast<int>(config::RendererType.get()));
 			config::GGPOEnable.override(true);
 			config::GGPODelay.override(delay);
 			config::NetworkStats.override(false);
@@ -658,6 +678,7 @@ void GdxsvBackendRollback::Prepare(const proto::P2PMatching& matching, int port)
 	}
 
 	report_.Clear();
+	gdxsv_net_report_reset();
 	report_.set_battle_code(matching.battle_code());
 	report_.set_session_id(matching.session_id());
 	report_.set_frame_count(0);
@@ -685,6 +706,7 @@ void GdxsvBackendRollback::Close() {
 
 	NOTICE_LOG(COMMON, "GdxsvBackendRollback.Close");
 	SetCloseReason("close");
+	if (ggpo::active()) UpdateRemotePeerLoss();
 	ggpo::stopSession();
 	config::GGPOEnable.reset();
 	config::NetworkStats.load();
@@ -1158,6 +1180,7 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 				report_.set_input_block_count_0(stats.extra.input_block_count[0]);
 				report_.set_input_block_count_1(stats.extra.input_block_count[1]);
 				report_.set_input_block_count_2(stats.extra.input_block_count[2]);
+				UpdateRemotePeerLoss();
 			}
 		}
 	}
@@ -1279,6 +1302,15 @@ bool GdxsvBackendRollback::SetCloseReason(const char* reason) {
 		return true;
 	}
 	return false;
+}
+
+void GdxsvBackendRollback::UpdateRemotePeerLoss() {
+	for (auto& remote : *report_.mutable_remote_peers()) {
+		GdxsvGgpoNetworkStats stats{};
+		gdxsv_ggpo_get_network_stats(remote.peer_id(), &stats);
+		remote.set_recv_loss(stats.network.recv_packet_loss);
+		remote.set_send_loss(stats.network.send_packet_loss);
+	}
 }
 
 void GdxsvBackendRollback::SaveReplay() const {
