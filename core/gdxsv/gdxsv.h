@@ -81,6 +81,7 @@ class Gdxsv {
 	void WritePatchDisk1();
 	void WritePatchDisk2();
 	void WriteWidescreenPatch();
+	bool WidescreenPatchChanged() const;
 	void WriteWarningSoundVolume();
 	bool WidescreenSitesKnown();
 

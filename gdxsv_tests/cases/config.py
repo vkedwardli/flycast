@@ -22,7 +22,8 @@ BASE = [
 
 def base_settings(ctx, name: str, emu_cfg) -> list:
     p = ctx.probe(name, ctx.rom("dc2"), "config.lua",
-                  {"frame": 5, "options": [[ns, o] for ns, o, _, _ in BASE]}, frames=20, emu_cfg=emu_cfg)
+                  {"frame": 5, "options": [[ns, o] for ns, o, _, _ in BASE]}, frames=20, emu_cfg=emu_cfg,
+                  muted=False)
     checks = [{"what": "probe ran", "ok": p.clean, **p.facts()}]
     for ns, o, want, stock in BASE:
         got = p.e2e.get(f"{ns}.{o}")
@@ -54,7 +55,8 @@ OLD_LOG = [("gdxsv.loginkey", r"loginkey:(\S+)", "E2ECFG0001"), ("gdxsv.LocalPor
 
 def old_config(ctx, name: str, emu_cfg: str) -> list:
     p = ctx.probe(name, ctx.rom("dc2"), "config.lua",
-                  {"frame": 30, "options": [[ns, o] for ns, o, _ in OLD_LUA]}, frames=60, emu_cfg=emu_cfg)
+                  {"frame": 30, "options": [[ns, o] for ns, o, _ in OLD_LUA]}, frames=60, emu_cfg=emu_cfg,
+                  muted=False)
     checks = [{"what": "probe ran", "ok": p.clean, **p.facts()}]
     for ns, o, want in OLD_LUA:
         got = p.e2e.get(f"{ns}.{o}")
