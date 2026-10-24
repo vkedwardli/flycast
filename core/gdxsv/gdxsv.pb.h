@@ -1082,40 +1082,15 @@ class FrameTiming PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kOverPeriodDepthHistFieldNumber = 5,
     kWorkFieldNumber = 2,
-    kRollbackRoomFieldNumber = 3,
     kPresentWaitFieldNumber = 6,
     kRenderWaitFieldNumber = 7,
     kRollbackWaitFieldNumber = 8,
     kQueueWaitFieldNumber = 9,
     kRollbackSlackFieldNumber = 11,
     kPeriodUsFieldNumber = 1,
-    kOverPeriodFieldNumber = 4,
     kPresentWaitElasticityFieldNumber = 10,
   };
-  // repeated int32 over_period_depth_hist = 5 [deprecated = true];
-  PROTOBUF_DEPRECATED int over_period_depth_hist_size() const;
-  private:
-  int _internal_over_period_depth_hist_size() const;
-  public:
-  PROTOBUF_DEPRECATED void clear_over_period_depth_hist();
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_over_period_depth_hist(int index) const;
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      _internal_over_period_depth_hist() const;
-  void _internal_add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      _internal_mutable_over_period_depth_hist();
-  public:
-  PROTOBUF_DEPRECATED ::PROTOBUF_NAMESPACE_ID::int32 over_period_depth_hist(int index) const;
-  PROTOBUF_DEPRECATED void set_over_period_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
-  PROTOBUF_DEPRECATED void add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
-  PROTOBUF_DEPRECATED const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      over_period_depth_hist() const;
-  PROTOBUF_DEPRECATED ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      mutable_over_period_depth_hist();
-
   // .proto.TimingStats work = 2;
   bool has_work() const;
   private:
@@ -1133,24 +1108,6 @@ class FrameTiming PROTOBUF_FINAL :
   void unsafe_arena_set_allocated_work(
       ::proto::TimingStats* work);
   ::proto::TimingStats* unsafe_arena_release_work();
-
-  // .proto.TimingStats rollback_room = 3 [deprecated = true];
-  PROTOBUF_DEPRECATED bool has_rollback_room() const;
-  private:
-  bool _internal_has_rollback_room() const;
-  public:
-  PROTOBUF_DEPRECATED void clear_rollback_room();
-  PROTOBUF_DEPRECATED const ::proto::TimingStats& rollback_room() const;
-  PROTOBUF_DEPRECATED ::proto::TimingStats* release_rollback_room();
-  PROTOBUF_DEPRECATED ::proto::TimingStats* mutable_rollback_room();
-  PROTOBUF_DEPRECATED void set_allocated_rollback_room(::proto::TimingStats* rollback_room);
-  private:
-  const ::proto::TimingStats& _internal_rollback_room() const;
-  ::proto::TimingStats* _internal_mutable_rollback_room();
-  public:
-  PROTOBUF_DEPRECATED void unsafe_arena_set_allocated_rollback_room(
-      ::proto::TimingStats* rollback_room);
-  PROTOBUF_DEPRECATED ::proto::TimingStats* unsafe_arena_release_rollback_room();
 
   // .proto.TimingStats present_wait = 6;
   bool has_present_wait() const;
@@ -1251,15 +1208,6 @@ class FrameTiming PROTOBUF_FINAL :
   void _internal_set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 over_period = 4 [deprecated = true];
-  PROTOBUF_DEPRECATED void clear_over_period();
-  PROTOBUF_DEPRECATED ::PROTOBUF_NAMESPACE_ID::int32 over_period() const;
-  PROTOBUF_DEPRECATED void set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_over_period() const;
-  void _internal_set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
   // int32 present_wait_elasticity = 10;
   void clear_present_wait_elasticity();
   ::PROTOBUF_NAMESPACE_ID::int32 present_wait_elasticity() const;
@@ -1276,17 +1224,13 @@ class FrameTiming PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > over_period_depth_hist_;
-  mutable std::atomic<int> _over_period_depth_hist_cached_byte_size_;
   ::proto::TimingStats* work_;
-  ::proto::TimingStats* rollback_room_;
   ::proto::TimingStats* present_wait_;
   ::proto::TimingStats* render_wait_;
   ::proto::TimingStats* rollback_wait_;
   ::proto::TimingStats* queue_wait_;
   ::proto::TimingStats* rollback_slack_;
   ::PROTOBUF_NAMESPACE_ID::int32 period_us_;
-  ::PROTOBUF_NAMESPACE_ID::int32 over_period_;
   ::PROTOBUF_NAMESPACE_ID::int32 present_wait_elasticity_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
@@ -8355,156 +8299,6 @@ inline void FrameTiming::set_allocated_work(::proto::TimingStats* work) {
   }
   work_ = work;
   // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.work)
-}
-
-// .proto.TimingStats rollback_room = 3 [deprecated = true];
-inline bool FrameTiming::_internal_has_rollback_room() const {
-  return this != internal_default_instance() && rollback_room_ != nullptr;
-}
-inline bool FrameTiming::has_rollback_room() const {
-  return _internal_has_rollback_room();
-}
-inline void FrameTiming::clear_rollback_room() {
-  if (GetArena() == nullptr && rollback_room_ != nullptr) {
-    delete rollback_room_;
-  }
-  rollback_room_ = nullptr;
-}
-inline const ::proto::TimingStats& FrameTiming::_internal_rollback_room() const {
-  const ::proto::TimingStats* p = rollback_room_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
-      &::proto::_TimingStats_default_instance_);
-}
-inline const ::proto::TimingStats& FrameTiming::rollback_room() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.rollback_room)
-  return _internal_rollback_room();
-}
-inline void FrameTiming::unsafe_arena_set_allocated_rollback_room(
-    ::proto::TimingStats* rollback_room) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_room_);
-  }
-  rollback_room_ = rollback_room;
-  if (rollback_room) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.rollback_room)
-}
-inline ::proto::TimingStats* FrameTiming::release_rollback_room() {
-  
-  ::proto::TimingStats* temp = rollback_room_;
-  rollback_room_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_rollback_room() {
-  // @@protoc_insertion_point(field_release:proto.FrameTiming.rollback_room)
-  
-  ::proto::TimingStats* temp = rollback_room_;
-  rollback_room_ = nullptr;
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::_internal_mutable_rollback_room() {
-  
-  if (rollback_room_ == nullptr) {
-    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
-    rollback_room_ = p;
-  }
-  return rollback_room_;
-}
-inline ::proto::TimingStats* FrameTiming::mutable_rollback_room() {
-  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.rollback_room)
-  return _internal_mutable_rollback_room();
-}
-inline void FrameTiming::set_allocated_rollback_room(::proto::TimingStats* rollback_room) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete rollback_room_;
-  }
-  if (rollback_room) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_room);
-    if (message_arena != submessage_arena) {
-      rollback_room = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, rollback_room, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  rollback_room_ = rollback_room;
-  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.rollback_room)
-}
-
-// int32 over_period = 4 [deprecated = true];
-inline void FrameTiming::clear_over_period() {
-  over_period_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_over_period() const {
-  return over_period_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::over_period() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.over_period)
-  return _internal_over_period();
-}
-inline void FrameTiming::_internal_set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  over_period_ = value;
-}
-inline void FrameTiming::set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_over_period(value);
-  // @@protoc_insertion_point(field_set:proto.FrameTiming.over_period)
-}
-
-// repeated int32 over_period_depth_hist = 5 [deprecated = true];
-inline int FrameTiming::_internal_over_period_depth_hist_size() const {
-  return over_period_depth_hist_.size();
-}
-inline int FrameTiming::over_period_depth_hist_size() const {
-  return _internal_over_period_depth_hist_size();
-}
-inline void FrameTiming::clear_over_period_depth_hist() {
-  over_period_depth_hist_.Clear();
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_over_period_depth_hist(int index) const {
-  return over_period_depth_hist_.Get(index);
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::over_period_depth_hist(int index) const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.over_period_depth_hist)
-  return _internal_over_period_depth_hist(index);
-}
-inline void FrameTiming::set_over_period_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
-  over_period_depth_hist_.Set(index, value);
-  // @@protoc_insertion_point(field_set:proto.FrameTiming.over_period_depth_hist)
-}
-inline void FrameTiming::_internal_add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  over_period_depth_hist_.Add(value);
-}
-inline void FrameTiming::add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_add_over_period_depth_hist(value);
-  // @@protoc_insertion_point(field_add:proto.FrameTiming.over_period_depth_hist)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-FrameTiming::_internal_over_period_depth_hist() const {
-  return over_period_depth_hist_;
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-FrameTiming::over_period_depth_hist() const {
-  // @@protoc_insertion_point(field_list:proto.FrameTiming.over_period_depth_hist)
-  return _internal_over_period_depth_hist();
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-FrameTiming::_internal_mutable_over_period_depth_hist() {
-  return &over_period_depth_hist_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-FrameTiming::mutable_over_period_depth_hist() {
-  // @@protoc_insertion_point(field_mutable_list:proto.FrameTiming.over_period_depth_hist)
-  return _internal_mutable_over_period_depth_hist();
 }
 
 // .proto.TimingStats present_wait = 6;
