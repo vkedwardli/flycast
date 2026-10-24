@@ -39,5 +39,4 @@ private:
 
 	SDL_GLContext glcontext = nullptr;
 	bool swapOnVSync = false;
-	bool latestFrame = false; // gdxsv: threaded rendering
 };
