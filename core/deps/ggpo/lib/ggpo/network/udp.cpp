@@ -12,6 +12,14 @@
 #include <system_error>
 #ifndef _WIN32
 #include <sys/select.h>
+#else
+// gdxsv: control codes to stop ICMP errors failing the next recvfrom
+#ifndef SIO_UDP_CONNRESET
+#define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+#endif
+#ifndef SIO_UDP_NETRESET
+#define SIO_UDP_NETRESET _WSAIOW(IOC_VENDOR, 11)
+#endif
 #endif
 
 SOCKET
@@ -30,6 +38,12 @@ CreateSocket(uint16 bind_port, bool v6)
 #else
 	u_long iMode = 1;
 	ioctlsocket(s, FIONBIO, &iMode);
+	// gdxsv: an ICMP port unreachable or TTL exceeded (a peer that quit, an unused NAT candidate)
+	// would otherwise fail the next recvfrom with WSAECONNRESET or WSAENETRESET.
+	BOOL newBehavior = FALSE;
+	DWORD bytesReturned = 0;
+	WSAIoctl(s, SIO_UDP_CONNRESET, &newBehavior, sizeof(newBehavior), NULL, 0, &bytesReturned, NULL, NULL);
+	WSAIoctl(s, SIO_UDP_NETRESET, &newBehavior, sizeof(newBehavior), NULL, 0, &bytesReturned, NULL, NULL);
 #endif
 
 #if defined(__APPLE__)
