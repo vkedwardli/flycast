@@ -44,6 +44,7 @@ public:
 	const pD3DCompile getCompiler();
 
 	void resize() override;
+	void waitPresentReady() override; // gdxsv: render thread
 	void setOverlay(bool overlayOnly) { this->overlayOnly = overlayOnly; }
 	std::string getDriverName() override {
 		return adapterDesc;
@@ -96,6 +97,8 @@ private:
 	bool overlayOnly = false;
 	DX11Overlay overlay;
 	bool allowTearing = false;
+	HANDLE frameLatencyWaitable = nullptr; // gdxsv: threaded rendering
+	bool presentWaited = false;
 	bool swapOnVSync = false;
 	bool frameRendered = false;
 	std::string adapterDesc;

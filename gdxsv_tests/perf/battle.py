@@ -28,7 +28,15 @@ import analyze  # noqa: E402
 import compare  # noqa: E402
 import rbk_lib  # noqa: E402
 
-# name -> (send delay p1, p2 in ms, threaded rendering, vsync)
+# name -> (send delay p1, p2 in ms, threaded rendering, vsync[, env[, config[, peer 1 config]]])
+# 20_* / 30_170_*_vs1: the baseline cells (--cells all), DirectX 11.
+# The others, by name: run with the display at the rate to check (60 Hz shows a Present that waits for vsync).
+# *_dx / *_gl / *_vk: DirectX 11 / OpenGL / Vulkan with vsync; *_fs: peer 1 full screen.
+# slow_*: each emulated frame 3 ms slower (GDXSV_TEST_FRAME_COST_US), as on a slower PC; *_60hz / *_5994hz: Present
+# waits for the vblank of a simulated 60 / 59.94 Hz display (GDXSV_TEST_PRESENT_HZ), any display.
+BASELINE_CELLS = ["20_tr0_vs0", "20_tr0_vs1", "20_tr1_vs0", "20_tr1_vs1", "30_170_tr0_vs1", "30_170_tr1_vs1"]
+GL, VK, FS = ["config:pvr.rend=0"], ["config:pvr.rend=4"], ["window:fullscreen=yes"]
+SLOW = {"GDXSV_TEST_FRAME_COST_US": "3000"}
 CELLS = {
     "20_tr0_vs0": (20, 20, "no", "no"),
     "20_tr0_vs1": (20, 20, "no", "yes"),
@@ -36,12 +44,33 @@ CELLS = {
     "20_tr1_vs1": (20, 20, "yes", "yes"),
     "30_170_tr0_vs1": (30, 170, "no", "yes"),
     "30_170_tr1_vs1": (30, 170, "yes", "yes"),
+    "30_170_tr0_dx_fs": (30, 170, "no", "yes", {}, [], FS),
+    "30_170_tr1_dx_fs": (30, 170, "yes", "yes", {}, [], FS),
+    "30_170_tr0_gl": (30, 170, "no", "yes", {}, GL),
+    "30_170_tr1_gl": (30, 170, "yes", "yes", {}, GL),
+    "30_170_tr0_gl_fs": (30, 170, "no", "yes", {}, GL, FS),
+    "30_170_tr1_gl_fs": (30, 170, "yes", "yes", {}, GL, FS),
+    "30_170_tr0_vk": (30, 170, "no", "yes", {}, VK),
+    "30_170_tr1_vk": (30, 170, "yes", "yes", {}, VK),
+    "slow_tr0_dx": (30, 170, "no", "yes", SLOW),
+    "slow_tr1_dx": (30, 170, "yes", "yes", SLOW),
+    "slow_tr0_gl": (30, 170, "no", "yes", SLOW, GL),
+    "slow_tr1_gl": (30, 170, "yes", "yes", SLOW, GL),
+    "slow_tr0_novs": (30, 170, "no", "no", SLOW),
+    "slow_tr1_novs": (30, 170, "yes", "no", SLOW),
+    "slow_tr0_60hz": (30, 170, "no", "no", {**SLOW, "GDXSV_TEST_PRESENT_HZ": "60"}),
+    "slow_tr1_60hz": (30, 170, "yes", "no", {**SLOW, "GDXSV_TEST_PRESENT_HZ": "60"}),
+    "slow_tr0_5994hz": (30, 170, "no", "no", {**SLOW, "GDXSV_TEST_PRESENT_HZ": "59.94"}),
+    "slow_tr1_5994hz": (30, 170, "yes", "no", {**SLOW, "GDXSV_TEST_PRESENT_HZ": "59.94"}),
 }
 SETTLE, FRAMES = 180, 2100  # GGPO frames skipped while timesync converges, then measured (35 s)
 RUN_S = 60  # wall time per match: ~5 s to battle frame 0, settle, window, margin
 PATTERN_FRAMES = 12  # more than the deepest rollback + input delay
 SWEEP = "0,0,100,250,400"  # player index 0, from 0 ms, hold 100 ms, gap 250-400 ms
 DPAD_LEFT, DPAD_RIGHT = 13, 14
+# SDL hints from the environment: a connected pad would take port 0 from the test joystick
+NO_REAL_PADS = {"SDL_XINPUT_ENABLED": "0", "SDL_DIRECTINPUT_ENABLED": "0", "SDL_JOYSTICK_RAWINPUT": "0",
+                "SDL_JOYSTICK_HIDAPI": "0", "SDL_JOYSTICK_WGI": "0"}
 
 
 def pattern(path: str) -> None:
@@ -53,30 +82,30 @@ def pattern(path: str) -> None:
 
 
 def run_cell(s, name: str, tag: str, out: str, presentmon: str) -> dict:
-    d1, d2, tr, vs = CELLS[name]
+    d1, d2, tr, vs, *extra = CELLS[name]
     p1_pad = os.path.join(out, "p1.joystick")
     p2_pad = os.path.join(out, "p2.joystick")
     open(p1_pad, "w").close()
     pattern(p2_pad)
     env = {"TEST_GGPO_DELAY": "2", "VITAL": "600", "GGPO_TEST_LOG": "1", "TEST_PING_MS": "2000",
-           "GDXSV_PERF_TRACE": "perf.csv"}
+           "GDXSV_PERF_TRACE": "perf.csv", **NO_REAL_PADS, **(extra[0] if extra else {})}
     peer_env = {1: {"GDXSV_TEST_JOYSTICK": p1_pad, "GDXSV_PRESS_SWEEP": SWEEP},
                 2: {"GDXSV_TEST_JOYSTICK": p2_pad}}
     cfg = [f"config:rend.ThreadedRendering={tr}", "input:JoystickPolling=yes", f"config:rend.vsync={vs}",
-           "config:rend.DelayFrameSwapping=no", "config:pvr.rend=2"]
+           "config:rend.DelayFrameSwapping=no", "config:pvr.rend=2"] + (extra[1] if len(extra) > 1 else [])
     pm_csv = os.path.join(out, tag + "_pm.csv")
     pm_proc = []
 
     def on_start(m):
         if presentmon:
             pm_proc.append(subprocess.Popen(
-                [presentmon, "--process_id", str(m.peers[0].inst.proc.pid), "--qpc_time", "--no_console_stats",
+                [presentmon, "--process_id", str(m.peers[0].inst.proc.pid), "--qpc_time", "--v1_metrics", "--no_console_stats",
                  "--stop_existing_session", "--output_file", pm_csv],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 
     # peer 2 without random input: its pad pattern alone drives it. Peer 1's sweep turns its random input off.
     m = rbk_lib.run_match(s, tag, [s.exe] * 2, [d1, d2], headless=False, env=env, config=cfg, timeout=RUN_S,
-                          on_start=on_start, peer_env=peer_env, peer_config={2: ["gdxsv:rand_input=0"]})
+                          on_start=on_start, peer_env=peer_env, peer_config={1: extra[2] if len(extra) > 2 else [], 2: ["gdxsv:rand_input=0"]})
     for p in pm_proc:  # --terminate_on_proc_exit does not fire when flycast is killed
         subprocess.run([presentmon, "--terminate_existing_session"], capture_output=True, timeout=30)
         try:
@@ -131,7 +160,7 @@ def main() -> int:
     if not pm:
         print("no PresentMon: A1, A2, B1 not measured")
     base = json.load(open(a.baseline)) if a.baseline else None
-    cells = list(CELLS) if a.cells == "all" else a.cells.split(",")
+    cells = BASELINE_CELLS if a.cells == "all" else a.cells.split(",")
     result, ok = {}, True
     for name in cells:
         runs = []

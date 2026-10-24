@@ -81,6 +81,8 @@ static void loop()
 		while (!stopRequested && emu.running() && !gui_is_open())
 		{
 			applyDisplayChange();
+			if (GraphicsContext::Instance() != nullptr)
+				GraphicsContext::Instance()->waitPresentReady();
 			if (!emu.render())
 				continue;
 			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)

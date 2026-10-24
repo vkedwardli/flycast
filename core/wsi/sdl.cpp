@@ -143,9 +143,16 @@ void SDLGLGraphicsContext::swap()
 
 void SDLGLGraphicsContext::changeGLSwapInterval()
 {
-	if (!gameSwapIntervalChanged && swapOnVSync == (!settings.input.fastForwardMode && config::VSync))
+#ifdef _WIN32
+	// gdxsv: threaded rendering swaps without waiting for the vblank: the compositor shows the newest frame
+	const bool newestFrame = config::ThreadedRendering;
+#else
+	const bool newestFrame = false;
+#endif
+	if (!gameSwapIntervalChanged && swapOnVSync == (!settings.input.fastForwardMode && config::VSync) && latestFrame == newestFrame)
 		return;
 	swapOnVSync = (!settings.input.fastForwardMode && config::VSync);
+	latestFrame = newestFrame;
 	gameSwapIntervalChanged = false;
 	int swapInterval = 0;
 	if (swapOnVSync)
@@ -155,6 +162,8 @@ void SDLGLGraphicsContext::changeGLSwapInterval()
 			swapInterval = settings.display.refreshRate / 60.f * gameSwapInterval;
 		else
 			swapInterval = gameSwapInterval;
+		if (latestFrame) // gdxsv
+			swapInterval = 0;
 		INFO_LOG(RENDERER, "Swap interval changed to %d", swapInterval);
 	}
 	SDL_GL_SetSwapInterval(swapInterval);

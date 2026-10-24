@@ -100,6 +100,8 @@ Tests only; they do nothing unless set. Effects are in
 | `TEST_PING_MS` | `rbk_test` match: P2P ping test length, ms (default 7500) |
 | `GDXSV_VRAM_TRACK_CHECK` | any game: checks the VRAM write tracker (threaded rendering off) or the render snapshot copy (on) against VRAM at each frame, logs `VRAMTRACK` / `RENDSNAP` |
 | `GDXSV_PERF_TRACE=<csv path>` | any run: event trace for the perf check (`gdxsv_perf_trace.h`), off when unset |
+| `GDXSV_TEST_PRESENT_HZ=<hz>` | any game: each Present returns at the next vblank of a simulated display at that rate, as a Present that waits for vsync (perf cells `slow_*_60hz`, `slow_*_5994hz`) |
+| `GDXSV_TEST_FRAME_COST_US=<us>` | any game: each emulated frame, rollback re-runs included, that much slower, as on a slower PC (perf cells `slow_*`) |
 | `GDXSV_PRESS_SWEEP=<player>,<start ms>,<hold ms>,<gap min ms>,<gap max ms>` | `rbk_test` match with `GDXSV_TEST_JOYSTICK`: random-time dpad presses on that player |
 | `TEST_RELAY`, `TEST_RELAY_SERVER`, `TEST_RELAY_TOKEN`, `TEST_RELAY_IPV6` | `rbk_test` relays |
 | `TEST_SPECTATOR_LBS`, `TEST_SPECTATOR_UPLINK`, `TEST_UPLINK_ROUND_DELAY` | `rbk_test` live uplink |

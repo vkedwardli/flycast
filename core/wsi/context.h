@@ -40,6 +40,8 @@ public:
 	virtual void setSwapInterval(int interval) {}
 	// gdxsv: the render thread (core/ui/render_thread.h) takes the context from the main thread and gives it back
 	virtual void makeCurrent(bool current) {}
+	// gdxsv: the render thread waits here before it takes the newest frame, once per Present
+	virtual void waitPresentReady() {}
 
 	void setWindow(void *window, void *display = nullptr) {
 		this->window = window;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <locale>
 #include <nowide/cstdio.hpp>
@@ -26,6 +27,7 @@
 #include "gdxsv_platform.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_save_state.h"
+#include "gdxsv_sleep.h"
 #include "gdxsv_update.h"
 #include "gdxsv_video_hooks.h"
 #include "hw/pvr/Renderer_if.h"
@@ -192,6 +194,13 @@ void gdxsv_emu_vblank() {
 }
 
 void gdxsv_emu_end_frame() {
+	// Test: GDXSV_TEST_FRAME_COST_US=<us> makes each emulated frame, rollback re-runs included, that much slower, as
+	// on a slower PC
+	static const int64_t frame_cost_us = [] {
+		const char* us = std::getenv("GDXSV_TEST_FRAME_COST_US");
+		return us != nullptr ? std::atoll(us) : 0;
+	}();
+	if (frame_cost_us > 0) gdxsv_sleep_and_busy_wait(frame_cost_us);
 	GDXSV_PERF_TRACE("end_frame", -1, 0);
 	if (gdxsv.Enabled()) {
 		gdxsv.HookEndOfFrame();
@@ -237,6 +246,20 @@ static void gdxsv_multi_pov_tick() {
 	if (!emu.running()) std::this_thread::sleep_for(std::chrono::milliseconds(16));
 }
 
+// Test: GDXSV_TEST_PRESENT_HZ=<hz> makes each Present return at the next vblank of a display at that rate, as
+// a Present that waits for vsync does (OpenGL, a 59.94 Hz display), with any graphics API and display.
+static void gdxsv_test_present_wait() {
+	static const double period_us = [] {
+		const char* hz = std::getenv("GDXSV_TEST_PRESENT_HZ");
+		return hz != nullptr && std::atof(hz) > 0 ? 1e6 / std::atof(hz) : 0.0;
+	}();
+	if (period_us == 0) return;
+	static const auto epoch = std::chrono::steady_clock::now();
+	const double now_us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - epoch).count();
+	const double vblank_us = std::ceil(now_us / period_us) * period_us;
+	gdxsv_sleep_and_busy_wait((int64_t)(vblank_us - now_us));
+}
+
 void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
@@ -248,6 +271,7 @@ void gdxsv_emu_next_frame() {
 		try {
 			const int64_t waitBegin = gdxsv_wait_begin();
 			imguiDriver->present();
+			gdxsv_test_present_wait();
 			gdxsv_wait_end(GdxsvWait::Present, waitBegin);
 			GDXSV_PERF_TRACE("present", -1, 0);
 			gdxsv_net_report_present();
@@ -292,6 +316,8 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 }
 
 void gdxsv_emu_render_presented() {
+	gdxsv_test_present_wait();
+	GDXSV_PERF_TRACE("present", -1, 0);
 	GDXSV_PERF_TRACE("ui_rendered", -1, 0);
 	if (RollbackBattle()) gdxsv_net_report_present();
 }
