@@ -151,6 +151,29 @@ struct Intervals {
 	}
 };
 
+// Least squares of a frame's Present wait (y) on the previous frame's rollback work (x). A vsync wait that the
+// next frame's work absorbs shrinks by that work: slope -1. A GPU or swap wait does not: slope 0.
+struct PresentWaitFit {
+	static constexpr int kMinRollbacks = 16;  // frames with rollback work before the slope is used
+	double n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+	int rollbacks = 0;
+
+	void Add(int64_t x, int64_t y) {
+		n++;
+		sx += x;
+		sy += y;
+		sxx += double(x) * x;
+		sxy += double(x) * y;
+		if (x > 0) rollbacks++;
+	}
+	// Minus the slope, per mille, 0 to 1000.
+	int32_t ElasticityPm() const {
+		const double d = n * sxx - sx * sx;
+		if (rollbacks < kMinRollbacks || d <= 0) return 0;
+		return static_cast<int32_t>(std::clamp(-1000 * (n * sxy - sx * sy) / d, 0.0, 1000.0));
+	}
+};
+
 // Writers: the emulation thread, except present (the UI thread with threaded
 // rendering).
 struct NetReport {
@@ -167,20 +190,36 @@ struct NetReport {
 	std::atomic<int32_t> rollbackMaxUs{0};
 	// The emulation-thread frame: from a limiter wake to the next limiter call.
 	Clock::time_point lastWake{};					 // none: the next frame is not measured
-	int depthSinceWake = 0;							 // deepest rollback in this frame
 	int64_t rollbackUs = 0;							 // rollback time in this frame
 	std::array<Clock::duration, kWaits> waitTime{};	 // per wait kind, in this frame
 	std::array<bool, kWaits> waited{};
 	std::atomic<int32_t> periodUs{0};
 	Hist work;
-	Hist rollbackRoom;
+	Hist rollbackSlack;
 	std::array<Hist, kWaits> waits;
-	std::atomic<int32_t> overPeriod{0};
-	std::array<std::atomic<int32_t>, kDepthBuckets> overPeriodDepthHist{};
+	PresentWaitFit presentWaitFit;
+	int64_t prevRollbackWork = -1;	// of the last measured frame; -1: none
+	std::atomic<int32_t> elasticityPm{0};
+	// Deepest rollback since the last Present. Written by the emulation thread, taken by the Present thread: a
+	// rollback ending during the exchange may count for the next Present instead.
+	std::atomic<int32_t> depthSincePresent{0};
+	std::array<std::atomic<int32_t>, kDepthBuckets> presentDepthHist{}, lateDepthHist{}, droppedDepthHist{};
+	// DXGI frame statistics of the last Present (the Present thread). Vsyncs that repeated the image before a new one
+	// was shown, by the depth bucket of that Present: what the display really missed. Counted from the first input
+	// read: the session start before it can hold the picture for seconds.
+	std::atomic<int32_t> inputSeen{0};
+	struct DisplayStats {
+		uint32_t present, displayed, refresh;
+		int vsyncsPerFrame;
+	};
+	DisplayStats pendingDisplay{}, lastDisplay{};
+	bool hasPendingDisplay = false, hasLastDisplay = false;
+	std::array<uint8_t, 64> presentBucket{};
+	std::atomic<int32_t> displayStatsPresents{0}, displayComposedPresents{0};
+	std::array<std::atomic<int32_t>, kDepthBuckets> displayMissDepthHist{};
 
 	void ResetFrame(Clock::time_point wake) {
 		lastWake = wake;
-		depthSinceWake = 0;
 		rollbackUs = 0;
 		waitTime.fill({});
 		waited.fill(false);
@@ -204,14 +243,22 @@ struct NetReport {
 		ResetFrame({});
 		Set(periodUs, 0);
 		work.Reset();
-		rollbackRoom.Reset();
+		rollbackSlack.Reset();
 		for (auto& h : waits) h.Reset();
-		Set(overPeriod, 0);
-		for (auto& c : overPeriodDepthHist) Set(c, 0);
+		presentWaitFit = {};
+		prevRollbackWork = -1;
+		Set(elasticityPm, 0);
+		Set(depthSincePresent, 0);
+		for (auto* hist : {&presentDepthHist, &lateDepthHist, &droppedDepthHist, &displayMissDepthHist})
+			for (auto& c : *hist) Set(c, 0);
 		Set(late1, 0);
 		Set(late15, 0);
 		Set(late2, 0);
 		Set(dropped, 0);
+		hasPendingDisplay = hasLastDisplay = false;
+		Set(displayStatsPresents, 0);
+		Set(displayComposedPresents, 0);
+		Set(inputSeen, 0);
 		Set(timesyncCount, 0);
 		for (auto& c : timesyncFrames) Set(c, 0);
 	}
@@ -245,7 +292,7 @@ void gdxsv_net_report_rerun_end(int frame) {
 	const int depth = report.rollbackReruns;
 	Bump(report.rollbackCount);
 	Bump(report.depthHist[DepthBucket(depth)]);
-	report.depthSinceWake = std::max(report.depthSinceWake, depth);
+	if (Get(report.depthSincePresent) < depth) Set(report.depthSincePresent, depth);
 	const int32_t us = SinceUs(report.rollbackStart, Clock::now());
 	if (Get(report.rollbackMaxUs) < us) Set(report.rollbackMaxUs, us);
 	report.rollbackUs += us;
@@ -253,7 +300,10 @@ void gdxsv_net_report_rerun_end(int frame) {
 	report.rollbackToFrame = -1;
 }
 
-void gdxsv_net_report_input_read() { report.pendingRead = Clock::now(); }
+void gdxsv_net_report_input_read() {
+	report.pendingRead = Clock::now();
+	Set(report.inputSeen, 1);
+}
 
 void gdxsv_net_report_input_sent() {
 	report.inputRead.Add(report.pendingRead);
@@ -270,15 +320,62 @@ void gdxsv_net_report_timesync() {
 	}
 }
 
+void gdxsv_net_report_display(uint32_t presentCount, uint32_t displayedPresent, uint32_t displayedRefresh, int vsyncsPerFrame,
+							  bool composed) {
+	if (!gdxsv_net_report_on || !Get(report.inputSeen)) return;
+	if (composed) {
+		Bump(report.displayComposedPresents);
+		return;
+	}
+	report.pendingDisplay = {presentCount, displayedPresent, displayedRefresh, std::max(1, vsyncsPerFrame)};
+	report.hasPendingDisplay = true;
+}
+
+namespace {
+// The statistics name the last Present shown and the vsync it was shown at. Between two shown Presents, each vsync
+// past one per Present repeated the old image.
+void CountDisplayMisses(int bucket) {
+	NetReport& r = report;
+	if (!r.hasPendingDisplay) {
+		r.hasLastDisplay = false;
+		return;
+	}
+	r.hasPendingDisplay = false;
+	const NetReport::DisplayStats& d = r.pendingDisplay;
+	r.presentBucket[d.present % r.presentBucket.size()] = bucket;
+	Bump(r.displayStatsPresents);
+	const NetReport::DisplayStats& last = r.lastDisplay;
+	if (r.hasLastDisplay && d.displayed != last.displayed && d.present - d.displayed < r.presentBucket.size() &&
+		d.displayed - last.displayed < r.presentBucket.size()) {
+		const int64_t repeats =
+			static_cast<int64_t>(d.refresh - last.refresh) - static_cast<int64_t>(d.displayed - last.displayed) * d.vsyncsPerFrame;
+		if (repeats > 0)
+			Bump(r.displayMissDepthHist[r.presentBucket[d.displayed % r.presentBucket.size()]],
+				 static_cast<int32_t>(std::min<int64_t>(repeats, 1000)));
+	}
+	if (!r.hasLastDisplay || d.displayed != last.displayed) r.lastDisplay = d;
+	r.hasLastDisplay = true;
+}
+}  // namespace
+
 void gdxsv_net_report_present() {
 	if (!gdxsv_net_report_on) return;
 	const int32_t us = report.present.Add(Clock::now());
+	const int bucket = DepthBucket(report.depthSincePresent.exchange(0, std::memory_order_relaxed));
+	CountDisplayMisses(bucket);
+	if (us < 0) return;
+	Bump(report.presentDepthHist[bucket]);
 	if (us <= kFramePeriodUs) return;
 	Bump(report.late1);
-	if (kFramePeriodUs * 3 / 2 < us) Bump(report.late15);
+	if (kFramePeriodUs * 3 / 2 < us) {
+		Bump(report.late15);
+		Bump(report.lateDepthHist[bucket]);
+	}
 	if (kFramePeriodUs * 2 < us) Bump(report.late2);
 	// An interval of n periods shows the last frame for n - 1 more vsyncs.
-	Bump(report.dropped, std::max(0, (us + kFramePeriodUs / 2) / kFramePeriodUs - 1));
+	const int32_t dropped = std::max(0, (us + kFramePeriodUs / 2) / kFramePeriodUs - 1);
+	Bump(report.dropped, dropped);
+	Bump(report.droppedDepthHist[bucket], dropped);
 }
 
 int64_t gdxsv_net_report_ticks() { return Clock::now().time_since_epoch().count(); }
@@ -309,11 +406,17 @@ void gdxsv_net_report_wake(Clock::time_point called, Clock::time_point woke, int
 			r.rollbackUs - std::chrono::duration_cast<std::chrono::microseconds>(r.waitTime[static_cast<int>(GdxsvWait::Rollback)]).count();
 		Set(r.periodUs, period);
 		r.work.Add(busy - waited, 0);
-		r.rollbackRoom.Add(ClampUs(period - (busy - rollbackWork)), 0);
-		if (period < busy) {
-			Bump(r.overPeriod);
-			Bump(r.overPeriodDepthHist[DepthBucket(r.depthSinceWake)]);
+		// The elastic part of the Present wait is time a rollback could use; the rest is lost.
+		const int i = static_cast<int>(GdxsvWait::Present);
+		const int64_t presentWait = r.waited[i] ? std::chrono::duration_cast<std::chrono::microseconds>(r.waitTime[i]).count() : 0;
+		if (r.waited[i] && 0 <= r.prevRollbackWork) {
+			r.presentWaitFit.Add(r.prevRollbackWork, presentWait);
+			Set(r.elasticityPm, r.presentWaitFit.ElasticityPm());
 		}
+		r.rollbackSlack.Add(ClampUs(period - (busy - rollbackWork - presentWait * Get(r.elasticityPm) / 1000)), 0);
+		r.prevRollbackWork = rollbackWork;
+	} else {
+		r.prevRollbackWork = -1;
 	}
 	r.ResetFrame(woke);
 }
@@ -329,6 +432,12 @@ void gdxsv_net_report_fill(proto::P2PMatchingReport* out) {
 	out->set_late_frames_1_5(Get(r.late15));
 	out->set_late_frames_2(Get(r.late2));
 	out->set_dropped_frames(Get(r.dropped));
+	for (const auto& c : r.presentDepthHist) out->add_present_depth_hist(Get(c));
+	for (const auto& c : r.lateDepthHist) out->add_late_present_depth_hist(Get(c));
+	for (const auto& c : r.droppedDepthHist) out->add_dropped_depth_hist(Get(c));
+	out->set_display_stats_presents(Get(r.displayStatsPresents));
+	out->set_display_composed_presents(Get(r.displayComposedPresents));
+	for (const auto& c : r.displayMissDepthHist) out->add_display_miss_depth_hist(Get(c));
 
 	const int timesyncs = std::min(Get(r.timesyncCount), kMaxTimesyncFrames);
 	for (int i = 0; i < timesyncs; i++) out->add_timesync_frames(Get(r.timesyncFrames[i]));
@@ -339,9 +448,8 @@ void gdxsv_net_report_fill(proto::P2PMatchingReport* out) {
 	auto* ft = out->mutable_frame_timing();
 	ft->set_period_us(Get(r.periodUs));
 	r.work.Fill(ft->mutable_work());
-	r.rollbackRoom.Fill(ft->mutable_rollback_room());
-	ft->set_over_period(Get(r.overPeriod));
-	for (const auto& c : r.overPeriodDepthHist) ft->add_over_period_depth_hist(Get(c));
+	r.rollbackSlack.Fill(ft->mutable_rollback_slack());
+	ft->set_present_wait_elasticity(Get(r.elasticityPm));
 	using W = GdxsvWait;
 	const std::pair<W, proto::TimingStats* (proto::FrameTiming::*)()> waits[] = {
 		{W::Present, &proto::FrameTiming::mutable_present_wait},

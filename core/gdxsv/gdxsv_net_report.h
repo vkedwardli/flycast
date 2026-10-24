@@ -5,7 +5,8 @@
 #include <cstdint>
 
 // Timing statistics of a rollback battle for P2PMatchingReport: rollbacks and
-// their time per frame, Present and input intervals, and per emulation-thread
+// their time per frame, Present and input intervals, late Presents by the depth
+// of the rollback before them, and per emulation-thread
 // frame its work, the time left for a rollback and its waits. Recorded while a
 // GGPO session runs (the recording hooks are in gdxsv_ggpo_hooks.h and
 // gdxsv_emu_hooks.h) in fixed-size histograms, without locks or allocation;
@@ -19,6 +20,11 @@ class P2PMatchingReport;
 void gdxsv_net_report_reset();
 // A frame was presented (vsync blocking included).
 void gdxsv_net_report_present();
+// DXGI frame statistics after a Present: the swap chain Present count, the last Present shown, the vsync it was
+// shown at, the vsyncs asked per frame, and whether DWM composed it. The next gdxsv_net_report_present counts the
+// display misses of Presents not composed.
+void gdxsv_net_report_display(uint32_t presentCount, uint32_t displayedPresent, uint32_t displayedRefresh, int vsyncsPerFrame,
+							  bool composed);
 // The frame limiter was called at `called` and woke at `woke`; a frame ends at the call.
 void gdxsv_net_report_wake(std::chrono::steady_clock::time_point called, std::chrono::steady_clock::time_point woke, int64_t periodUs);
 // The frame limiter did not run for this frame (menu open, fast forward, off).

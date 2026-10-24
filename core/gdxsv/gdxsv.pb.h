@@ -325,6 +325,10 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kRollbackDepthHistFieldNumber = 25,
     kRemotePeersFieldNumber = 31,
     kTimesyncFramesFieldNumber = 33,
+    kPresentDepthHistFieldNumber = 42,
+    kLatePresentDepthHistFieldNumber = 43,
+    kDroppedDepthHistFieldNumber = 44,
+    kDisplayMissDepthHistFieldNumber = 46,
     kBattleCodeFieldNumber = 1,
     kCloseReasonFieldNumber = 5,
     kAfterLogFieldNumber = 11,
@@ -353,6 +357,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kLateFrames2FieldNumber = 29,
     kDroppedFramesFieldNumber = 30,
     kRelayForwardedFieldNumber = 32,
+    kDisplayStatsPresentsFieldNumber = 45,
+    kDisplayComposedPresentsFieldNumber = 47,
   };
   // repeated float fps_history = 15;
   int fps_history_size() const;
@@ -455,6 +461,94 @@ class P2PMatchingReport PROTOBUF_FINAL :
       timesync_frames() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
       mutable_timesync_frames();
+
+  // repeated int32 present_depth_hist = 42;
+  int present_depth_hist_size() const;
+  private:
+  int _internal_present_depth_hist_size() const;
+  public:
+  void clear_present_depth_hist();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_present_depth_hist(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_present_depth_hist() const;
+  void _internal_add_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_present_depth_hist();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 present_depth_hist(int index) const;
+  void set_present_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      present_depth_hist() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_present_depth_hist();
+
+  // repeated int32 late_present_depth_hist = 43;
+  int late_present_depth_hist_size() const;
+  private:
+  int _internal_late_present_depth_hist_size() const;
+  public:
+  void clear_late_present_depth_hist();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_late_present_depth_hist(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_late_present_depth_hist() const;
+  void _internal_add_late_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_late_present_depth_hist();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 late_present_depth_hist(int index) const;
+  void set_late_present_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_late_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      late_present_depth_hist() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_late_present_depth_hist();
+
+  // repeated int32 dropped_depth_hist = 44;
+  int dropped_depth_hist_size() const;
+  private:
+  int _internal_dropped_depth_hist_size() const;
+  public:
+  void clear_dropped_depth_hist();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_dropped_depth_hist(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_dropped_depth_hist() const;
+  void _internal_add_dropped_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_dropped_depth_hist();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 dropped_depth_hist(int index) const;
+  void set_dropped_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_dropped_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      dropped_depth_hist() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_dropped_depth_hist();
+
+  // repeated int32 display_miss_depth_hist = 46;
+  int display_miss_depth_hist_size() const;
+  private:
+  int _internal_display_miss_depth_hist_size() const;
+  public:
+  void clear_display_miss_depth_hist();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_miss_depth_hist(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_display_miss_depth_hist() const;
+  void _internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_display_miss_depth_hist();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 display_miss_depth_hist(int index) const;
+  void set_display_miss_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      display_miss_depth_hist() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_display_miss_depth_hist();
 
   // string battle_code = 1;
   void clear_battle_code();
@@ -799,6 +893,24 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void _internal_set_relay_forwarded(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 display_stats_presents = 45;
+  void clear_display_stats_presents();
+  ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents() const;
+  void set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_stats_presents() const;
+  void _internal_set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 display_composed_presents = 47;
+  void clear_display_composed_presents();
+  ::PROTOBUF_NAMESPACE_ID::int32 display_composed_presents() const;
+  void set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_composed_presents() const;
+  void _internal_set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.P2PMatchingReport)
  private:
   class _Internal;
@@ -814,6 +926,14 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::RemotePeerReport > remote_peers_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > timesync_frames_;
   mutable std::atomic<int> _timesync_frames_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > present_depth_hist_;
+  mutable std::atomic<int> _present_depth_hist_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > late_present_depth_hist_;
+  mutable std::atomic<int> _late_present_depth_hist_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > dropped_depth_hist_;
+  mutable std::atomic<int> _dropped_depth_hist_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > display_miss_depth_hist_;
+  mutable std::atomic<int> _display_miss_depth_hist_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr after_log_;
@@ -842,6 +962,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_2_;
   ::PROTOBUF_NAMESPACE_ID::int32 dropped_frames_;
   ::PROTOBUF_NAMESPACE_ID::int32 relay_forwarded_;
+  ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents_;
+  ::PROTOBUF_NAMESPACE_ID::int32 display_composed_presents_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -960,38 +1082,15 @@ class FrameTiming PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kOverPeriodDepthHistFieldNumber = 5,
     kWorkFieldNumber = 2,
-    kRollbackRoomFieldNumber = 3,
     kPresentWaitFieldNumber = 6,
     kRenderWaitFieldNumber = 7,
     kRollbackWaitFieldNumber = 8,
     kQueueWaitFieldNumber = 9,
+    kRollbackSlackFieldNumber = 11,
     kPeriodUsFieldNumber = 1,
-    kOverPeriodFieldNumber = 4,
+    kPresentWaitElasticityFieldNumber = 10,
   };
-  // repeated int32 over_period_depth_hist = 5;
-  int over_period_depth_hist_size() const;
-  private:
-  int _internal_over_period_depth_hist_size() const;
-  public:
-  void clear_over_period_depth_hist();
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_over_period_depth_hist(int index) const;
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      _internal_over_period_depth_hist() const;
-  void _internal_add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      _internal_mutable_over_period_depth_hist();
-  public:
-  ::PROTOBUF_NAMESPACE_ID::int32 over_period_depth_hist(int index) const;
-  void set_over_period_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
-  void add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      over_period_depth_hist() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      mutable_over_period_depth_hist();
-
   // .proto.TimingStats work = 2;
   bool has_work() const;
   private:
@@ -1009,24 +1108,6 @@ class FrameTiming PROTOBUF_FINAL :
   void unsafe_arena_set_allocated_work(
       ::proto::TimingStats* work);
   ::proto::TimingStats* unsafe_arena_release_work();
-
-  // .proto.TimingStats rollback_room = 3;
-  bool has_rollback_room() const;
-  private:
-  bool _internal_has_rollback_room() const;
-  public:
-  void clear_rollback_room();
-  const ::proto::TimingStats& rollback_room() const;
-  ::proto::TimingStats* release_rollback_room();
-  ::proto::TimingStats* mutable_rollback_room();
-  void set_allocated_rollback_room(::proto::TimingStats* rollback_room);
-  private:
-  const ::proto::TimingStats& _internal_rollback_room() const;
-  ::proto::TimingStats* _internal_mutable_rollback_room();
-  public:
-  void unsafe_arena_set_allocated_rollback_room(
-      ::proto::TimingStats* rollback_room);
-  ::proto::TimingStats* unsafe_arena_release_rollback_room();
 
   // .proto.TimingStats present_wait = 6;
   bool has_present_wait() const;
@@ -1100,6 +1181,24 @@ class FrameTiming PROTOBUF_FINAL :
       ::proto::TimingStats* queue_wait);
   ::proto::TimingStats* unsafe_arena_release_queue_wait();
 
+  // .proto.TimingStats rollback_slack = 11;
+  bool has_rollback_slack() const;
+  private:
+  bool _internal_has_rollback_slack() const;
+  public:
+  void clear_rollback_slack();
+  const ::proto::TimingStats& rollback_slack() const;
+  ::proto::TimingStats* release_rollback_slack();
+  ::proto::TimingStats* mutable_rollback_slack();
+  void set_allocated_rollback_slack(::proto::TimingStats* rollback_slack);
+  private:
+  const ::proto::TimingStats& _internal_rollback_slack() const;
+  ::proto::TimingStats* _internal_mutable_rollback_slack();
+  public:
+  void unsafe_arena_set_allocated_rollback_slack(
+      ::proto::TimingStats* rollback_slack);
+  ::proto::TimingStats* unsafe_arena_release_rollback_slack();
+
   // int32 period_us = 1;
   void clear_period_us();
   ::PROTOBUF_NAMESPACE_ID::int32 period_us() const;
@@ -1109,13 +1208,13 @@ class FrameTiming PROTOBUF_FINAL :
   void _internal_set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 over_period = 4;
-  void clear_over_period();
-  ::PROTOBUF_NAMESPACE_ID::int32 over_period() const;
-  void set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value);
+  // int32 present_wait_elasticity = 10;
+  void clear_present_wait_elasticity();
+  ::PROTOBUF_NAMESPACE_ID::int32 present_wait_elasticity() const;
+  void set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value);
   private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_over_period() const;
-  void _internal_set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_present_wait_elasticity() const;
+  void _internal_set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
   // @@protoc_insertion_point(class_scope:proto.FrameTiming)
@@ -1125,16 +1224,14 @@ class FrameTiming PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > over_period_depth_hist_;
-  mutable std::atomic<int> _over_period_depth_hist_cached_byte_size_;
   ::proto::TimingStats* work_;
-  ::proto::TimingStats* rollback_room_;
   ::proto::TimingStats* present_wait_;
   ::proto::TimingStats* render_wait_;
   ::proto::TimingStats* rollback_wait_;
   ::proto::TimingStats* queue_wait_;
+  ::proto::TimingStats* rollback_slack_;
   ::PROTOBUF_NAMESPACE_ID::int32 period_us_;
-  ::PROTOBUF_NAMESPACE_ID::int32 over_period_;
+  ::PROTOBUF_NAMESPACE_ID::int32 present_wait_elasticity_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -7869,6 +7966,234 @@ inline void P2PMatchingReport::set_allocated_frame_timing(::proto::FrameTiming* 
   // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.frame_timing)
 }
 
+// repeated int32 present_depth_hist = 42;
+inline int P2PMatchingReport::_internal_present_depth_hist_size() const {
+  return present_depth_hist_.size();
+}
+inline int P2PMatchingReport::present_depth_hist_size() const {
+  return _internal_present_depth_hist_size();
+}
+inline void P2PMatchingReport::clear_present_depth_hist() {
+  present_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_present_depth_hist(int index) const {
+  return present_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::present_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.present_depth_hist)
+  return _internal_present_depth_hist(index);
+}
+inline void P2PMatchingReport::set_present_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  present_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.present_depth_hist)
+}
+inline void P2PMatchingReport::_internal_add_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  present_depth_hist_.Add(value);
+}
+inline void P2PMatchingReport::add_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_present_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.present_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::_internal_present_depth_hist() const {
+  return present_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::present_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.present_depth_hist)
+  return _internal_present_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::_internal_mutable_present_depth_hist() {
+  return &present_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::mutable_present_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.present_depth_hist)
+  return _internal_mutable_present_depth_hist();
+}
+
+// repeated int32 late_present_depth_hist = 43;
+inline int P2PMatchingReport::_internal_late_present_depth_hist_size() const {
+  return late_present_depth_hist_.size();
+}
+inline int P2PMatchingReport::late_present_depth_hist_size() const {
+  return _internal_late_present_depth_hist_size();
+}
+inline void P2PMatchingReport::clear_late_present_depth_hist() {
+  late_present_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_late_present_depth_hist(int index) const {
+  return late_present_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::late_present_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.late_present_depth_hist)
+  return _internal_late_present_depth_hist(index);
+}
+inline void P2PMatchingReport::set_late_present_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  late_present_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.late_present_depth_hist)
+}
+inline void P2PMatchingReport::_internal_add_late_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  late_present_depth_hist_.Add(value);
+}
+inline void P2PMatchingReport::add_late_present_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_late_present_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.late_present_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::_internal_late_present_depth_hist() const {
+  return late_present_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::late_present_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.late_present_depth_hist)
+  return _internal_late_present_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::_internal_mutable_late_present_depth_hist() {
+  return &late_present_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::mutable_late_present_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.late_present_depth_hist)
+  return _internal_mutable_late_present_depth_hist();
+}
+
+// repeated int32 dropped_depth_hist = 44;
+inline int P2PMatchingReport::_internal_dropped_depth_hist_size() const {
+  return dropped_depth_hist_.size();
+}
+inline int P2PMatchingReport::dropped_depth_hist_size() const {
+  return _internal_dropped_depth_hist_size();
+}
+inline void P2PMatchingReport::clear_dropped_depth_hist() {
+  dropped_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_dropped_depth_hist(int index) const {
+  return dropped_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::dropped_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.dropped_depth_hist)
+  return _internal_dropped_depth_hist(index);
+}
+inline void P2PMatchingReport::set_dropped_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  dropped_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.dropped_depth_hist)
+}
+inline void P2PMatchingReport::_internal_add_dropped_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  dropped_depth_hist_.Add(value);
+}
+inline void P2PMatchingReport::add_dropped_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_dropped_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.dropped_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::_internal_dropped_depth_hist() const {
+  return dropped_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::dropped_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.dropped_depth_hist)
+  return _internal_dropped_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::_internal_mutable_dropped_depth_hist() {
+  return &dropped_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::mutable_dropped_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.dropped_depth_hist)
+  return _internal_mutable_dropped_depth_hist();
+}
+
+// int32 display_stats_presents = 45;
+inline void P2PMatchingReport::clear_display_stats_presents() {
+  display_stats_presents_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_stats_presents() const {
+  return display_stats_presents_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_stats_presents() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_stats_presents)
+  return _internal_display_stats_presents();
+}
+inline void P2PMatchingReport::_internal_set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  display_stats_presents_ = value;
+}
+inline void P2PMatchingReport::set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_display_stats_presents(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_stats_presents)
+}
+
+// repeated int32 display_miss_depth_hist = 46;
+inline int P2PMatchingReport::_internal_display_miss_depth_hist_size() const {
+  return display_miss_depth_hist_.size();
+}
+inline int P2PMatchingReport::display_miss_depth_hist_size() const {
+  return _internal_display_miss_depth_hist_size();
+}
+inline void P2PMatchingReport::clear_display_miss_depth_hist() {
+  display_miss_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_miss_depth_hist(int index) const {
+  return display_miss_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_miss_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_miss_depth_hist)
+  return _internal_display_miss_depth_hist(index);
+}
+inline void P2PMatchingReport::set_display_miss_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  display_miss_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_miss_depth_hist)
+}
+inline void P2PMatchingReport::_internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  display_miss_depth_hist_.Add(value);
+}
+inline void P2PMatchingReport::add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_display_miss_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.display_miss_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::_internal_display_miss_depth_hist() const {
+  return display_miss_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::display_miss_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.display_miss_depth_hist)
+  return _internal_display_miss_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::_internal_mutable_display_miss_depth_hist() {
+  return &display_miss_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::mutable_display_miss_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.display_miss_depth_hist)
+  return _internal_mutable_display_miss_depth_hist();
+}
+
+// int32 display_composed_presents = 47;
+inline void P2PMatchingReport::clear_display_composed_presents() {
+  display_composed_presents_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_composed_presents() const {
+  return display_composed_presents_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_composed_presents() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_composed_presents)
+  return _internal_display_composed_presents();
+}
+inline void P2PMatchingReport::_internal_set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  display_composed_presents_ = value;
+}
+inline void P2PMatchingReport::set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_display_composed_presents(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_composed_presents)
+}
+
 // -------------------------------------------------------------------
 
 // FrameTiming
@@ -7974,156 +8299,6 @@ inline void FrameTiming::set_allocated_work(::proto::TimingStats* work) {
   }
   work_ = work;
   // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.work)
-}
-
-// .proto.TimingStats rollback_room = 3;
-inline bool FrameTiming::_internal_has_rollback_room() const {
-  return this != internal_default_instance() && rollback_room_ != nullptr;
-}
-inline bool FrameTiming::has_rollback_room() const {
-  return _internal_has_rollback_room();
-}
-inline void FrameTiming::clear_rollback_room() {
-  if (GetArena() == nullptr && rollback_room_ != nullptr) {
-    delete rollback_room_;
-  }
-  rollback_room_ = nullptr;
-}
-inline const ::proto::TimingStats& FrameTiming::_internal_rollback_room() const {
-  const ::proto::TimingStats* p = rollback_room_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
-      &::proto::_TimingStats_default_instance_);
-}
-inline const ::proto::TimingStats& FrameTiming::rollback_room() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.rollback_room)
-  return _internal_rollback_room();
-}
-inline void FrameTiming::unsafe_arena_set_allocated_rollback_room(
-    ::proto::TimingStats* rollback_room) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_room_);
-  }
-  rollback_room_ = rollback_room;
-  if (rollback_room) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.rollback_room)
-}
-inline ::proto::TimingStats* FrameTiming::release_rollback_room() {
-  
-  ::proto::TimingStats* temp = rollback_room_;
-  rollback_room_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_rollback_room() {
-  // @@protoc_insertion_point(field_release:proto.FrameTiming.rollback_room)
-  
-  ::proto::TimingStats* temp = rollback_room_;
-  rollback_room_ = nullptr;
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::_internal_mutable_rollback_room() {
-  
-  if (rollback_room_ == nullptr) {
-    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
-    rollback_room_ = p;
-  }
-  return rollback_room_;
-}
-inline ::proto::TimingStats* FrameTiming::mutable_rollback_room() {
-  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.rollback_room)
-  return _internal_mutable_rollback_room();
-}
-inline void FrameTiming::set_allocated_rollback_room(::proto::TimingStats* rollback_room) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete rollback_room_;
-  }
-  if (rollback_room) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_room);
-    if (message_arena != submessage_arena) {
-      rollback_room = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, rollback_room, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  rollback_room_ = rollback_room;
-  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.rollback_room)
-}
-
-// int32 over_period = 4;
-inline void FrameTiming::clear_over_period() {
-  over_period_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_over_period() const {
-  return over_period_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::over_period() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.over_period)
-  return _internal_over_period();
-}
-inline void FrameTiming::_internal_set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  over_period_ = value;
-}
-inline void FrameTiming::set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_over_period(value);
-  // @@protoc_insertion_point(field_set:proto.FrameTiming.over_period)
-}
-
-// repeated int32 over_period_depth_hist = 5;
-inline int FrameTiming::_internal_over_period_depth_hist_size() const {
-  return over_period_depth_hist_.size();
-}
-inline int FrameTiming::over_period_depth_hist_size() const {
-  return _internal_over_period_depth_hist_size();
-}
-inline void FrameTiming::clear_over_period_depth_hist() {
-  over_period_depth_hist_.Clear();
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_over_period_depth_hist(int index) const {
-  return over_period_depth_hist_.Get(index);
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::over_period_depth_hist(int index) const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.over_period_depth_hist)
-  return _internal_over_period_depth_hist(index);
-}
-inline void FrameTiming::set_over_period_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
-  over_period_depth_hist_.Set(index, value);
-  // @@protoc_insertion_point(field_set:proto.FrameTiming.over_period_depth_hist)
-}
-inline void FrameTiming::_internal_add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  over_period_depth_hist_.Add(value);
-}
-inline void FrameTiming::add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_add_over_period_depth_hist(value);
-  // @@protoc_insertion_point(field_add:proto.FrameTiming.over_period_depth_hist)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-FrameTiming::_internal_over_period_depth_hist() const {
-  return over_period_depth_hist_;
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-FrameTiming::over_period_depth_hist() const {
-  // @@protoc_insertion_point(field_list:proto.FrameTiming.over_period_depth_hist)
-  return _internal_over_period_depth_hist();
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-FrameTiming::_internal_mutable_over_period_depth_hist() {
-  return &over_period_depth_hist_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-FrameTiming::mutable_over_period_depth_hist() {
-  // @@protoc_insertion_point(field_mutable_list:proto.FrameTiming.over_period_depth_hist)
-  return _internal_mutable_over_period_depth_hist();
 }
 
 // .proto.TimingStats present_wait = 6;
@@ -8456,6 +8631,109 @@ inline void FrameTiming::set_allocated_queue_wait(::proto::TimingStats* queue_wa
   }
   queue_wait_ = queue_wait;
   // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.queue_wait)
+}
+
+// int32 present_wait_elasticity = 10;
+inline void FrameTiming::clear_present_wait_elasticity() {
+  present_wait_elasticity_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_present_wait_elasticity() const {
+  return present_wait_elasticity_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::present_wait_elasticity() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.present_wait_elasticity)
+  return _internal_present_wait_elasticity();
+}
+inline void FrameTiming::_internal_set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  present_wait_elasticity_ = value;
+}
+inline void FrameTiming::set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_present_wait_elasticity(value);
+  // @@protoc_insertion_point(field_set:proto.FrameTiming.present_wait_elasticity)
+}
+
+// .proto.TimingStats rollback_slack = 11;
+inline bool FrameTiming::_internal_has_rollback_slack() const {
+  return this != internal_default_instance() && rollback_slack_ != nullptr;
+}
+inline bool FrameTiming::has_rollback_slack() const {
+  return _internal_has_rollback_slack();
+}
+inline void FrameTiming::clear_rollback_slack() {
+  if (GetArena() == nullptr && rollback_slack_ != nullptr) {
+    delete rollback_slack_;
+  }
+  rollback_slack_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_rollback_slack() const {
+  const ::proto::TimingStats* p = rollback_slack_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::rollback_slack() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.rollback_slack)
+  return _internal_rollback_slack();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_rollback_slack(
+    ::proto::TimingStats* rollback_slack) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_slack_);
+  }
+  rollback_slack_ = rollback_slack;
+  if (rollback_slack) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.rollback_slack)
+}
+inline ::proto::TimingStats* FrameTiming::release_rollback_slack() {
+  
+  ::proto::TimingStats* temp = rollback_slack_;
+  rollback_slack_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_rollback_slack() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.rollback_slack)
+  
+  ::proto::TimingStats* temp = rollback_slack_;
+  rollback_slack_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_rollback_slack() {
+  
+  if (rollback_slack_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    rollback_slack_ = p;
+  }
+  return rollback_slack_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_rollback_slack() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.rollback_slack)
+  return _internal_mutable_rollback_slack();
+}
+inline void FrameTiming::set_allocated_rollback_slack(::proto::TimingStats* rollback_slack) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete rollback_slack_;
+  }
+  if (rollback_slack) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_slack);
+    if (message_arena != submessage_arena) {
+      rollback_slack = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, rollback_slack, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  rollback_slack_ = rollback_slack;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.rollback_slack)
 }
 
 // -------------------------------------------------------------------

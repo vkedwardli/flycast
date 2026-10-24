@@ -346,7 +346,7 @@ set_source_files_properties(core/gdxsv/juice_helper.c PROPERTIES INCLUDE_DIRECTO
 
 if(WIN32)
 	set(CMAKE_VS_SDK_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES})
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/textures.rc)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/textures.rc core/gdxsv/gdxsv_net_report_dxgi_win.cpp)
 	if(NOT WINDOWS_STORE)
 		target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_https_latency_win.cpp)
 	endif()
