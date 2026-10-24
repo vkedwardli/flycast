@@ -65,6 +65,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_frame_limiter.cpp/.h` | FixedFrequency frame limiter of the main UI loop (period, replay trim) |
 | `gdxsv_perf_trace.cpp/.h` | event trace for the pre-release perf check, on with env `GDXSV_PERF_TRACE` |
 | `gdxsv_net_report.cpp/.h` | timing stats of a rollback battle for P2PMatchingReport: rollbacks and their time per frame, Present and input intervals, display misses by rollback depth, per frame work, rollback slack and emulation-thread waits |
+| `gdxsv_net_report_dxgi_win.cpp` | DX11 frame statistics after each Present (which Present was shown at which vsync, DWM composition) for the display misses of P2PMatchingReport |
 | `gdxsv_press_sweep.cpp/.h` | timed dpad presses on the test joystick for the input latency metric, on with env `GDXSV_PRESS_SWEEP` |
 | `gdxsv_sleep.cpp/.h` | precise sleep for the frame limiter and network threads |
 | `gdxsv_null_imgui_driver.h` | UI driver that draws nothing (headless runs) |

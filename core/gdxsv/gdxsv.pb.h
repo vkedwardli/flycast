@@ -328,6 +328,7 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kPresentDepthHistFieldNumber = 42,
     kLatePresentDepthHistFieldNumber = 43,
     kDroppedDepthHistFieldNumber = 44,
+    kDisplayMissDepthHistFieldNumber = 46,
     kBattleCodeFieldNumber = 1,
     kCloseReasonFieldNumber = 5,
     kAfterLogFieldNumber = 11,
@@ -356,6 +357,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kLateFrames2FieldNumber = 29,
     kDroppedFramesFieldNumber = 30,
     kRelayForwardedFieldNumber = 32,
+    kDisplayStatsPresentsFieldNumber = 45,
+    kDisplayComposedPresentsFieldNumber = 47,
   };
   // repeated float fps_history = 15;
   int fps_history_size() const;
@@ -524,6 +527,28 @@ class P2PMatchingReport PROTOBUF_FINAL :
       dropped_depth_hist() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
       mutable_dropped_depth_hist();
+
+  // repeated int32 display_miss_depth_hist = 46;
+  int display_miss_depth_hist_size() const;
+  private:
+  int _internal_display_miss_depth_hist_size() const;
+  public:
+  void clear_display_miss_depth_hist();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_miss_depth_hist(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_display_miss_depth_hist() const;
+  void _internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_display_miss_depth_hist();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 display_miss_depth_hist(int index) const;
+  void set_display_miss_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      display_miss_depth_hist() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_display_miss_depth_hist();
 
   // string battle_code = 1;
   void clear_battle_code();
@@ -868,6 +893,24 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void _internal_set_relay_forwarded(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // int32 display_stats_presents = 45;
+  void clear_display_stats_presents();
+  ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents() const;
+  void set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_stats_presents() const;
+  void _internal_set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 display_composed_presents = 47;
+  void clear_display_composed_presents();
+  ::PROTOBUF_NAMESPACE_ID::int32 display_composed_presents() const;
+  void set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_composed_presents() const;
+  void _internal_set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.P2PMatchingReport)
  private:
   class _Internal;
@@ -889,6 +932,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
   mutable std::atomic<int> _late_present_depth_hist_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > dropped_depth_hist_;
   mutable std::atomic<int> _dropped_depth_hist_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > display_miss_depth_hist_;
+  mutable std::atomic<int> _display_miss_depth_hist_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr after_log_;
@@ -917,6 +962,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_2_;
   ::PROTOBUF_NAMESPACE_ID::int32 dropped_frames_;
   ::PROTOBUF_NAMESPACE_ID::int32 relay_forwarded_;
+  ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents_;
+  ::PROTOBUF_NAMESPACE_ID::int32 display_composed_presents_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -8114,6 +8161,93 @@ inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
 P2PMatchingReport::mutable_dropped_depth_hist() {
   // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.dropped_depth_hist)
   return _internal_mutable_dropped_depth_hist();
+}
+
+// int32 display_stats_presents = 45;
+inline void P2PMatchingReport::clear_display_stats_presents() {
+  display_stats_presents_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_stats_presents() const {
+  return display_stats_presents_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_stats_presents() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_stats_presents)
+  return _internal_display_stats_presents();
+}
+inline void P2PMatchingReport::_internal_set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  display_stats_presents_ = value;
+}
+inline void P2PMatchingReport::set_display_stats_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_display_stats_presents(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_stats_presents)
+}
+
+// repeated int32 display_miss_depth_hist = 46;
+inline int P2PMatchingReport::_internal_display_miss_depth_hist_size() const {
+  return display_miss_depth_hist_.size();
+}
+inline int P2PMatchingReport::display_miss_depth_hist_size() const {
+  return _internal_display_miss_depth_hist_size();
+}
+inline void P2PMatchingReport::clear_display_miss_depth_hist() {
+  display_miss_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_miss_depth_hist(int index) const {
+  return display_miss_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_miss_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_miss_depth_hist)
+  return _internal_display_miss_depth_hist(index);
+}
+inline void P2PMatchingReport::set_display_miss_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  display_miss_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_miss_depth_hist)
+}
+inline void P2PMatchingReport::_internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  display_miss_depth_hist_.Add(value);
+}
+inline void P2PMatchingReport::add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_display_miss_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.display_miss_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::_internal_display_miss_depth_hist() const {
+  return display_miss_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::display_miss_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.display_miss_depth_hist)
+  return _internal_display_miss_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::_internal_mutable_display_miss_depth_hist() {
+  return &display_miss_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::mutable_display_miss_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.display_miss_depth_hist)
+  return _internal_mutable_display_miss_depth_hist();
+}
+
+// int32 display_composed_presents = 47;
+inline void P2PMatchingReport::clear_display_composed_presents() {
+  display_composed_presents_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_composed_presents() const {
+  return display_composed_presents_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_composed_presents() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_composed_presents)
+  return _internal_display_composed_presents();
+}
+inline void P2PMatchingReport::_internal_set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  display_composed_presents_ = value;
+}
+inline void P2PMatchingReport::set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_display_composed_presents(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_composed_presents)
 }
 
 // -------------------------------------------------------------------

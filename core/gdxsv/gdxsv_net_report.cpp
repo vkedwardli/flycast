@@ -204,6 +204,19 @@ struct NetReport {
 	// rollback ending during the exchange may count for the next Present instead.
 	std::atomic<int32_t> depthSincePresent{0};
 	std::array<std::atomic<int32_t>, kDepthBuckets> presentDepthHist{}, lateDepthHist{}, droppedDepthHist{};
+	// DXGI frame statistics of the last Present (the Present thread). Vsyncs that repeated the image before a new one
+	// was shown, by the depth bucket of that Present: what the display really missed. Counted from the first input
+	// read: the session start before it can hold the picture for seconds.
+	std::atomic<int32_t> inputSeen{0};
+	struct DisplayStats {
+		uint32_t present, displayed, refresh;
+		int vsyncsPerFrame;
+	};
+	DisplayStats pendingDisplay{}, lastDisplay{};
+	bool hasPendingDisplay = false, hasLastDisplay = false;
+	std::array<uint8_t, 64> presentBucket{};
+	std::atomic<int32_t> displayStatsPresents{0}, displayComposedPresents{0};
+	std::array<std::atomic<int32_t>, kDepthBuckets> displayMissDepthHist{};
 
 	void ResetFrame(Clock::time_point wake) {
 		lastWake = wake;
@@ -236,12 +249,16 @@ struct NetReport {
 		prevRollbackWork = -1;
 		Set(elasticityPm, 0);
 		Set(depthSincePresent, 0);
-		for (auto* hist : {&presentDepthHist, &lateDepthHist, &droppedDepthHist})
+		for (auto* hist : {&presentDepthHist, &lateDepthHist, &droppedDepthHist, &displayMissDepthHist})
 			for (auto& c : *hist) Set(c, 0);
 		Set(late1, 0);
 		Set(late15, 0);
 		Set(late2, 0);
 		Set(dropped, 0);
+		hasPendingDisplay = hasLastDisplay = false;
+		Set(displayStatsPresents, 0);
+		Set(displayComposedPresents, 0);
+		Set(inputSeen, 0);
 		Set(timesyncCount, 0);
 		for (auto& c : timesyncFrames) Set(c, 0);
 	}
@@ -283,7 +300,10 @@ void gdxsv_net_report_rerun_end(int frame) {
 	report.rollbackToFrame = -1;
 }
 
-void gdxsv_net_report_input_read() { report.pendingRead = Clock::now(); }
+void gdxsv_net_report_input_read() {
+	report.pendingRead = Clock::now();
+	Set(report.inputSeen, 1);
+}
 
 void gdxsv_net_report_input_sent() {
 	report.inputRead.Add(report.pendingRead);
@@ -300,10 +320,49 @@ void gdxsv_net_report_timesync() {
 	}
 }
 
+void gdxsv_net_report_display(uint32_t presentCount, uint32_t displayedPresent, uint32_t displayedRefresh, int vsyncsPerFrame,
+							  bool composed) {
+	if (!gdxsv_net_report_on || !Get(report.inputSeen)) return;
+	if (composed) {
+		Bump(report.displayComposedPresents);
+		return;
+	}
+	report.pendingDisplay = {presentCount, displayedPresent, displayedRefresh, std::max(1, vsyncsPerFrame)};
+	report.hasPendingDisplay = true;
+}
+
+namespace {
+// The statistics name the last Present shown and the vsync it was shown at. Between two shown Presents, each vsync
+// past one per Present repeated the old image.
+void CountDisplayMisses(int bucket) {
+	NetReport& r = report;
+	if (!r.hasPendingDisplay) {
+		r.hasLastDisplay = false;
+		return;
+	}
+	r.hasPendingDisplay = false;
+	const NetReport::DisplayStats& d = r.pendingDisplay;
+	r.presentBucket[d.present % r.presentBucket.size()] = bucket;
+	Bump(r.displayStatsPresents);
+	const NetReport::DisplayStats& last = r.lastDisplay;
+	if (r.hasLastDisplay && d.displayed != last.displayed && d.present - d.displayed < r.presentBucket.size() &&
+		d.displayed - last.displayed < r.presentBucket.size()) {
+		const int64_t repeats =
+			static_cast<int64_t>(d.refresh - last.refresh) - static_cast<int64_t>(d.displayed - last.displayed) * d.vsyncsPerFrame;
+		if (repeats > 0)
+			Bump(r.displayMissDepthHist[r.presentBucket[d.displayed % r.presentBucket.size()]],
+				 static_cast<int32_t>(std::min<int64_t>(repeats, 1000)));
+	}
+	if (!r.hasLastDisplay || d.displayed != last.displayed) r.lastDisplay = d;
+	r.hasLastDisplay = true;
+}
+}  // namespace
+
 void gdxsv_net_report_present() {
 	if (!gdxsv_net_report_on) return;
 	const int32_t us = report.present.Add(Clock::now());
 	const int bucket = DepthBucket(report.depthSincePresent.exchange(0, std::memory_order_relaxed));
+	CountDisplayMisses(bucket);
 	if (us < 0) return;
 	Bump(report.presentDepthHist[bucket]);
 	if (us <= kFramePeriodUs) return;
@@ -376,6 +435,9 @@ void gdxsv_net_report_fill(proto::P2PMatchingReport* out) {
 	for (const auto& c : r.presentDepthHist) out->add_present_depth_hist(Get(c));
 	for (const auto& c : r.lateDepthHist) out->add_late_present_depth_hist(Get(c));
 	for (const auto& c : r.droppedDepthHist) out->add_dropped_depth_hist(Get(c));
+	out->set_display_stats_presents(Get(r.displayStatsPresents));
+	out->set_display_composed_presents(Get(r.displayComposedPresents));
+	for (const auto& c : r.displayMissDepthHist) out->add_display_miss_depth_hist(Get(c));
 
 	const int timesyncs = std::min(Get(r.timesyncCount), kMaxTimesyncFrames);
 	for (int i = 0; i < timesyncs; i++) out->add_timesync_frames(Get(r.timesyncFrames[i]));
