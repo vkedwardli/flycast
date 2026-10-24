@@ -497,14 +497,14 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	// the moment the battle ends (close_reason "game_end"); triggering here,
 	// rather than at Closed, gets the process out before the normal
 	// return-to-lobby flow blocks retrying a lobby server that isn't there.
-	if (is_local_test_ && State::CloseWait <= state_) {
-		static int local_test_closing = 180;
+	// The countdown runs in vblanks (OnVBlank); the save and the exit happen here, on the UI thread.
+	if (is_local_test_) {
 		// RBK_SAVE_REPLAY=1 keeps the match as a local replay. Saved after the
 		// friend save scene, as a lobby battle is; the rest of the countdown
 		// leaves the writer thread time to finish before the process exits.
-		if (local_test_closing == 60 && getenv("RBK_SAVE_REPLAY"))
+		if (local_test_save_.exchange(false) && getenv("RBK_SAVE_REPLAY"))
 			SaveReplay();
-		if (--local_test_closing == 0) {
+		if (local_test_exit_.exchange(false)) {
 			// The exit status is how a test harness learns whether the match
 			// ran to its end or broke off. A normal battle closes with
 			// "game_end" or "cl_app_close" (the game closing its socket on the
@@ -727,6 +727,15 @@ void GdxsvBackendRollback::ResetGgpoGameRendererState() {
 	}
 	ggpo_game_renderer_reset_ = true;
 	EventManager::event(Event::GGPOGameEnd);
+}
+
+void GdxsvBackendRollback::OnVBlank() {
+	// The local test closing countdown: 3 s of emulated time from CloseWait, whatever the UI thread does.
+	// Rollback re-runs do not count.
+	if (!is_local_test_ || State::CloseWait > state_ || ggpo::rollbacking() || local_test_closing_ <= 0) return;
+	--local_test_closing_;
+	if (local_test_closing_ == 60) local_test_save_ = true;
+	if (local_test_closing_ == 0) local_test_exit_ = true;
 }
 
 void GdxsvBackendRollback::OnNextFrame() {

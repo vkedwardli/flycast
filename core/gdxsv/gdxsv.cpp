@@ -304,6 +304,9 @@ void Gdxsv::HookVBlank() {
 	if (disk_ == 2) {
 		slowdown_.OnVBlank();
 	}
+	if (netmode_ == NetMode::McsRollback) {
+		rollback_net_.OnVBlank();
+	}
 }
 
 void Gdxsv::HookEndOfFrame() {

@@ -279,11 +279,6 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (ui.state <= State::LbsStartBattleFlow) {
-		static int counter = 0;
-		if (++counter % 10 < 5)
-			kcode[0] = ~DC_BTN_A;
-		else
-			kcode[0] = ~0u;
 		if (ctrl_commands_.empty() && ui_commands_.empty() && !lbs_first_skip_) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::SeekForward, ui.bootSeekFrames);
 			lbs_first_skip_ = true;
@@ -792,6 +787,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 		ProcessMcsMessage(McsMessage::Create(McsMessage::MsgType::StartMsg, pov_));
 	}
 	FollowMultiPovHost();
+	// Through the lobby screens before the battle, A is pressed 5 frames out of 10. A seek holds the input as it is.
+	if (state_ <= State::LbsStartBattleFlow && !seeking_)
+		kcode[0] = ++lobby_press_frames_ % 10 < 5 ? ~DC_BTN_A : ~0u;
 	// gdxsv:replay_takeover_frame: what the pause menu's Take Over does, once
 	// playback (not a seek, not a queued jump) has reached that input.
 	if (0 < takeover_frame_ && takeover_frame_ <= key_msg_count_ && state_ == State::McsInBattle && IsInGame() &&
