@@ -191,6 +191,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/network/ggpo.cpp` | `save_game_state`, `free_buffer`, `stopSession` | freed save state buffers kept in `stateBufferPool` and reused (a fresh 10 MB block page-faults on its first writes each frame); freed at session stop |
 | `core/network/ggpo.cpp` |  | include `gdxsv/gdxsv_perf_trace.h` |
 | `core/network/ggpo.cpp` | `advance_frame`, `load_game_state`, `save_game_state`, `nextFrame`, `addLocalInput` | `GDXSV_PERF_TRACE` events (rerun, load, save, frame, input read and add) for the pre-release perf check; off unless env `GDXSV_PERF_TRACE` |
+| `core/network/ggpo.cpp` | `on_event`, `advance_frame`, `load_game_state`, `addLocalInput` | `gdxsv_net_report_*` calls: timesync frames, rollback time and depth, input read and send times for P2PMatchingReport |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_frame_delay`: GGPO frame delay +1 in a gdxsv rollback battle |

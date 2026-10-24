@@ -1,5 +1,4 @@
 #include "gdxsv.h"
-#include "gdxsv_config.h"
 
 #include <xxhash.h>
 #include <zlib.h>
@@ -14,8 +13,10 @@
 #include "cfg/option.h"
 #include "emulator.h"
 #include "gdx_rpc.h"
+#include "gdxsv_config.h"
 #include "gdxsv_key_display.h"
 #include "gdxsv_multi_pov.h"
+#include "gdxsv_net_report.h"
 #include "gdxsv_patch_abi.h"
 #include "gdxsv_platform.h"
 #include "gdxsv_prof.h"
@@ -26,9 +27,9 @@
 #include "log/InMemoryListener.h"
 #include "log/LogManager.h"
 #include "network/ggpo.h"
+#include "oslib/http_client.h"
 #include "oslib/oslib.h"
 #include "reios/reios.h"
-#include "oslib/http_client.h"
 #include "ui/gui.h"
 #include "version.h"
 
@@ -491,6 +492,7 @@ std::vector<u8> Gdxsv::GenerateP2PMatchReportPacket() {
 	for (const auto& rd : round_data) {
 		rbk_report.add_round_data()->CopyFrom(rd);
 	}
+	gdxsv_net_report_fill(&rbk_report);
 
 	std::string data;
 	if (rbk_report.SerializeToString(&data)) {

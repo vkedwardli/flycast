@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 #include <array>
+#include <atomic>
 #include <mutex>
 #include <random>
 
@@ -22,6 +23,20 @@ int gdxsv_ggpo_frame_delay(int delay);
 // would reject the next local input, so that input never waits before the advance, where a rollback would load a
 // state older than the emulated frame. False on a GGPO error.
 bool gdxsv_ggpo_wait_prediction_barrier();
+
+// Timing samples for P2PMatchingReport (gdxsv_net_report.cpp), recorded while a GGPO session runs.
+extern std::atomic<bool> gdxsv_net_report_on;
+void gdxsv_net_report_session_start();
+void gdxsv_net_report_session_stop();
+// A rollback starts; it re-runs the frames up to toFrame.
+void gdxsv_net_report_rollback_begin(int toFrame);
+// A rollback re-ran frame.
+void gdxsv_net_report_rerun_end(int frame);
+// The local input was sampled; sent: the last sample was added to GGPO, which sends it.
+void gdxsv_net_report_input_read();
+void gdxsv_net_report_input_sent();
+// A timesync wait starts at the current frame.
+void gdxsv_net_report_timesync();
 
 // gdxsv state of a GGPO session, shared by core/network/ggpo.cpp and gdxsv_ggpo.cpp.
 struct GdxsvGgpoState {

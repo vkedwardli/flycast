@@ -41,6 +41,8 @@ class GdxsvBackendRollback {
 	u32 OnSockRead(u32 addr, u32 size);
 	u32 OnSockPoll();
 	bool SetCloseReason(const char *reason);
+	// Copies the loss counters of the network stats into the report's remote peers.
+	void UpdateRemotePeerLoss();
 	void SaveReplay() const;
 	const proto::P2PMatching &GetMatching() { return matching_; }
 	const proto::P2PMatchingReport &GetReport() { return report_; }

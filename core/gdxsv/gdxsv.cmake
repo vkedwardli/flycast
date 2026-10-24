@@ -286,6 +286,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_emu_hooks.h
 		core/gdxsv/gdxsv_frame_limiter.cpp
 		core/gdxsv/gdxsv_frame_limiter.h
+		core/gdxsv/gdxsv_net_report.cpp
+		core/gdxsv/gdxsv_net_report.h
 		core/gdxsv/gdxsv_perf_trace.cpp
 		core/gdxsv/gdxsv_perf_trace.h
 		core/gdxsv/gdxsv_press_sweep.cpp

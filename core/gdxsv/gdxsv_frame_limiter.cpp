@@ -8,6 +8,7 @@
 
 #include "cfg/option.h"
 #include "gdxsv_emu_hooks.h"
+#include "gdxsv_net_report.h"
 #include "gdxsv_perf_trace.h"
 #include "gdxsv_sleep.h"
 #include "log/Log.h"
@@ -81,6 +82,7 @@ void gdxsv_frame_limiter_wait() {
 	nextFrame += period;
 	// arg: the slack waited before this wake, us; negative: the frame was late
 	GDXSV_PERF_TRACE("wake", -1, remaining);
+	gdxsv_net_report_wake(remaining);
 	if (1000 <= overSlept)
 		WARN_LOG(RENDERER, "FixedFrequency: Over slept %d [us]", (int)overSlept);
 

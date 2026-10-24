@@ -133,6 +133,8 @@ class UdpPingPong {
 	// A relay is pinged over IPv4 and IPv6 (ip6 may be empty); the faster family that answers is used.
 	void AddRelay(const std::string &ip, const std::string &ip6, int port, uint64_t token);
 	bool GetAvailableAddress(uint8_t peer_id, sockaddr_storage *dst, float *rtt);
+	// Ping test RTTs of the address GetAvailableAddress returns; false if it has none.
+	bool GetRttStats(uint8_t peer_id, int* min, int* median, int* max);
 	// use: the relay's address in the faster family that answered, false if neither did.
 	// alt: its address in the other family, if any (ss_family 0 otherwise).
 	bool GetRelayAddress(int relay_idx, sockaddr_storage *use, sockaddr_storage *alt);
@@ -150,6 +152,9 @@ class UdpPingPong {
 	void DebugBlockPeer(uint8_t remote_peer_id);
 
    private:
+	// Index in candidates_ of the address to use for peer_id, -1 if none answered. Needs mutex_.
+	int BestCandidate(uint8_t peer_id);
+
 	static const uint32_t MAGIC = 2205246188;
 	static const uint8_t PING = 1;
 	static const uint8_t PONG = 2;

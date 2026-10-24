@@ -1,47 +1,47 @@
 #include "gdxsv_emu_hooks.h"
-#include "gdxsv_config.h"
-#include <cstdlib>
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <locale>
+#include <nowide/cstdio.hpp>
 #include <regex>
-#include <thread>
 #include <sstream>
+#include <thread>
 
 #include "cfg/cfg.h"
+#include "emulator.h"
 #include "gdxsv.h"
-#include "libs.h"
-#include "stdclass.h"
-#include <nowide/cstdio.hpp>
+#include "gdxsv_config.h"
 #include "gdxsv_custom_texture_source.h"
+#include "gdxsv_custom_texture_update.h"
 #include "gdxsv_frame_limiter.h"
+#include "gdxsv_ggpo_hooks.h"
 #include "gdxsv_gui_settings.h"
 #include "gdxsv_multi_pov.h"
 #include "gdxsv_multi_pov_audio.h"
 #include "gdxsv_multi_pov_viewer.h"
-#include "gdxsv_video_hooks.h"
+#include "gdxsv_net_report.h"
+#include "gdxsv_perf_trace.h"
 #include "gdxsv_platform.h"
-#include "gdxsv_save_state.h"
-#include "emulator.h"
 #include "gdxsv_replay_util.h"
+#include "gdxsv_save_state.h"
 #include "gdxsv_update.h"
-#include "gdxsv_custom_texture_update.h"
+#include "gdxsv_video_hooks.h"
+#include "hw/pvr/Renderer_if.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
 #include "json.hpp"
+#include "libs.h"
+#include "network/ggpo.h"
 #include "nowide/fstream.hpp"
 #include "oslib/directory.h"
-#include "oslib/oslib.h"
 #include "oslib/http_client.h"
-#include "ui/gui_util.h"
-#include "ui/IconsFontAwesome6.h"
-#include "ui/imgui_driver.h"
-#include "hw/pvr/Renderer_if.h"
-#include "network/ggpo.h"
-#include "gdxsv_ggpo_hooks.h"
-#include "gdxsv_perf_trace.h"
+#include "oslib/oslib.h"
 #include "stdclass.h"
+#include "ui/IconsFontAwesome6.h"
+#include "ui/gui_util.h"
+#include "ui/imgui_driver.h"
 #include "xxhash.h"
 
 using namespace nlohmann;
@@ -247,6 +247,7 @@ void gdxsv_emu_next_frame() {
 		try {
 			imguiDriver->present();
 			GDXSV_PERF_TRACE("present", -1, 0);
+			gdxsv_net_report_present();
 		} catch (const FlycastException&) {
 			// mainui_loop presents again and recreates the context on failure
 		}
@@ -273,6 +274,8 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 	gdxsv_multi_pov_tick();
 
 	if (rendered) GDXSV_PERF_TRACE("ui_rendered", -1, 0);
+	// With threaded rendering, mainui_loop presented the frame just now.
+	if (rendered && config::ThreadedRendering && RollbackBattle()) gdxsv_net_report_present();
 	if (rendered && !(config::ThreadedRendering && RollbackBattle()))
 		gdxsv_frame_limiter_wait();
 }

@@ -1241,8 +1241,7 @@ int UdpPingPong::RelayCount() {
 	return static_cast<int>(relays_.size());
 }
 
-bool UdpPingPong::GetAvailableAddress(uint8_t peer_id, sockaddr_storage *dst, float *rtt) {
-	std::lock_guard<std::recursive_mutex> lock(mutex_);
+int UdpPingPong::BestCandidate(uint8_t peer_id) {
 	std::vector<std::pair<float, int>> score_to_index;
 
 	for (int i = 0; i < candidates_.size(); i++) {
@@ -1263,14 +1262,35 @@ bool UdpPingPong::GetAvailableAddress(uint8_t peer_id, sockaddr_storage *dst, fl
 	}
 
 	if (score_to_index.empty()) {
+		return -1;
+	}
+	return std::max_element(score_to_index.begin(), score_to_index.end())->second;
+}
+
+bool UdpPingPong::GetAvailableAddress(uint8_t peer_id, sockaddr_storage* dst, float* rtt) {
+	std::lock_guard<std::recursive_mutex> lock(mutex_);
+	const int i = BestCandidate(peer_id);
+	if (i < 0) {
 		return false;
 	}
-
-	const int i = std::max_element(score_to_index.begin(), score_to_index.end())->second;
 	const auto &c = candidates_[i];
 	memset(dst, 0, sizeof(sockaddr_storage));
 	memcpy(dst, c.remote.net_addr(), c.remote.net_addr_len());
 	*rtt = c.rtt;
+	return true;
+}
+
+bool UdpPingPong::GetRttStats(uint8_t peer_id, int* min, int* median, int* max) {
+	std::lock_guard<std::recursive_mutex> lock(mutex_);
+	const int i = BestCandidate(peer_id);
+	if (i < 0 || candidates_[i].rtt_samples.empty()) {
+		return false;
+	}
+	auto samples = candidates_[i].rtt_samples;
+	std::sort(samples.begin(), samples.end());
+	*min = samples.front();
+	*median = samples[samples.size() / 2];
+	*max = samples.back();
 	return true;
 }
 

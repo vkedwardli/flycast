@@ -279,6 +279,7 @@ static bool on_event(GGPOEvent *info)
 		NOTICE_LOG(NETWORK, "Timesync: %d frames ahead", info->u.timesync.frames_ahead);
 		if (0 < info->u.timesync.frames_ahead) {
 			timesyncOccurred += 5;
+			if (gdxsv_net_report_on) gdxsv_net_report_timesync();
 		}
 		timeSyncFrames = info->u.timesync.frames_ahead;
 		gdxsv_ggpo_state.totalTimeSync += info->u.timesync.frames_ahead;
@@ -349,6 +350,7 @@ static bool advance_frame(int)
 	_endOfFrame = false;
 
 	gdxsv_ggpo_state.totalRollbackFrames++;
+	if (gdxsv_net_report_on) gdxsv_net_report_rerun_end(frame);
 	GDXSV_PERF_TRACE("rerun_e", frame, 0);
 	return true;
 }
@@ -365,6 +367,7 @@ static bool load_game_state(unsigned char *buffer, int len)
 	INFO_LOG(NETWORK, "load_game_state");
 	ggpo::getCurrentFrame(&seekToFrame); // gdxsv: test log
 	GDXSV_PERF_TRACE("load_b", seekToFrame, 0);
+	if (gdxsv_net_report_on) gdxsv_net_report_rollback_begin(seekToFrame);
 
 	rend_start_rollback();
 	// FIXME dynarecs
@@ -913,6 +916,7 @@ static bool addLocalInput()
 	int loop_count = 0;
 	do {
 		GDXSV_PERF_TRACE("input_read", -1, loop_count);
+		if (gdxsv_net_report_on) gdxsv_net_report_input_read();
 		if (!gdxsv_ggpo_state.useRandInput) {
 			if (!config::ThreadedRendering)
 				os_UpdateInputState();
@@ -971,6 +975,7 @@ static bool addLocalInput()
 		if (error == GGPO_OK)
 		{
 			GDXSV_PERF_TRACE("add", -1, inputs.kcode);
+			if (gdxsv_net_report_on) gdxsv_net_report_input_sent();
 			if (0 < loop_count) {
 				if (loop_count * 5 <= 30) gdxsv_ggpo_state.inputBlockCount[0]++;
 				else if (loop_count * 5 <= 500) gdxsv_ggpo_state.inputBlockCount[1]++;
