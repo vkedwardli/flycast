@@ -29,6 +29,7 @@
 #include "gdxsv_update.h"
 #include "gdxsv_video_hooks.h"
 #include "hw/pvr/Renderer_if.h"
+#include "hw/pvr/render_snapshot.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
 #include "json.hpp"
@@ -256,6 +257,13 @@ void gdxsv_emu_next_frame() {
 	}
 }
 
+void gdxsv_emu_frame_queued() {
+	// With render snapshots the emulation thread no longer waits for the render thread, which the limiter paced on
+	// the UI thread. Outside a rollback battle (its limiter is in gdxsv_emu_frame_end) it is paced here, a frame at a
+	// time, after the frame is queued so that it is not shown later. Rollback re-runs render nothing.
+	if (rendsnap::enabled() && !ggpo::active() && rend_is_enabled()) gdxsv_frame_limiter_wait();
+}
+
 void gdxsv_emu_frame_end() {
 	// With threaded rendering, a rollback battle paces the emulation thread, after the local input is sent and the
 	// rollback ran; the UI thread renders and presents each queued frame at once.
@@ -278,7 +286,8 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 	if (rendered) GDXSV_PERF_TRACE("ui_rendered", -1, 0);
 	// With threaded rendering, mainui_loop presented the frame just now.
 	if (rendered && config::ThreadedRendering && RollbackBattle()) gdxsv_net_report_present();
-	if (rendered && !(config::ThreadedRendering && RollbackBattle()))
+	// With threaded rendering the emulation thread is paced (gdxsv_emu_frame_queued, gdxsv_emu_frame_end).
+	if (rendered && !config::ThreadedRendering)
 		gdxsv_frame_limiter_wait();
 }
 

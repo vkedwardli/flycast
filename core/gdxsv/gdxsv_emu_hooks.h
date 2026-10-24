@@ -46,6 +46,8 @@ void gdxsv_emu_end_frame();
 void gdxsv_emu_next_frame();
 // The emulation thread (threaded rendering): after ggpo::nextFrame.
 void gdxsv_emu_frame_end();
+// The emulation thread: a frame for the screen was queued for rendering.
+void gdxsv_emu_frame_queued();
 
 // Waits of the emulation thread, timed for P2PMatchingReport while a rollback battle runs
 // (gdxsv_net_report.cpp). gdxsv_wait_begin returns 0 when off; gdxsv_wait_end then does nothing.

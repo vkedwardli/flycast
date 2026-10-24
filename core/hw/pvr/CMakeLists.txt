@@ -12,6 +12,9 @@ target_sources(${PROJECT_NAME} PRIVATE
         pvr_sb_regs.h
         Renderer_if.cpp
         Renderer_if.h
+        # gdxsv: render snapshots
+        render_snapshot.cpp
+        render_snapshot.h
         spg.cpp
         spg.h
         ta_const_df.h

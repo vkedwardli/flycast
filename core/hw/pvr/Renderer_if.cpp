@@ -11,6 +11,10 @@
 #include "hw/sh4/sh4_sched.h"
 #include "profiler/fc_profiler.h"
 #include "network/ggpo.h"
+// gdxsv: render snapshots
+#include "hw/mem/vram_protect.h"
+#include "rend/TexCache.h"
+#include "render_snapshot.h"
 
 #include "gdxsv/gdxsv_emu_hooks.h"
 
@@ -108,6 +112,9 @@ public:
 				{
 					if (type == Stop)
 						return;
+					// gdxsv: the queued render takes the new frame (render snapshots)
+					if (type == Render && rendsnap::enabled())
+						return;
 					const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 					dequeueEvent.Wait();
 					gdxsv_wait_end(GdxsvWait::Queue, gdxsvWait);
@@ -203,6 +210,17 @@ private:
 		TA_context *taContext = DequeueRender();
 		if (taContext == nullptr)
 			return;
+		// gdxsv: render snapshots. The texture cache follows VRAM writes one way or the other: cleared when switching
+		static bool snapshots;
+		if (rendsnap::enabled() != snapshots)
+		{
+			snapshots = rendsnap::enabled();
+			rend_resetTextureCache();
+		}
+		if (snapshots)
+			rendsnap::apply(DequeuedRenderCopy());
+		else
+			texSource = TexSource::live();
 
 		// tile clipping is used to calculate framebuffer size in RTT below
 		setTileClipping(taContext->rend);
@@ -257,6 +275,7 @@ private:
 	{
 		FC_PROFILE_SCOPE;
 
+		texSource = TexSource::live();
 #ifdef LIBRETRO
 		int w, h;
 		getDCFramebufferReadSize(config, w, h);
@@ -514,10 +533,14 @@ void rend_reset()
 	fbAddrHistory[0] = 1;
 	fbAddrHistory[1] = 1;
 	swapIntervalDetector.reset();
+	rendsnap::reset();
 }
 
 void rend_start_render()
 {
+	// gdxsv: test check of the VRAM write tracker (GDXSV_VRAM_TRACK_CHECK)
+	if (vramtracker::checkEnabled() && !rendsnap::enabled())
+		vramtracker::check();
 	render_called = true;
 	pend_rend = false;
 
@@ -591,12 +614,16 @@ void rend_start_render()
 
 	if (QueueRender(ctx))
 	{
-		palette_update();
+		// gdxsv: render snapshots convert the palette on the render thread
+		if (!rendsnap::enabled())
+			palette_update();
 		pend_rend = true;
 		pvrQueue.enqueue(PvrMessageQueue::Render);
 		if (!config::DelayFrameSwapping && !ctx->rend.isRTT && !config::EmulateFramebuffer)
 			pvrQueue.enqueue(PvrMessageQueue::Present);
 	}
+	if (!ctx->rend.isRTT)
+		gdxsv_emu_frame_queued();
 }
 
 int rend_end_render(int tag, int cycles, int jitter, void *arg)
@@ -613,7 +640,8 @@ int rend_end_render(int tag, int cycles, int jitter, void *arg)
 		asic_RaiseInterrupt(holly_RENDER_DONE_isp);
 		asic_RaiseInterrupt(holly_RENDER_DONE_vd);
 	}
-	if (pend_rend && config::ThreadedRendering)
+	// gdxsv: no wait with render snapshots
+	if (pend_rend && config::ThreadedRendering && !rendsnap::enabled())
 	{
 		const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 		renderEnd.Wait();
@@ -693,7 +721,7 @@ void rend_allow_rollback()
 
 void rend_start_rollback()
 {
-	if (config::ThreadedRendering)
+	if (config::ThreadedRendering && !rendsnap::enabled())
 	{
 		const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 		vramRollback.Wait();

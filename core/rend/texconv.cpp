@@ -83,74 +83,80 @@ void palette_update()
 	if (!pal_needs_update)
 		return;
 	pal_needs_update = false;
+	palette_update(PALETTE_RAM, PAL_RAM_CTRL);
+}
+
+// gdxsv: the palette RAM of a render snapshot or the emulator's
+void palette_update(const u32 *paletteRam, u32 palRamCtrl)
+{
 	rend_updatePalette();
 
 	if (!isDirectX(config::RendererType))
 	{
-		switch (PAL_RAM_CTRL & 3)
+		switch (palRamCtrl & 3)
 		{
 		case 0:
 			for (int i = 0; i < 1024; i++) {
-				palette16_ram[i] = Unpacker1555::unpack(PALETTE_RAM[i]);
-				palette32_ram[i] = Unpacker1555_32<RGBAPacker>::unpack(PALETTE_RAM[i]);
+				palette16_ram[i] = Unpacker1555::unpack(paletteRam[i]);
+				palette32_ram[i] = Unpacker1555_32<RGBAPacker>::unpack(paletteRam[i]);
 			}
 			break;
 
 		case 1:
 			for (int i = 0; i < 1024; i++) {
-				palette16_ram[i] = UnpackerNop<u16>::unpack(PALETTE_RAM[i]);
-				palette32_ram[i] = Unpacker565_32<RGBAPacker>::unpack(PALETTE_RAM[i]);
+				palette16_ram[i] = UnpackerNop<u16>::unpack(paletteRam[i]);
+				palette32_ram[i] = Unpacker565_32<RGBAPacker>::unpack(paletteRam[i]);
 			}
 			break;
 
 		case 2:
 			for (int i = 0; i < 1024; i++) {
-				palette16_ram[i] = Unpacker4444::unpack(PALETTE_RAM[i]);
-				palette32_ram[i] = Unpacker4444_32<RGBAPacker>::unpack(PALETTE_RAM[i]);
+				palette16_ram[i] = Unpacker4444::unpack(paletteRam[i]);
+				palette32_ram[i] = Unpacker4444_32<RGBAPacker>::unpack(paletteRam[i]);
 			}
 			break;
 
 		case 3:
 			for (int i = 0; i < 1024; i++)
-				palette32_ram[i] = Unpacker8888<RGBAPacker>::unpack(PALETTE_RAM[i]);
+				palette32_ram[i] = Unpacker8888<RGBAPacker>::unpack(paletteRam[i]);
 			break;
 		}
 	}
 	else
 	{
-		switch (PAL_RAM_CTRL & 3)
+		switch (palRamCtrl & 3)
 		{
 		case 0:
 			for (int i = 0; i < 1024; i++) {
-				palette16_ram[i] = UnpackerNop<u16>::unpack(PALETTE_RAM[i]);
-				palette32_ram[i] = Unpacker1555_32<BGRAPacker>::unpack(PALETTE_RAM[i]);
+				palette16_ram[i] = UnpackerNop<u16>::unpack(paletteRam[i]);
+				palette32_ram[i] = Unpacker1555_32<BGRAPacker>::unpack(paletteRam[i]);
 			}
 			break;
 
 		case 1:
 			for (int i = 0; i < 1024; i++) {
-				palette16_ram[i] = UnpackerNop<u16>::unpack(PALETTE_RAM[i]);
-				palette32_ram[i] = Unpacker565_32<BGRAPacker>::unpack(PALETTE_RAM[i]);
+				palette16_ram[i] = UnpackerNop<u16>::unpack(paletteRam[i]);
+				palette32_ram[i] = Unpacker565_32<BGRAPacker>::unpack(paletteRam[i]);
 			}
 			break;
 
 		case 2:
 			for (int i = 0; i < 1024; i++) {
-				palette16_ram[i] = UnpackerNop<u16>::unpack(PALETTE_RAM[i]);
-				palette32_ram[i] = Unpacker4444_32<BGRAPacker>::unpack(PALETTE_RAM[i]);
+				palette16_ram[i] = UnpackerNop<u16>::unpack(paletteRam[i]);
+				palette32_ram[i] = Unpacker4444_32<BGRAPacker>::unpack(paletteRam[i]);
 			}
 			break;
 
 		case 3:
 			for (int i = 0; i < 1024; i++)
-				palette32_ram[i] = UnpackerNop<u32>::unpack(PALETTE_RAM[i]);
+				palette32_ram[i] = UnpackerNop<u32>::unpack(paletteRam[i]);
 			break;
 		}
 	}
 	for (std::size_t i = 0; i < std::size(pal_hash_16); i++)
-		pal_hash_16[i] = XXH32(&PALETTE_RAM[i << 4], 16 * 4, 7);
+		pal_hash_16[i] = XXH32(&paletteRam[i << 4], 16 * 4, 7);
 	for (std::size_t i = 0; i < std::size(pal_hash_256); i++)
-		pal_hash_256[i] = XXH32(&PALETTE_RAM[i << 8], 256 * 4, 7);
+		pal_hash_256[i] = XXH32(&paletteRam[i << 8], 256 * 4, 7);
 }
 
 template<typename Packer>

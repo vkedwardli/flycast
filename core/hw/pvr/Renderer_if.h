@@ -25,6 +25,7 @@ void rend_serialize(Serializer& ser);
 void rend_deserialize(Deserializer& deser);
 static void rend_updatePalette();
 static void rend_updateFogTable();
+static void rend_resetTextureCache();
 
 struct FramebufferInfo
 {
@@ -98,6 +99,7 @@ private:
 	}
 	friend void rend_updatePalette();
 	friend void rend_updateFogTable();
+	friend void rend_resetTextureCache();
 };
 
 extern Renderer* renderer;
@@ -114,6 +116,11 @@ static inline void rend_updatePalette() {
 static inline void rend_updateFogTable() {
 	if (renderer != nullptr)
 		renderer->updateFogTable = true;
+}
+// gdxsv: render snapshots clear the texture cache when switching
+static inline void rend_resetTextureCache() {
+	if (renderer != nullptr)
+		renderer->resetTextureCache = true;
 }
 
 class RendererException : public FlycastException

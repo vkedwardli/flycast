@@ -18,6 +18,8 @@
 #include "xbrz/xbrz.h"
 #include "hw/pvr/pvr_mem.h"
 #include "hw/mem/addrspace.h"
+#include "hw/mem/vram_protect.h"
+#include "hw/pvr/render_snapshot.h" // gdxsv: render snapshots
 
 #include <mutex>
 #include <xxhash.h>
@@ -67,8 +69,10 @@ static void vramlock_list_add(vram_block* block)
 	{
 		std::vector<vram_block*>& list = VramLocks[i];
 		// If the list is empty then we need to protect vram, otherwise it's already been done
-		if (list.empty() || std::all_of(list.begin(), list.end(), [](vram_block *block) { return block == nullptr; }))
-			addrspace::protectVram(i * PAGE_SIZE, PAGE_SIZE);
+		// gdxsv: with render snapshots, the textures of the written pages are invalidated from the snapshot instead
+		if (!rendsnap::enabled()
+				&& (list.empty() || std::all_of(list.begin(), list.end(), [](vram_block *block) { return block == nullptr; })))
+			vramprotect::protect(i * PAGE_SIZE, PAGE_SIZE, vramprotect::TexCache);
 		auto it = std::find(list.begin(), list.end(), nullptr);
 		if (it != list.end())
 			*it = block;
@@ -79,36 +83,62 @@ static void vramlock_list_add(vram_block* block)
  
 static std::mutex vramlist_lock;
 
-bool VramLockedWriteOffset(size_t offset)
-{
-	if (offset >= VRAM_SIZE || VramLocks == nullptr)
-		return false;
+// gdxsv: what the textures are read from (render snapshots)
+TexSource texSource;
 
+TexSource TexSource::live()
+{
+	return { &::vram[0], TEXT_CONTROL, PAL_RAM_CTRL, (const u32 *)FOG_TABLE };
+}
+
+static void invalidatePage(size_t offset)
+{
 	size_t addr_hash = offset / PAGE_SIZE;
 	std::vector<vram_block *>& list = VramLocks[addr_hash];
 
+	for (auto& lock : list)
 	{
-		std::lock_guard<std::mutex> lockguard(vramlist_lock);
-
-		for (auto& lock : list)
+		if (lock != nullptr)
 		{
+			lock->texture->invalidate();
+
 			if (lock != nullptr)
 			{
-				lock->texture->invalidate();
-
-				if (lock != nullptr)
-				{
-					ERROR_LOG(PVR, "Error : pvr is supposed to remove lock");
-					die("Invalid state");
-				}
+				ERROR_LOG(PVR, "Error : pvr is supposed to remove lock");
+				die("Invalid state");
 			}
 		}
-		list.clear();
+	}
+	list.clear();
+}
 
-		addrspace::unprotectVram((u32)(offset & ~PAGE_MASK), PAGE_SIZE);
+bool VramLockedWriteOffset(size_t offset)
+{
+	if (offset >= VRAM_SIZE)
+		return false;
+	if (VramLocks == nullptr)
+	{
+		// gdxsv: no texture yet: another VRAM user protected the page
+		vramprotect::writeFault((u32)offset);
+		return true;
+	}
+
+	{
+		std::lock_guard<std::mutex> lockguard(vramlist_lock);
+		invalidatePage(offset);
+		vramprotect::writeFault((u32)offset);
 	}
 
 	return true;
+}
+
+// gdxsv: render snapshots
+void VramInvalidatePage(u32 offset)
+{
+	if (offset >= VRAM_SIZE || VramLocks == nullptr)
+		return;
+	std::lock_guard<std::mutex> lockguard(vramlist_lock);
+	invalidatePage(offset);
 }
 
 bool VramLockedWrite(u8* address)
@@ -116,6 +146,13 @@ bool VramLockedWrite(u8* address)
 	u32 offset = addrspace::getVramOffset(address);
 	if (offset == (u32)-1)
 		return false;
+	vramtracker::written(offset);
+	if (rendsnap::enabled())
+	{
+		// gdxsv: the render thread owns the textures: it invalidates them from the snapshot of the next frame
+		vramprotect::writeFault(offset);
+		return true;
+	}
 	return VramLockedWriteOffset(offset);
 }
 
@@ -338,7 +375,7 @@ BaseTextureCacheData::BaseTextureCacheData(TSP tsp, TCW tcw, int area)
 		int stride = width;
 		if (tcw.StrideSel)
 		{
-			stride = (TEXT_CONTROL & 31) * 32;
+			stride = (texSource.textControl & 31) * 32;
 			if (stride == 0)
 				stride = width;
 		}
@@ -406,7 +443,7 @@ void BaseTextureCacheData::ComputeHash()
 		// We use the old size to compute the hash for backward-compatibility
 		// with existing custom texture packs.
 		int oldSize = width * height / 8;
-		old_vqtexture_hash = XXH32(&vram[mmStartAddress - VQ_CODEBOOK_SIZE], oldSize, 7);
+		old_vqtexture_hash = XXH32(&texSource.vram[mmStartAddress - VQ_CODEBOOK_SIZE], oldSize, 7);
 		if (IsPaletted())
 			old_vqtexture_hash ^= palette_hash;
 		old_texture_hash = old_vqtexture_hash;
@@ -415,9 +452,9 @@ void BaseTextureCacheData::ComputeHash()
 	    XXH32_state_t *state = XXH32_createState();
 	    XXH32_reset(state, 7);
 	    // hash vq codebook
-	    XXH32_update(state, &vram[startAddress], VQ_CODEBOOK_SIZE);
+	    XXH32_update(state, &texSource.vram[startAddress], VQ_CODEBOOK_SIZE);
 	    // hash texture
-	    XXH32_update(state, &vram[mmStartAddress], size);
+	    XXH32_update(state, &texSource.vram[mmStartAddress], size);
 	    texture_hash = XXH32_digest(state);
 	    XXH32_freeState(state);
 		if (IsPaletted())
@@ -427,7 +464,7 @@ void BaseTextureCacheData::ComputeHash()
 	else
 	{
 		old_vqtexture_hash = 0;
-		texture_hash = XXH32(&vram[mmStartAddress], size, 7);
+		texture_hash = XXH32(&texSource.vram[mmStartAddress], size, 7);
 		if (IsPaletted())
 			texture_hash ^= palette_hash;
 		old_texture_hash = texture_hash;
@@ -453,7 +490,7 @@ bool BaseTextureCacheData::Update()
 		}
 		else
 		{
-			tex_type = PAL_TYPE[PAL_RAM_CTRL&3];
+			tex_type = PAL_TYPE[texSource.palRamCtrl & 3];
 			if (tex_type != TextureType::_565)
 				has_alpha = true;
 		}
@@ -473,14 +510,14 @@ bool BaseTextureCacheData::Update()
 	}
 
 	if (tcw.VQ_Comp)
-		::vq_codebook = &vram[startAddress];
+		::vq_codebook = &texSource.vram[startAddress];
 
 	//texture conversion work
 	u32 stride = width;
 
 	if (tcw.StrideSel && tcw.ScanOrder && tex->PL32 != nullptr)
 	{
-		stride = (TEXT_CONTROL & 31) * 32;
+		stride = (texSource.textControl & 31) * 32;
 		if (stride == 0)
 			stride = width;
 	}
@@ -575,7 +612,7 @@ bool BaseTextureCacheData::Update()
 						if (tcw.PixelFmt == PixelYUV)
 							// Use higher LoD mipmap
 							vram_addr = startAddress + VQMipPoint[1];
-						texconv32(&pb0, &vram[vram_addr], 2, 2);
+						texconv32(&pb0, &texSource.vram[vram_addr], 2, 2);
 						*pb32.data() = *pb0.data(1, 1);
 						continue;
 					}
@@ -584,16 +621,16 @@ bool BaseTextureCacheData::Update()
 					vram_addr = startAddress + OtherMipPoint[i] * tex->bpp / 8;
 				if (tcw.PixelFmt == PixelYUV && i == 0)
 					// Special case for YUV at 1x1 LoD
-					pvrTexInfo[Pixel565].TW32(&pb32, &vram[vram_addr], 1, 1);
+					pvrTexInfo[Pixel565].TW32(&pb32, &texSource.vram[vram_addr], 1, 1);
 				else
-					texconv32(&pb32, &vram[vram_addr], 1 << i, 1 << i);
+					texconv32(&pb32, &texSource.vram[vram_addr], 1 << i, 1 << i);
 			}
 			pb32.set_mipmap(0);
 		}
 		else
 		{
 			pb32.init(width, height);
-			texconv32(&pb32, (u8*)&vram[mmStartAddress], stride, heightLimit);
+			texconv32(&pb32, &texSource.vram[mmStartAddress], stride, heightLimit);
 
 			// xBRZ scaling
 			if (textureUpscaling)
@@ -622,14 +659,14 @@ bool BaseTextureCacheData::Update()
 			{
 				pb8.set_mipmap(i);
 				u32 vram_addr = startAddress + OtherMipPoint[i] * tex->bpp / 8;
-				texconv8(&pb8, &vram[vram_addr], 1 << i, 1 << i);
+				texconv8(&pb8, &texSource.vram[vram_addr], 1 << i, 1 << i);
 			}
 			pb8.set_mipmap(0);
 		}
 		else
 		{
 			pb8.init(width, height);
-			texconv8(&pb8, &vram[mmStartAddress], stride, height);
+			texconv8(&pb8, &texSource.vram[mmStartAddress], stride, height);
 		}
 		temp_tex_buffer = pb8.data();
 	}
@@ -649,21 +686,21 @@ bool BaseTextureCacheData::Update()
 					{
 						PixelBuffer<u16> pb0;
 						pb0.init(2, 2 ,false);
-						texconv(&pb0, (u8*)&vram[vram_addr], 2, 2);
+						texconv(&pb0, &texSource.vram[vram_addr], 2, 2);
 						*pb16.data() = *pb0.data(1, 1);
 						continue;
 					}
 				}
 				else
 					vram_addr = startAddress + OtherMipPoint[i] * tex->bpp / 8;
-				texconv(&pb16, (u8*)&vram[vram_addr], 1 << i, 1 << i);
+				texconv(&pb16, &texSource.vram[vram_addr], 1 << i, 1 << i);
 			}
 			pb16.set_mipmap(0);
 		}
 		else
 		{
 			pb16.init(width, height);
-			texconv(&pb16, (u8*)&vram[mmStartAddress], stride, heightLimit);
+			texconv(&pb16, &texSource.vram[mmStartAddress], stride, heightLimit);
 		}
 		temp_tex_buffer = pb16.data();
 	}
@@ -771,7 +808,7 @@ void ReadFramebuffer(const FramebufferInfo& info, PixelBuffer<u32>& pb, int& wid
 			{
 				for (int i = 0; i < width; i++)
 				{
-					u16 src = pvr_read32p<u16>(addr);
+					u16 src = pvr_read32p<u16>(texSource.vram, addr);
 					*dst++ = Packer::pack(
 							(((src >> 10) & 0x1F) << 3) | fb_concat,
 							(((src >> 5) & 0x1F) << 3) | fb_concat,
@@ -788,7 +825,7 @@ void ReadFramebuffer(const FramebufferInfo& info, PixelBuffer<u32>& pb, int& wid
 			{
 				for (int i = 0; i < width; i++)
 				{
-					u16 src = pvr_read32p<u16>(addr);
+					u16 src = pvr_read32p<u16>(texSource.vram, addr);
 					*dst++ = Packer::pack(
 							(((src >> 11) & 0x1F) << 3) | fb_concat,
 							(((src >> 5) & 0x3F) << 2) | (fb_concat & 3),
@@ -804,17 +841,17 @@ void ReadFramebuffer(const FramebufferInfo& info, PixelBuffer<u32>& pb, int& wid
 			{
 				for (int i = 0; i < width; i += 4)
 				{
-					u32 src = pvr_read32p<u32>(addr);
+					u32 src = pvr_read32p<u32>(texSource.vram, addr);
 					*dst++ = Packer::pack(src >> 16, src >> 8, src, 0xff);
 					addr += 4;
 					if (i + 1 >= width)
 						break;
-					u32 src2 = pvr_read32p<u32>(addr);
+					u32 src2 = pvr_read32p<u32>(texSource.vram, addr);
 					*dst++ = Packer::pack(src2 >> 8, src2, src >> 24, 0xff);
 					addr += 4;
 					if (i + 2 >= width)
 						break;
-					u32 src3 = pvr_read32p<u32>(addr);
+					u32 src3 = pvr_read32p<u32>(texSource.vram, addr);
 					*dst++ = Packer::pack(src3, src2 >> 24, src2 >> 16, 0xff);
 					addr += 4;
 					if (i + 3 >= width)
@@ -829,7 +866,7 @@ void ReadFramebuffer(const FramebufferInfo& info, PixelBuffer<u32>& pb, int& wid
 			{
 				for (int i = 0; i < width; i++)
 				{
-					u32 src = pvr_read32p<u32>(addr);
+					u32 src = pvr_read32p<u32>(texSource.vram, addr);
 					*dst++ = Packer::pack(src >> 16, src >> 8, src, 0xff);
 					addr += bpp;
 				}
