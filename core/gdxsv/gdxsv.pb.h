@@ -48,7 +48,7 @@ struct TableStruct_gdxsv_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[26]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[27]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -71,6 +71,9 @@ extern BattleMessageDefaultTypeInternal _BattleMessage_default_instance_;
 class FinMessage;
 class FinMessageDefaultTypeInternal;
 extern FinMessageDefaultTypeInternal _FinMessage_default_instance_;
+class FrameTiming;
+class FrameTimingDefaultTypeInternal;
+extern FrameTimingDefaultTypeInternal _FrameTiming_default_instance_;
 class GamePatch;
 class GamePatchDefaultTypeInternal;
 extern GamePatchDefaultTypeInternal _GamePatch_default_instance_;
@@ -141,6 +144,7 @@ template<> ::proto::BattleLogRound* Arena::CreateMaybeMessage<::proto::BattleLog
 template<> ::proto::BattleLogUser* Arena::CreateMaybeMessage<::proto::BattleLogUser>(Arena*);
 template<> ::proto::BattleMessage* Arena::CreateMaybeMessage<::proto::BattleMessage>(Arena*);
 template<> ::proto::FinMessage* Arena::CreateMaybeMessage<::proto::FinMessage>(Arena*);
+template<> ::proto::FrameTiming* Arena::CreateMaybeMessage<::proto::FrameTiming>(Arena*);
 template<> ::proto::GamePatch* Arena::CreateMaybeMessage<::proto::GamePatch>(Arena*);
 template<> ::proto::GamePatchCode* Arena::CreateMaybeMessage<::proto::GamePatchCode>(Arena*);
 template<> ::proto::GamePatchList* Arena::CreateMaybeMessage<::proto::GamePatchList>(Arena*);
@@ -321,7 +325,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kRollbackDepthHistFieldNumber = 25,
     kRemotePeersFieldNumber = 31,
     kTimesyncFramesFieldNumber = 33,
-    kBudgetExhaustedDepthHistFieldNumber = 39,
     kBattleCodeFieldNumber = 1,
     kCloseReasonFieldNumber = 5,
     kAfterLogFieldNumber = 11,
@@ -331,8 +334,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kInputReadIntervalFieldNumber = 34,
     kInputSendIntervalFieldNumber = 35,
     kPresentIntervalFieldNumber = 36,
-    kRollbackBudgetFieldNumber = 37,
     kRollbackFrameTimeFieldNumber = 40,
+    kFrameTimingFieldNumber = 41,
     kSessionIdFieldNumber = 2,
     kPlayerCountFieldNumber = 3,
     kPeerIdFieldNumber = 4,
@@ -350,7 +353,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kLateFrames2FieldNumber = 29,
     kDroppedFramesFieldNumber = 30,
     kRelayForwardedFieldNumber = 32,
-    kBudgetExhaustedFramesFieldNumber = 38,
   };
   // repeated float fps_history = 15;
   int fps_history_size() const;
@@ -453,28 +455,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
       timesync_frames() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
       mutable_timesync_frames();
-
-  // repeated int32 budget_exhausted_depth_hist = 39;
-  int budget_exhausted_depth_hist_size() const;
-  private:
-  int _internal_budget_exhausted_depth_hist_size() const;
-  public:
-  void clear_budget_exhausted_depth_hist();
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_budget_exhausted_depth_hist(int index) const;
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      _internal_budget_exhausted_depth_hist() const;
-  void _internal_add_budget_exhausted_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      _internal_mutable_budget_exhausted_depth_hist();
-  public:
-  ::PROTOBUF_NAMESPACE_ID::int32 budget_exhausted_depth_hist(int index) const;
-  void set_budget_exhausted_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
-  void add_budget_exhausted_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      budget_exhausted_depth_hist() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      mutable_budget_exhausted_depth_hist();
 
   // string battle_code = 1;
   void clear_battle_code();
@@ -630,24 +610,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
       ::proto::TimingStats* present_interval);
   ::proto::TimingStats* unsafe_arena_release_present_interval();
 
-  // .proto.TimingStats rollback_budget = 37;
-  bool has_rollback_budget() const;
-  private:
-  bool _internal_has_rollback_budget() const;
-  public:
-  void clear_rollback_budget();
-  const ::proto::TimingStats& rollback_budget() const;
-  ::proto::TimingStats* release_rollback_budget();
-  ::proto::TimingStats* mutable_rollback_budget();
-  void set_allocated_rollback_budget(::proto::TimingStats* rollback_budget);
-  private:
-  const ::proto::TimingStats& _internal_rollback_budget() const;
-  ::proto::TimingStats* _internal_mutable_rollback_budget();
-  public:
-  void unsafe_arena_set_allocated_rollback_budget(
-      ::proto::TimingStats* rollback_budget);
-  ::proto::TimingStats* unsafe_arena_release_rollback_budget();
-
   // .proto.TimingStats rollback_frame_time = 40;
   bool has_rollback_frame_time() const;
   private:
@@ -665,6 +627,24 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void unsafe_arena_set_allocated_rollback_frame_time(
       ::proto::TimingStats* rollback_frame_time);
   ::proto::TimingStats* unsafe_arena_release_rollback_frame_time();
+
+  // .proto.FrameTiming frame_timing = 41;
+  bool has_frame_timing() const;
+  private:
+  bool _internal_has_frame_timing() const;
+  public:
+  void clear_frame_timing();
+  const ::proto::FrameTiming& frame_timing() const;
+  ::proto::FrameTiming* release_frame_timing();
+  ::proto::FrameTiming* mutable_frame_timing();
+  void set_allocated_frame_timing(::proto::FrameTiming* frame_timing);
+  private:
+  const ::proto::FrameTiming& _internal_frame_timing() const;
+  ::proto::FrameTiming* _internal_mutable_frame_timing();
+  public:
+  void unsafe_arena_set_allocated_frame_timing(
+      ::proto::FrameTiming* frame_timing);
+  ::proto::FrameTiming* unsafe_arena_release_frame_timing();
 
   // int32 session_id = 2;
   void clear_session_id();
@@ -819,15 +799,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void _internal_set_relay_forwarded(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 budget_exhausted_frames = 38;
-  void clear_budget_exhausted_frames();
-  ::PROTOBUF_NAMESPACE_ID::int32 budget_exhausted_frames() const;
-  void set_budget_exhausted_frames(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_budget_exhausted_frames() const;
-  void _internal_set_budget_exhausted_frames(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
   // @@protoc_insertion_point(class_scope:proto.P2PMatchingReport)
  private:
   class _Internal;
@@ -843,8 +814,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::proto::RemotePeerReport > remote_peers_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > timesync_frames_;
   mutable std::atomic<int> _timesync_frames_cached_byte_size_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > budget_exhausted_depth_hist_;
-  mutable std::atomic<int> _budget_exhausted_depth_hist_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr after_log_;
@@ -854,8 +823,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::proto::TimingStats* input_read_interval_;
   ::proto::TimingStats* input_send_interval_;
   ::proto::TimingStats* present_interval_;
-  ::proto::TimingStats* rollback_budget_;
   ::proto::TimingStats* rollback_frame_time_;
+  ::proto::FrameTiming* frame_timing_;
   ::PROTOBUF_NAMESPACE_ID::int32 session_id_;
   ::PROTOBUF_NAMESPACE_ID::int32 player_count_;
   ::PROTOBUF_NAMESPACE_ID::int32 peer_id_;
@@ -873,7 +842,299 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_2_;
   ::PROTOBUF_NAMESPACE_ID::int32 dropped_frames_;
   ::PROTOBUF_NAMESPACE_ID::int32 relay_forwarded_;
-  ::PROTOBUF_NAMESPACE_ID::int32 budget_exhausted_frames_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_gdxsv_2eproto;
+};
+// -------------------------------------------------------------------
+
+class FrameTiming PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:proto.FrameTiming) */ {
+ public:
+  inline FrameTiming() : FrameTiming(nullptr) {}
+  virtual ~FrameTiming();
+
+  FrameTiming(const FrameTiming& from);
+  FrameTiming(FrameTiming&& from) noexcept
+    : FrameTiming() {
+    *this = ::std::move(from);
+  }
+
+  inline FrameTiming& operator=(const FrameTiming& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline FrameTiming& operator=(FrameTiming&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const FrameTiming& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const FrameTiming* internal_default_instance() {
+    return reinterpret_cast<const FrameTiming*>(
+               &_FrameTiming_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    1;
+
+  friend void swap(FrameTiming& a, FrameTiming& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(FrameTiming* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(FrameTiming* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline FrameTiming* New() const final {
+    return CreateMaybeMessage<FrameTiming>(nullptr);
+  }
+
+  FrameTiming* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<FrameTiming>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const FrameTiming& from);
+  void MergeFrom(const FrameTiming& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(FrameTiming* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "proto.FrameTiming";
+  }
+  protected:
+  explicit FrameTiming(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_gdxsv_2eproto);
+    return ::descriptor_table_gdxsv_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOverPeriodDepthHistFieldNumber = 5,
+    kWorkFieldNumber = 2,
+    kRollbackRoomFieldNumber = 3,
+    kPresentWaitFieldNumber = 6,
+    kRenderWaitFieldNumber = 7,
+    kRollbackWaitFieldNumber = 8,
+    kQueueWaitFieldNumber = 9,
+    kPeriodUsFieldNumber = 1,
+    kOverPeriodFieldNumber = 4,
+  };
+  // repeated int32 over_period_depth_hist = 5;
+  int over_period_depth_hist_size() const;
+  private:
+  int _internal_over_period_depth_hist_size() const;
+  public:
+  void clear_over_period_depth_hist();
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_over_period_depth_hist(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      _internal_over_period_depth_hist() const;
+  void _internal_add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      _internal_mutable_over_period_depth_hist();
+  public:
+  ::PROTOBUF_NAMESPACE_ID::int32 over_period_depth_hist(int index) const;
+  void set_over_period_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+      over_period_depth_hist() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+      mutable_over_period_depth_hist();
+
+  // .proto.TimingStats work = 2;
+  bool has_work() const;
+  private:
+  bool _internal_has_work() const;
+  public:
+  void clear_work();
+  const ::proto::TimingStats& work() const;
+  ::proto::TimingStats* release_work();
+  ::proto::TimingStats* mutable_work();
+  void set_allocated_work(::proto::TimingStats* work);
+  private:
+  const ::proto::TimingStats& _internal_work() const;
+  ::proto::TimingStats* _internal_mutable_work();
+  public:
+  void unsafe_arena_set_allocated_work(
+      ::proto::TimingStats* work);
+  ::proto::TimingStats* unsafe_arena_release_work();
+
+  // .proto.TimingStats rollback_room = 3;
+  bool has_rollback_room() const;
+  private:
+  bool _internal_has_rollback_room() const;
+  public:
+  void clear_rollback_room();
+  const ::proto::TimingStats& rollback_room() const;
+  ::proto::TimingStats* release_rollback_room();
+  ::proto::TimingStats* mutable_rollback_room();
+  void set_allocated_rollback_room(::proto::TimingStats* rollback_room);
+  private:
+  const ::proto::TimingStats& _internal_rollback_room() const;
+  ::proto::TimingStats* _internal_mutable_rollback_room();
+  public:
+  void unsafe_arena_set_allocated_rollback_room(
+      ::proto::TimingStats* rollback_room);
+  ::proto::TimingStats* unsafe_arena_release_rollback_room();
+
+  // .proto.TimingStats present_wait = 6;
+  bool has_present_wait() const;
+  private:
+  bool _internal_has_present_wait() const;
+  public:
+  void clear_present_wait();
+  const ::proto::TimingStats& present_wait() const;
+  ::proto::TimingStats* release_present_wait();
+  ::proto::TimingStats* mutable_present_wait();
+  void set_allocated_present_wait(::proto::TimingStats* present_wait);
+  private:
+  const ::proto::TimingStats& _internal_present_wait() const;
+  ::proto::TimingStats* _internal_mutable_present_wait();
+  public:
+  void unsafe_arena_set_allocated_present_wait(
+      ::proto::TimingStats* present_wait);
+  ::proto::TimingStats* unsafe_arena_release_present_wait();
+
+  // .proto.TimingStats render_wait = 7;
+  bool has_render_wait() const;
+  private:
+  bool _internal_has_render_wait() const;
+  public:
+  void clear_render_wait();
+  const ::proto::TimingStats& render_wait() const;
+  ::proto::TimingStats* release_render_wait();
+  ::proto::TimingStats* mutable_render_wait();
+  void set_allocated_render_wait(::proto::TimingStats* render_wait);
+  private:
+  const ::proto::TimingStats& _internal_render_wait() const;
+  ::proto::TimingStats* _internal_mutable_render_wait();
+  public:
+  void unsafe_arena_set_allocated_render_wait(
+      ::proto::TimingStats* render_wait);
+  ::proto::TimingStats* unsafe_arena_release_render_wait();
+
+  // .proto.TimingStats rollback_wait = 8;
+  bool has_rollback_wait() const;
+  private:
+  bool _internal_has_rollback_wait() const;
+  public:
+  void clear_rollback_wait();
+  const ::proto::TimingStats& rollback_wait() const;
+  ::proto::TimingStats* release_rollback_wait();
+  ::proto::TimingStats* mutable_rollback_wait();
+  void set_allocated_rollback_wait(::proto::TimingStats* rollback_wait);
+  private:
+  const ::proto::TimingStats& _internal_rollback_wait() const;
+  ::proto::TimingStats* _internal_mutable_rollback_wait();
+  public:
+  void unsafe_arena_set_allocated_rollback_wait(
+      ::proto::TimingStats* rollback_wait);
+  ::proto::TimingStats* unsafe_arena_release_rollback_wait();
+
+  // .proto.TimingStats queue_wait = 9;
+  bool has_queue_wait() const;
+  private:
+  bool _internal_has_queue_wait() const;
+  public:
+  void clear_queue_wait();
+  const ::proto::TimingStats& queue_wait() const;
+  ::proto::TimingStats* release_queue_wait();
+  ::proto::TimingStats* mutable_queue_wait();
+  void set_allocated_queue_wait(::proto::TimingStats* queue_wait);
+  private:
+  const ::proto::TimingStats& _internal_queue_wait() const;
+  ::proto::TimingStats* _internal_mutable_queue_wait();
+  public:
+  void unsafe_arena_set_allocated_queue_wait(
+      ::proto::TimingStats* queue_wait);
+  ::proto::TimingStats* unsafe_arena_release_queue_wait();
+
+  // int32 period_us = 1;
+  void clear_period_us();
+  ::PROTOBUF_NAMESPACE_ID::int32 period_us() const;
+  void set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_period_us() const;
+  void _internal_set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 over_period = 4;
+  void clear_over_period();
+  ::PROTOBUF_NAMESPACE_ID::int32 over_period() const;
+  void set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_over_period() const;
+  void _internal_set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:proto.FrameTiming)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > over_period_depth_hist_;
+  mutable std::atomic<int> _over_period_depth_hist_cached_byte_size_;
+  ::proto::TimingStats* work_;
+  ::proto::TimingStats* rollback_room_;
+  ::proto::TimingStats* present_wait_;
+  ::proto::TimingStats* render_wait_;
+  ::proto::TimingStats* rollback_wait_;
+  ::proto::TimingStats* queue_wait_;
+  ::PROTOBUF_NAMESPACE_ID::int32 period_us_;
+  ::PROTOBUF_NAMESPACE_ID::int32 over_period_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -921,7 +1182,7 @@ class TimingStats PROTOBUF_FINAL :
                &_TimingStats_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    1;
+    2;
 
   friend void swap(TimingStats& a, TimingStats& b) {
     a.Swap(&b);
@@ -1146,7 +1407,7 @@ class RemotePeerReport PROTOBUF_FINAL :
                &_RemotePeerReport_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    2;
+    3;
 
   friend void swap(RemotePeerReport& a, RemotePeerReport& b) {
     a.Swap(&b);
@@ -1356,7 +1617,7 @@ class RenderSettings PROTOBUF_FINAL :
                &_RenderSettings_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    3;
+    4;
 
   friend void swap(RenderSettings& a, RenderSettings& b) {
     a.Swap(&b);
@@ -1515,7 +1776,7 @@ class P2PMatching PROTOBUF_FINAL :
                &_P2PMatching_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    4;
+    5;
 
   friend void swap(P2PMatching& a, P2PMatching& b) {
     a.Swap(&b);
@@ -1803,7 +2064,7 @@ class PlayerAddress PROTOBUF_FINAL :
                &_PlayerAddress_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    5;
+    6;
 
   friend void swap(PlayerAddress& a, PlayerAddress& b) {
     a.Swap(&b);
@@ -1998,7 +2259,7 @@ class RelayServer PROTOBUF_FINAL :
                &_RelayServer_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    6;
+    7;
 
   friend void swap(RelayServer& a, RelayServer& b) {
     a.Swap(&b);
@@ -2200,7 +2461,7 @@ class GamePatch PROTOBUF_FINAL :
                &_GamePatch_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    7;
+    8;
 
   friend void swap(GamePatch& a, GamePatch& b) {
     a.Swap(&b);
@@ -2393,7 +2654,7 @@ class GamePatchCode PROTOBUF_FINAL :
                &_GamePatchCode_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    8;
+    9;
 
   friend void swap(GamePatchCode& a, GamePatchCode& b) {
     a.Swap(&b);
@@ -2563,7 +2824,7 @@ class GamePatchList PROTOBUF_FINAL :
                &_GamePatchList_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    9;
+    10;
 
   friend void swap(GamePatchList& a, GamePatchList& b) {
     a.Swap(&b);
@@ -2709,7 +2970,7 @@ class BattleLogUser PROTOBUF_FINAL :
                &_BattleLogUser_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    10;
+    11;
 
   friend void swap(BattleLogUser& a, BattleLogUser& b) {
     a.Swap(&b);
@@ -3009,7 +3270,7 @@ class BattleLogRound PROTOBUF_FINAL :
                &_BattleLogRound_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    12;
 
   friend void swap(BattleLogRound& a, BattleLogRound& b) {
     a.Swap(&b);
@@ -3171,7 +3432,7 @@ class SpectatorInputPush PROTOBUF_FINAL :
                &_SpectatorInputPush_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    12;
+    13;
 
   friend void swap(SpectatorInputPush& a, SpectatorInputPush& b) {
     a.Swap(&b);
@@ -3534,7 +3795,7 @@ class SpectatorInputAck PROTOBUF_FINAL :
                &_SpectatorInputAck_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    14;
 
   friend void swap(SpectatorInputAck& a, SpectatorInputAck& b) {
     a.Swap(&b);
@@ -3761,7 +4022,7 @@ class SpectatorSubscribeRequest PROTOBUF_FINAL :
                &_SpectatorSubscribeRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    15;
 
   friend void swap(SpectatorSubscribeRequest& a, SpectatorSubscribeRequest& b) {
     a.Swap(&b);
@@ -3934,7 +4195,7 @@ class SpectatorSubscribeChallenge PROTOBUF_FINAL :
                &_SpectatorSubscribeChallenge_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    16;
 
   friend void swap(SpectatorSubscribeChallenge& a, SpectatorSubscribeChallenge& b) {
     a.Swap(&b);
@@ -4096,7 +4357,7 @@ class SpectatorRoundEvent PROTOBUF_FINAL :
                &_SpectatorRoundEvent_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    17;
 
   friend void swap(SpectatorRoundEvent& a, SpectatorRoundEvent& b) {
     a.Swap(&b);
@@ -4273,7 +4534,7 @@ class SpectatorRoundResult PROTOBUF_FINAL :
                &_SpectatorRoundResult_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    17;
+    18;
 
   friend void swap(SpectatorRoundResult& a, SpectatorRoundResult& b) {
     a.Swap(&b);
@@ -4459,7 +4720,7 @@ class BattleLogFile PROTOBUF_FINAL :
                &_BattleLogFile_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    18;
+    19;
 
   friend void swap(BattleLogFile& a, BattleLogFile& b) {
     a.Swap(&b);
@@ -4874,7 +5135,7 @@ class BattleMessage PROTOBUF_FINAL :
                &_BattleMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    20;
 
   friend void swap(BattleMessage& a, BattleMessage& b) {
     a.Swap(&b);
@@ -5047,7 +5308,7 @@ class PingMessage PROTOBUF_FINAL :
                &_PingMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    20;
+    21;
 
   friend void swap(PingMessage& a, PingMessage& b) {
     a.Swap(&b);
@@ -5202,7 +5463,7 @@ class PongMessage PROTOBUF_FINAL :
                &_PongMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    21;
+    22;
 
   friend void swap(PongMessage& a, PongMessage& b) {
     a.Swap(&b);
@@ -5375,7 +5636,7 @@ class HelloServerMessage PROTOBUF_FINAL :
                &_HelloServerMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    22;
+    23;
 
   friend void swap(HelloServerMessage& a, HelloServerMessage& b) {
     a.Swap(&b);
@@ -5548,7 +5809,7 @@ class FinMessage PROTOBUF_FINAL :
                &_FinMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    23;
+    24;
 
   friend void swap(FinMessage& a, FinMessage& b) {
     a.Swap(&b);
@@ -5692,7 +5953,7 @@ class HelloLbsMessage PROTOBUF_FINAL :
                &_HelloLbsMessage_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    25;
 
   friend void swap(HelloLbsMessage& a, HelloLbsMessage& b) {
     a.Swap(&b);
@@ -5836,7 +6097,7 @@ class Packet PROTOBUF_FINAL :
                &_Packet_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    26;
 
   friend void swap(Packet& a, Packet& b) {
     a.Swap(&b);
@@ -7442,156 +7703,6 @@ inline void P2PMatchingReport::set_allocated_present_interval(::proto::TimingSta
   // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.present_interval)
 }
 
-// .proto.TimingStats rollback_budget = 37;
-inline bool P2PMatchingReport::_internal_has_rollback_budget() const {
-  return this != internal_default_instance() && rollback_budget_ != nullptr;
-}
-inline bool P2PMatchingReport::has_rollback_budget() const {
-  return _internal_has_rollback_budget();
-}
-inline void P2PMatchingReport::clear_rollback_budget() {
-  if (GetArena() == nullptr && rollback_budget_ != nullptr) {
-    delete rollback_budget_;
-  }
-  rollback_budget_ = nullptr;
-}
-inline const ::proto::TimingStats& P2PMatchingReport::_internal_rollback_budget() const {
-  const ::proto::TimingStats* p = rollback_budget_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
-      &::proto::_TimingStats_default_instance_);
-}
-inline const ::proto::TimingStats& P2PMatchingReport::rollback_budget() const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.rollback_budget)
-  return _internal_rollback_budget();
-}
-inline void P2PMatchingReport::unsafe_arena_set_allocated_rollback_budget(
-    ::proto::TimingStats* rollback_budget) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_budget_);
-  }
-  rollback_budget_ = rollback_budget;
-  if (rollback_budget) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.P2PMatchingReport.rollback_budget)
-}
-inline ::proto::TimingStats* P2PMatchingReport::release_rollback_budget() {
-  
-  ::proto::TimingStats* temp = rollback_budget_;
-  rollback_budget_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::proto::TimingStats* P2PMatchingReport::unsafe_arena_release_rollback_budget() {
-  // @@protoc_insertion_point(field_release:proto.P2PMatchingReport.rollback_budget)
-  
-  ::proto::TimingStats* temp = rollback_budget_;
-  rollback_budget_ = nullptr;
-  return temp;
-}
-inline ::proto::TimingStats* P2PMatchingReport::_internal_mutable_rollback_budget() {
-  
-  if (rollback_budget_ == nullptr) {
-    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
-    rollback_budget_ = p;
-  }
-  return rollback_budget_;
-}
-inline ::proto::TimingStats* P2PMatchingReport::mutable_rollback_budget() {
-  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.rollback_budget)
-  return _internal_mutable_rollback_budget();
-}
-inline void P2PMatchingReport::set_allocated_rollback_budget(::proto::TimingStats* rollback_budget) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete rollback_budget_;
-  }
-  if (rollback_budget) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_budget);
-    if (message_arena != submessage_arena) {
-      rollback_budget = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, rollback_budget, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  rollback_budget_ = rollback_budget;
-  // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.rollback_budget)
-}
-
-// int32 budget_exhausted_frames = 38;
-inline void P2PMatchingReport::clear_budget_exhausted_frames() {
-  budget_exhausted_frames_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_budget_exhausted_frames() const {
-  return budget_exhausted_frames_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::budget_exhausted_frames() const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.budget_exhausted_frames)
-  return _internal_budget_exhausted_frames();
-}
-inline void P2PMatchingReport::_internal_set_budget_exhausted_frames(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  budget_exhausted_frames_ = value;
-}
-inline void P2PMatchingReport::set_budget_exhausted_frames(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_budget_exhausted_frames(value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.budget_exhausted_frames)
-}
-
-// repeated int32 budget_exhausted_depth_hist = 39;
-inline int P2PMatchingReport::_internal_budget_exhausted_depth_hist_size() const {
-  return budget_exhausted_depth_hist_.size();
-}
-inline int P2PMatchingReport::budget_exhausted_depth_hist_size() const {
-  return _internal_budget_exhausted_depth_hist_size();
-}
-inline void P2PMatchingReport::clear_budget_exhausted_depth_hist() {
-  budget_exhausted_depth_hist_.Clear();
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_budget_exhausted_depth_hist(int index) const {
-  return budget_exhausted_depth_hist_.Get(index);
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::budget_exhausted_depth_hist(int index) const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.budget_exhausted_depth_hist)
-  return _internal_budget_exhausted_depth_hist(index);
-}
-inline void P2PMatchingReport::set_budget_exhausted_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
-  budget_exhausted_depth_hist_.Set(index, value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.budget_exhausted_depth_hist)
-}
-inline void P2PMatchingReport::_internal_add_budget_exhausted_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  budget_exhausted_depth_hist_.Add(value);
-}
-inline void P2PMatchingReport::add_budget_exhausted_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_add_budget_exhausted_depth_hist(value);
-  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.budget_exhausted_depth_hist)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-P2PMatchingReport::_internal_budget_exhausted_depth_hist() const {
-  return budget_exhausted_depth_hist_;
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-P2PMatchingReport::budget_exhausted_depth_hist() const {
-  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.budget_exhausted_depth_hist)
-  return _internal_budget_exhausted_depth_hist();
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-P2PMatchingReport::_internal_mutable_budget_exhausted_depth_hist() {
-  return &budget_exhausted_depth_hist_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-P2PMatchingReport::mutable_budget_exhausted_depth_hist() {
-  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.budget_exhausted_depth_hist)
-  return _internal_mutable_budget_exhausted_depth_hist();
-}
-
 // .proto.TimingStats rollback_frame_time = 40;
 inline bool P2PMatchingReport::_internal_has_rollback_frame_time() const {
   return this != internal_default_instance() && rollback_frame_time_ != nullptr;
@@ -7673,6 +7784,678 @@ inline void P2PMatchingReport::set_allocated_rollback_frame_time(::proto::Timing
   }
   rollback_frame_time_ = rollback_frame_time;
   // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.rollback_frame_time)
+}
+
+// .proto.FrameTiming frame_timing = 41;
+inline bool P2PMatchingReport::_internal_has_frame_timing() const {
+  return this != internal_default_instance() && frame_timing_ != nullptr;
+}
+inline bool P2PMatchingReport::has_frame_timing() const {
+  return _internal_has_frame_timing();
+}
+inline void P2PMatchingReport::clear_frame_timing() {
+  if (GetArena() == nullptr && frame_timing_ != nullptr) {
+    delete frame_timing_;
+  }
+  frame_timing_ = nullptr;
+}
+inline const ::proto::FrameTiming& P2PMatchingReport::_internal_frame_timing() const {
+  const ::proto::FrameTiming* p = frame_timing_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::FrameTiming*>(
+      &::proto::_FrameTiming_default_instance_);
+}
+inline const ::proto::FrameTiming& P2PMatchingReport::frame_timing() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.frame_timing)
+  return _internal_frame_timing();
+}
+inline void P2PMatchingReport::unsafe_arena_set_allocated_frame_timing(
+    ::proto::FrameTiming* frame_timing) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(frame_timing_);
+  }
+  frame_timing_ = frame_timing;
+  if (frame_timing) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.P2PMatchingReport.frame_timing)
+}
+inline ::proto::FrameTiming* P2PMatchingReport::release_frame_timing() {
+  
+  ::proto::FrameTiming* temp = frame_timing_;
+  frame_timing_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::FrameTiming* P2PMatchingReport::unsafe_arena_release_frame_timing() {
+  // @@protoc_insertion_point(field_release:proto.P2PMatchingReport.frame_timing)
+  
+  ::proto::FrameTiming* temp = frame_timing_;
+  frame_timing_ = nullptr;
+  return temp;
+}
+inline ::proto::FrameTiming* P2PMatchingReport::_internal_mutable_frame_timing() {
+  
+  if (frame_timing_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::FrameTiming>(GetArena());
+    frame_timing_ = p;
+  }
+  return frame_timing_;
+}
+inline ::proto::FrameTiming* P2PMatchingReport::mutable_frame_timing() {
+  // @@protoc_insertion_point(field_mutable:proto.P2PMatchingReport.frame_timing)
+  return _internal_mutable_frame_timing();
+}
+inline void P2PMatchingReport::set_allocated_frame_timing(::proto::FrameTiming* frame_timing) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete frame_timing_;
+  }
+  if (frame_timing) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(frame_timing);
+    if (message_arena != submessage_arena) {
+      frame_timing = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, frame_timing, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  frame_timing_ = frame_timing;
+  // @@protoc_insertion_point(field_set_allocated:proto.P2PMatchingReport.frame_timing)
+}
+
+// -------------------------------------------------------------------
+
+// FrameTiming
+
+// int32 period_us = 1;
+inline void FrameTiming::clear_period_us() {
+  period_us_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_period_us() const {
+  return period_us_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::period_us() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.period_us)
+  return _internal_period_us();
+}
+inline void FrameTiming::_internal_set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  period_us_ = value;
+}
+inline void FrameTiming::set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_period_us(value);
+  // @@protoc_insertion_point(field_set:proto.FrameTiming.period_us)
+}
+
+// .proto.TimingStats work = 2;
+inline bool FrameTiming::_internal_has_work() const {
+  return this != internal_default_instance() && work_ != nullptr;
+}
+inline bool FrameTiming::has_work() const {
+  return _internal_has_work();
+}
+inline void FrameTiming::clear_work() {
+  if (GetArena() == nullptr && work_ != nullptr) {
+    delete work_;
+  }
+  work_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_work() const {
+  const ::proto::TimingStats* p = work_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::work() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.work)
+  return _internal_work();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_work(
+    ::proto::TimingStats* work) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(work_);
+  }
+  work_ = work;
+  if (work) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.work)
+}
+inline ::proto::TimingStats* FrameTiming::release_work() {
+  
+  ::proto::TimingStats* temp = work_;
+  work_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_work() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.work)
+  
+  ::proto::TimingStats* temp = work_;
+  work_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_work() {
+  
+  if (work_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    work_ = p;
+  }
+  return work_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_work() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.work)
+  return _internal_mutable_work();
+}
+inline void FrameTiming::set_allocated_work(::proto::TimingStats* work) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete work_;
+  }
+  if (work) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(work);
+    if (message_arena != submessage_arena) {
+      work = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, work, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  work_ = work;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.work)
+}
+
+// .proto.TimingStats rollback_room = 3;
+inline bool FrameTiming::_internal_has_rollback_room() const {
+  return this != internal_default_instance() && rollback_room_ != nullptr;
+}
+inline bool FrameTiming::has_rollback_room() const {
+  return _internal_has_rollback_room();
+}
+inline void FrameTiming::clear_rollback_room() {
+  if (GetArena() == nullptr && rollback_room_ != nullptr) {
+    delete rollback_room_;
+  }
+  rollback_room_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_rollback_room() const {
+  const ::proto::TimingStats* p = rollback_room_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::rollback_room() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.rollback_room)
+  return _internal_rollback_room();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_rollback_room(
+    ::proto::TimingStats* rollback_room) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_room_);
+  }
+  rollback_room_ = rollback_room;
+  if (rollback_room) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.rollback_room)
+}
+inline ::proto::TimingStats* FrameTiming::release_rollback_room() {
+  
+  ::proto::TimingStats* temp = rollback_room_;
+  rollback_room_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_rollback_room() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.rollback_room)
+  
+  ::proto::TimingStats* temp = rollback_room_;
+  rollback_room_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_rollback_room() {
+  
+  if (rollback_room_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    rollback_room_ = p;
+  }
+  return rollback_room_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_rollback_room() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.rollback_room)
+  return _internal_mutable_rollback_room();
+}
+inline void FrameTiming::set_allocated_rollback_room(::proto::TimingStats* rollback_room) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete rollback_room_;
+  }
+  if (rollback_room) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_room);
+    if (message_arena != submessage_arena) {
+      rollback_room = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, rollback_room, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  rollback_room_ = rollback_room;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.rollback_room)
+}
+
+// int32 over_period = 4;
+inline void FrameTiming::clear_over_period() {
+  over_period_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_over_period() const {
+  return over_period_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::over_period() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.over_period)
+  return _internal_over_period();
+}
+inline void FrameTiming::_internal_set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  over_period_ = value;
+}
+inline void FrameTiming::set_over_period(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_over_period(value);
+  // @@protoc_insertion_point(field_set:proto.FrameTiming.over_period)
+}
+
+// repeated int32 over_period_depth_hist = 5;
+inline int FrameTiming::_internal_over_period_depth_hist_size() const {
+  return over_period_depth_hist_.size();
+}
+inline int FrameTiming::over_period_depth_hist_size() const {
+  return _internal_over_period_depth_hist_size();
+}
+inline void FrameTiming::clear_over_period_depth_hist() {
+  over_period_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_over_period_depth_hist(int index) const {
+  return over_period_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::over_period_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.over_period_depth_hist)
+  return _internal_over_period_depth_hist(index);
+}
+inline void FrameTiming::set_over_period_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  over_period_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.FrameTiming.over_period_depth_hist)
+}
+inline void FrameTiming::_internal_add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  over_period_depth_hist_.Add(value);
+}
+inline void FrameTiming::add_over_period_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_over_period_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.FrameTiming.over_period_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+FrameTiming::_internal_over_period_depth_hist() const {
+  return over_period_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+FrameTiming::over_period_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.FrameTiming.over_period_depth_hist)
+  return _internal_over_period_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+FrameTiming::_internal_mutable_over_period_depth_hist() {
+  return &over_period_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+FrameTiming::mutable_over_period_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.FrameTiming.over_period_depth_hist)
+  return _internal_mutable_over_period_depth_hist();
+}
+
+// .proto.TimingStats present_wait = 6;
+inline bool FrameTiming::_internal_has_present_wait() const {
+  return this != internal_default_instance() && present_wait_ != nullptr;
+}
+inline bool FrameTiming::has_present_wait() const {
+  return _internal_has_present_wait();
+}
+inline void FrameTiming::clear_present_wait() {
+  if (GetArena() == nullptr && present_wait_ != nullptr) {
+    delete present_wait_;
+  }
+  present_wait_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_present_wait() const {
+  const ::proto::TimingStats* p = present_wait_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::present_wait() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.present_wait)
+  return _internal_present_wait();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_present_wait(
+    ::proto::TimingStats* present_wait) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(present_wait_);
+  }
+  present_wait_ = present_wait;
+  if (present_wait) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.present_wait)
+}
+inline ::proto::TimingStats* FrameTiming::release_present_wait() {
+  
+  ::proto::TimingStats* temp = present_wait_;
+  present_wait_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_present_wait() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.present_wait)
+  
+  ::proto::TimingStats* temp = present_wait_;
+  present_wait_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_present_wait() {
+  
+  if (present_wait_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    present_wait_ = p;
+  }
+  return present_wait_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_present_wait() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.present_wait)
+  return _internal_mutable_present_wait();
+}
+inline void FrameTiming::set_allocated_present_wait(::proto::TimingStats* present_wait) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete present_wait_;
+  }
+  if (present_wait) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(present_wait);
+    if (message_arena != submessage_arena) {
+      present_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, present_wait, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  present_wait_ = present_wait;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.present_wait)
+}
+
+// .proto.TimingStats render_wait = 7;
+inline bool FrameTiming::_internal_has_render_wait() const {
+  return this != internal_default_instance() && render_wait_ != nullptr;
+}
+inline bool FrameTiming::has_render_wait() const {
+  return _internal_has_render_wait();
+}
+inline void FrameTiming::clear_render_wait() {
+  if (GetArena() == nullptr && render_wait_ != nullptr) {
+    delete render_wait_;
+  }
+  render_wait_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_render_wait() const {
+  const ::proto::TimingStats* p = render_wait_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::render_wait() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.render_wait)
+  return _internal_render_wait();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_render_wait(
+    ::proto::TimingStats* render_wait) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(render_wait_);
+  }
+  render_wait_ = render_wait;
+  if (render_wait) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.render_wait)
+}
+inline ::proto::TimingStats* FrameTiming::release_render_wait() {
+  
+  ::proto::TimingStats* temp = render_wait_;
+  render_wait_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_render_wait() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.render_wait)
+  
+  ::proto::TimingStats* temp = render_wait_;
+  render_wait_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_render_wait() {
+  
+  if (render_wait_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    render_wait_ = p;
+  }
+  return render_wait_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_render_wait() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.render_wait)
+  return _internal_mutable_render_wait();
+}
+inline void FrameTiming::set_allocated_render_wait(::proto::TimingStats* render_wait) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete render_wait_;
+  }
+  if (render_wait) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(render_wait);
+    if (message_arena != submessage_arena) {
+      render_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, render_wait, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  render_wait_ = render_wait;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.render_wait)
+}
+
+// .proto.TimingStats rollback_wait = 8;
+inline bool FrameTiming::_internal_has_rollback_wait() const {
+  return this != internal_default_instance() && rollback_wait_ != nullptr;
+}
+inline bool FrameTiming::has_rollback_wait() const {
+  return _internal_has_rollback_wait();
+}
+inline void FrameTiming::clear_rollback_wait() {
+  if (GetArena() == nullptr && rollback_wait_ != nullptr) {
+    delete rollback_wait_;
+  }
+  rollback_wait_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_rollback_wait() const {
+  const ::proto::TimingStats* p = rollback_wait_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::rollback_wait() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.rollback_wait)
+  return _internal_rollback_wait();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_rollback_wait(
+    ::proto::TimingStats* rollback_wait) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_wait_);
+  }
+  rollback_wait_ = rollback_wait;
+  if (rollback_wait) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.rollback_wait)
+}
+inline ::proto::TimingStats* FrameTiming::release_rollback_wait() {
+  
+  ::proto::TimingStats* temp = rollback_wait_;
+  rollback_wait_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_rollback_wait() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.rollback_wait)
+  
+  ::proto::TimingStats* temp = rollback_wait_;
+  rollback_wait_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_rollback_wait() {
+  
+  if (rollback_wait_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    rollback_wait_ = p;
+  }
+  return rollback_wait_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_rollback_wait() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.rollback_wait)
+  return _internal_mutable_rollback_wait();
+}
+inline void FrameTiming::set_allocated_rollback_wait(::proto::TimingStats* rollback_wait) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete rollback_wait_;
+  }
+  if (rollback_wait) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_wait);
+    if (message_arena != submessage_arena) {
+      rollback_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, rollback_wait, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  rollback_wait_ = rollback_wait;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.rollback_wait)
+}
+
+// .proto.TimingStats queue_wait = 9;
+inline bool FrameTiming::_internal_has_queue_wait() const {
+  return this != internal_default_instance() && queue_wait_ != nullptr;
+}
+inline bool FrameTiming::has_queue_wait() const {
+  return _internal_has_queue_wait();
+}
+inline void FrameTiming::clear_queue_wait() {
+  if (GetArena() == nullptr && queue_wait_ != nullptr) {
+    delete queue_wait_;
+  }
+  queue_wait_ = nullptr;
+}
+inline const ::proto::TimingStats& FrameTiming::_internal_queue_wait() const {
+  const ::proto::TimingStats* p = queue_wait_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
+      &::proto::_TimingStats_default_instance_);
+}
+inline const ::proto::TimingStats& FrameTiming::queue_wait() const {
+  // @@protoc_insertion_point(field_get:proto.FrameTiming.queue_wait)
+  return _internal_queue_wait();
+}
+inline void FrameTiming::unsafe_arena_set_allocated_queue_wait(
+    ::proto::TimingStats* queue_wait) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(queue_wait_);
+  }
+  queue_wait_ = queue_wait;
+  if (queue_wait) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.queue_wait)
+}
+inline ::proto::TimingStats* FrameTiming::release_queue_wait() {
+  
+  ::proto::TimingStats* temp = queue_wait_;
+  queue_wait_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_queue_wait() {
+  // @@protoc_insertion_point(field_release:proto.FrameTiming.queue_wait)
+  
+  ::proto::TimingStats* temp = queue_wait_;
+  queue_wait_ = nullptr;
+  return temp;
+}
+inline ::proto::TimingStats* FrameTiming::_internal_mutable_queue_wait() {
+  
+  if (queue_wait_ == nullptr) {
+    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
+    queue_wait_ = p;
+  }
+  return queue_wait_;
+}
+inline ::proto::TimingStats* FrameTiming::mutable_queue_wait() {
+  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.queue_wait)
+  return _internal_mutable_queue_wait();
+}
+inline void FrameTiming::set_allocated_queue_wait(::proto::TimingStats* queue_wait) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete queue_wait_;
+  }
+  if (queue_wait) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(queue_wait);
+    if (message_arena != submessage_arena) {
+      queue_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, queue_wait, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  queue_wait_ = queue_wait;
+  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.queue_wait)
 }
 
 // -------------------------------------------------------------------
@@ -13568,6 +14351,8 @@ inline void Packet::set_allocated_spectator_subscribe_challenge_data(::proto::Sp
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

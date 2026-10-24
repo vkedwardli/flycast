@@ -245,7 +245,9 @@ void gdxsv_emu_next_frame() {
 	// then has nothing left to present. Rollback frames render nothing (renderer disabled).
 	if (!config::ThreadedRendering && RollbackBattle() && rend_is_enabled() && imguiDriver != nullptr) {
 		try {
+			const int64_t waitBegin = gdxsv_wait_begin();
 			imguiDriver->present();
+			gdxsv_wait_end(GdxsvWait::Present, waitBegin);
 			GDXSV_PERF_TRACE("present", -1, 0);
 			gdxsv_net_report_present();
 		} catch (const FlycastException&) {

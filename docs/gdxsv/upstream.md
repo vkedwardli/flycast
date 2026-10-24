@@ -140,6 +140,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/Renderer_if.cpp` | `rend_create_renderer` | `gdxsv_headless` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_end_frame` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_vblank` | `gdxsv_emu_vblank` |
+| `core/hw/pvr/Renderer_if.cpp` | `PvrMessageQueue::enqueue`, `rend_end_render`, `rend_start_rollback` | `gdxsv_wait_begin` / `gdxsv_wait_end` around the emulation thread's waits for the render thread (P2PMatchingReport) |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
 | `core/hw/pvr/ta_ctx.cpp` |  | rollback time sync in QueueRender |

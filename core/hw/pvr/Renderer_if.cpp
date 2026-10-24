@@ -108,7 +108,9 @@ public:
 				{
 					if (type == Stop)
 						return;
+					const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 					dequeueEvent.Wait();
+					gdxsv_wait_end(GdxsvWait::Queue, gdxsvWait);
 				}
 			} while (dupe);
 			enqueueEvent.Set();
@@ -612,7 +614,11 @@ int rend_end_render(int tag, int cycles, int jitter, void *arg)
 		asic_RaiseInterrupt(holly_RENDER_DONE_vd);
 	}
 	if (pend_rend && config::ThreadedRendering)
+	{
+		const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 		renderEnd.Wait();
+		gdxsv_wait_end(GdxsvWait::Render, gdxsvWait);
+	}
 
 	return 0;
 }
@@ -688,7 +694,11 @@ void rend_allow_rollback()
 void rend_start_rollback()
 {
 	if (config::ThreadedRendering)
+	{
+		const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 		vramRollback.Wait();
+		gdxsv_wait_end(GdxsvWait::Rollback, gdxsvWait);
+	}
 }
 
 void rend_enable_renderer(bool enabled) {

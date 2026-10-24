@@ -9,8 +9,10 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <utility>
 
 #include "gdxsv.pb.h"
+#include "gdxsv_emu_hooks.h"
 #include "gdxsv_ggpo_hooks.h"
 #include "network/ggpo.h"
 
@@ -24,6 +26,7 @@ constexpr int kFramePeriodUs = 16683;  // 59.94 Hz
 constexpr int kOffPeriodUs = 2000;     // an interval further than this from the frame period is off period
 constexpr int kDepthBuckets = 8;	   // rollbacks of 0 to 6 frames; the last bucket: 7 or more
 constexpr int kMaxTimesyncFrames = 32;
+constexpr int kWaits = static_cast<int>(GdxsvWait::Count);
 
 // Each counter has one writer thread; the report reads them from another
 // thread. A relaxed load and store compiles to plain moves, unlike fetch_add.
@@ -62,6 +65,8 @@ class Hist {
 		if (Get(max_) < us) Set(max_, us);
 		if (periodUs != 0 && kOffPeriodUs < std::abs(v - periodUs)) Bump(off_);
 	}
+
+	int32_t Count() const { return Get(count_); }
 
 	void Fill(proto::TimingStats* out) const {
 		std::array<int32_t, kBuckets> pos, neg;
@@ -152,7 +157,6 @@ struct NetReport {
 	Intervals inputRead;
 	Intervals inputSend;
 	Intervals present;
-	Hist budget;		 // limiter slack per frame
 	Hist rollbackFrame;	 // per rollback: its time / the frames it re-ran
 	Clock::time_point pendingRead{};
 	std::atomic<int32_t> rollbackCount{0};
@@ -161,9 +165,26 @@ struct NetReport {
 	int rollbackToFrame = -1;  // the frame a running rollback ends at; -1: none runs
 	int rollbackReruns = 0;	   // frames the running rollback re-ran so far
 	std::atomic<int32_t> rollbackMaxUs{0};
-	int depthSinceWake = 0;	 // deepest rollback since the last limiter wake
-	std::atomic<int32_t> budgetExhausted{0};
-	std::array<std::atomic<int32_t>, kDepthBuckets> exhaustedDepthHist{};
+	// The emulation-thread frame: from a limiter wake to the next limiter call.
+	Clock::time_point lastWake{};					 // none: the next frame is not measured
+	int depthSinceWake = 0;							 // deepest rollback in this frame
+	int64_t rollbackUs = 0;							 // rollback time in this frame
+	std::array<Clock::duration, kWaits> waitTime{};	 // per wait kind, in this frame
+	std::array<bool, kWaits> waited{};
+	std::atomic<int32_t> periodUs{0};
+	Hist work;
+	Hist rollbackRoom;
+	std::array<Hist, kWaits> waits;
+	std::atomic<int32_t> overPeriod{0};
+	std::array<std::atomic<int32_t>, kDepthBuckets> overPeriodDepthHist{};
+
+	void ResetFrame(Clock::time_point wake) {
+		lastWake = wake;
+		depthSinceWake = 0;
+		rollbackUs = 0;
+		waitTime.fill({});
+		waited.fill(false);
+	}
 	std::atomic<int32_t> late1{0}, late15{0}, late2{0}, dropped{0};
 	std::atomic<int32_t> timesyncCount{0};
 	std::array<std::atomic<int32_t>, kMaxTimesyncFrames> timesyncFrames{};
@@ -172,7 +193,6 @@ struct NetReport {
 		inputRead.Reset();
 		inputSend.Reset();
 		present.Reset();
-		budget.Reset();
 		rollbackFrame.Reset();
 		pendingRead = {};
 		Set(rollbackCount, 0);
@@ -181,9 +201,13 @@ struct NetReport {
 		rollbackToFrame = -1;
 		rollbackReruns = 0;
 		Set(rollbackMaxUs, 0);
-		depthSinceWake = 0;
-		Set(budgetExhausted, 0);
-		for (auto& c : exhaustedDepthHist) Set(c, 0);
+		ResetFrame({});
+		Set(periodUs, 0);
+		work.Reset();
+		rollbackRoom.Reset();
+		for (auto& h : waits) h.Reset();
+		Set(overPeriod, 0);
+		for (auto& c : overPeriodDepthHist) Set(c, 0);
 		Set(late1, 0);
 		Set(late15, 0);
 		Set(late2, 0);
@@ -224,6 +248,7 @@ void gdxsv_net_report_rerun_end(int frame) {
 	report.depthSinceWake = std::max(report.depthSinceWake, depth);
 	const int32_t us = SinceUs(report.rollbackStart, Clock::now());
 	if (Get(report.rollbackMaxUs) < us) Set(report.rollbackMaxUs, us);
+	report.rollbackUs += us;
 	report.rollbackFrame.Add(us / depth, 0);
 	report.rollbackToFrame = -1;
 }
@@ -256,15 +281,41 @@ void gdxsv_net_report_present() {
 	Bump(report.dropped, std::max(0, (us + kFramePeriodUs / 2) / kFramePeriodUs - 1));
 }
 
-void gdxsv_net_report_wake(int64_t remainingUs) {
-	// Before the first input, the wait includes the session setup.
-	if (!gdxsv_net_report_on || report.pendingRead == Clock::time_point{}) return;
-	report.budget.Add(ClampUs(remainingUs), 0);
-	if (remainingUs <= 0) {
-		Bump(report.budgetExhausted);
-		Bump(report.exhaustedDepthHist[DepthBucket(report.depthSinceWake)]);
+int64_t gdxsv_net_report_ticks() { return Clock::now().time_since_epoch().count(); }
+
+void gdxsv_net_report_wait(GdxsvWait wait, int64_t beginTicks) {
+	const int i = static_cast<int>(wait);
+	report.waitTime[i] += Clock::now() - Clock::time_point(Clock::duration(beginTicks));
+	report.waited[i] = true;
+}
+
+void gdxsv_net_report_limiter_off() { report.lastWake = {}; }
+
+void gdxsv_net_report_wake(Clock::time_point called, Clock::time_point woke, int64_t periodUs) {
+	NetReport& r = report;
+	// Before the first input, the frame includes the session setup.
+	if (gdxsv_net_report_on && r.pendingRead != Clock::time_point{} && r.lastWake != Clock::time_point{}) {
+		const int32_t period = ClampUs(periodUs);
+		const int32_t busy = SinceUs(r.lastWake, called);
+		int32_t waited = 0;
+		for (int i = 0; i < kWaits; i++) {
+			if (!r.waited[i]) continue;
+			const int32_t us = ClampUs(std::chrono::duration_cast<std::chrono::microseconds>(r.waitTime[i]).count());
+			r.waits[i].Add(us, 0);
+			waited += us;
+		}
+		// A rollback's VRAM wait is in its time, but it is a wait, not rollback work.
+		const int64_t rollbackWork =
+			r.rollbackUs - std::chrono::duration_cast<std::chrono::microseconds>(r.waitTime[static_cast<int>(GdxsvWait::Rollback)]).count();
+		Set(r.periodUs, period);
+		r.work.Add(busy - waited, 0);
+		r.rollbackRoom.Add(ClampUs(period - (busy - rollbackWork)), 0);
+		if (period < busy) {
+			Bump(r.overPeriod);
+			Bump(r.overPeriodDepthHist[DepthBucket(r.depthSinceWake)]);
+		}
 	}
-	report.depthSinceWake = 0;
+	r.ResetFrame(woke);
 }
 
 void gdxsv_net_report_fill(proto::P2PMatchingReport* out) {
@@ -284,7 +335,22 @@ void gdxsv_net_report_fill(proto::P2PMatchingReport* out) {
 	r.inputRead.hist.Fill(out->mutable_input_read_interval());
 	r.inputSend.hist.Fill(out->mutable_input_send_interval());
 	r.present.hist.Fill(out->mutable_present_interval());
-	r.budget.Fill(out->mutable_rollback_budget());
-	out->set_budget_exhausted_frames(Get(r.budgetExhausted));
-	for (const auto& c : r.exhaustedDepthHist) out->add_budget_exhausted_depth_hist(Get(c));
+	if (r.work.Count() == 0) return;
+	auto* ft = out->mutable_frame_timing();
+	ft->set_period_us(Get(r.periodUs));
+	r.work.Fill(ft->mutable_work());
+	r.rollbackRoom.Fill(ft->mutable_rollback_room());
+	ft->set_over_period(Get(r.overPeriod));
+	for (const auto& c : r.overPeriodDepthHist) ft->add_over_period_depth_hist(Get(c));
+	using W = GdxsvWait;
+	const std::pair<W, proto::TimingStats* (proto::FrameTiming::*)()> waits[] = {
+		{W::Present, &proto::FrameTiming::mutable_present_wait},
+		{W::Render, &proto::FrameTiming::mutable_render_wait},
+		{W::Rollback, &proto::FrameTiming::mutable_rollback_wait},
+		{W::Queue, &proto::FrameTiming::mutable_queue_wait},
+	};
+	for (const auto& [wait, field] : waits) {
+		const Hist& h = r.waits[static_cast<int>(wait)];
+		if (h.Count() != 0) h.Fill((ft->*field)());
+	}
 }
