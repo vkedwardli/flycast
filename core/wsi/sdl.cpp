@@ -23,6 +23,7 @@
 #include "ui/gui.h"
 #include "sdl/sdl.h"
 #include "cfg/option.h"
+#include "ui/render_thread.h" // gdxsv: render thread
 
 SDLGLGraphicsContext::SDLGLGraphicsContext(void *window, void *display)
 	: GLGraphicsContext(window, display)
@@ -129,7 +130,10 @@ void SDLGLGraphicsContext::swap()
 	SDL_GL_SwapWindow((SDL_Window *)window);
 
 	// Check if drawable has been resized
-	SDL_GL_GetDrawableSize((SDL_Window *)window, &settings.display.width, &settings.display.height);
+	// gdxsv: not on the render thread: the main thread updates it on the window event, and macOS allows NSView on
+	// the main thread only
+	if (!renderthread::current())
+		SDL_GL_GetDrawableSize((SDL_Window *)window, &settings.display.width, &settings.display.height);
 #ifdef __SWITCH__
 	float newScaling = settings.display.height == 720 ? 1.5f : 1.4f;
 	if (newScaling != settings.display.uiScale)

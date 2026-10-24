@@ -37,6 +37,9 @@ std::exception_ptr stop();
 // Main thread, after stop(): true once if the render thread could not present (the context must be recreated).
 bool takeReinit();
 
+// True on the render thread.
+bool current();
+
 // Main thread: waits for a window event, at most timeoutMs. The render thread stopping by itself wakes it too.
 void waitEvents(int timeoutMs);
 

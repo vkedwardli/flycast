@@ -46,6 +46,7 @@ static std::exception_ptr error;
 static bool reinit;
 static std::atomic<bool> resizePending;
 static std::atomic<bool> stylePending;
+static thread_local bool onRenderThread;
 
 static void wakeMainThread()
 {
@@ -78,6 +79,7 @@ static void applyDisplayChange()
 static void loop()
 {
 	ThreadName _("Flycast-render");
+	onRenderThread = true;
 	INFO_LOG(RENDERER, "Render thread started");
 	makeCurrent(true);
 	try {
@@ -146,6 +148,10 @@ std::exception_ptr stop()
 	std::exception_ptr e = error;
 	error = nullptr;
 	return e;
+}
+
+bool current() {
+	return onRenderThread;
 }
 
 bool takeReinit()

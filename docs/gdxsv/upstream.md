@@ -395,8 +395,10 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
 | `core/wsi/context.h` |  | the render thread (core/ui/render_thread.h) takes the context from the main thread and gives it back |
+| `core/wsi/sdl.cpp` |  | render thread |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::init` | only duplicate frames on high refresh rate monitors when asked to |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::makeCurrent` | render thread |
+| `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::swap` | not on the render thread: the main thread updates it on the window event, and macOS allows NSView on the main thread only |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::changeGLSwapInterval` | only duplicate frames on high refresh rate monitors when asked to |
 | `core/wsi/sdl.h` |  | render thread |
 | `core/wsi/switcher.cpp` |  | include `gdxsv/gdxsv_null_imgui_driver.h` |
