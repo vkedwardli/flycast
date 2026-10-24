@@ -36,7 +36,7 @@ upstream ([flyinghead/flycast](https://github.com/flyinghead/flycast)
 
 | Path | Change |
 |---|---|
-| `core/deps/ggpo/` | relays (peers and relay servers), dual-stack (IPv4 and IPv6) sockets, timesync skips replayed in rollbacks, size checks on received packets |
+| `core/deps/ggpo/` | relays (peers and relay servers), dual-stack (IPv4 and IPv6) sockets, timesync skips replayed in rollbacks, size checks on received packets; sockets read and relayed packets forwarded on a network thread (`Udp::StartNetThread`, `Peer2PeerBackend::TryForward`), so a rollback does not stop them; received packets queued for the game thread |
 | `core/deps/implot/` | ImPlot 0.18 WIP (upstream: 0.17) |
 | submodules `SDL`, `asio`, `luabridge`, `rcheevos`, `oboe`, `libadrenotools`, `Spout`, `Syphon` | pinned to older commits than upstream's |
 

@@ -7,6 +7,12 @@
 
 #include "ggpo_types.h"
 #include "udp.h"
+#include <algorithm>
+#include <chrono>
+#include <system_error>
+#ifndef _WIN32
+#include <sys/select.h>
+#endif
 
 SOCKET
 CreateSocket(uint16 bind_port, bool v6)
@@ -61,12 +67,15 @@ CreateSocket(uint16 bind_port, bool v6)
 Udp::Udp() :
    _socket_v4(INVALID_SOCKET),
    _socket_v6(INVALID_SOCKET),
-   _callbacks(NULL)
+   _callbacks(NULL),
+   _net_stop(false),
+   _recv_dropped(0)
 {
 }
 
 Udp::~Udp(void)
 {
+   StopNetThread();
    if (_socket_v4 != INVALID_SOCKET) {
       closesocket(_socket_v4);
       _socket_v4 = INVALID_SOCKET;
@@ -122,15 +131,69 @@ Udp::SendTo(char *buffer, int len, int flags, struct sockaddr *dst, int destlen)
    Log("sent packet length %d to %s:%d (ret:%d).", len, dst_ip, port, res);
 }
 
-bool
-Udp::OnLoopPoll(void *cookie)
+// gdxsv: at most this many packets wait for OnMsg; more are dropped like a full socket buffer.
+constexpr size_t MAX_QUEUED_PACKETS = 256;
+
+void
+Udp::StartNetThread()
+{
+   if (_net_thread.joinable() || (_socket_v4 == INVALID_SOCKET && _socket_v6 == INVALID_SOCKET)) {
+      return;
+   }
+   _net_stop = false;
+   try {
+      _net_thread = std::thread(&Udp::NetThreadLoop, this);
+   } catch (const std::system_error &e) {
+      // OnLoopPoll still reads the sockets, only not during a rollback.
+      LogError("network thread not started: %s", e.what());
+   }
+}
+
+void
+Udp::StopNetThread()
+{
+   if (_net_thread.joinable()) {
+      _net_stop = true;
+      _net_thread.join();
+   }
+}
+
+void
+Udp::NetThreadLoop()
+{
+   while (!_net_stop) {
+      fd_set readable;
+      FD_ZERO(&readable);
+      SOCKET max_sock = 0;
+      for (SOCKET sock : { _socket_v4, _socket_v6 }) {
+         if (sock != INVALID_SOCKET) {
+            FD_SET(sock, &readable);
+            max_sock = std::max(max_sock, sock);
+         }
+      }
+      // The timeout only bounds how long StopNetThread waits.
+      timeval timeout{ 0, 10000 };
+      int n = select((int)max_sock + 1, &readable, nullptr, nullptr, &timeout);
+      if (n < 0) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+         continue;
+      }
+      if (n > 0) {
+         std::lock_guard<std::mutex> lock(_net_mutex);
+         ReadSockets();
+      }
+   }
+}
+
+void
+Udp::ReadSockets()
 {
    uint8 recv_buf[MAX_UDP_PACKET_SIZE];
 
    for (int s = 0; s < 2; s++) for (;;) {
       SOCKET sock = s == 0 ? _socket_v4 : _socket_v6;
       if (sock == INVALID_SOCKET) {
-         continue;
+         break;
       }
       sockaddr_storage recv_addr{};
       socklen_t recv_addr_len = sizeof(recv_addr);
@@ -156,8 +219,33 @@ Udp::OnLoopPoll(void *cookie)
             Log("recvfrom returned (len:%d  from:%s:%d).", len, src_ip, port);
          }
          UdpMsg *msg = (UdpMsg *)recv_buf;
-         _callbacks->OnMsg(recv_addr, msg, len);
+         if (_callbacks->TryForward(recv_addr, msg, len)) {
+            continue;
+         }
+         if (_recv_queue.size() >= MAX_QUEUED_PACKETS) {
+            if (++_recv_dropped % 100 == 1) {
+               LogInfo("receive queue full, %d packets dropped", _recv_dropped);
+            }
+            continue;
+         }
+         _recv_queue.emplace_back();
+         RecvPacket &packet = _recv_queue.back();
+         packet.from = recv_addr;
+         packet.len = len;
+         memcpy(packet.data, recv_buf, len);
       } 
+   }
+}
+
+bool
+Udp::OnLoopPoll(void *cookie)
+{
+   std::lock_guard<std::mutex> lock(_net_mutex);
+   ReadSockets();
+   while (!_recv_queue.empty()) {
+      RecvPacket &packet = _recv_queue.front();
+      _callbacks->OnMsg(packet.from, (UdpMsg *)packet.data, packet.len);
+      _recv_queue.pop_front();
    }
    return true;
 }

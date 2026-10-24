@@ -61,15 +61,17 @@ Peer2PeerBackend::Peer2PeerBackend(GGPOSessionCallbacks *cb,
    for (unsigned i = 0; i < ARRAY_SIZE(_local_connect_status); i++) {
       _local_connect_status[i].last_frame = -1;
    }
+   _udp.StartNetThread();
 
    /*
     * Preload the ROM
     */
    _callbacks.begin_game(gamename);
 }
-  
+
 Peer2PeerBackend::~Peer2PeerBackend()
 {
+   _udp.StopNetThread();
    delete [] _endpoints;
 }
 
@@ -83,7 +85,9 @@ Peer2PeerBackend::AddRemotePlayer(char *ip,
     * Start the state machine (xxx: no)
     */
    _synchronizing = true;
-   
+
+   // gdxsv: TryForward reads the endpoint addresses on the network thread.
+   std::lock_guard<std::mutex> lock(_udp.NetMutex());
    _endpoints[queue].Init(&_udp, _poll, queue, ip, port, relay, _local_connect_status);
    for (int k = 0; k < (int)_relay_servers.size(); k++) {
       if (relay && _endpoints[queue].IsPeerAddress(_relay_servers[k].addr)) {
@@ -693,9 +697,10 @@ Peer2PeerBackend::PlayerHandleToQueue(GGPOPlayerHandle player, int *queue)
    return GGPO_OK;
 }
 
- 
-void
-Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
+
+// gdxsv: relayed packets are forwarded on the network thread, also during a rollback.
+bool
+Peer2PeerBackend::TryForward(sockaddr_storage &from, UdpMsg *msg, int len)
 {
    if (msg->hdr.type == UdpMsg::Relay) {
       if (msg->hdr.relay_magic == RELAY_MAGIC) {
@@ -714,8 +719,14 @@ Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
             _endpoints[i].SendUnmanagedMsg(msg, len, from);
          }
       }
-      return;
+      return true;
    }
+   return false;
+}
+
+void
+Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
+{
    for (int i = 0; i < _num_players; i++) {
       if (_endpoints[i].HandlesMsg(from, msg)) {
          const int server = RelayServerIndex(from);
