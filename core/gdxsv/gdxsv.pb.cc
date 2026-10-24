@@ -599,6 +599,9 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, present_interval_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, rollback_frame_time_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, frame_timing_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, present_depth_hist_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, late_present_depth_hist_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, dropped_depth_hist_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -613,6 +616,8 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, render_wait_),
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, rollback_wait_),
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, queue_wait_),
+  PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, present_wait_elasticity_),
+  PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, rollback_slack_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::TimingStats, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -882,32 +887,32 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
 };
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, sizeof(::proto::P2PMatchingReport)},
-  { 38, -1, sizeof(::proto::FrameTiming)},
-  { 52, -1, sizeof(::proto::TimingStats)},
-  { 66, -1, sizeof(::proto::RemotePeerReport)},
-  { 78, -1, sizeof(::proto::RenderSettings)},
-  { 86, -1, sizeof(::proto::P2PMatching)},
-  { 102, -1, sizeof(::proto::PlayerAddress)},
-  { 112, -1, sizeof(::proto::RelayServer)},
-  { 122, -1, sizeof(::proto::GamePatch)},
-  { 131, -1, sizeof(::proto::GamePatchCode)},
-  { 140, -1, sizeof(::proto::GamePatchList)},
-  { 146, -1, sizeof(::proto::BattleLogUser)},
-  { 163, -1, sizeof(::proto::BattleLogRound)},
-  { 170, -1, sizeof(::proto::SpectatorInputPush)},
-  { 189, -1, sizeof(::proto::SpectatorInputAck)},
-  { 200, -1, sizeof(::proto::SpectatorSubscribeRequest)},
-  { 208, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
-  { 215, -1, sizeof(::proto::SpectatorRoundEvent)},
-  { 224, -1, sizeof(::proto::SpectatorRoundResult)},
-  { 233, -1, sizeof(::proto::BattleLogFile)},
-  { 254, -1, sizeof(::proto::BattleMessage)},
-  { 262, -1, sizeof(::proto::PingMessage)},
-  { 269, -1, sizeof(::proto::PongMessage)},
-  { 277, -1, sizeof(::proto::HelloServerMessage)},
-  { 285, -1, sizeof(::proto::FinMessage)},
-  { 291, -1, sizeof(::proto::HelloLbsMessage)},
-  { 297, -1, sizeof(::proto::Packet)},
+  { 41, -1, sizeof(::proto::FrameTiming)},
+  { 57, -1, sizeof(::proto::TimingStats)},
+  { 71, -1, sizeof(::proto::RemotePeerReport)},
+  { 83, -1, sizeof(::proto::RenderSettings)},
+  { 91, -1, sizeof(::proto::P2PMatching)},
+  { 107, -1, sizeof(::proto::PlayerAddress)},
+  { 117, -1, sizeof(::proto::RelayServer)},
+  { 127, -1, sizeof(::proto::GamePatch)},
+  { 136, -1, sizeof(::proto::GamePatchCode)},
+  { 145, -1, sizeof(::proto::GamePatchList)},
+  { 151, -1, sizeof(::proto::BattleLogUser)},
+  { 168, -1, sizeof(::proto::BattleLogRound)},
+  { 175, -1, sizeof(::proto::SpectatorInputPush)},
+  { 194, -1, sizeof(::proto::SpectatorInputAck)},
+  { 205, -1, sizeof(::proto::SpectatorSubscribeRequest)},
+  { 213, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
+  { 220, -1, sizeof(::proto::SpectatorRoundEvent)},
+  { 229, -1, sizeof(::proto::SpectatorRoundResult)},
+  { 238, -1, sizeof(::proto::BattleLogFile)},
+  { 259, -1, sizeof(::proto::BattleMessage)},
+  { 267, -1, sizeof(::proto::PingMessage)},
+  { 274, -1, sizeof(::proto::PongMessage)},
+  { 282, -1, sizeof(::proto::HelloServerMessage)},
+  { 290, -1, sizeof(::proto::FinMessage)},
+  { 296, -1, sizeof(::proto::HelloLbsMessage)},
+  { 302, -1, sizeof(::proto::Packet)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -941,7 +946,7 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
 };
 
 const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\013gdxsv.proto\022\005proto\"\261\010\n\021P2PMatchingRepo"
+  "\n\013gdxsv.proto\022\005proto\"\212\t\n\021P2PMatchingRepo"
   "rt\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 "
   "\001(\005\022\024\n\014player_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001"
   "(\005\022\024\n\014close_reason\030\005 \001(\t\022\023\n\013frame_count\030"
@@ -966,122 +971,126 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "ts\022,\n\020present_interval\030$ \001(\0132\022.proto.Tim"
   "ingStats\022/\n\023rollback_frame_time\030( \001(\0132\022."
   "proto.TimingStats\022(\n\014frame_timing\030) \001(\0132"
-  "\022.proto.FrameTimingJ\004\010%\020(R\017rollback_budg"
-  "etR\027budget_exhausted_framesR\033budget_exha"
-  "usted_depth_hist\"\310\002\n\013FrameTiming\022\021\n\tperi"
-  "od_us\030\001 \001(\005\022 \n\004work\030\002 \001(\0132\022.proto.Timing"
-  "Stats\022)\n\rrollback_room\030\003 \001(\0132\022.proto.Tim"
-  "ingStats\022\023\n\013over_period\030\004 \001(\005\022\036\n\026over_pe"
-  "riod_depth_hist\030\005 \003(\005\022(\n\014present_wait\030\006 "
-  "\001(\0132\022.proto.TimingStats\022\'\n\013render_wait\030\007"
-  " \001(\0132\022.proto.TimingStats\022)\n\rrollback_wai"
-  "t\030\010 \001(\0132\022.proto.TimingStats\022&\n\nqueue_wai"
-  "t\030\t \001(\0132\022.proto.TimingStats\"\237\001\n\013TimingSt"
-  "ats\022\r\n\005count\030\001 \001(\005\022\017\n\007mean_us\030\002 \001(\005\022\016\n\006m"
-  "in_us\030\003 \001(\005\022\r\n\005p1_us\030\004 \001(\005\022\r\n\005p5_us\030\005 \001("
-  "\005\022\016\n\006p99_us\030\006 \001(\005\022\016\n\006max_us\030\007 \001(\005\022\022\n\noff"
-  "_period\030\010 \001(\005\022\016\n\006p50_us\030\t \001(\005\"\232\001\n\020Remote"
-  "PeerReport\022\017\n\007peer_id\030\001 \001(\005\022\021\n\trecv_loss"
-  "\030\002 \001(\005\022\021\n\tsend_loss\030\003 \001(\005\022\023\n\013ping_min_ms"
-  "\030\004 \001(\005\022\026\n\016ping_median_ms\030\005 \001(\005\022\023\n\013ping_m"
-  "ax_ms\030\006 \001(\005\022\r\n\005route\030\007 \001(\t\"M\n\016RenderSett"
-  "ings\022\032\n\022threaded_rendering\030\001 \001(\010\022\r\n\005vsyn"
-  "c\030\002 \001(\010\022\020\n\010renderer\030\003 \001(\005\"\262\002\n\013P2PMatchin"
-  "g\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001"
-  "(\005\022\024\n\014player_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001("
-  "\005\022\032\n\022ping_test_duration\030\006 \001(\005\022\030\n\020is_trai"
-  "ning_game\030\007 \001(\010\022\020\n\010rule_bin\030\010 \001(\014\022#\n\005use"
-  "rs\030\t \003(\0132\024.proto.BattleLogUser\022(\n\ncandid"
-  "ates\030\n \003(\0132\024.proto.PlayerAddress\022\"\n\006rela"
-  "ys\030\013 \003(\0132\022.proto.RelayServer\022\030\n\020spectato"
-  "r_uplink\030\014 \001(\010\"Y\n\rPlayerAddress\022\017\n\007user_"
-  "id\030\001 \001(\t\022\017\n\007peer_id\030\002 \001(\005\022\n\n\002ip\030\003 \001(\t\022\014\n"
-  "\004port\030\004 \001(\005\022\014\n\004team\030\005 \001(\005\"S\n\013RelayServer"
-  "\022\016\n\006region\030\001 \001(\t\022\n\n\002ip\030\002 \001(\t\022\014\n\004port\030\003 \001"
-  "(\005\022\r\n\005token\030\004 \001(\004\022\013\n\003ip6\030\005 \001(\t\"e\n\tGamePa"
-  "tch\022\021\n\tgame_disk\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\022\n\n"
-  "write_once\030\004 \001(\010\022#\n\005codes\030\n \003(\0132\024.proto."
-  "GamePatchCode\"Q\n\rGamePatchCode\022\014\n\004size\030\001"
-  " \001(\005\022\017\n\007address\030\002 \001(\r\022\020\n\010original\030\003 \001(\r\022"
-  "\017\n\007changed\030\004 \001(\r\"2\n\rGamePatchList\022!\n\007pat"
-  "ches\030\001 \003(\0132\020.proto.GamePatch\"\354\001\n\rBattleL"
-  "ogUser\022\017\n\007user_id\030\001 \001(\t\022\021\n\tuser_name\030\002 \001"
-  "(\t\022\022\n\npilot_name\030\003 \001(\t\022\022\n\ngame_param\030\004 \001"
-  "(\014\022\024\n\014battle_count\030\005 \001(\005\022\021\n\twin_count\030\006 "
-  "\001(\005\022\022\n\nlose_count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014"
-  "\n\004team\030\t \001(\005\022\020\n\010platform\030\n \001(\t\022\026\n\016user_n"
-  "ame_sjis\030\013 \001(\014\022\013\n\003pos\030\014 \001(\005\"3\n\016BattleLog"
-  "Round\022\020\n\010win_team\030\001 \001(\005\022\017\n\007used_ms\030\002 \003(\005"
-  "\"\210\003\n\022SpectatorInputPush\022\023\n\013battle_code\030\001"
-  " \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\023\n\013start_frame\030"
-  "\003 \001(\005\022\016\n\006inputs\030\004 \003(\006\022\031\n\021start_msg_index"
-  "es\030\005 \003(\005\022\031\n\021start_msg_randoms\030\006 \003(\004\022)\n\nr"
-  "ound_data\030\007 \003(\0132\025.proto.BattleLogRound\022\024"
-  "\n\014close_reason\030\010 \001(\t\022\035\n\025disconnect_user_"
-  "index\030\t \001(\005\022$\n\006header\030\n \001(\0132\024.proto.Batt"
-  "leLogFile\022!\n\007patches\030\013 \003(\0132\020.proto.GameP"
-  "atch\022\023\n\013patch_start\030\014 \001(\005\022\023\n\013patch_total"
-  "\030\r \001(\005\022\033\n\023round_state_version\030\016 \001(\005\"\224\001\n\021"
-  "SpectatorInputAck\022\023\n\013battle_code\030\001 \001(\t\022\021"
-  "\n\tack_frame\030\002 \001(\005\022\021\n\tpatch_ack\030\003 \001(\005\022\021\n\t"
-  "round_ack\030\004 \001(\005\022\027\n\017round_event_ack\030\005 \003(\005"
-  "\022\030\n\020round_result_ack\030\006 \003(\005\"Z\n\031SpectatorS"
-  "ubscribeRequest\022\023\n\013battle_code\030\001 \001(\t\022\022\n\n"
-  "from_frame\030\003 \001(\005\022\016\n\006cookie\030\004 \001(\014J\004\010\002\020\003\"B"
-  "\n\033SpectatorSubscribeChallenge\022\023\n\013battle_"
-  "code\030\001 \001(\t\022\016\n\006cookie\030\002 \001(\014\"c\n\023SpectatorR"
-  "oundEvent\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsessio"
-  "n_id\030\002 \001(\005\022\r\n\005frame\030\003 \001(\005\022\024\n\014random_valu"
-  "e\030\004 \001(\004\"z\n\024SpectatorRoundResult\022\023\n\013battl"
-  "e_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\023\n\013roun"
-  "d_index\030\003 \001(\005\022$\n\005round\030\004 \001(\0132\025.proto.Bat"
-  "tleLogRound\"\300\003\n\rBattleLogFile\022\021\n\tgame_di"
-  "sk\030\005 \001(\t\022 \n\030gdxsv_version_deprecated\030\002 \001"
-  "(\t\022\023\n\013battle_code\030\003 \001(\t\022\030\n\020log_file_vers"
-  "ion\030\004 \001(\005\022!\n\007patches\030\007 \003(\0132\020.proto.GameP"
-  "atch\022\020\n\010rule_bin\030\n \001(\014\022#\n\005users\030\013 \003(\0132\024."
-  "proto.BattleLogUser\022)\n\013battle_data\030\014 \003(\013"
-  "2\024.proto.BattleMessage\022\016\n\006inputs\030\017 \003(\006\022\031"
-  "\n\021start_msg_indexes\030\020 \003(\005\022\031\n\021start_msg_r"
-  "andoms\030\021 \003(\004\022)\n\nround_data\030\022 \003(\0132\025.proto"
-  ".BattleLogRound\022\020\n\010start_at\030\024 \001(\003\022\016\n\006end"
-  "_at\030\025 \001(\003\022\024\n\014close_reason\030\030 \001(\t\022\035\n\025disco"
-  "nnect_user_index\030\031 \001(\005\";\n\rBattleMessage\022"
-  "\017\n\007user_id\030\001 \001(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 "
-  "\001(\014\"1\n\013PingMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n"
-  "\007user_id\030\002 \001(\t\"F\n\013PongMessage\022\021\n\ttimesta"
-  "mp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\022\023\n\013public_addr"
-  "\030\003 \001(\t\"P\n\022HelloServerMessage\022\035\n\025session_"
-  "id_deprecated\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_"
-  "id\030\003 \001(\t\"\034\n\nFinMessage\022\016\n\006detail\030\001 \001(\t\"\""
-  "\n\017HelloLbsMessage\022\017\n\007user_id\030\001 \001(\t\"\354\005\n\006P"
-  "acket\022 \n\004type\030\001 \001(\0162\022.proto.MessageType\022"
-  "\013\n\003seq\030\002 \001(\r\022\013\n\003ack\030\003 \001(\r\022\022\n\nsession_id\030"
-  "\005 \001(\t\0224\n\021hello_server_data\030\n \001(\0132\031.proto"
-  ".HelloServerMessage\022%\n\tping_data\030\013 \001(\0132\022"
-  ".proto.PingMessage\022%\n\tpong_data\030\014 \001(\0132\022."
-  "proto.PongMessage\022)\n\013battle_data\030\r \003(\0132\024"
-  ".proto.BattleMessage\022#\n\010fin_data\030\016 \001(\0132\021"
-  ".proto.FinMessage\022.\n\016hello_lbs_data\030\017 \001("
-  "\0132\026.proto.HelloLbsMessage\022<\n\031spectator_i"
-  "nput_push_data\030\024 \001(\0132\031.proto.SpectatorIn"
-  "putPush\022:\n\030spectator_input_ack_data\030\025 \001("
-  "\0132\030.proto.SpectatorInputAck\022>\n\032spectator"
-  "_round_event_data\030\026 \001(\0132\032.proto.Spectato"
-  "rRoundEvent\022@\n\033spectator_round_result_da"
-  "ta\030\027 \001(\0132\033.proto.SpectatorRoundResult\022B\n"
-  "\030spectator_subscribe_data\030\030 \001(\0132 .proto."
-  "SpectatorSubscribeRequest\022N\n\"spectator_s"
-  "ubscribe_challenge_data\030\031 \001(\0132\".proto.Sp"
-  "ectatorSubscribeChallenge*\222\002\n\013MessageTyp"
-  "e\022\010\n\004None\020\000\022\017\n\013HelloServer\020\001\022\010\n\004Ping\020\002\022\010"
-  "\n\004Pong\020\003\022\n\n\006Battle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLb"
-  "s\020\n\022\032\n\026SpectatorInputPushType\020\024\022\031\n\025Spect"
-  "atorInputAckType\020\025\022\033\n\027SpectatorRoundEven"
-  "tType\020\026\022\034\n\030SpectatorRoundResultType\020\027\022\032\n"
-  "\026SpectatorSubscribeType\020\030\022#\n\037SpectatorSu"
-  "bscribeChallengeType\020\031B\rZ\013gdxsv/protob\006p"
-  "roto3"
+  "\022.proto.FrameTiming\022\032\n\022present_depth_his"
+  "t\030* \003(\005\022\037\n\027late_present_depth_hist\030+ \003(\005"
+  "\022\032\n\022dropped_depth_hist\030, \003(\005J\004\010%\020(R\017roll"
+  "back_budgetR\027budget_exhausted_framesR\033bu"
+  "dget_exhausted_depth_hist\"\241\003\n\013FrameTimin"
+  "g\022\021\n\tperiod_us\030\001 \001(\005\022 \n\004work\030\002 \001(\0132\022.pro"
+  "to.TimingStats\022-\n\rrollback_room\030\003 \001(\0132\022."
+  "proto.TimingStatsB\002\030\001\022\027\n\013over_period\030\004 \001"
+  "(\005B\002\030\001\022\"\n\026over_period_depth_hist\030\005 \003(\005B\002"
+  "\030\001\022(\n\014present_wait\030\006 \001(\0132\022.proto.TimingS"
+  "tats\022\'\n\013render_wait\030\007 \001(\0132\022.proto.Timing"
+  "Stats\022)\n\rrollback_wait\030\010 \001(\0132\022.proto.Tim"
+  "ingStats\022&\n\nqueue_wait\030\t \001(\0132\022.proto.Tim"
+  "ingStats\022\037\n\027present_wait_elasticity\030\n \001("
+  "\005\022*\n\016rollback_slack\030\013 \001(\0132\022.proto.Timing"
+  "Stats\"\237\001\n\013TimingStats\022\r\n\005count\030\001 \001(\005\022\017\n\007"
+  "mean_us\030\002 \001(\005\022\016\n\006min_us\030\003 \001(\005\022\r\n\005p1_us\030\004"
+  " \001(\005\022\r\n\005p5_us\030\005 \001(\005\022\016\n\006p99_us\030\006 \001(\005\022\016\n\006m"
+  "ax_us\030\007 \001(\005\022\022\n\noff_period\030\010 \001(\005\022\016\n\006p50_u"
+  "s\030\t \001(\005\"\232\001\n\020RemotePeerReport\022\017\n\007peer_id\030"
+  "\001 \001(\005\022\021\n\trecv_loss\030\002 \001(\005\022\021\n\tsend_loss\030\003 "
+  "\001(\005\022\023\n\013ping_min_ms\030\004 \001(\005\022\026\n\016ping_median_"
+  "ms\030\005 \001(\005\022\023\n\013ping_max_ms\030\006 \001(\005\022\r\n\005route\030\007"
+  " \001(\t\"M\n\016RenderSettings\022\032\n\022threaded_rende"
+  "ring\030\001 \001(\010\022\r\n\005vsync\030\002 \001(\010\022\020\n\010renderer\030\003 "
+  "\001(\005\"\262\002\n\013P2PMatching\022\023\n\013battle_code\030\001 \001(\t"
+  "\022\022\n\nsession_id\030\002 \001(\005\022\024\n\014player_count\030\003 \001"
+  "(\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_test_duratio"
+  "n\030\006 \001(\005\022\030\n\020is_training_game\030\007 \001(\010\022\020\n\010rul"
+  "e_bin\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.proto.Battl"
+  "eLogUser\022(\n\ncandidates\030\n \003(\0132\024.proto.Pla"
+  "yerAddress\022\"\n\006relays\030\013 \003(\0132\022.proto.Relay"
+  "Server\022\030\n\020spectator_uplink\030\014 \001(\010\"Y\n\rPlay"
+  "erAddress\022\017\n\007user_id\030\001 \001(\t\022\017\n\007peer_id\030\002 "
+  "\001(\005\022\n\n\002ip\030\003 \001(\t\022\014\n\004port\030\004 \001(\005\022\014\n\004team\030\005 "
+  "\001(\005\"S\n\013RelayServer\022\016\n\006region\030\001 \001(\t\022\n\n\002ip"
+  "\030\002 \001(\t\022\014\n\004port\030\003 \001(\005\022\r\n\005token\030\004 \001(\004\022\013\n\003i"
+  "p6\030\005 \001(\t\"e\n\tGamePatch\022\021\n\tgame_disk\030\001 \001(\t"
+  "\022\014\n\004name\030\002 \001(\t\022\022\n\nwrite_once\030\004 \001(\010\022#\n\005co"
+  "des\030\n \003(\0132\024.proto.GamePatchCode\"Q\n\rGameP"
+  "atchCode\022\014\n\004size\030\001 \001(\005\022\017\n\007address\030\002 \001(\r\022"
+  "\020\n\010original\030\003 \001(\r\022\017\n\007changed\030\004 \001(\r\"2\n\rGa"
+  "mePatchList\022!\n\007patches\030\001 \003(\0132\020.proto.Gam"
+  "ePatch\"\354\001\n\rBattleLogUser\022\017\n\007user_id\030\001 \001("
+  "\t\022\021\n\tuser_name\030\002 \001(\t\022\022\n\npilot_name\030\003 \001(\t"
+  "\022\022\n\ngame_param\030\004 \001(\014\022\024\n\014battle_count\030\005 \001"
+  "(\005\022\021\n\twin_count\030\006 \001(\005\022\022\n\nlose_count\030\007 \001("
+  "\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004team\030\t \001(\005\022\020\n\010platfo"
+  "rm\030\n \001(\t\022\026\n\016user_name_sjis\030\013 \001(\014\022\013\n\003pos\030"
+  "\014 \001(\005\"3\n\016BattleLogRound\022\020\n\010win_team\030\001 \001("
+  "\005\022\017\n\007used_ms\030\002 \003(\005\"\210\003\n\022SpectatorInputPus"
+  "h\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001"
+  "(\005\022\023\n\013start_frame\030\003 \001(\005\022\016\n\006inputs\030\004 \003(\006\022"
+  "\031\n\021start_msg_indexes\030\005 \003(\005\022\031\n\021start_msg_"
+  "randoms\030\006 \003(\004\022)\n\nround_data\030\007 \003(\0132\025.prot"
+  "o.BattleLogRound\022\024\n\014close_reason\030\010 \001(\t\022\035"
+  "\n\025disconnect_user_index\030\t \001(\005\022$\n\006header\030"
+  "\n \001(\0132\024.proto.BattleLogFile\022!\n\007patches\030\013"
+  " \003(\0132\020.proto.GamePatch\022\023\n\013patch_start\030\014 "
+  "\001(\005\022\023\n\013patch_total\030\r \001(\005\022\033\n\023round_state_"
+  "version\030\016 \001(\005\"\224\001\n\021SpectatorInputAck\022\023\n\013b"
+  "attle_code\030\001 \001(\t\022\021\n\tack_frame\030\002 \001(\005\022\021\n\tp"
+  "atch_ack\030\003 \001(\005\022\021\n\tround_ack\030\004 \001(\005\022\027\n\017rou"
+  "nd_event_ack\030\005 \003(\005\022\030\n\020round_result_ack\030\006"
+  " \003(\005\"Z\n\031SpectatorSubscribeRequest\022\023\n\013bat"
+  "tle_code\030\001 \001(\t\022\022\n\nfrom_frame\030\003 \001(\005\022\016\n\006co"
+  "okie\030\004 \001(\014J\004\010\002\020\003\"B\n\033SpectatorSubscribeCh"
+  "allenge\022\023\n\013battle_code\030\001 \001(\t\022\016\n\006cookie\030\002"
+  " \001(\014\"c\n\023SpectatorRoundEvent\022\023\n\013battle_co"
+  "de\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\r\n\005frame\030\003 "
+  "\001(\005\022\024\n\014random_value\030\004 \001(\004\"z\n\024SpectatorRo"
+  "undResult\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsessio"
+  "n_id\030\002 \001(\005\022\023\n\013round_index\030\003 \001(\005\022$\n\005round"
+  "\030\004 \001(\0132\025.proto.BattleLogRound\"\300\003\n\rBattle"
+  "LogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n\030gdxsv_vers"
+  "ion_deprecated\030\002 \001(\t\022\023\n\013battle_code\030\003 \001("
+  "\t\022\030\n\020log_file_version\030\004 \001(\005\022!\n\007patches\030\007"
+  " \003(\0132\020.proto.GamePatch\022\020\n\010rule_bin\030\n \001(\014"
+  "\022#\n\005users\030\013 \003(\0132\024.proto.BattleLogUser\022)\n"
+  "\013battle_data\030\014 \003(\0132\024.proto.BattleMessage"
+  "\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg_indexes\030\020 "
+  "\003(\005\022\031\n\021start_msg_randoms\030\021 \003(\004\022)\n\nround_"
+  "data\030\022 \003(\0132\025.proto.BattleLogRound\022\020\n\010sta"
+  "rt_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n\014close_rea"
+  "son\030\030 \001(\t\022\035\n\025disconnect_user_index\030\031 \001(\005"
+  "\";\n\rBattleMessage\022\017\n\007user_id\030\001 \001(\t\022\013\n\003se"
+  "q\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013PingMessage\022\021\n\t"
+  "timestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\"F\n\013Pong"
+  "Message\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 "
+  "\001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022HelloServerM"
+  "essage\022\035\n\025session_id_deprecated\030\001 \001(\t\022\n\n"
+  "\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n\nFinMessage"
+  "\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsMessage\022\017\n\007u"
+  "ser_id\030\001 \001(\t\"\354\005\n\006Packet\022 \n\004type\030\001 \001(\0162\022."
+  "proto.MessageType\022\013\n\003seq\030\002 \001(\r\022\013\n\003ack\030\003 "
+  "\001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021hello_server_"
+  "data\030\n \001(\0132\031.proto.HelloServerMessage\022%\n"
+  "\tping_data\030\013 \001(\0132\022.proto.PingMessage\022%\n\t"
+  "pong_data\030\014 \001(\0132\022.proto.PongMessage\022)\n\013b"
+  "attle_data\030\r \003(\0132\024.proto.BattleMessage\022#"
+  "\n\010fin_data\030\016 \001(\0132\021.proto.FinMessage\022.\n\016h"
+  "ello_lbs_data\030\017 \001(\0132\026.proto.HelloLbsMess"
+  "age\022<\n\031spectator_input_push_data\030\024 \001(\0132\031"
+  ".proto.SpectatorInputPush\022:\n\030spectator_i"
+  "nput_ack_data\030\025 \001(\0132\030.proto.SpectatorInp"
+  "utAck\022>\n\032spectator_round_event_data\030\026 \001("
+  "\0132\032.proto.SpectatorRoundEvent\022@\n\033spectat"
+  "or_round_result_data\030\027 \001(\0132\033.proto.Spect"
+  "atorRoundResult\022B\n\030spectator_subscribe_d"
+  "ata\030\030 \001(\0132 .proto.SpectatorSubscribeRequ"
+  "est\022N\n\"spectator_subscribe_challenge_dat"
+  "a\030\031 \001(\0132\".proto.SpectatorSubscribeChalle"
+  "nge*\222\002\n\013MessageType\022\010\n\004None\020\000\022\017\n\013HelloSe"
+  "rver\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006Battle\020\004\022\007"
+  "\n\003Fin\020\005\022\014\n\010HelloLbs\020\n\022\032\n\026SpectatorInputP"
+  "ushType\020\024\022\031\n\025SpectatorInputAckType\020\025\022\033\n\027"
+  "SpectatorRoundEventType\020\026\022\034\n\030SpectatorRo"
+  "undResultType\020\027\022\032\n\026SpectatorSubscribeTyp"
+  "e\020\030\022#\n\037SpectatorSubscribeChallengeType\020\031"
+  "B\rZ\013gdxsv/protob\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_gdxsv_2eproto_deps[1] = {
 };
@@ -1116,7 +1125,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_gdxsv_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_gdxsv_2eproto = {
-  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 5605,
+  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 5783,
   &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 27, 0,
   schemas, file_default_instances, TableStruct_gdxsv_2eproto::offsets,
   file_level_metadata_gdxsv_2eproto, 27, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
@@ -1214,7 +1223,10 @@ P2PMatchingReport::P2PMatchingReport(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   round_data_(arena),
   rollback_depth_hist_(arena),
   remote_peers_(arena),
-  timesync_frames_(arena) {
+  timesync_frames_(arena),
+  present_depth_hist_(arena),
+  late_present_depth_hist_(arena),
+  dropped_depth_hist_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
   // @@protoc_insertion_point(arena_constructor:proto.P2PMatchingReport)
@@ -1225,7 +1237,10 @@ P2PMatchingReport::P2PMatchingReport(const P2PMatchingReport& from)
       round_data_(from.round_data_),
       rollback_depth_hist_(from.rollback_depth_hist_),
       remote_peers_(from.remote_peers_),
-      timesync_frames_(from.timesync_frames_) {
+      timesync_frames_(from.timesync_frames_),
+      present_depth_hist_(from.present_depth_hist_),
+      late_present_depth_hist_(from.late_present_depth_hist_),
+      dropped_depth_hist_(from.dropped_depth_hist_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_battle_code().empty()) {
@@ -1346,6 +1361,9 @@ void P2PMatchingReport::Clear() {
   rollback_depth_hist_.Clear();
   remote_peers_.Clear();
   timesync_frames_.Clear();
+  present_depth_hist_.Clear();
+  late_present_depth_hist_.Clear();
+  dropped_depth_hist_.Clear();
   battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   after_log_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -1650,6 +1668,36 @@ const char* P2PMatchingReport::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
+      // repeated int32 present_depth_hist = 42;
+      case 42:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 82)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_present_depth_hist(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 80) {
+          _internal_add_present_depth_hist(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated int32 late_present_depth_hist = 43;
+      case 43:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 90)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_late_present_depth_hist(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 88) {
+          _internal_add_late_present_depth_hist(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated int32 dropped_depth_hist = 44;
+      case 44:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 98)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_dropped_depth_hist(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 96) {
+          _internal_add_dropped_depth_hist(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
       default: {
       handle_unusual:
         if ((tag & 7) == 4 || tag == 0) {
@@ -1915,6 +1963,33 @@ failure:
         41, _Internal::frame_timing(this), target, stream);
   }
 
+  // repeated int32 present_depth_hist = 42;
+  {
+    int byte_size = _present_depth_hist_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteInt32Packed(
+          42, _internal_present_depth_hist(), byte_size, target);
+    }
+  }
+
+  // repeated int32 late_present_depth_hist = 43;
+  {
+    int byte_size = _late_present_depth_hist_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteInt32Packed(
+          43, _internal_late_present_depth_hist(), byte_size, target);
+    }
+  }
+
+  // repeated int32 dropped_depth_hist = 44;
+  {
+    int byte_size = _dropped_depth_hist_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteInt32Packed(
+          44, _internal_dropped_depth_hist(), byte_size, target);
+    }
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -1986,6 +2061,51 @@ size_t P2PMatchingReport::ByteSizeLong() const {
     }
     int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
     _timesync_frames_cached_byte_size_.store(cached_size,
+                                    std::memory_order_relaxed);
+    total_size += data_size;
+  }
+
+  // repeated int32 present_depth_hist = 42;
+  {
+    size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      Int32Size(this->present_depth_hist_);
+    if (data_size > 0) {
+      total_size += 2 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+            static_cast<::PROTOBUF_NAMESPACE_ID::int32>(data_size));
+    }
+    int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
+    _present_depth_hist_cached_byte_size_.store(cached_size,
+                                    std::memory_order_relaxed);
+    total_size += data_size;
+  }
+
+  // repeated int32 late_present_depth_hist = 43;
+  {
+    size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      Int32Size(this->late_present_depth_hist_);
+    if (data_size > 0) {
+      total_size += 2 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+            static_cast<::PROTOBUF_NAMESPACE_ID::int32>(data_size));
+    }
+    int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
+    _late_present_depth_hist_cached_byte_size_.store(cached_size,
+                                    std::memory_order_relaxed);
+    total_size += data_size;
+  }
+
+  // repeated int32 dropped_depth_hist = 44;
+  {
+    size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      Int32Size(this->dropped_depth_hist_);
+    if (data_size > 0) {
+      total_size += 2 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+            static_cast<::PROTOBUF_NAMESPACE_ID::int32>(data_size));
+    }
+    int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
+    _dropped_depth_hist_cached_byte_size_.store(cached_size,
                                     std::memory_order_relaxed);
     total_size += data_size;
   }
@@ -2222,6 +2342,9 @@ void P2PMatchingReport::MergeFrom(const P2PMatchingReport& from) {
   rollback_depth_hist_.MergeFrom(from.rollback_depth_hist_);
   remote_peers_.MergeFrom(from.remote_peers_);
   timesync_frames_.MergeFrom(from.timesync_frames_);
+  present_depth_hist_.MergeFrom(from.present_depth_hist_);
+  late_present_depth_hist_.MergeFrom(from.late_present_depth_hist_);
+  dropped_depth_hist_.MergeFrom(from.dropped_depth_hist_);
   if (from.battle_code().size() > 0) {
     _internal_set_battle_code(from._internal_battle_code());
   }
@@ -2334,6 +2457,9 @@ void P2PMatchingReport::InternalSwap(P2PMatchingReport* other) {
   rollback_depth_hist_.InternalSwap(&other->rollback_depth_hist_);
   remote_peers_.InternalSwap(&other->remote_peers_);
   timesync_frames_.InternalSwap(&other->timesync_frames_);
+  present_depth_hist_.InternalSwap(&other->present_depth_hist_);
+  late_present_depth_hist_.InternalSwap(&other->late_present_depth_hist_);
+  dropped_depth_hist_.InternalSwap(&other->dropped_depth_hist_);
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.Swap(&other->close_reason_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   after_log_.Swap(&other->after_log_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -2366,6 +2492,8 @@ void FrameTiming::InitAsDefaultInstance() {
       ::proto::TimingStats::internal_default_instance());
   ::proto::_FrameTiming_default_instance_._instance.get_mutable()->queue_wait_ = const_cast< ::proto::TimingStats*>(
       ::proto::TimingStats::internal_default_instance());
+  ::proto::_FrameTiming_default_instance_._instance.get_mutable()->rollback_slack_ = const_cast< ::proto::TimingStats*>(
+      ::proto::TimingStats::internal_default_instance());
 }
 class FrameTiming::_Internal {
  public:
@@ -2375,6 +2503,7 @@ class FrameTiming::_Internal {
   static const ::proto::TimingStats& render_wait(const FrameTiming* msg);
   static const ::proto::TimingStats& rollback_wait(const FrameTiming* msg);
   static const ::proto::TimingStats& queue_wait(const FrameTiming* msg);
+  static const ::proto::TimingStats& rollback_slack(const FrameTiming* msg);
 };
 
 const ::proto::TimingStats&
@@ -2400,6 +2529,10 @@ FrameTiming::_Internal::rollback_wait(const FrameTiming* msg) {
 const ::proto::TimingStats&
 FrameTiming::_Internal::queue_wait(const FrameTiming* msg) {
   return *msg->queue_wait_;
+}
+const ::proto::TimingStats&
+FrameTiming::_Internal::rollback_slack(const FrameTiming* msg) {
+  return *msg->rollback_slack_;
 }
 FrameTiming::FrameTiming(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena),
@@ -2442,17 +2575,22 @@ FrameTiming::FrameTiming(const FrameTiming& from)
   } else {
     queue_wait_ = nullptr;
   }
+  if (from._internal_has_rollback_slack()) {
+    rollback_slack_ = new ::proto::TimingStats(*from.rollback_slack_);
+  } else {
+    rollback_slack_ = nullptr;
+  }
   ::memcpy(&period_us_, &from.period_us_,
-    static_cast<size_t>(reinterpret_cast<char*>(&over_period_) -
-    reinterpret_cast<char*>(&period_us_)) + sizeof(over_period_));
+    static_cast<size_t>(reinterpret_cast<char*>(&present_wait_elasticity_) -
+    reinterpret_cast<char*>(&period_us_)) + sizeof(present_wait_elasticity_));
   // @@protoc_insertion_point(copy_constructor:proto.FrameTiming)
 }
 
 void FrameTiming::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_FrameTiming_gdxsv_2eproto.base);
   ::memset(&work_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&over_period_) -
-      reinterpret_cast<char*>(&work_)) + sizeof(over_period_));
+      reinterpret_cast<char*>(&present_wait_elasticity_) -
+      reinterpret_cast<char*>(&work_)) + sizeof(present_wait_elasticity_));
 }
 
 FrameTiming::~FrameTiming() {
@@ -2469,6 +2607,7 @@ void FrameTiming::SharedDtor() {
   if (this != internal_default_instance()) delete render_wait_;
   if (this != internal_default_instance()) delete rollback_wait_;
   if (this != internal_default_instance()) delete queue_wait_;
+  if (this != internal_default_instance()) delete rollback_slack_;
 }
 
 void FrameTiming::ArenaDtor(void* object) {
@@ -2517,9 +2656,13 @@ void FrameTiming::Clear() {
     delete queue_wait_;
   }
   queue_wait_ = nullptr;
+  if (GetArena() == nullptr && rollback_slack_ != nullptr) {
+    delete rollback_slack_;
+  }
+  rollback_slack_ = nullptr;
   ::memset(&period_us_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&over_period_) -
-      reinterpret_cast<char*>(&period_us_)) + sizeof(over_period_));
+      reinterpret_cast<char*>(&present_wait_elasticity_) -
+      reinterpret_cast<char*>(&period_us_)) + sizeof(present_wait_elasticity_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -2545,21 +2688,21 @@ const char* FrameTiming::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // .proto.TimingStats rollback_room = 3;
+      // .proto.TimingStats rollback_room = 3 [deprecated = true];
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
           ptr = ctx->ParseMessage(_internal_mutable_rollback_room(), ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // int32 over_period = 4;
+      // int32 over_period = 4 [deprecated = true];
       case 4:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 32)) {
           over_period_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // repeated int32 over_period_depth_hist = 5;
+      // repeated int32 over_period_depth_hist = 5 [deprecated = true];
       case 5:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 42)) {
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_over_period_depth_hist(), ptr, ctx);
@@ -2594,6 +2737,20 @@ const char* FrameTiming::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID
       case 9:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 74)) {
           ptr = ctx->ParseMessage(_internal_mutable_queue_wait(), ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // int32 present_wait_elasticity = 10;
+      case 10:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 80)) {
+          present_wait_elasticity_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // .proto.TimingStats rollback_slack = 11;
+      case 11:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 90)) {
+          ptr = ctx->ParseMessage(_internal_mutable_rollback_slack(), ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -2639,7 +2796,7 @@ failure:
         2, _Internal::work(this), target, stream);
   }
 
-  // .proto.TimingStats rollback_room = 3;
+  // .proto.TimingStats rollback_room = 3 [deprecated = true];
   if (this->has_rollback_room()) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
@@ -2647,13 +2804,13 @@ failure:
         3, _Internal::rollback_room(this), target, stream);
   }
 
-  // int32 over_period = 4;
+  // int32 over_period = 4 [deprecated = true];
   if (this->over_period() != 0) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(4, this->_internal_over_period(), target);
   }
 
-  // repeated int32 over_period_depth_hist = 5;
+  // repeated int32 over_period_depth_hist = 5 [deprecated = true];
   {
     int byte_size = _over_period_depth_hist_cached_byte_size_.load(std::memory_order_relaxed);
     if (byte_size > 0) {
@@ -2694,6 +2851,20 @@ failure:
         9, _Internal::queue_wait(this), target, stream);
   }
 
+  // int32 present_wait_elasticity = 10;
+  if (this->present_wait_elasticity() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(10, this->_internal_present_wait_elasticity(), target);
+  }
+
+  // .proto.TimingStats rollback_slack = 11;
+  if (this->has_rollback_slack()) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(
+        11, _Internal::rollback_slack(this), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -2710,7 +2881,7 @@ size_t FrameTiming::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated int32 over_period_depth_hist = 5;
+  // repeated int32 over_period_depth_hist = 5 [deprecated = true];
   {
     size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
       Int32Size(this->over_period_depth_hist_);
@@ -2732,7 +2903,7 @@ size_t FrameTiming::ByteSizeLong() const {
         *work_);
   }
 
-  // .proto.TimingStats rollback_room = 3;
+  // .proto.TimingStats rollback_room = 3 [deprecated = true];
   if (this->has_rollback_room()) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
@@ -2767,6 +2938,13 @@ size_t FrameTiming::ByteSizeLong() const {
         *queue_wait_);
   }
 
+  // .proto.TimingStats rollback_slack = 11;
+  if (this->has_rollback_slack()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+        *rollback_slack_);
+  }
+
   // int32 period_us = 1;
   if (this->period_us() != 0) {
     total_size += 1 +
@@ -2774,11 +2952,18 @@ size_t FrameTiming::ByteSizeLong() const {
         this->_internal_period_us());
   }
 
-  // int32 over_period = 4;
+  // int32 over_period = 4 [deprecated = true];
   if (this->over_period() != 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
         this->_internal_over_period());
+  }
+
+  // int32 present_wait_elasticity = 10;
+  if (this->present_wait_elasticity() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+        this->_internal_present_wait_elasticity());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -2831,11 +3016,17 @@ void FrameTiming::MergeFrom(const FrameTiming& from) {
   if (from.has_queue_wait()) {
     _internal_mutable_queue_wait()->::proto::TimingStats::MergeFrom(from._internal_queue_wait());
   }
+  if (from.has_rollback_slack()) {
+    _internal_mutable_rollback_slack()->::proto::TimingStats::MergeFrom(from._internal_rollback_slack());
+  }
   if (from.period_us() != 0) {
     _internal_set_period_us(from._internal_period_us());
   }
   if (from.over_period() != 0) {
     _internal_set_over_period(from._internal_over_period());
+  }
+  if (from.present_wait_elasticity() != 0) {
+    _internal_set_present_wait_elasticity(from._internal_present_wait_elasticity());
   }
 }
 
@@ -2862,8 +3053,8 @@ void FrameTiming::InternalSwap(FrameTiming* other) {
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   over_period_depth_hist_.InternalSwap(&other->over_period_depth_hist_);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(FrameTiming, over_period_)
-      + sizeof(FrameTiming::over_period_)
+      PROTOBUF_FIELD_OFFSET(FrameTiming, present_wait_elasticity_)
+      + sizeof(FrameTiming::present_wait_elasticity_)
       - PROTOBUF_FIELD_OFFSET(FrameTiming, work_)>(
           reinterpret_cast<char*>(&work_),
           reinterpret_cast<char*>(&other->work_));

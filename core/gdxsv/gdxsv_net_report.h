@@ -5,7 +5,8 @@
 #include <cstdint>
 
 // Timing statistics of a rollback battle for P2PMatchingReport: rollbacks and
-// their time per frame, Present and input intervals, and per emulation-thread
+// their time per frame, Present and input intervals, late Presents by the depth
+// of the rollback before them, and per emulation-thread
 // frame its work, the time left for a rollback and its waits. Recorded while a
 // GGPO session runs (the recording hooks are in gdxsv_ggpo_hooks.h and
 // gdxsv_emu_hooks.h) in fixed-size histograms, without locks or allocation;
