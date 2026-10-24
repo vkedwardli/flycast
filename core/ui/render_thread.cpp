@@ -32,6 +32,9 @@
 #ifdef USE_SDL
 #include <SDL.h>
 #endif
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#endif
 
 namespace renderthread
 {
@@ -129,6 +132,12 @@ std::exception_ptr stop()
 	if (!thread.joinable())
 		return nullptr;
 	stopRequested = true;
+#ifdef __APPLE__
+	// SDL's Cocoa GL swap waits for the main thread after a window change ([NSOpenGLContext update] by
+	// dispatch_sync): run the main queue until the render thread ends, or both wait for each other
+	while (!done)
+		CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.001, true);
+#endif
 	thread.join();
 	makeCurrent(true);
 	// a change that came while it stopped
