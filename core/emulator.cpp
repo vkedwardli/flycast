@@ -1021,6 +1021,7 @@ void Emulator::start()
 		getSh4Executor()->Start();
 		threadResult = std::async(std::launch::async, [this] {
 				ThreadName _("Flycast-emu");
+				gdxsv_emu_thread_start();
 				InitAudio();
 
 				try {

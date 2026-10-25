@@ -132,6 +132,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
 | `core/emulator.cpp` | `Emulator::start` | the render thread renders from snapshots and does not write VRAM (render_snapshot.h) |
+| `core/emulator.cpp` | `Emulator::start` | `gdxsv_emu_thread_start` |
 | `core/emulator.cpp` | `Emulator::start` | fix blackout on threaded rendering |
 | `core/emulator.cpp` | `Emulator::vblank` | `gdxsv_emu_end_frame` |
 | `core/emulator.h` |  | a rollback or replay session ended |

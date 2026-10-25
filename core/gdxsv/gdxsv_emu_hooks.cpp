@@ -270,6 +270,12 @@ void gdxsv_emu_next_frame() {
 	}
 }
 
+void gdxsv_emu_thread_start() {
+	// These threads run and present the frames. Without the real-time policy their sleeps wake about 1 ms late, and
+	// other apps' threads at the same QoS delay them.
+	gdxsv_set_thread_priority();
+}
+
 void gdxsv_emu_frame_end() {
 	// A rollback battle paces the emulation thread after the local input is sent and the rollback ran; the render
 	// thread presents each queued frame at once.
