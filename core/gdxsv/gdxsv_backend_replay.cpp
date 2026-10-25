@@ -129,15 +129,16 @@ void drawTakeoverInput(u16 target, u16 current) {
 	const ImVec4 matched(0.4f, 0.9f, 0.5f, 1.0f);
 	const ImVec4 missing(1.0f, 0.8f, 0.3f, 1.0f);
 	const ImVec4 extra(1.0f, 1.0f, 1.0f, 1.0f);
-	ImGui::TextUnformatted("Input:");
+	ImGui::TextUnformatted(T("Input:"));
 	if (target == 0) {
 		ImGui::SameLine();
-		ImGui::TextColored(current == 0 ? matched : missing, "Neutral");
+		ImGui::TextColored(current == 0 ? matched : missing, "%s", T("Neutral"));
 	}
 
 	auto append = [&](u16 code, const char* name) {
 		if (((target | current) & code) == 0)
 			return;
+		name = T(name);
 		ImGui::SameLine();
 		if (ImGui::CalcTextSize(name).x > ImGui::GetContentRegionAvail().x)
 			ImGui::NewLine();
@@ -2855,7 +2856,7 @@ void GdxsvBackendReplay::RenderLoadingHud(const UiState& ui) {
 	ImGui::Begin("##gdxsv-replay-loading", nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav |
 					 ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoInputs);
-	const char* text = "Loading...";
+	const char* text = T("Loading...");
 	const ImVec2 textSize = ImGui::CalcTextSize(text);
 	const ImVec2 avail = ImGui::GetContentRegionAvail();
 	ImGui::SetCursorPos(
@@ -2893,10 +2894,10 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 	}
 
 	if (ui.takeover) {
-		if (ImGui::Button(ICON_FA_ROTATE_LEFT "  Retry Takeover", ScaledVec2(300, 40))) {
+		if (ImGui::Button((std::string(ICON_FA_ROTATE_LEFT "  ") + T("Retry Takeover")).c_str(), ScaledVec2(300, 40))) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::RetryTakeover);
 		}
-		if (ImGui::Button(ICON_FA_BACKWARD "  Back to Pause Menu", ScaledVec2(300, 40))) {
+		if (ImGui::Button((std::string(ICON_FA_BACKWARD "  ") + T("Back to Pause Menu")).c_str(), ScaledVec2(300, 40))) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::ReturnToReplay);
 		}
 	} else {
@@ -2905,7 +2906,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 		// play the recording.
 		if (!ui.liveMode && !multi_pov_host_) {
 			ImGui::BeginDisabled(!ui.inGame);
-			if (ImGui::Button(ICON_FA_GAMEPAD "  Take Over", ScaledVec2(300, 40))) {
+			if (ImGui::Button((std::string(ICON_FA_GAMEPAD "  ") + T("Take Over")).c_str(), ScaledVec2(300, 40))) {
 				ui_commands_.emplace_back(ReplayCtrlCommand::TakeOver);
 			}
 			ImGui::EndDisabled();
@@ -2923,7 +2924,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 			float initialY = ImGui::GetCursorPosY();
 
 			ImGui::SetCursorPosY(initialY + (buttonHeight - textHeight) * 0.5f);
-			ImGui::Text("Round");
+			ImGui::TextUnformatted(T("Round"));
 			ImGui::SameLine();
 
 			for (int i = 1; i <= totalRounds; i++) {
@@ -2954,7 +2955,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 						const std::string startClock = formatLocalClock(static_cast<time_t>(ui.startAt + startSeconds));
 						const std::string endClock = formatLocalClock(static_cast<time_t>(ui.startAt + endSeconds));
 						if (!startClock.empty() && !endClock.empty()) {
-							ImGui::Text("Estimated Time: %s ~ %s", startClock.c_str(), endClock.c_str());
+							ImGui::Text(T("Estimated Time: %s ~ %s"), startClock.c_str(), endClock.c_str());
 							ImGui::Separator();
 						}
 					}
@@ -2976,7 +2977,7 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 								if (j >= ui.userCount) break;
 								int ms_id = rd.usedMs[j];
 								const char* ms_name = GdxsvLanguage::GetMSName(ms_id - 1);
-								std::string name = (ms_name && strlen(ms_name) > 0 ? ms_name : "Unknown");
+								std::string name = (ms_name && strlen(ms_name) > 0 ? ms_name : T("Unknown"));
 
 								if (ui.userTeams[j] == 1) {
 									if (!renpo_ms.empty()) renpo_ms += " ";
@@ -3011,24 +3012,24 @@ void GdxsvBackendReplay::RenderPauseMenu(const UiState& ui) {
 
 		ImGui::Separator();
 
-		OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
+		OptionCheckbox(T("Show Ally HP"), config::GdxReplayShowAllyHP, T("Hack the total HP field to display Ally HP"));
 
 		// Key Display and Skip MS Selection do nothing during Live Spectate, so
 		// they are not offered there rather than sitting inert.
 		if (!ui.liveMode) {
-			OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
-			OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection,
-						   "Fast-forward through the mobile suit selection screen");
+			OptionCheckbox(T("Key Display"), config::GdxReplayKeyDisplay, T("Display controller inputs"));
+			OptionCheckbox(T("Skip MS Selection"), config::GdxReplaySkipMsSelection,
+						   T("Fast-forward through the mobile suit selection screen"));
 		}
 
 		ImGui::Separator();
 
-		if (ImGui::Button(ICON_FA_PLAY "  Resume Playback", ScaledVec2(300, 40))) {
+		if (ImGui::Button((std::string(ICON_FA_PLAY "  ") + T("Resume Playback")).c_str(), ScaledVec2(300, 40))) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::ResumePlayback);
 			ctrl_input_release_pending_ = true;
 			SDL_ShowCursor(SDL_ENABLE);
 		}
-		if (ImGui::Button(ICON_FA_DOOR_OPEN "  Exit Replay", ScaledVec2(300, 40))) {
+		if (ImGui::Button((std::string(ICON_FA_DOOR_OPEN "  ") + T("Exit Replay")).c_str(), ScaledVec2(300, 40))) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::ExitReplay);
 		}
 	}
@@ -3066,16 +3067,17 @@ void GdxsvBackendReplay::RenderTakeoverCountdown(const UiState& ui, u16 current_
 	ImGui::Dummy(ScaledVec2(0, 5));
 	{
 		auto w = ImGui::GetWindowSize().x;
-		auto tw = ImGui::CalcTextSize("Get Ready!").x;
+		const char* text = T("Get Ready!");
+		auto tw = ImGui::CalcTextSize(text).x;
 		ImGui::SetCursorPosX((w - tw) * 0.5f);
-		ImGui::Text("Get Ready!");
+		ImGui::TextUnformatted(text);
 	}
 	ImGui::Dummy(ScaledVec2(0, 10));
 	ImGui::Separator();
 	drawTakeoverInput(ui.takeoverTargetInput, current_input);
 	ImGui::Dummy(ScaledVec2(0, 8));
 	ImGui::PushTextWrapPos(0.0f);
-	ImGui::TextDisabled("Matching is optional. During Takeover, press START to retry.");
+	ImGui::TextDisabled("%s", T("Matching is optional. During Takeover, press START to retry."));
 	ImGui::PopTextWrapPos();
 }
 
@@ -3190,7 +3192,7 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 	// rect, so the two read as separate controls.
 	const float liveGap = uiScaled(8.0f);
 	const float liveDotR = uiScaled(4.0f);
-	const float liveW = ui.liveMode ? (pad + liveDotR * 2.0f + pad * 0.75f + ImGui::CalcTextSize("Live").x + pad) : 0.0f;
+	const float liveW = ui.liveMode ? (pad + liveDotR * 2.0f + pad * 0.75f + ImGui::CalcTextSize(T("Live")).x + pad) : 0.0f;
 
 	// Viewer count on the right, so the bar sits centred between two pills
 	// rather than being pushed off-centre by the Live one.
@@ -3286,15 +3288,15 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		const float dotX = liveX + pad + liveDotR;
 		dl->AddCircleFilled(ImVec2(dotX, barY + barH * 0.5f), liveDotR, dotCol);
 
-		const ImVec2 liveTextSize = ImGui::CalcTextSize("Live");
+		const ImVec2 liveTextSize = ImGui::CalcTextSize(T("Live"));
 		dl->AddText(ImVec2(dotX + liveDotR + pad * 0.75f, barY + (barH - liveTextSize.y) * 0.5f),
-					ui.liveAtEdge ? textCol : liveOff, "Live");
+					ui.liveAtEdge ? textCol : liveOff, T("Live"));
 
 		if (iconButton("##gdxsv-live", ImVec2(liveX + liveW * 0.5f, barY + barH * 0.5f), ImVec2(liveW, barH), !ui.liveAtEdge)) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::FollowLive);
 		}
 		if (!ui.liveAtEdge)
-			controlTooltip("Skip ahead to live");
+			controlTooltip(T("Skip ahead to live"));
 	}
 
 	// Viewer count on the right, balancing the Live pill on the left.
@@ -3305,8 +3307,8 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		const ImVec2 vSize = ImGui::CalcTextSize(viewersTxt);
 		dl->AddText(ImVec2(viewersX + (viewersW - vSize.x) * 0.5f, barY + (barH - vSize.y) * 0.5f), textCol, viewersTxt);
 		iconButton("##gdxsv-viewers", ImVec2(viewersX + viewersW * 0.5f, barY + barH * 0.5f), ImVec2(viewersW, barH), false);
-		char viewersHint[48];
-		snprintf(viewersHint, sizeof(viewersHint), "%d watching now", live_viewers_);
+		char viewersHint[64];
+		snprintf(viewersHint, sizeof(viewersHint), T("%d watching now"), live_viewers_);
 		controlTooltip(viewersHint);
 	}
 
@@ -3325,7 +3327,7 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 	if (iconButton("##gdxsv-play-pause", ImVec2(cx + iconSlotW * 0.5f, cy), ImVec2(iconSlotW, barH), true)) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::TogglePause);
 	}
-	controlTooltip(ui.paused ? "Play" : "Pause", "A");
+	controlTooltip(T(ui.paused ? "Play" : "Pause"), "A");
 	cx += iconSlotW + uiScaled(6.0f);
 
 	// Up/Down guide icons (for speed control)
@@ -3343,19 +3345,19 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, 1);
 		flash_up_ = 0.3f;
 	}
-	controlTooltip(ICON_FA_ARROW_UP " Speed", "D-pad Up");
+	controlTooltip((std::string(ICON_FA_ARROW_UP " ") + T("Speed")).c_str(), T("D-pad Up"));
 	if (iconButton("##gdxsv-speed-down", downCenter, ImVec2(udSlotW, barH * 0.5f), canSpeedDown)) {
 		ui_commands_.emplace_back(ReplayCtrlCommand::NextSpeed, -1);
 		flash_down_ = 0.3f;
 	}
-	controlTooltip(ICON_FA_ARROW_DOWN " Speed", "D-pad Down");
+	controlTooltip((std::string(ICON_FA_ARROW_DOWN " ") + T("Speed")).c_str(), T("D-pad Down"));
 	cx += udSlotW + uiScaled(4.0f);
 
 	const char* speedTxt = SpeedText(ui.playSpeed);
 	ImVec2 speedSize = ImGui::CalcTextSize(speedTxt);
 	dl->AddText(ImVec2(cx, cy - speedSize.y * 0.5f), textCol, speedTxt);
 	iconButton("##gdxsv-current-speed", ImVec2(cx + speedSize.x * 0.5f, cy), ImVec2(speedSize.x, barH), false);
-	controlTooltip("Current speed");
+	controlTooltip(T("Current speed"));
 	cx += speedSize.x + uiScaled(10.0f);
 
 	// Left/Right guide icons (for seek/step) - placed next to each other
@@ -3363,21 +3365,21 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 	const float lrSlotW = std::max(lrSize.x, uiScaled(20.0f));
 	const ImVec2 leftCenter(cx + lrSlotW * 0.5f, cy);
 	const ImVec2 leftPos = leftCenter - lrSize * 0.5f;
-	char backwardLabel[32], forwardLabel[32], seekDetail[64];
+	char backwardLabel[64], forwardLabel[64], seekDetail[128];
 	if (ui.paused) {
-		snprintf(backwardLabel, sizeof(backwardLabel), "- 1 frame");
-		snprintf(forwardLabel, sizeof(forwardLabel), "+ 1 frame");
+		snprintf(backwardLabel, sizeof(backwardLabel), "%s", T("- 1 frame"));
+		snprintf(forwardLabel, sizeof(forwardLabel), "%s", T("+ 1 frame"));
 	} else {
-		snprintf(backwardLabel, sizeof(backwardLabel), "- %.0fs", ReplaySeekFrames / 59.94);
-		snprintf(forwardLabel, sizeof(forwardLabel), "+ %.0fs", ReplaySeekFrames / 59.94);
+		snprintf(backwardLabel, sizeof(backwardLabel), T("- %.0fs"), ReplaySeekFrames / 59.94);
+		snprintf(forwardLabel, sizeof(forwardLabel), T("+ %.0fs"), ReplaySeekFrames / 59.94);
 	}
-	snprintf(seekDetail, sizeof(seekDetail), "%d frames; hold D-pad to repeat", ReplaySeekFrames);
+	snprintf(seekDetail, sizeof(seekDetail), T("%d frames; hold D-pad to repeat"), ReplaySeekFrames);
 	dl->AddText(leftPos, flashCol(flash_left_), ICON_FA_ANGLE_LEFT);
 	if (iconButton("##gdxsv-prev", leftCenter, ImVec2(lrSlotW, barH), true)) {
 		ui_commands_.emplace_back(ui.paused ? ReplayCtrlCommand::StepFrameBackward : ReplayCtrlCommand::SeekBackward);
 		flash_left_ = 0.3f;
 	}
-	controlTooltip(backwardLabel, "D-pad Left", ui.paused ? "Hold D-pad to repeat" : seekDetail);
+	controlTooltip(backwardLabel, T("D-pad Left"), ui.paused ? T("Hold D-pad to repeat") : seekDetail);
 	cx += lrSlotW + uiScaled(2.0f);
 	const ImVec2 rightCenter(cx + lrSlotW * 0.5f, cy);
 	const ImVec2 rightPos = rightCenter - lrSize * 0.5f;
@@ -3386,7 +3388,7 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		ui_commands_.emplace_back(ui.paused ? ReplayCtrlCommand::StepFrame : ReplayCtrlCommand::SeekForward);
 		flash_right_ = 0.3f;
 	}
-	controlTooltip(forwardLabel, "D-pad Right", ui.paused ? "Hold D-pad to repeat" : seekDetail);
+	controlTooltip(forwardLabel, T("D-pad Right"), ui.paused ? T("Hold D-pad to repeat") : seekDetail);
 	cx += lrSlotW + uiScaled(6.0f);
 
 	// --- Right: Round/Frame info ---
@@ -3400,7 +3402,7 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 
 	char rbuf[128];
 	if (totalRounds > 0) {
-		snprintf(rbuf, sizeof(rbuf), "Round %d/%d  %d/%d fr", ui.currentRound, totalRounds, displayFrame, ui.inputCount);
+		snprintf(rbuf, sizeof(rbuf), T("Round %d/%d  %d/%d fr"), ui.currentRound, totalRounds, displayFrame, ui.inputCount);
 	} else {
 		snprintf(rbuf, sizeof(rbuf), "%d/%d fr", displayFrame, ui.inputCount);
 	}
@@ -3428,8 +3430,8 @@ void GdxsvBackendReplay::RenderControlBar(const UiState& ui) {
 		ImGui::InvisibleButton("##gdxsv-replay-progress-slider", ImVec2(progW, hitH));
 		if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
 			ctrl_bar_idle_timer_ = 3.0f;
-			char targetFrame[32];
-			snprintf(targetFrame, sizeof(targetFrame), "Frame %d", frameFromProgressX(ImGui::GetIO().MousePos.x));
+			char targetFrame[64];
+			snprintf(targetFrame, sizeof(targetFrame), T("Frame %d"), frameFromProgressX(ImGui::GetIO().MousePos.x));
 			hoverOverlay(targetFrame, std::clamp(ImGui::GetIO().MousePos.x, progX0, progX1));
 		}
 		if (ImGui::IsItemActivated() || ImGui::IsItemClicked(ImGuiMouseButton_Left)) {

@@ -379,3 +379,378 @@ msgstr "サイド７内部"
 
 msgid "Choose the horizontal boundary used for the battle HUD:\n    4:3 (Original): Keep the stock positions\n    Up to 16:9: Use the viewport width, capped at a 16:9 safe area\n    Full Width: Move the HUD to the current viewport edges"
 msgstr "対戦中のHUDを配置する横方向の範囲を選びます:\n    4:3 (Original): 元の位置のまま\n    Up to 16:9: 画面の幅に合わせます（最大で16:9のセーフエリアまで）\n    Full Width: 現在の画面の端までHUDを移動します"
+
+msgid "Live & Replays"
+msgstr "ライブ & リプレイ"
+
+msgid "Please disconnect from the Gdxsv server first."
+msgstr "先にGdxsvサーバーから切断してください。"
+
+msgid "Live"
+msgstr "ライブ"
+
+msgid "Local"
+msgstr "ローカル"
+
+msgid "Refresh"
+msgstr "更新"
+
+msgid "Battles in progress. Updating..."
+msgstr "進行中の対戦。更新中…"
+
+msgid "Battles in progress. Last update failed (HTTP %d)."
+msgstr "進行中の対戦。前回の更新に失敗しました (HTTP %d)。"
+
+msgid "Battles in progress. Updates every %ds."
+msgstr "進行中の対戦。%d秒ごとに更新します。"
+
+msgid "No battle in progress."
+msgstr "進行中の対戦はありません。"
+
+msgid "Lobby %d"
+msgstr "ロビー %d"
+
+msgid "Select a battle to watch."
+msgstr "観戦する対戦を選択してください。"
+
+msgid "That battle has ended."
+msgstr "その対戦は終了しました。"
+
+msgid "Watch %dP"
+msgstr "%dP視点で観戦"
+
+msgid "Watch (4 screens)"
+msgstr "4画面で観戦"
+
+msgid "This battle is on %s."
+msgstr "この対戦は%sです。"
+
+msgid "Watch the next live battle automatically"
+msgstr "次のライブ対戦を自動で観戦"
+
+msgid "When a battle ends, move on to another live battle, or wait for one to start. Exit from the pause menu to stop."
+msgstr "対戦が終わると別のライブ対戦に移るか、始まるまで待ちます。止めるにはポーズメニューから終了してください。"
+
+msgid "Lobby: %s"
+msgstr "ロビー: %s"
+
+msgid "Lobby: %d"
+msgstr "ロビー: %d"
+
+msgid "Current Viewers: %d"
+msgstr "現在の視聴者数: %d"
+
+msgid "Waiting for the next live battle..."
+msgstr "次のライブ対戦を待っています…"
+
+msgid "Battles watched: %d"
+msgstr "観戦した対戦: %d"
+
+msgid "Waiting for %lld:%02lld"
+msgstr "待機中 %lld:%02lld"
+
+msgid "Last update failed (HTTP %d)."
+msgstr "前回の更新に失敗しました (HTTP %d)。"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Favorites only"
+msgstr "お気に入りのみ"
+
+msgid "Open folder"
+msgstr "フォルダを開く"
+
+msgid "Replay folder not found, showing the default folder: %s"
+msgstr "リプレイフォルダが見つからないため、既定のフォルダを表示しています: %s"
+
+msgid "(No favorite replay found)"
+msgstr "（お気に入りのリプレイはありません）"
+
+msgid "(No replay found)"
+msgstr "（リプレイはありません）"
+
+msgid "Prev Page"
+msgstr "前のページ"
+
+msgid "Next Page"
+msgstr "次のページ"
+
+msgid "Result:"
+msgstr "結果:"
+
+msgid "Unable to read replay"
+msgstr "リプレイを読み込めません"
+
+msgid "Failed to read this replay file."
+msgstr "このリプレイファイルを読み込めませんでした。"
+
+msgid "Add to Favorites"
+msgstr "お気に入りに追加"
+
+msgid "Remove from Favorites"
+msgstr "お気に入りから外す"
+
+msgid "Downloading..."
+msgstr "ダウンロード中…"
+
+msgid "The saved file stays in the Local tab."
+msgstr "保存済みのファイルはローカルタブに残ります。"
+
+msgid "Save this replay to the Local tab as a favorite."
+msgstr "このリプレイをお気に入りとしてローカルタブに保存します。"
+
+msgid "Failed to download this replay."
+msgstr "このリプレイをダウンロードできませんでした。"
+
+msgid "Right-click to copy or filter"
+msgstr "右クリックでコピー・絞り込み"
+
+msgid "Right-click to copy or filter on Server"
+msgstr "右クリックでコピー・サーバーで絞り込み"
+
+msgid "(empty)"
+msgstr "（空）"
+
+msgid "Copy"
+msgstr "コピー"
+
+msgid "Filter by %s"
+msgstr "%sで絞り込む"
+
+msgid "Filter by %s (Server)"
+msgstr "%sで絞り込む（サーバー）"
+
+msgid "Load %s to replay"
+msgstr "%sを起動して再生"
+
+msgid "Load %s to play this replay."
+msgstr "このリプレイを再生するには%sを起動してください。"
+
+msgid "Replay %dP"
+msgstr "%dP視点で再生"
+
+msgid "Replay (4 screens)"
+msgstr "4画面で再生"
+
+msgid "Select a Player"
+msgstr "プレイヤーを選択"
+
+msgid "4-player battles only"
+msgstr "4人対戦のみ"
+
+msgid "4 screens unavailable"
+msgstr "4画面は利用できません"
+
+msgid "Failed to start replay. The replay file is corrupted or outdated."
+msgstr "リプレイを開始できませんでした。リプレイファイルが壊れているか、古い形式です。"
+
+msgid "Four-screen playback needs a display"
+msgstr "4画面再生にはディスプレイが必要です"
+
+msgid "Four-screen video sharing is unavailable on this platform"
+msgstr "このプラットフォームでは4画面の映像共有を利用できません"
+
+msgid "Four-screen video sharing is not ready"
+msgstr "4画面の映像共有の準備ができていません"
+
+msgid "Select OpenGL, DirectX 11 or Vulkan for four-screen playback"
+msgstr "4画面再生にはOpenGL、DirectX 11、Vulkanのいずれかを選択してください"
+
+msgid "Four-screen Vulkan needs DirectX texture sharing; select OpenGL or DirectX 11"
+msgstr "Vulkanでの4画面にはDirectXのテクスチャ共有が必要です。OpenGLかDirectX 11を選択してください"
+
+msgid "Filename: %s"
+msgstr "ファイル名: %s"
+
+msgid "BattleCode: %s"
+msgstr "対戦コード: %s"
+
+msgid "Game: %s"
+msgstr "ゲーム: %s"
+
+msgid "Views: %d"
+msgstr "再生回数: %d"
+
+msgid "StartAt: %s"
+msgstr "開始日時: %s"
+
+msgid "EndAt: %s"
+msgstr "終了日時: %s"
+
+msgid "CloseReason: %s"
+msgstr "終了理由: %s"
+
+msgid "Hide name"
+msgstr "名前を隠す"
+
+msgid "Replace player names with generic names"
+msgstr "プレイヤー名を汎用の名前に置き換えます"
+
+msgid "Show Ally HP"
+msgstr "味方HPを表示"
+
+msgid "Hack the total HP field to display Ally HP"
+msgstr "総HP表示欄に味方のHPを表示します"
+
+msgid "Key Display"
+msgstr "キー表示"
+
+msgid "Display controller inputs"
+msgstr "コントローラーの入力を表示します"
+
+msgid "Skip MS Selection"
+msgstr "機体選択をスキップ"
+
+msgid "Fast-forward through the mobile suit selection screen"
+msgstr "機体選択画面を早送りします"
+
+msgid "Round Detail"
+msgstr "ラウンド詳細"
+
+msgid "Filter by"
+msgstr "絞り込み"
+
+msgid "User ID"
+msgstr "ユーザーID"
+
+msgid "User Name"
+msgstr "ハンドルネーム"
+
+msgid "Pilot Name"
+msgstr "パイロットネーム"
+
+msgid "Lobby ID"
+msgstr "ロビー"
+
+msgid "No. of Players"
+msgstr "人数"
+
+msgid "Players"
+msgstr "人数"
+
+msgid "Battle Code"
+msgstr "対戦コード"
+
+msgid "Ranking"
+msgstr "ランキング"
+
+msgid "Disk"
+msgstr "ディスク"
+
+msgid "Used MS"
+msgstr "使用機体"
+
+msgid "Reverse Order"
+msgstr "逆順"
+
+msgid "Reverse"
+msgstr "逆順"
+
+msgid "My IDs"
+msgstr "自分のID"
+
+msgid "Handle Name"
+msgstr "ハンドルネーム"
+
+msgid "Add Filter"
+msgstr "フィルタを追加"
+
+msgid "Empty values cannot be used as filters."
+msgstr "空の値はフィルタに使えません。"
+
+msgid "This filter is already applied."
+msgstr "このフィルタは適用済みです。"
+
+msgid "Up to four filters per field. Remove one to add another."
+msgstr "フィルタは項目ごとに4つまでです。追加するには1つ削除してください。"
+
+msgid "No result"
+msgstr "該当なし"
+
+msgid "Error: HTTP %d"
+msgstr "エラー: HTTP %d"
+
+msgid "Take Over"
+msgstr "プレイヤー操作に切り替え"
+
+msgid "Retry Takeover"
+msgstr "プレイヤー操作をやり直す"
+
+msgid "Back to Pause Menu"
+msgstr "ポーズメニューに戻る"
+
+msgid "Get Ready!"
+msgstr "まもなく操作開始！"
+
+msgid "Input:"
+msgstr "入力:"
+
+msgid "Neutral"
+msgstr "ニュートラル"
+
+msgid "Matching is optional. During Takeover, press START to retry."
+msgstr "入力を合わせるのは任意です。プレイヤー操作中はSTARTでやり直せます。"
+
+msgid "Round"
+msgstr "ラウンド"
+
+msgid "Estimated Time: %s ~ %s"
+msgstr "推定時刻: %s ～ %s"
+
+msgid "Resume Playback"
+msgstr "再生に戻る"
+
+msgid "Exit Replay"
+msgstr "リプレイを終了"
+
+msgid "Skip ahead to live"
+msgstr "ライブに追いつく"
+
+msgid "%d watching now"
+msgstr "%d人が視聴中"
+
+msgid "Play"
+msgstr "再生"
+
+msgid "Speed"
+msgstr "速度"
+
+msgid "Current speed"
+msgstr "現在の再生速度"
+
+msgid "D-pad Up"
+msgstr "十字キー上"
+
+msgid "D-pad Down"
+msgstr "十字キー下"
+
+msgid "D-pad Left"
+msgstr "十字キー左"
+
+msgid "D-pad Right"
+msgstr "十字キー右"
+
+msgid "- 1 frame"
+msgstr "- 1フレーム"
+
+msgid "+ 1 frame"
+msgstr "+ 1フレーム"
+
+msgid "- %.0fs"
+msgstr "- %.0f秒"
+
+msgid "+ %.0fs"
+msgstr "+ %.0f秒"
+
+msgid "%d frames; hold D-pad to repeat"
+msgstr "%dフレーム。十字キー長押しで連続"
+
+msgid "Hold D-pad to repeat"
+msgstr "十字キー長押しで連続"
+
+msgid "Round %d/%d  %d/%d fr"
+msgstr "ラウンド %d/%d  %d/%d fr"
+
+msgid "Frame %d"
+msgstr "フレーム %d"
