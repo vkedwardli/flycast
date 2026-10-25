@@ -619,8 +619,6 @@ void rend_start_render()
 		if (!config::DelayFrameSwapping && !ctx->rend.isRTT && !config::EmulateFramebuffer)
 			pvrQueue.enqueue(PvrMessageQueue::Present);
 	}
-	if (!ctx->rend.isRTT)
-		gdxsv_emu_frame_queued();
 }
 
 int rend_end_render(int tag, int cycles, int jitter, void *arg)

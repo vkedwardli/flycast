@@ -191,6 +191,10 @@ void gdxsv_emu_vblank() {
 		gdxsv.HookVBlank();
 	}
 	gdxsv_headless_probe_tick();
+	// The emulation thread never waits for the render thread (render snapshots), so the limiter paces it: outside a
+	// rollback battle (its limiter is in gdxsv_emu_frame_end), once per emulated frame, whether the game renders it
+	// or not. Not while a seek runs with the renderer off.
+	if (!ggpo::active() && rend_is_enabled()) gdxsv_frame_limiter_wait();
 }
 
 void gdxsv_emu_end_frame() {
@@ -264,13 +268,6 @@ void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
-}
-
-void gdxsv_emu_frame_queued() {
-	// The emulation thread never waits for the render thread (render snapshots), so the limiter paces it. Outside a
-	// rollback battle (its limiter is in gdxsv_emu_frame_end) here, a frame at a time, after the frame is queued so
-	// that it is not shown later. Rollback re-runs render nothing.
-	if (!ggpo::active() && rend_is_enabled()) gdxsv_frame_limiter_wait();
 }
 
 void gdxsv_emu_frame_end() {

@@ -157,7 +157,6 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/Renderer_if.cpp` | `rend_create_renderer` | `gdxsv_headless` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_end_frame` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | render snapshots convert the palette on the render thread |
-| `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_frame_queued` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_end_render` | no wait with render snapshots |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_vblank` | `gdxsv_emu_vblank` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_rollback` | P2PMatchingReport |

@@ -60,8 +60,9 @@ bool gdxsv_emu_mainui_reinit_needed() {
 }
 
 void gdxsv_frame_limiter_wait() {
-	// Threaded rendering: vsync no longer holds the emulation thread, so without the audio pacing it the native rate
-	const bool on = config::FixedFrequency || !config::LimitFPS;
+	// Without audio sync (LimitFPS) and a fixed rate, vsync used to hold the emulation thread through the render
+	// thread; the native rate stands in for it. Headless has no display: it runs unthrottled, as it did.
+	const bool on = config::FixedFrequency || (!config::LimitFPS && !gdxsv_headless());
 	if (!on || gui_is_open() || settings.input.fastForwardMode) {
 		nextFrame = {};
 		gdxsv_net_report_limiter_off();
