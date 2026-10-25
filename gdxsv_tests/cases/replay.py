@@ -355,6 +355,10 @@ def replay_hide_name(ctx):
     return result([hide_name_check(scenes_run(ctx, "V4", ["gdxsv:ReplayHideName=yes"]))])
 
 
+# rend.Resolution in the four-screen runs' emu.cfg: each screen fills a quadrant and renders at half of it.
+FOUR_SCREEN_RESOLUTION = 960
+
+
 def four_screen_run(ctx, name: str, four: bool) -> dict:
     """Newest Disc 2 replay in a window with ReplayFourScreen; logging and the Lua script go in
     emu.cfg, since the host starts its guests without its --config values."""
@@ -366,11 +370,13 @@ def four_screen_run(ctx, name: str, four: bool) -> dict:
     p = ctx.probe(name, rom, "fourscreen.lua", {"frame": POV_FRAME, "after": 300, "side": POV_SIDE, "id": POV_ID},
                   frames=POV_FRAME + 400, config=cfg, loadstate=False, window=True, timeout=300,
                   states=assets.state_dir(rom),
-                  emu_cfg=f"[config]\nLuaFileName = {name}.lua\n\n[log]\nLogToFile = 1\nVerbosity = 3\n")
+                  emu_cfg=f"[config]\nLuaFileName = {name}.lua\nrend.Resolution = {FOUR_SCREEN_RESOLUTION}\n\n"
+                          "[log]\nLogToFile = 1\nVerbosity = 3\n")
     d = os.path.join(ctx.out, name)
     log_dir = os.path.dirname(p.inst.log_path)
     povs = {1: (p.e2e.get("side"), p.e2e.get("id"))}
     warning_gains = {1: p.e2e.get("warning_gain")}
+    resolutions = {1: p.e2e.get("resolution")}
     logs = {}
     for n in (2, 3, 4):
         vals = {}
@@ -381,13 +387,14 @@ def four_screen_run(ctx, name: str, four: bool) -> dict:
             pass
         povs[n] = (vals.get("side"), vals.get("id"))
         warning_gains[n] = vals.get("warning_gain")
+        resolutions[n] = vals.get("resolution")
         try:
             with open(os.path.join(log_dir, f"flycast-{n}P.log"), encoding="utf-8", errors="replace") as f:
                 logs[n] = f.read()
         except OSError:
             logs[n] = ""
-    return {"clean": p.clean, "host_log": p.log, "povs": povs, "warning_gains": warning_gains, "logs": logs,
-            **p.facts()}
+    return {"clean": p.clean, "host_log": p.log, "povs": povs, "warning_gains": warning_gains,
+            "resolutions": resolutions, "logs": logs, **p.facts()}
 
 
 def four_screen_checks(r: dict) -> list:
@@ -399,6 +406,9 @@ def four_screen_checks(r: dict) -> list:
                        "ok": side == str(n - 1) and id == str(n)})
         gain = r["warning_gains"][n]
         checks.append({"what": f"screen {n}: warning gain selector is 20", "gain": gain, "ok": gain == "20"})
+        res = r["resolutions"][n]
+        checks.append({"what": f"screen {n}: renders at half the configured resolution", "resolution": res,
+                       "ok": res == str(FOUR_SCREEN_RESOLUTION // 2)})
     for n, log in r["logs"].items():
         checks.append({"what": f"guest {n}P joined the host's sync group and plays the host's replay",
                        "ok": session is not None and f"joined group {session}" in log
