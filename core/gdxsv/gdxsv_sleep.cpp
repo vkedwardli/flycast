@@ -87,6 +87,13 @@ void gdxsv_set_timer_resolution()
 	ULONG actual_resolution;
 	ZwSetTimerResolution(1, true, &actual_resolution);
 #elif __APPLE__
+	gdxsv_set_thread_priority();
+#endif
+}
+
+void gdxsv_set_thread_priority()
+{
+#if __APPLE__
 	thread_port_t mach_thread_id = pthread_mach_thread_np(pthread_self());
 
 	// Make thread fixed priority

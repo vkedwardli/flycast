@@ -79,6 +79,7 @@ static void applyDisplayChange()
 static void loop()
 {
 	ThreadName _("Flycast-render");
+	gdxsv_emu_thread_start();
 	onRenderThread = true;
 	INFO_LOG(RENDERER, "Render thread started");
 	makeCurrent(true);
