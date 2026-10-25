@@ -324,8 +324,10 @@ class GdxsvBackendReplay {
 	std::chrono::steady_clock::time_point pacing_rate_time_{};
 	double pacing_integral_ = 0.0;
 
-	// Intake cap, which keeps consumption on the frame clock.
-	u32 deliver_last_mainui_ = 0xffffffffu;
+	// Intake cap, which keeps consumption on the frame clock: emulated frames (OnNextFrame), not presents, which
+	// the render thread makes at its own pace.
+	u32 next_frames_ = 0;
+	u32 deliver_last_frame_ = 0xffffffffu;
 	int deliver_this_frame_ = 0;
 
 	// Local multi-instance sync, which holds several spectators on one machine

@@ -654,7 +654,10 @@ constexpr int32_t kPausedStepExtraSlack = 2 * kSyncSubFrames;
 
 
 void GdxsvBackendReplay::UpdateFramePacing() {
-	if (!live_mode_ || !live_following_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
+	// A held StartMsg waits for the peers in wall time while the game counts its own wait in frames: at the catch-up
+	// rate (the limiter's 1 ms floor, no longer held to the display rate by a Present that waits for vsync) the game
+	// gives up and disconnects before the round start comes. Hold at the nominal rate.
+	if (!live_mode_ || !live_following_ || takeover_ || ctrl_pause_ || pause_menu_opend_ || live_start_msg_pending_) {
 		gdxsv_frame_period_trim_us = 0;
 		pacing_integral_ = 0.0;
 		pacing_rate_time_ = {};
@@ -766,6 +769,7 @@ void GdxsvBackendReplay::UpdateFramePacing() {
 }
 
 void GdxsvBackendReplay::OnNextFrame() {
+	++next_frames_;
 	if (MultiPov())
 		gdxsv_multi_pov_audio_frame(key_msg_count_, start_msg_count_, multi_pov_seek_generation_,
 									ctrl_pause_ || pause_menu_opend_ ? 0 : ctrl_play_speed_,
@@ -2543,15 +2547,15 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		return;
 	}
 
-	// While following live, keep input intake on the rendered-frame clock.
+	// While following live, keep input intake on the emulated-frame clock.
 	// After a rewind, use ordinary replay delivery: rejecting a buffered
 	// request until the next render can stall the game's input pipeline.
 	//
 	// Steady state only: a skip-render seek runs hundreds of emulator frames
 	// inside one UI frame, so capping during catch-up would stall it.
 	if (live_mode_ && live_following_ && !takeover_ && !seeking_ && !live_catching_up_ && ctrl_play_speed_ == 0) {
-		if (deliver_last_mainui_ != MainFrameCount) {
-			deliver_last_mainui_ = MainFrameCount;
+		if (deliver_last_frame_ != next_frames_) {
+			deliver_last_frame_ = next_frames_;
 			deliver_this_frame_ = 0;
 		}
 
