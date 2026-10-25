@@ -2,6 +2,7 @@
 
 #include "zip.h"
 #include "gdxsv_config.h"
+#include "gdxsv_custom_texture_cells.h"
 #include "gdxsv_font_provider.h"
 
 // clang-format off
@@ -9,7 +10,7 @@
 #include "../rend/CustomTexture.h"
 // clang-format on
 
-class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
+class GdxsvEmbedTextureSource : public BaseCustomTextureSource, public GdxsvCellTextureSource {
    public:
 	GdxsvEmbedTextureSource();
 	~GdxsvEmbedTextureSource() override;
@@ -20,6 +21,7 @@ class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override;
 	void preloadTextures(TextureCallback callback, std::atomic<bool>* stop_flag) override;
+	u8* LoadCellTexture(u32 hash, int& width, int& height) override;
 	static u8* LoadExtraTexture(const char* name, bool v_flip, int& width, int& height);
 
    private:
@@ -28,7 +30,7 @@ class GdxsvEmbedTextureSource : public BaseCustomTextureSource {
 	std::map<u32, std::string> texture_map;
 };
 
-class GdxsvTexturePackSource : public BaseCustomTextureSource {
+class GdxsvTexturePackSource : public BaseCustomTextureSource, public GdxsvCellTextureSource {
    public:
 	GdxsvTexturePackSource();
 	~GdxsvTexturePackSource() override;
@@ -41,6 +43,7 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource {
 	void terminate() override;
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override;
+	u8* LoadCellTexture(u32 hash, int& width, int& height) override;
 
    private:
 	std::map<u32, int> texture_map;
