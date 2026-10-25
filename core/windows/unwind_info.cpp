@@ -48,9 +48,26 @@ void UnwindInfo::pushReg(u32 offset, int reg)
 
 void UnwindInfo::allocStack(u32 offset, int size)
 {
-	verify(size <= 128);
 	verify((size & 7) == 0);
-	codes.push_back(offset | (UWOP_ALLOC_SMALL << 8) | ((size / 8 - 1) << 12));
+	if (size <= 128) {
+		codes.push_back(offset | (UWOP_ALLOC_SMALL << 8) | ((size / 8 - 1) << 12));
+	}
+	else
+	{
+		// gdxsv: for the x64 main loop's xmm save area. endProlog reverses the codes,
+		// so the operand slot is pushed before its operation.
+		verify(size / 8 <= 0xffff);
+		codes.push_back(size / 8);
+		codes.push_back(offset | (UWOP_ALLOC_LARGE << 8));
+	}
+}
+
+// gdxsv: saves xmm<reg> at rsp + stackOffset, rsp as it is at the end of the prolog
+void UnwindInfo::saveExtReg(u32 offset, int reg, int stackOffset)
+{
+	verify((stackOffset & 15) == 0 && stackOffset / 16 <= 0xffff);
+	codes.push_back(stackOffset / 16);
+	codes.push_back(offset | (UWOP_SAVE_XMM128 << 8) | (reg << 12));
 }
 
 void UnwindInfo::endProlog(u32 offset)
