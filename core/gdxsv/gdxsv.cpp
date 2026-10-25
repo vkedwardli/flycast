@@ -307,10 +307,10 @@ void Gdxsv::HookVBlank() {
 	if (netmode_ == NetMode::McsRollback) {
 		rollback_net_.OnVBlank();
 	}
-	// With threaded rendering and neither GGPO nor a replay, the SH4 runs on across frames, so HookNextFrame only
+	// With neither GGPO nor a replay, the SH4 runs on across frames (threaded rendering), so HookNextFrame only
 	// runs when something stops it. Stop it for a widescreen change: the patch then goes in between SH4 runs, as on
 	// every frame otherwise.
-	if (config::ThreadedRendering && !ggpo::active() && netmode_ != NetMode::Replay && WidescreenPatchChanged()) {
+	if (!ggpo::active() && netmode_ != NetMode::Replay && WidescreenPatchChanged()) {
 		emu.getSh4Executor()->Stop();
 	}
 }

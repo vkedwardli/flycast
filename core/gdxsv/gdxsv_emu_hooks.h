@@ -89,6 +89,8 @@ void gdxsv_emu_settings_gdxsv_tab();
 void gdxsv_emu_settings_video();
 
 void gdxsv_emu_apply_base_settings();
+// After each settings load (config::Settings::load)
+void gdxsv_emu_settings_loaded();
 
 // Settings > General > Custom Paths and the gdxsv tab. Not on Android or iOS.
 void gdxsv_emu_settings_replay_folder();

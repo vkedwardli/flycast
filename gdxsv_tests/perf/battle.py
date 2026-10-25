@@ -30,6 +30,7 @@ import rbk_lib  # noqa: E402
 
 # name -> (send delay p1, p2 in ms, threaded rendering, vsync[, env[, config[, peer 1 config]]])
 # 20_* / 30_170_*_vs1: the baseline cells (--cells all), DirectX 11.
+# *_tr0_*: threaded rendering off, for builds before it became the only mode; later builds run them threaded.
 # The others, by name: run with the display at the rate to check (60 Hz shows a Present that waits for vsync).
 # *_dx / *_gl / *_vk: DirectX 11 / OpenGL / Vulkan with vsync; *_fs: peer 1 full screen.
 # slow_*: each emulated frame 3 ms slower (GDXSV_TEST_FRAME_COST_US), as on a slower PC; *_60hz / *_5994hz: Present

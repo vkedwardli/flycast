@@ -187,41 +187,4 @@ bool checkEnabled()
 	return enabled;
 }
 
-void check()
-{
-	static std::vector<u8> copy;
-	static std::vector<u32> pages;
-	static std::vector<bool> reported;
-	static u64 calls, reportedPages, changedPages, missedPages;
-	take(pages);
-	if (copy.size() != VRAM_SIZE)
-	{
-		// first call: the tracker reports every page
-		copy.assign(&vram[0], &vram[0] + VRAM_SIZE);
-		return;
-	}
-	reported.assign(VRAM_SIZE / PAGE_SIZE, false);
-	for (u32 offset : pages)
-		reported[offset / PAGE_SIZE] = true;
-	calls++;
-	reportedPages += pages.size();
-	for (u32 page = 0; page < VRAM_SIZE / PAGE_SIZE; page++)
-	{
-		u8 *mem = &vram[page * PAGE_SIZE];
-		if (memcmp(&copy[page * PAGE_SIZE], mem, PAGE_SIZE) == 0)
-			continue;
-		changedPages++;
-		if (!reported[page])
-		{
-			if (missedPages < 20)
-				ERROR_LOG(PVR, "VRAMTRACK missed page %x at call %llu", page * PAGE_SIZE, (unsigned long long)calls);
-			missedPages++;
-		}
-		memcpy(&copy[page * PAGE_SIZE], mem, PAGE_SIZE);
-	}
-	if (calls % 3600 == 0)
-		NOTICE_LOG(PVR, "VRAMTRACK calls=%llu reported=%llu changed=%llu missed=%llu", (unsigned long long)calls,
-				(unsigned long long)reportedPages, (unsigned long long)changedPages, (unsigned long long)missedPages);
-}
-
 } // namespace vramtracker

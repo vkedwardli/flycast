@@ -67,9 +67,7 @@ std::string formatLocalClock(time_t ts) {
 }
 
 void refreshLiveInputState() {
-	if (!config::ThreadedRendering) {
-		os_UpdateInputState();
-	} else if (config::JoystickPolling) {
+	if (config::JoystickPolling) {
 		gdxsv_input_update_joysticks();
 	}
 }

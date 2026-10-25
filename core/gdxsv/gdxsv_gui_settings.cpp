@@ -169,15 +169,12 @@ void gdxsv_gui_settings_tab()
 
 	if (ImGui::Button(T("Apply Recommended Settings\nfor Low-Spec PC"), ScaledVec2(200, 50))) {
 		gdxsv_apply_base_settings();
-		config::ThreadedRendering = true;
 		config::GdxMinDelay = 3;
 		config::AutoSkipFrame = 1;
 	}
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 	{
 		auto tip = settings_to_be_changed();
-		if (config::ThreadedRendering != true)
-			tip += setting("Multi-threaded emulation", "true");
 		if (config::RenderResolution != 720)
 			tip += setting("Internal Resolution", "1280x720 (x1.5)");
 		if (config::AutoSkipFrame != 1)
@@ -193,14 +190,11 @@ void gdxsv_gui_settings_tab()
 	ImGui::SameLine();
 	if (ImGui::Button(T("Apply Recommended Settings\nfor Mid-Spec PC"), ScaledVec2(200, 50))) {
 		gdxsv_apply_base_settings();
-		config::ThreadedRendering = false;
 		config::RenderResolution = 960;
 	}
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 	{
 		auto tip = settings_to_be_changed();
-		if (config::ThreadedRendering != false)
-			tip += setting("Multi-threaded emulation", "false");
 		if (config::RenderResolution != 960)
 			tip += setting("Internal Resolution", "1706x960 (x2)");
 		if (config::AutoSkipFrame != 0)
@@ -216,14 +210,11 @@ void gdxsv_gui_settings_tab()
 	ImGui::SameLine();
 	if (ImGui::Button(T("Apply Recommended Settings\nfor High-Spec PC"), ScaledVec2(200, 50))) {
 		gdxsv_apply_base_settings();
-		config::ThreadedRendering = false;
 		config::RenderResolution = 1440;
 	}
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 	{
 		auto tip = settings_to_be_changed();
-		if (config::ThreadedRendering != false)
-			tip += setting("Multi-threaded emulation", "false");
 		if (config::RenderResolution != 1440)
 			tip += setting("Internal Resolution", "2560x1440 (x3)");
 		if (config::AutoSkipFrame != 0)
@@ -245,12 +236,6 @@ void gdxsv_gui_settings_tab()
 	if (pressed) {
 		gdxsv_custom_texture_update.Reset();
 	}
-
-	OptionCheckbox(T("Multi-threaded emulation"), config::ThreadedRendering,
-		T("Run the emulated CPU and GPU on different threads.\n"
-		"Can reduce the loading, but it may introduce a delay of 1 frame for input.\n"
-		"\tEnable = Best for low spec CPU.\n"
-		"\tDisable = Best for high spec CPU."));
 
 #ifdef _WIN32
 	OptionCheckbox(T("Joystick Polling"), config::JoystickPolling,

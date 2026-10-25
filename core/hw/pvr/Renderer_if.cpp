@@ -538,9 +538,6 @@ void rend_reset()
 
 void rend_start_render()
 {
-	// gdxsv: test check of the VRAM write tracker (GDXSV_VRAM_TRACK_CHECK)
-	if (vramtracker::checkEnabled() && !rendsnap::enabled())
-		vramtracker::check();
 	render_called = true;
 	pend_rend = false;
 

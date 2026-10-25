@@ -56,9 +56,7 @@ void written(u32 offset);
 void take(std::vector<u32>& pages);
 void stop();
 
-// Test only (GDXSV_VRAM_TRACK_CHECK): at each call, compares the whole VRAM with its content at the previous call and
-// counts the changed pages the tracker did not report. With render snapshots, rendsnap::capture checks its copy instead.
+// Test only (GDXSV_VRAM_TRACK_CHECK): rendsnap::capture checks its copy against VRAM.
 bool checkEnabled();
-void check();
 
 } // namespace vramtracker

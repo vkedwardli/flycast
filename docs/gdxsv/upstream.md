@@ -59,6 +59,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Render snapshots | `core/rend/TexCache.cpp/.h`, `core/rend/texconv.cpp/.h`, `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp/.h`, `core/hw/pvr/pvr_mem.cpp/.h`, `core/hw/mem/mem_watch.h`, `core/emulator.cpp`, `core/hw/mem/CMakeLists.txt`, `core/hw/pvr/CMakeLists.txt` | threaded rendering: the emulation thread no longer waits for the render thread (render end, rollback VRAM, full queue); a new frame replaces the queued one; VRAM protection goes through its owners. Not marked one by one: the texture cache and `ReadFramebuffer` read `texSource` instead of `vram` and the registers, and `palette_update` converts a given palette RAM |
 | Render thread | `core/ui/mainui.cpp`, `core/ui/gui.cpp`, `core/ui/CMakeLists.txt`, `core/sdl/sdl.cpp`, `core/wsi/context.h`, `core/wsi/sdl.cpp/.h` | while the game runs with threaded rendering, `mainui_loop` hands the context to the render thread and only reads the window events; it stops the render thread for the GUI, renderer changes and exit; a window resize is applied by the render thread; ImGui input events and the OSD frame under `guiMutex` |
 | Newest frame present | `core/rend/dx11/dx11context.cpp/.h`, `core/rend/vulkan/vulkan_context.cpp/.h`, `core/wsi/context.h`, `core/ui/render_thread.cpp` | threaded rendering: DirectX 11 waitable swap chain and sync interval 0, Vulkan FIFO latest ready; `GraphicsContext::waitPresentReady` before the render thread takes a frame |
+| Threaded rendering only | `core/cfg/option.h`, `core/ui/settings.cpp`, `core/ui/settings_video.cpp` | `Settings::load` calls `gdxsv_emu_settings_loaded` (overrides `ThreadedRendering` on); the Multi-threaded emulation, Full Framebuffer Emulation and Copy Rendered Textures to VRAM checkboxes are hidden |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp`, `core/hw/aica/sgc_if.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade; a muted replay seek or rollback rerun steps the channels without mixing |
 | Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game; mapped Fast-forward uses gdxsv playback speed during replays |
@@ -115,6 +116,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/cfg/option.cpp` |  | an option, not a constant: replay and rollback turn it off |
 | `core/cfg/option.cpp` |  | fixed frame rate limiter (core/gdxsv/gdxsv_frame_limiter.cpp) |
 | `core/cfg/option.cpp` |  | XInput and DirectInput switches; joystick polling from the emulation thread |
+| `core/cfg/option.h` |  | core/gdxsv/gdxsv_emu_hooks.h |
+| `core/cfg/option.h` |  | options the fork fixes |
 | `core/cfg/option.h` |  | an option, not a constant |
 | `core/cfg/option.h` |  | fixed frame rate limiter |
 | `core/cfg/option.h` |  | XInput and DirectInput switches; joystick polling from the emulation thread |
@@ -152,7 +155,6 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/Renderer_if.cpp` |  | the queued render takes the new frame (render snapshots) |
 | `core/hw/pvr/Renderer_if.cpp` |  | render snapshots. |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_create_renderer` | `gdxsv_headless` |
-| `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | test check of the VRAM write tracker (GDXSV_VRAM_TRACK_CHECK) |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_end_frame` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | render snapshots convert the palette on the render thread |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_frame_queued` |
@@ -378,6 +380,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop` |
 | `core/ui/mainui.cpp` | `mainui_loop` | render thread |
 | `core/ui/settings.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/ui/settings.cpp` | `gui_settings_advanced` | always on (gdxsv_emu_settings_loaded) |
 | `core/ui/settings.cpp` | `gui_settings_advanced` | `gdxsv_emu_settings_advanced` |
 | `core/ui/settings.cpp` | `gui_display_settings` | `Gdxsv`, `gdxsv_emu_settings_gdxsv_tab` |
 | `core/ui/settings_controls.cpp` | `gui_settings_controls` | XInput and DirectInput switches, joystick polling |
@@ -385,7 +388,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/settings_general.cpp` | `manageSinglePath` | not static, the gdxsv replay folder setting uses it |
 | `core/ui/settings_general.cpp` | `gui_settings_general` | `gdxsv_emu_settings_replay_folder` |
 | `core/ui/settings_video.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
-| `core/ui/settings_video.cpp` | `gui_settings_video` | `gdxsv_emu_settings_video` |
+| `core/ui/settings_video.cpp` | `gui_settings_video` | no Full Framebuffer Emulation: threaded rendering renders from snapshots and never writes VRAM |
+| `core/ui/settings_video.cpp` | `gui_settings_video` | no Copy Rendered Textures to VRAM: threaded rendering renders from snapshots and never writes VRAM |
 | `core/windows/win_vmem.cpp` | `LPVOID` | fixed base address for deterministic memory layout (useful for Cheat Engine). |
 | `core/windows/win_vmem.cpp` | `init` | place base_alloc so that ram_base (base_alloc + sizeof(Sh4RCB)) lands on a 0x10000000 boundary. |
 | `core/windows/winmain.cpp` |  | breakpad include path of the MSVC (clang-cl) build |

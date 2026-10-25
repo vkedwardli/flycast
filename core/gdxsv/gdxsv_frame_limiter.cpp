@@ -61,7 +61,7 @@ bool gdxsv_emu_mainui_reinit_needed() {
 
 void gdxsv_frame_limiter_wait() {
 	// Threaded rendering: vsync no longer holds the emulation thread, so without the audio pacing it the native rate
-	const bool on = config::FixedFrequency || (config::ThreadedRendering && !config::LimitFPS);
+	const bool on = config::FixedFrequency || !config::LimitFPS;
 	if (!on || gui_is_open() || settings.input.fastForwardMode) {
 		nextFrame = {};
 		gdxsv_net_report_limiter_off();
