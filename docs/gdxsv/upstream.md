@@ -57,7 +57,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games; a linked exit is patched to a direct jump); output-only game functions skipped on seek frames (hook call); slow idle loop hack; ARM7 `cpuid` probed once |
 | Memory | `core/windows/win_vmem.cpp`, `core/linux/posix_vmem.cpp` | Windows: fixed RAM base (host address low 28 bits = guest address); Linux: one shared-memory name per process (four-screen replay) |
 | Render snapshots | `core/rend/TexCache.cpp/.h`, `core/rend/texconv.cpp/.h`, `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp/.h`, `core/hw/pvr/pvr_mem.cpp/.h`, `core/hw/mem/mem_watch.h`, `core/emulator.cpp`, `core/hw/mem/CMakeLists.txt`, `core/hw/pvr/CMakeLists.txt` | threaded rendering: the emulation thread no longer waits for the render thread (render end, rollback VRAM, full queue); a new frame replaces the queued one; VRAM protection goes through its owners. Not marked one by one: the texture cache and `ReadFramebuffer` read `texSource` instead of `vram` and the registers, and `palette_update` converts a given palette RAM |
-| Render thread | `core/ui/mainui.cpp`, `core/ui/gui.cpp`, `core/ui/CMakeLists.txt`, `core/sdl/sdl.cpp`, `core/wsi/context.h`, `core/wsi/sdl.cpp/.h` | while the game runs with threaded rendering, `mainui_loop` hands the context to the render thread and only reads the window events; it stops the render thread for the GUI, renderer changes and exit; a window resize is applied by the render thread; ImGui input events and the OSD frame under `guiMutex` |
+| Render thread | `core/ui/mainui.cpp`, `core/ui/gui.cpp`, `core/ui/CMakeLists.txt`, `core/sdl/sdl.cpp`, `core/wsi/context.h`, `core/wsi/sdl.cpp/.h`, `core/rend/dx9/dxcontext.cpp/.h` | while the game runs with threaded rendering, `mainui_loop` hands the context to the render thread and only reads the window events; it stops the render thread for the GUI, renderer changes and exit; a window resize is applied by the render thread; ImGui input events and the OSD frame under `guiMutex`. DirectX 9 resets and recreates its device on the main thread (Reset fails on another thread than the one that created the device): the render thread stops for it (`renderthread::runOnMainThread`) |
 | Newest frame present | `core/rend/dx11/dx11context.cpp/.h`, `core/rend/vulkan/vulkan_context.cpp/.h`, `core/wsi/context.h`, `core/ui/render_thread.cpp` | threaded rendering: DirectX 11 waitable swap chain and sync interval 0, Vulkan FIFO latest ready; `GraphicsContext::waitPresentReady` before the render thread takes a frame |
 | Threaded rendering only | `core/cfg/option.h`, `core/ui/settings.cpp`, `core/ui/settings_video.cpp` | `Settings::load` calls `gdxsv_emu_settings_loaded` (overrides `ThreadedRendering` on); the Multi-threaded emulation, Full Framebuffer Emulation and Copy Rendered Textures to VRAM checkboxes are hidden |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
@@ -268,7 +268,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rec-ARM/rec_arm.cpp` | `Arm32Assembler::compileOp` | round the product before the add (no fused multiply-add) |
 | `core/rec-ARM64/rec_arm64.cpp` |  | round the product before the add (no fused multiply-add) |
 | `core/rec-x64/rec_x64.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
-| `core/rec-x64/rec_x64.cpp` |  | `gdxsv_sh4_linkable` |
+| `core/rec-x64/rec_x64.cpp` |  | blocks allocate SH4 FPU registers to xmm6-xmm15, which are callee-saved on Windows, so the main loop saves them above its shadow space for the C++ code that called emu.run(). |
 | `core/rec-x64/rec_x64.cpp` |  | ftrv and fipr inline, bit-exact with the interpreter, so netplay peers agree |
 | `core/rec-x64/rec_x64.cpp` |  | fused multiply-add breaks sync of replays and netplay |
 | `core/rec-x64/rec_x64.cpp` |  | `#endif // GDXSV_FP_COMPAT` |
@@ -304,6 +304,13 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/dx11/dx11context.cpp` | `DX11Context::resize` | `\| (frameLatencyWaitable != nullptr ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0)); // gd` |
 | `core/rend/dx11/dx11context.h` |  | render thread |
 | `core/rend/dx11/dx11context.h` |  | threaded rendering |
+| `core/rend/dx9/dxcontext.cpp` |  | render thread |
+| `core/rend/dx9/dxcontext.cpp` | `DXContext::Present` | the device is created and reset on the main thread: Reset fails on another thread than the one that created the device. |
+| `core/rend/dx9/dxcontext.cpp` | `DXContext::Present` | render thread |
+| `core/rend/dx9/dxcontext.cpp` | `DXContext::Present` | render thread |
+| `core/rend/dx9/dxcontext.cpp` | `DXContext::createDevice` | main thread |
+| `core/rend/dx9/dxcontext.cpp` | `DXContext::resize` | Reset fails on another thread than the one that created the device: the render thread stops and the main thread resizes |
+| `core/rend/dx9/dxcontext.h` |  | render thread |
 | `core/rend/gles/gldraw.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | scale the final game image into the host's quadrant, before UI. |
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | final presentation rectangle |
@@ -356,6 +363,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `gui_keyboard_key` | the render thread may be drawing the OSD |
 | `core/ui/gui.cpp` | `delayedKeysUp` | not static, the replay UI calls it |
 | `core/ui/gui.cpp` | `gui_open_settings` | gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats) |
+| `core/ui/gui.cpp` | `gui_display_commands` | wider than upstream's 150 so translated labels fit. |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_emu_gui_display_commands` |
@@ -393,6 +401,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/settings_video.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/ui/settings_video.cpp` | `gui_settings_video` | no Full Framebuffer Emulation: threaded rendering renders from snapshots and never writes VRAM |
 | `core/ui/settings_video.cpp` | `gui_settings_video` | no Copy Rendered Textures to VRAM: threaded rendering renders from snapshots and never writes VRAM |
+| `core/windows/unwind_info.cpp` | `UnwindInfo::allocStack` | for the x64 main loop's xmm save area. |
 | `core/windows/win_vmem.cpp` | `LPVOID` | fixed base address for deterministic memory layout (useful for Cheat Engine). |
 | `core/windows/win_vmem.cpp` | `init` | place base_alloc so that ram_base (base_alloc + sizeof(Sh4RCB)) lands on a 0x10000000 boundary. |
 | `core/windows/winmain.cpp` |  | breakpad include path of the MSVC (clang-cl) build |

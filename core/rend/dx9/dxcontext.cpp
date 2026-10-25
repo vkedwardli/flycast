@@ -26,6 +26,7 @@
 #include "emulator.h"
 #include "dx9_driver.h"
 #include "imgui_impl_dx9.h"
+#include "ui/render_thread.h" // gdxsv: render thread
 
 void DXContext::Create(void *window, void *display) {
 	new DXContext(window, display);
@@ -116,13 +117,17 @@ void DXContext::Present()
 {
 	if (!frameRendered)
 		return;
+	// gdxsv: the device is created and reset on the main thread: Reset fails on another thread than the one that
+	// created the device. The render thread stops and the main thread does it.
 	if (!pDevice)
 	{
-		if (init(true))
-		{
-			renderer = new D3DRenderer();
-			rend_init_renderer();
-		}
+		if (renderthread::current())
+			renderthread::runOnMainThread([this]() {
+				if (!pDevice)
+					createDevice();
+			});
+		else
+			createDevice();
 		return;
 	}
 	HRESULT result = pDevice->Present(NULL, NULL, NULL, NULL);
@@ -132,7 +137,15 @@ void DXContext::Present()
 		deviceReady = false;
 		result = pDevice->TestCooperativeLevel();
 		if (result == D3DERR_DEVICENOTRESET)
-			resetDevice();
+		{
+			if (renderthread::current()) // gdxsv: render thread
+				renderthread::runOnMainThread([this]() {
+					if (pDevice && pDevice->TestCooperativeLevel() == D3DERR_DEVICENOTRESET)
+						resetDevice();
+				});
+			else
+				resetDevice();
+		}
 	}
 	else if (FAILED(result))
 		WARN_LOG(RENDERER, "Present failed %x", result);
@@ -141,19 +154,40 @@ void DXContext::Present()
 		frameRendered = false;
 		if (swapOnVSync != (!settings.input.fastForwardMode && config::VSync))
 		{
-			DEBUG_LOG(RENDERER, "Switch vsync %d", !swapOnVSync);
-			rend_term_renderer();
-			term();
-			if (init(true))
-			{
-				renderer = new D3DRenderer();
-				rend_init_renderer();
-			}
+			if (renderthread::current()) // gdxsv: render thread
+				renderthread::runOnMainThread([this]() {
+					if (pDevice && swapOnVSync != (!settings.input.fastForwardMode && config::VSync))
+						switchVSync();
+				});
 			else
-			{
-				deviceReady = false;
-			}
+				switchVSync();
 		}
+	}
+}
+
+// gdxsv: main thread
+void DXContext::createDevice()
+{
+	if (init(true))
+	{
+		renderer = new D3DRenderer();
+		rend_init_renderer();
+	}
+}
+
+void DXContext::switchVSync()
+{
+	DEBUG_LOG(RENDERER, "Switch vsync %d", !swapOnVSync);
+	rend_term_renderer();
+	term();
+	if (init(true))
+	{
+		renderer = new D3DRenderer();
+		rend_init_renderer();
+	}
+	else
+	{
+		deviceReady = false;
 	}
 }
 
@@ -186,6 +220,13 @@ void DXContext::resize()
 {
 	if (!pDevice)
 		return;
+	// gdxsv: Reset fails on another thread than the one that created the device: the render thread stops and the
+	// main thread resizes
+	if (renderthread::current())
+	{
+		renderthread::runOnMainThread([this]() { resize(); });
+		return;
+	}
 	RECT rect;
 	GetClientRect((HWND)window, &rect);
 	d3dpp.BackBufferWidth = settings.display.width = rect.right;

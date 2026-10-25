@@ -28,7 +28,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <thread>
+#include <vector>
 #ifdef USE_SDL
 #include <SDL.h>
 #endif
@@ -47,6 +49,8 @@ static bool reinit;
 static std::atomic<bool> resizePending;
 static std::atomic<bool> stylePending;
 static thread_local bool onRenderThread;
+static std::mutex mainTasksMutex;
+static std::vector<std::function<void()>> mainTasks;
 
 static void wakeMainThread()
 {
@@ -66,6 +70,17 @@ static void makeCurrent(bool current)
 {
 	if (GraphicsContext::Instance() != nullptr)
 		GraphicsContext::Instance()->makeCurrent(current);
+}
+
+static void runMainTasks()
+{
+	std::vector<std::function<void()>> tasks;
+	{
+		std::lock_guard<std::mutex> lock(mainTasksMutex);
+		tasks.swap(mainTasks);
+	}
+	for (auto& task : tasks)
+		task();
 }
 
 static void applyDisplayChange()
@@ -143,6 +158,7 @@ std::exception_ptr stop()
 #endif
 	thread.join();
 	makeCurrent(true);
+	runMainTasks();
 	// a change that came while it stopped
 	applyDisplayChange();
 	done = false;
@@ -184,6 +200,15 @@ void displayChanged(bool scaleChanged)
 		GraphicsContext::Instance()->resize();
 	if (scaleChanged)
 		gui_updateStyle();
+}
+
+void runOnMainThread(std::function<void()> task)
+{
+	{
+		std::lock_guard<std::mutex> lock(mainTasksMutex);
+		mainTasks.push_back(std::move(task));
+	}
+	stopRequested = true;
 }
 
 } // namespace renderthread
