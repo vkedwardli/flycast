@@ -27,7 +27,6 @@ Result = Tuple[str, List[str]]
 
 DELAYS = [16, 16, 16, 100]           # one slow sender: rollbacks and timesync on everyone
 DELAYS_SPREAD = [50, 16, 80, 100]    # windowed runs: rollbacks on every peer
-THREADED_OFF = ["config:rend.ThreadedRendering=no"]
 LAST_FRAME_SLACK = 2
 
 
@@ -148,12 +147,6 @@ def _b2(s: Settings, tag: str, delays: List[int], env: Dict[str, str]) -> Tuple[
 
 def b2_threaded(s: Settings) -> Result:
     return verdict(*_b2(s, "B2", DELAYS_SPREAD, {"MAXREBATTLE": "3"}))
-
-
-def b3_not_threaded(s: Settings) -> Result:
-    m = lib.run_match(s, "B3", [s.exe] * 4, DELAYS_SPREAD, headless=False, config=THREADED_OFF)
-    # This harness produces no rollbacks with threaded rendering off (old builds too), so only completion is checked.
-    return verdict(common(m), [summary(m)])
 
 
 # --- C. Disconnect and session lifecycle --------------------------------------
@@ -471,7 +464,6 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "A4": ("mixed with --older-exe, both peer 0 sides", a4_mixed_older, 2, False),
     "B1": ("timesync skip replayed across a rollback", b1_skip_replay, 1, False),
     "B2": ("threaded rendering, windowed, 3 rounds", b2_threaded, 4, False),
-    "B3": ("threaded rendering off, windowed", b3_not_threaded, 2, False),
     "C1": ("peer drops mid-battle, windows stay responsive", c1_peer_drop, 3, False),
     "C2": ("GGPO session start times out, x3", c2_start_timeout, 3, False),
     "C3": ("re-battle cancel ends the match (4/3 -> 4/4)", c3_rebattle_cancel, 3, False),

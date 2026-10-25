@@ -427,54 +427,69 @@ static void luaRegister(lua_State *L)
 		.beginNamespace ("flycast")
 	  		.beginNamespace("emulator")
 				.addFunction("startGame", gui_start_game)	// FIXME threading!
-				.addFunction("stopGame", std::function<void()>([]() { gui_stop_game(""); }))
+				// gdxsv: these stop the emulator, so they run on the UI thread. A callback runs on the emulation thread
+				// (vblank) or the render thread (overlay), where emu.stop() would wait for the emulation thread: the
+				// call returns at once and the action happens before the next emulated frame.
+				.addFunction("stopGame", std::function<void()>([]() { gui_runOnUiThread([]() { gui_stop_game(""); }); }))
 				.addFunction("openGdrom", std::function<void()>([]() {
-					bool restart = false;
-					if (gui_state == GuiState::Closed) {
-						gui_open_settings();
-						restart = true;
-					}
-					emu.openGdrom();
-					if (restart)
-						gui_open_settings();
+					gui_runOnUiThread([]() {
+						bool restart = false;
+						if (gui_state == GuiState::Closed) {
+							gui_open_settings();
+							restart = true;
+						}
+						emu.openGdrom();
+						if (restart)
+							gui_open_settings();
+					});
 				}))
 				.addFunction("insertGdrom", std::function<void(const std::string&)>([](const std::string& path) {
-					bool restart = false;
-					if (gui_state == GuiState::Closed) {
-						gui_open_settings();
-						restart = true;
-					}
-					emu.insertGdrom(path);
-					if (restart)
-						gui_open_settings();
+					gui_runOnUiThread([path]() {
+						bool restart = false;
+						if (gui_state == GuiState::Closed) {
+							gui_open_settings();
+							restart = true;
+						}
+						emu.insertGdrom(path);
+						if (restart)
+							gui_open_settings();
+					});
 				}))
 				.addFunction("pause", std::function<void()>([]() {
-					if (gui_state == GuiState::Closed)
-						gui_open_settings();
+					gui_runOnUiThread([]() {
+						if (gui_state == GuiState::Closed)
+							gui_open_settings();
+					});
 				}))
 				.addFunction("resume", std::function<void()>([]() {
-					if (gui_state == GuiState::Commands)
-						gui_open_settings();
+					gui_runOnUiThread([]() {
+						if (gui_state == GuiState::Commands)
+							gui_open_settings();
+					});
 				}))
 				.addFunction("saveState", std::function<void(int)>([](int index) {
-					bool restart = false;
-					if (gui_state == GuiState::Closed) {
-						gui_open_settings();
-						restart = true;
-					}
-					dc_savestate(index);
-					if (restart)
-						gui_open_settings();
+					gui_runOnUiThread([index]() {
+						bool restart = false;
+						if (gui_state == GuiState::Closed) {
+							gui_open_settings();
+							restart = true;
+						}
+						dc_savestate(index);
+						if (restart)
+							gui_open_settings();
+					});
 				}))
 				.addFunction("loadState", std::function<void(int)>([](int index) {
-					bool restart = false;
-					if (gui_state == GuiState::Closed) {
-						gui_open_settings();
-						restart = true;
-					}
-					dc_loadstate(index);
-					if (restart)
-						gui_open_settings();
+					gui_runOnUiThread([index]() {
+						bool restart = false;
+						if (gui_state == GuiState::Closed) {
+							gui_open_settings();
+							restart = true;
+						}
+						dc_loadstate(index);
+						if (restart)
+							gui_open_settings();
+					});
 				}))
 				.addFunction("exit", dc_exit)
 				.addFunction("displayNotification", os_notify)

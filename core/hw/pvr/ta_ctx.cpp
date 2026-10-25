@@ -5,6 +5,7 @@
 #include "serialize.h"
 #include "stdclass.h"
 #include "network/ggpo.h" // gdxsv: rollback time sync in QueueRender
+#include "render_snapshot.h" // gdxsv: render snapshots
 
 #include <mutex>
 #include <vector>
@@ -47,6 +48,37 @@ void SetCurrentTARC(u32 addr)
 static TA_context* rqueue;
 static cResetEvent frame_finished;
 
+// gdxsv: render snapshots. The frame queued and not rendered yet, and the frame being rendered, with their snapshot copies.
+// A new frame replaces the queued one instead of waiting for the render thread.
+static std::mutex snapshotQueueMutex;
+static TA_context *snapshotQueued;
+static int snapshotQueuedCopy = -1;
+static TA_context *snapshotRendering;
+static int snapshotRenderingCopy = -1;
+
+static bool QueueRenderSnapshot(TA_context* ctx)
+{
+	TA_context *replaced;
+	int index;
+	{
+		std::lock_guard<std::mutex> _(snapshotQueueMutex);
+		replaced = snapshotQueued;
+		index = replaced != nullptr ? snapshotQueuedCopy : snapshotRenderingCopy == 0 ? 1 : 0;
+		snapshotQueued = nullptr;
+		snapshotQueuedCopy = -1;
+	}
+	if (replaced != nullptr)
+	{
+		tactx_Recycle(replaced);
+		fskip++;
+	}
+	rendsnap::capture(index, replaced != nullptr);
+	std::lock_guard<std::mutex> _(snapshotQueueMutex);
+	snapshotQueued = ctx;
+	snapshotQueuedCopy = index;
+	return true;
+}
+
 bool QueueRender(TA_context* ctx)
 {
 	verify(ctx != 0);
@@ -62,7 +94,7 @@ bool QueueRender(TA_context* ctx)
 			ggpo::timeSyncFrames.fetch_add(1);
 			skipFrame = true;
 		}
-		else if (config::ThreadedRendering && rqueue != nullptr
+		else if (config::ThreadedRendering && !rendsnap::enabled() && rqueue != nullptr
 				&& (config::AutoSkipFrame == 0 || (config::AutoSkipFrame == 1 && SH4FastEnough)))
 			// The previous render hasn't completed yet so we wait.
 			// If autoskipframe is enabled (normal level), we only do so if the CPU is running
@@ -70,6 +102,9 @@ bool QueueRender(TA_context* ctx)
 			frame_finished.Wait();
 	}
 
+	// gdxsv: render snapshots replace a queued frame instead of waiting
+	if (!skipFrame && rendsnap::enabled())
+		return QueueRenderSnapshot(ctx);
 	if (skipFrame || rqueue)
 	{
 		tactx_Recycle(ctx);
@@ -89,14 +124,56 @@ bool QueueRender(TA_context* ctx)
 
 TA_context* DequeueRender()
 {
+	// gdxsv: render snapshots
+	if (rendsnap::enabled())
+	{
+		std::lock_guard<std::mutex> _(snapshotQueueMutex);
+		if (snapshotQueued != nullptr)
+		{
+			// not finished: cancelled (FinishRender(nullptr))
+			if (snapshotRendering != nullptr)
+				tactx_Recycle(snapshotRendering);
+			snapshotRendering = snapshotQueued;
+			snapshotRenderingCopy = snapshotQueuedCopy;
+			snapshotQueued = nullptr;
+			snapshotQueuedCopy = -1;
+			FrameCount++;
+			return snapshotRendering;
+		}
+		return nullptr;
+	}
 	if (rqueue != nullptr)
 		FrameCount++;
 
 	return rqueue;
 }
 
+int DequeuedRenderCopy()
+{
+	std::lock_guard<std::mutex> _(snapshotQueueMutex);
+	return snapshotRenderingCopy;
+}
+
 void FinishRender(TA_context* ctx)
 {
+	if (rendsnap::enabled())
+	{
+		bool rendering = false;
+		if (ctx != nullptr)
+		{
+			std::lock_guard<std::mutex> _(snapshotQueueMutex);
+			rendering = ctx == snapshotRendering;
+			if (rendering)
+			{
+				snapshotRendering = nullptr;
+				snapshotRenderingCopy = -1;
+			}
+		}
+		if (rendering)
+			tactx_Recycle(ctx);
+		frame_finished.Set();
+		return;
+	}
 	if (ctx != nullptr)
 	{
 		verify(rqueue == ctx);

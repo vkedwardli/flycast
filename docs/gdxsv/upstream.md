@@ -26,6 +26,9 @@ upstream ([flyinghead/flycast](https://github.com/flyinghead/flycast)
 | `gdxsv_patch/` | SH4 network payload of the game (`build.sh`, `abi.py` -> `gdxsv_patch_abi.h`, `gdxsv_patch.inc`) |
 | `gdxsv_langmod/` | translation sources (`translation.csv`, PSD textures) and their generators |
 | `core/deps/protobuf-3.13.0/` | protobuf runtime (`gdxsv.pb.cc`) |
+| `core/hw/mem/vram_protect.cpp/.h` | VRAM protection with owners (texture cache, memwatch, write tracker) and the VRAM write tracker |
+| `core/hw/pvr/render_snapshot.cpp/.h` | render snapshots: threaded rendering renders each frame from a copy of VRAM, palette and fog table |
+| `core/ui/render_thread.cpp/.h` | render thread: while the game runs with threaded rendering, frames are rendered and presented there and the main thread only handles window events |
 | `resources/i18n-gdxsv/` | UI translations of the gdxsv pages |
 | `tests/src/Gdxsv*.cpp`, `tests/src/test_stubs.cpp` | unit tests |
 | `gdxsv_tests/` | e2e tests: `lib/` (launching instances, hash logs), `rollback/` (rollback and live spectating rigs) |
@@ -53,6 +56,10 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Determinism | `core/hw/sh4/interpr/sh4_fpu.cpp`, `core/rec-ARM/rec_arm.cpp`, `core/rec-ARM64/rec_arm64.cpp`, `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/shil_canonical.h` | `fmac` without fused multiply-add (`GDXSV_FP_COMPAT`) |
 | Dynarec | `core/rec-x64/rec_x64.cpp`, `core/hw/sh4/dyna/blockmanager.cpp`, `core/hw/sh4/dyna/decoder.cpp`, `core/hw/arm7/arm7_rec_x64.cpp` | x64 block linking (all games; a linked exit is patched to a direct jump); output-only game functions skipped on seek frames (hook call); slow idle loop hack; ARM7 `cpuid` probed once |
 | Memory | `core/windows/win_vmem.cpp`, `core/linux/posix_vmem.cpp` | Windows: fixed RAM base (host address low 28 bits = guest address); Linux: one shared-memory name per process (four-screen replay) |
+| Render snapshots | `core/rend/TexCache.cpp/.h`, `core/rend/texconv.cpp/.h`, `core/hw/pvr/Renderer_if.cpp/.h`, `core/hw/pvr/ta_ctx.cpp/.h`, `core/hw/pvr/pvr_mem.cpp/.h`, `core/hw/mem/mem_watch.h`, `core/emulator.cpp`, `core/hw/mem/CMakeLists.txt`, `core/hw/pvr/CMakeLists.txt` | threaded rendering: the emulation thread no longer waits for the render thread (render end, rollback VRAM, full queue); a new frame replaces the queued one; VRAM protection goes through its owners. Not marked one by one: the texture cache and `ReadFramebuffer` read `texSource` instead of `vram` and the registers, and `palette_update` converts a given palette RAM |
+| Render thread | `core/ui/mainui.cpp`, `core/ui/gui.cpp`, `core/ui/CMakeLists.txt`, `core/sdl/sdl.cpp`, `core/wsi/context.h`, `core/wsi/sdl.cpp/.h` | while the game runs with threaded rendering, `mainui_loop` hands the context to the render thread and only reads the window events; it stops the render thread for the GUI, renderer changes and exit; a window resize is applied by the render thread; ImGui input events and the OSD frame under `guiMutex` |
+| Newest frame present | `core/rend/dx11/dx11context.cpp/.h`, `core/rend/vulkan/vulkan_context.cpp/.h`, `core/wsi/context.h`, `core/ui/render_thread.cpp` | threaded rendering: DirectX 11 waitable swap chain and sync interval 0, Vulkan FIFO latest ready; `GraphicsContext::waitPresentReady` before the render thread takes a frame |
+| Threaded rendering only | `core/cfg/option.h`, `core/ui/settings.cpp`, `core/ui/settings_video.cpp` | `Settings::load` calls `gdxsv_emu_settings_loaded` (overrides `ThreadedRendering` on); the Multi-threaded emulation, Full Framebuffer Emulation and Copy Rendered Textures to VRAM checkboxes are hidden |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp`, `core/hw/aica/sgc_if.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade; a muted replay seek or rollback rerun steps the channels without mixing |
 | Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game; mapped Fast-forward uses gdxsv playback speed during replays |
@@ -109,42 +116,60 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/cfg/option.cpp` |  | an option, not a constant: replay and rollback turn it off |
 | `core/cfg/option.cpp` |  | fixed frame rate limiter (core/gdxsv/gdxsv_frame_limiter.cpp) |
 | `core/cfg/option.cpp` |  | XInput and DirectInput switches; joystick polling from the emulation thread |
+| `core/cfg/option.h` |  | core/gdxsv/gdxsv_emu_hooks.h |
+| `core/cfg/option.h` |  | options the fork fixes |
 | `core/cfg/option.h` |  | an option, not a constant |
 | `core/cfg/option.h` |  | fixed frame rate limiter |
 | `core/cfg/option.h` |  | XInput and DirectInput switches; joystick polling from the emulation thread |
+| `core/emulator.cpp` |  | render snapshots |
 | `core/emulator.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/emulator.cpp` | `Emulator::dc_reset` | `gdxsv_emu_reset` |
+| `core/emulator.cpp` | `setPlatform` | VRAM protection has owners (vram_protect.h) |
 | `core/emulator.cpp` | `Emulator::init` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::loadGame` | `gdxsv_emu_start` |
 | `core/emulator.cpp` | `Emulator::unloadGame` | `gdxsv_emu_reset` |
+| `core/emulator.cpp` | `Emulator::stop` | the rollback backend starts the GGPO session without NetworkHandshake |
 | `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
-| `core/emulator.cpp` | `Emulator::start` | `gdxsv_emu_frame_end` after `ggpo::nextFrame` (the frame limiter of a rollback battle with threaded rendering) |
+| `core/emulator.cpp` | `Emulator::start` | the render thread renders from snapshots and does not write VRAM (render_snapshot.h) |
 | `core/emulator.cpp` | `Emulator::start` | fix blackout on threaded rendering |
-| `core/emulator.cpp` | `Emulator::stop` | stop the GGPO session the rollback backend started, so the emulator thread runs no rollback frame and restarts no CPU after the stop |
 | `core/emulator.cpp` | `Emulator::vblank` | `gdxsv_emu_end_frame` |
 | `core/emulator.h` |  | a rollback or replay session ended |
-| `core/hw/aica/sgc_if.cpp` | `ChannelEx::Step` | muted replay seek or rollback rerun (`ggpo::rollbacking()`, include `network/ggpo.h`) without DSP: step envelopes, stream and LFO, skip the mix nobody hears |
+| `core/hw/aica/sgc_if.cpp` |  | rollback rerun in ChannelEx::Step |
+| `core/hw/aica/sgc_if.cpp` |  | muted replay seek or rollback rerun, no DSP: the mix is never heard, step the channel state only |
 | `core/hw/arm7/arm7_rec_x64.cpp` |  | cpuid is slow: probe the host once, not for every compiled block |
 | `core/hw/holly/sb_mem.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/hw/holly/sb_mem.cpp` | `ReadMem_area0` | `gdxsv_emu_rpc` |
 | `core/hw/maple/maple_cfg.h` |  | flag bits sent beside the pad input in rollback |
-| `core/hw/mem/mem_watch.h` |  | include `gdxsv/gdxsv_emu_hooks.h` |
-| `core/hw/mem/mem_watch.h` |  | already saved, yet it faulted: something protected the page again (gdxsv). |
+| `core/hw/mem/CMakeLists.txt` |  | VRAM protection owners and write tracker |
+| `core/hw/mem/mem_watch.h` |  | VRAM protection shared with the texture cache and the write tracker |
+| `core/hw/mem/mem_watch.h` |  | Watcher::protectRestored |
+| `core/hw/mem/mem_watch.h` |  | pages written in HotFaultSaves consecutive saves stay unprotected (hot): at each save their content is compared with the copy taken at the previous save instead, which costs less than a write fault and a re-protect per page. |
+| `core/hw/mem/mem_watch.h` |  | a rollback restores single pages |
+| `core/hw/mem/mem_watch.h` |  | `hot.clear(); // gdxsv` |
+| `core/hw/mem/mem_watch.h` |  | a hot page protected again by the code or texture cache: its copy is already taken |
 | `core/hw/mem/mem_watch.h` | `writeAccess` | `gdxsv_is_using_memwatch` |
 | `core/hw/mem/mem_watch.h` | `protect` | `gdxsv_is_using_memwatch` |
-| `core/hw/mem/mem_watch.h` | `Watcher::unprotectPage` | unprotect one page, for `load_game_state` |
-| `core/hw/mem/mem_watch.h` | `Watcher::protectRestored` | protect the restored and the dirty pages after `load_game_state`, not the hot pages; take the hot pages' copies again; include `<unordered_set>` |
-| `core/hw/mem/mem_watch.h` | `Watcher` (`hot`, `faultStreak`), `Watcher::save`, `Watcher::restoreHot`, `Watcher::hit`, `Watcher::reset` | hot pages for the rollback save: a page written in 2 consecutive saves stays unprotected and is compared with its copy at each save instead of faulting; protected again after 60 unchanged saves |
-| `core/hw/pvr/Renderer_if.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/hw/pvr/CMakeLists.txt` |  | render snapshots |
+| `core/hw/pvr/Renderer_if.cpp` |  | render snapshots |
+| `core/hw/pvr/Renderer_if.cpp` |  | the queued render takes the new frame (render snapshots) |
+| `core/hw/pvr/Renderer_if.cpp` |  | render snapshots. |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_create_renderer` | `gdxsv_headless` |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | `gdxsv_emu_end_frame` |
+| `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | render snapshots convert the palette on the render thread |
+| `core/hw/pvr/Renderer_if.cpp` | `rend_end_render` | no wait with render snapshots |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_vblank` | `gdxsv_emu_vblank` |
-| `core/hw/pvr/Renderer_if.cpp` | `PvrMessageQueue::enqueue`, `rend_end_render`, `rend_start_rollback` | `gdxsv_wait_begin` / `gdxsv_wait_end` around the emulation thread's waits for the render thread (P2PMatchingReport) |
+| `core/hw/pvr/Renderer_if.cpp` | `rend_start_rollback` | P2PMatchingReport |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
+| `core/hw/pvr/Renderer_if.h` | `rend_updateFogTable` | render snapshots clear the texture cache when switching |
+| `core/hw/pvr/pvr_mem.h` |  | reads a copy of VRAM through the 32-bit area mapping (render snapshots) |
 | `core/hw/pvr/ta_ctx.cpp` |  | rollback time sync in QueueRender |
+| `core/hw/pvr/ta_ctx.cpp` |  | render snapshots. |
 | `core/hw/pvr/ta_ctx.cpp` | `QueueRender` | fast-forward counts in frame skip; a rollback time sync skips one render every 30 frames |
+| `core/hw/pvr/ta_ctx.cpp` | `QueueRender` | render snapshots replace a queued frame instead of waiting |
+| `core/hw/pvr/ta_ctx.cpp` | `DequeueRender` | render snapshots |
+| `core/hw/pvr/ta_ctx.h` |  | render snapshots: the copy of the frame DequeueRender returned |
 | `core/hw/sh4/dyna/blockmanager.cpp` |  | include `gdxsv/gdxsv_sh4_hooks.h` |
 | `core/hw/sh4/dyna/blockmanager.cpp` | `bm_GetCodeByVAddr` | `gdxsv_sh4_code_addr` |
 | `core/hw/sh4/dyna/decoder.cpp` |  | slow idle loop hack |
@@ -169,45 +194,44 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/log/InMemoryListener.h` |  | upstream 20; the log goes into rollback reports |
 | `core/log/LogManager.cpp` |  | include `gdxsv/gdxsv_multi_pov.h` |
 | `core/log/LogManager.cpp` | `LogManager::UpdateConfig` | `gdxsv_multi_pov_log_file_name` |
-| `core/network/ggpo.cpp` |  | include `gdxsv/gdxsv_sleep.h` |
+| `core/lua/lua.cpp` | `luaRegister` | these stop the emulator, so they run on the UI thread. |
+| `core/network/ggpo.cpp` |  | pages restored by load_game_state |
 | `core/network/ggpo.cpp` |  | skip frames, rollback seek and extra input of the gdxsv session |
 | `core/network/ggpo.cpp` | `getLocalInput` | `gdxsv_enabled` |
 | `core/network/ggpo.cpp` |  | 4-player battles |
 | `core/network/ggpo.cpp` |  | microseconds for the fps shown in the gdxsv stats |
-| `core/network/ggpo.cpp` |  | frames of the last rollback, for the skip frame replay and its test log |
+| `core/network/ggpo.cpp` |  | protect and take the pages, keeping often written pages unprotected |
+| `core/network/ggpo.cpp` |  | freed save state buffers, reused |
 | `core/network/ggpo.cpp` |  | extra input (game state flags) sent with the buttons |
 | `core/network/ggpo.cpp` |  | exInput |
-| `core/network/ggpo.cpp` | `on_event` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `on_event` | `gdxsv_net_report_on`, `gdxsv_net_report_timesync`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr`, `settings.gdxsv.skipRenderingBaseAddr` |
 | `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state`, `settings.gdxsv.skipRenderingAddr`, `gdxsv_emu_skip_rendering_addr` |
 | `core/network/ggpo.cpp` | `advance_frame` | `settings.gdxsv.skipRenderingAddr` |
-| `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `advance_frame` | `gdxsv_ggpo_state`, `gdxsv_net_report_on`, `gdxsv_net_report_rerun_end` |
 | `core/network/ggpo.cpp` | `load_game_state` | test log |
-| `core/network/ggpo.cpp` | `load_game_state` | `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `load_game_state` | unprotect each restored page once, not the whole memory |
 | `core/network/ggpo.cpp` | `load_game_state` | free_buffer keeps the skip counts of the frames after it |
-| `core/network/ggpo.cpp` | `load_game_state` | unprotects each restored page once (`unprotectPage`) instead of the whole RAM, VRAM and AICA RAM, and protects only those and the dirty pages again (`protectRestored`); include `<unordered_set>`; hot pages back to the last save first (`restoreHot`) |
-| `core/network/ggpo.cpp` | `save_game_state` | `gdxsv_ggpo_state_saved` |
-| `core/network/ggpo.cpp` | `save_game_state`, `MemPages::save` | the delta is taken with hot pages (`Watcher::save`, which also protects) |
+| `core/network/ggpo.cpp` | `load_game_state` | protect only what was unprotected, not the whole memory |
+| `core/network/ggpo.cpp` | `save_game_state` | `GDXSV_PERF_TRACE("save_b", frame, 0);` |
+| `core/network/ggpo.cpp` | `save_game_state` | reuse a freed buffer; a fresh block page-faults on each first write |
+| `core/network/ggpo.cpp` | `save_game_state` | otherwise MemPages::save protects |
+| `core/network/ggpo.cpp` | `save_game_state` | with hot pages |
 | `core/network/ggpo.cpp` | `free_buffer` | during a rollback the freed state is one of the frames about to be re-simulated (frame > lastSavedFrame), whose skip count is still needed by advance_frame. |
-| `core/network/ggpo.cpp` | `save_game_state`, `free_buffer`, `stopSession` | freed save state buffers kept in `stateBufferPool` and reused (a fresh 10 MB block page-faults on its first writes each frame); freed at session stop |
-| `core/network/ggpo.cpp` |  | include `gdxsv/gdxsv_perf_trace.h` |
-| `core/network/ggpo.cpp` | `advance_frame`, `load_game_state`, `save_game_state`, `nextFrame`, `addLocalInput` | `GDXSV_PERF_TRACE` events (rerun, load, save, frame, input read and add) for the pre-release perf check; off unless env `GDXSV_PERF_TRACE` |
-| `core/network/ggpo.cpp` | `on_event`, `advance_frame`, `load_game_state`, `addLocalInput` | `gdxsv_net_report_*` calls: timesync frames, rollback time and depth, input read and send times for P2PMatchingReport |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_session_start`, `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_state` |
-| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_frame_delay`: GGPO frame delay +1 in a gdxsv rollback battle |
-| `core/network/ggpo.cpp` | `stopSession` | `gdxsv_ggpo_session_stop`, `gdxsv_ggpo_state` |
+| `core/network/ggpo.cpp` | `startSession` | `gdxsv_ggpo_frame_delay` |
+| `core/network/ggpo.cpp` | `stopSession` | free the reused save state buffers |
 | `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `getInput` | `gdxsv_ggpo_state` |
 | `core/network/ggpo.cpp` | `notifySkipInput` | skip frames |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
-| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
-| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_input_update_joysticks` |
-| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_enabled` |
+| `core/network/ggpo.cpp` | `nextFrame` | gdxsv rollback battles add the input before the advance and its rollback. |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_ggpo_wait_prediction_barrier` |
+| `core/network/ggpo.cpp` | `nextFrame` | gdxsv rollback battles added the input before the advance |
+| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state`, `gdxsv_enabled`, `gdxsv_net_report_on` |
 | `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_sleep_us` |
-| `core/network/ggpo.cpp` | `nextFrame` | `gdxsv_ggpo_state` |
-| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | the local input part of `nextFrame` split out as `addLocalInput`, to run it before or after the advance |
-| `core/network/ggpo.cpp` | `nextFrame`, `addLocalInput` | gdxsv rollback battle (`gdxsv_ggpo_state.inputBeforeAdvance`): the local input added before `ggpo_advance_frame` (none at frame 0: no input before the first input read), then `gdxsv_ggpo_wait_prediction_barrier`; `addLocalInput` no longer starts the executor (`nextFrame` does) |
+| `core/network/ggpo.cpp` | `nextFrame` | nextFrame starts the executor |
 | `core/network/ggpo.cpp` | `poll` | rollback check between frames, for the gdxsv session |
 | `core/network/ggpo.cpp` | `startNetwork` | `gdxsv_sleep_us` |
 | `core/network/ggpo.cpp` | `displayStats` | per-peer stats of the 4-player session |
@@ -227,7 +251,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/nullDC.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/nullDC.cpp` | `flycast_init` | find content in the working directory |
 | `core/nullDC.cpp` | `flycast_init` | `gdxsv_emu_flycast_init` |
-| `core/nullDC.cpp` | `flycast_term` | `gdxsv_emu_flycast_term`: ends the boot network tests before static destruction |
+| `core/nullDC.cpp` | `flycast_term` | `gdxsv_emu_flycast_term` |
 | `core/nullDC.cpp` | `dc_savestateAllowed` | `gdxsv_is_savestate_allowed` |
 | `core/nullDC.cpp` | `dc_savestate` | `gdxsv_emu_savestate` |
 | `core/nullDC.cpp` | `dc_loadstate` | `gdxsv_emu_loadstate` |
@@ -254,15 +278,31 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rec-x64/rec_x64.cpp` |  | cpuid is slow: probe the host once, not for every compiled block |
 | `core/rec-x64/rec_x64.cpp` |  | block linking |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::loadTexture` | `gdxsv_custom_texture_load_cells`: a texture made of 32x32 glyph cells without a replacement of its own is built from the glyph replacements |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::loadTexture` | `gdxsv_custom_texture_load_cells` |
 | `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 embedded textures and the downloaded texture pack |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_on_queue`: gdxsv copies the cells from VRAM when the load is queued and keeps them for the loader thread |
-| `core/rend/dx11/dx11context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
-| `core/rend/dx11/dx11context.cpp` | `DX11Context::init` | `gdxsv_video_max_frame_latency`: `SetMaximumFrameLatency` (`gdxsv:MaxFrameLatency`) |
-| `core/rend/dx11/dx11context.cpp` | `DX11Context::Present` | only duplicate frames on high refresh rate monitors when asked to |
-| `core/rend/dx11/dx11context.cpp` | `DX11Context::Present` | `gdxsv_video_dx11_presented` after each Present: late images for P2PMatchingReport |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_on_queue` |
+| `core/rend/TexCache.cpp` |  | render snapshots |
+| `core/rend/TexCache.cpp` | `vramlock_list_add` | with render snapshots, the textures of the written pages are invalidated from the snapshot instead |
+| `core/rend/TexCache.cpp` |  | what the textures are read from (render snapshots) |
+| `core/rend/TexCache.cpp` | `VramLockedWriteOffset` | no texture yet: another VRAM user protected the page |
+| `core/rend/TexCache.cpp` | `VramInvalidatePage` | render snapshots |
+| `core/rend/TexCache.cpp` | `VramLockedWrite` | the render thread owns the textures: it invalidates them from the snapshot of the next frame |
+| `core/rend/TexCache.h` |  | invalidates the textures of this page without changing its protection (render snapshots) |
+| `core/rend/TexCache.h` |  | the emulator state the texture cache and ReadFramebuffer read: VRAM and the registers below. |
 | `core/rend/dx11/dx11_renderer.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/dx11/dx11_renderer.cpp` | `DX11Renderer::displayFramebuffer` | `gdxsv_video_grid_active`, `gdxsv_video_viewport` |
+| `core/rend/dx11/dx11context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::init` | `gdxsv_video_max_frame_latency` |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::init` | threaded rendering presents the newest frame (waitPresentReady, Present) |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::init` | threaded rendering |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::term` | threaded rendering |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::Present` | one wait per Present, also for one the render thread did not wait for (the GUI) |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::Present` | only duplicate frames on high refresh rate monitors when asked to |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::Present` | `gdxsv_video_dx11_presented` |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::waitPresentReady` | render thread. |
+| `core/rend/dx11/dx11context.cpp` | `DX11Context::resize` | `\| (frameLatencyWaitable != nullptr ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0)); // gd` |
+| `core/rend/dx11/dx11context.h` |  | render thread |
+| `core/rend/dx11/dx11context.h` |  | threaded rendering |
 | `core/rend/gles/gldraw.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | scale the final game image into the host's quadrant, before UI. |
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | final presentation rectangle |
@@ -270,10 +310,19 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/norend/norend.cpp` |  | present once per rendered frame, as the real renderers do; a second Present (frame swap after an immediate one) would pace headless runs at half speed. |
 | `core/rend/norend/norend.cpp` |  | a framebuffer frame is presented once too |
 | `core/rend/norend/norend.cpp` |  | Render or RenderFramebuffer since the last Present |
+| `core/rend/texconv.cpp` | `palette_update` | the palette RAM of a render snapshot or the emulator's |
+| `core/rend/texconv.h` |  | converts this palette RAM, whatever pal_needs_update says (render snapshots) |
 | `core/rend/vulkan/vulkan_context.cpp` |  | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `gdxsv_video_vulkan_extensions` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | threaded rendering presents the newest frame when mailbox is not available |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `vk::PhysicalDevicePresentModeFifoLatestReadyFeaturesKHR // gdxsv` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `// gdxsv` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::InitDevice` | `// gdxsv` |
+| `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::CreateSwapChain` | threaded rendering: the newest frame at each vblank, as mailbox does |
 | `core/rend/vulkan/vulkan_context.cpp` | `VulkanContext::DrawFrame` | scale the final game image into the host's quadrant, before UI. |
+| `core/rend/vulkan/vulkan_context.h` |  | threaded rendering |
 | `core/sdl/sdl.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/sdl/sdl.cpp` |  | render thread |
 | `core/sdl/sdl.cpp` | `isWindowFullscreen` | native window controls can change SDL's flags directly |
 | `core/sdl/sdl.cpp` | `captureMouse` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `emuEventCallback` | `settings.gdxsv.replayModeActive` |
@@ -282,6 +331,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | hidden replay guests must not enter full screen |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | handle outside window for network stats hovering |
+| `core/sdl/sdl.cpp` | `input_sdl_handle` | the render thread may be rendering |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | actual flag |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
@@ -298,7 +348,11 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/serialize.cpp` | `dc_deserialize` | `gdxsv_emu_state_restored` |
 | `core/types.h` |  | replay fade, 0.0 = silent, 1.0 = full volume (for fade-in effects) |
 | `core/types.h` |  | `} gdxsv;` |
+| `core/ui/CMakeLists.txt` |  | render thread |
 | `core/ui/gui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/ui/gui.cpp` | `gui_keyboard_input` | the render thread may be drawing the OSD |
+| `core/ui/gui.cpp` | `gui_keyboard_inputUTF8` | the render thread may be drawing the OSD |
+| `core/ui/gui.cpp` | `gui_keyboard_key` | the render thread may be drawing the OSD |
 | `core/ui/gui.cpp` | `delayedKeysUp` | not static, the replay UI calls it |
 | `core/ui/gui.cpp` | `gui_open_settings` | gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats) |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
@@ -308,22 +362,27 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `gui_network_start` | the handshake can be gone while this dialog is still drawn |
 | `core/ui/gui.cpp` | `gui_display_ui` | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui.cpp` | `gui_display_ui` | `gdxsv_emu_gui_display` |
-| `core/ui/gui.cpp` | `gui_draw_osd` | `gdxsv_gui_display_osd` |
-| `core/ui/gui.cpp` | `gui_loadDeferredState` | new: loads a state requested by a hotkey while the sh4 code ran |
-| `core/ui/gui.cpp` | `gui_loadState` | without threaded rendering a hotkey polled from the running sh4 code (maple DMA) defers the load to the frame end: loading there freed the dynarec block being executed (upstream bug) |
-| `core/ui/gui.h` |  | `gui_loadDeferredState` |
+| `core/ui/gui.cpp` | `gui_draw_osd` | the main thread runs them while the render thread draws the OSD (gui_runUiTasks) |
+| `core/ui/gui.cpp` | `gui_draw_osd` | on the render thread while the main thread adds input events |
+| `core/ui/gui.cpp` | `gui_error` | a state load requested by a hotkey while the sh4 runs on this thread: 1 slot, 2 in RAM, -1 while it is loaded after the frame |
+| `core/ui/gui.cpp` | `gui_loadState` | without threaded rendering the hotkeys are also polled from inside the running sh4 code (maple DMA), where a state load frees the dynarec block being executed. |
+| `core/ui/gui.cpp` | `gui_runOnUiThread` | main thread, while the render thread runs |
 | `core/ui/gui.h` |  | used by the gdxsv menu |
 | `core/ui/gui.h` |  | used by the replay UI |
+| `core/ui/gui.h` |  | call after a frame, outside the sh4 code |
+| `core/ui/gui.h` |  | `void gui_runUiTasks(); // gdxsv` |
 | `core/ui/gui.h` |  | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui_font.cpp` | `gui_loadFonts` | Japanese text is always needed. |
-| `core/ui/mainui.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
-| `core/ui/mainui.cpp` | `mainui_rend_frame` | `gui_loadDeferredState` after the frame |
+| `core/ui/mainui.cpp` |  | render thread |
+| `core/ui/mainui.cpp` | `mainui_rend_frame` | a load-state hotkey polled by the sh4 code |
+| `core/ui/mainui.cpp` | `renderThreadWanted` | the render thread renders while the game runs with threaded rendering and nothing else needs the context |
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop_start` |
 | `core/ui/mainui.cpp` | `mainui_loop` | gdxsv_emu_mainui_loop gets whether a frame was rendered |
-| `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_reinit_needed` |
+| `core/ui/mainui.cpp` | `mainui_loop` | the render thread gives the context back first |
 | `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop` |
-| `core/ui/mainui.cpp` | `mainui_loop` | `gdxsv_emu_mainui_loop_end` |
+| `core/ui/mainui.cpp` | `mainui_loop` | render thread |
 | `core/ui/settings.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
+| `core/ui/settings.cpp` | `gui_settings_advanced` | always on (gdxsv_emu_settings_loaded) |
 | `core/ui/settings.cpp` | `gui_settings_advanced` | `gdxsv_emu_settings_advanced` |
 | `core/ui/settings.cpp` | `gui_display_settings` | `Gdxsv`, `gdxsv_emu_settings_gdxsv_tab` |
 | `core/ui/settings_controls.cpp` | `gui_settings_controls` | XInput and DirectInput switches, joystick polling |
@@ -331,7 +390,8 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/settings_general.cpp` | `manageSinglePath` | not static, the gdxsv replay folder setting uses it |
 | `core/ui/settings_general.cpp` | `gui_settings_general` | `gdxsv_emu_settings_replay_folder` |
 | `core/ui/settings_video.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
-| `core/ui/settings_video.cpp` | `gui_settings_video` | `gdxsv_emu_settings_video` |
+| `core/ui/settings_video.cpp` | `gui_settings_video` | no Full Framebuffer Emulation: threaded rendering renders from snapshots and never writes VRAM |
+| `core/ui/settings_video.cpp` | `gui_settings_video` | no Copy Rendered Textures to VRAM: threaded rendering renders from snapshots and never writes VRAM |
 | `core/windows/win_vmem.cpp` | `LPVOID` | fixed base address for deterministic memory layout (useful for Cheat Engine). |
 | `core/windows/win_vmem.cpp` | `init` | place base_alloc so that ram_base (base_alloc + sizeof(Sh4RCB)) lands on a 0x10000000 boundary. |
 | `core/windows/winmain.cpp` |  | breakpad include path of the MSVC (clang-cl) build |
@@ -340,8 +400,13 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/windows/winmain.cpp` | `getThreadName` | include `gdxsv/gdxsv_video_hooks.h` |
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
 | `core/windows/winmain.cpp` | `os_VideoRoutingPublishFrameTexture` | `gdxsv_video_sender_name` |
+| `core/wsi/context.h` |  | the render thread (core/ui/render_thread.h) takes the context from the main thread and gives it back |
+| `core/wsi/sdl.cpp` |  | render thread |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::init` | only duplicate frames on high refresh rate monitors when asked to |
+| `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::makeCurrent` | render thread |
+| `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::swap` | not on the render thread: the main thread updates it on the window event, and macOS allows NSView on the main thread only |
 | `core/wsi/sdl.cpp` | `SDLGLGraphicsContext::changeGLSwapInterval` | only duplicate frames on high refresh rate monitors when asked to |
+| `core/wsi/sdl.h` |  | render thread |
 | `core/wsi/switcher.cpp` |  | include `gdxsv/gdxsv_null_imgui_driver.h` |
 | `core/wsi/switcher.cpp` | `initRenderApi` | `gdxsv_headless`, `GdxsvNullImGuiDriver` |
 | `core/wsi/switcher.cpp` | `termRenderApi` | `gdxsv_headless`, `gdxsv_video_term` |

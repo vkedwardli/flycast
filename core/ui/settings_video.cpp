@@ -221,9 +221,7 @@ void gui_settings_video()
 #endif
     	gdxsv_emu_settings_video();
     	OptionCheckbox(T("Show VMU In-game"), config::FloatVMUs, T("Show the VMU LCD screens while in-game"));
-    	OptionCheckbox(T("Full Framebuffer Emulation"), config::EmulateFramebuffer,
-    			T("Fully accurate VRAM framebuffer emulation. Helps games that directly access the framebuffer for special effects. "
-    			"Very slow and incompatible with upscaling and wide screen."));
+    	// gdxsv: no Full Framebuffer Emulation: threaded rendering renders from snapshots and never writes VRAM
 		{
 			DisabledScope scope(game_started);
 			OptionCheckbox(T("Load Custom Textures"), config::CustomTextures,
@@ -334,8 +332,7 @@ void gui_settings_video()
     			T("Helps with texture bleeding case when upscaling. Disabling it can help if pixels are warping when upscaling in 2D games (MVC2, CVS, KOF, etc.)"));
     	OptionCheckbox(T("Native Depth Interpolation"), config::NativeDepthInterpolation,
     			T("Helps with texture corruption and depth issues on AMD GPUs. Can also help Intel GPUs in some cases."));
-    	OptionCheckbox(T("Copy Rendered Textures to VRAM"), config::RenderToTextureBuffer,
-    			T("Copy rendered-to textures back to VRAM. Slower but accurate"));
+    	// gdxsv: no Copy Rendered Textures to VRAM: threaded rendering renders from snapshots and never writes VRAM
 		const std::array<int, 5> aniso{ 1, 2, 4, 8, 16 };
         const std::array<std::string, 5> anisoText{ T("Disabled"), "2x", "4x", "8x", "16x" };
         u32 afSelected = 0;

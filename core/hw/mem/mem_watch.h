@@ -19,6 +19,7 @@
 #pragma once
 #include "types.h"
 #include "addrspace.h"
+#include "vram_protect.h" // gdxsv: VRAM protection shared with the texture cache and the write tracker
 #include "hw/aica/aica_if.h"
 #include "hw/sh4/dyna/blockmanager.h"
 #include "hw/sh4/sh4_mem.h"
@@ -201,12 +202,12 @@ class VramWatcher : public Watcher<VramWatcher>
 protected:
 	void protectMem(u32 addr, u32 size)
 	{
-		addrspace::protectVram(addr, std::min(VRAM_SIZE - addr, size) & ~PAGE_MASK);
+		vramprotect::protect(addr, std::min(VRAM_SIZE - addr, size) & ~PAGE_MASK, vramprotect::MemWatch);
 	}
 
 	void unprotectMem(u32 addr, u32 size)
 	{
-		addrspace::unprotectVram(addr, std::min(VRAM_SIZE - addr, size) & ~PAGE_MASK);
+		vramprotect::unprotect(addr, std::min(VRAM_SIZE - addr, size) & ~PAGE_MASK, vramprotect::MemWatch);
 	}
 
 	u32 getMemOffset(void *p)

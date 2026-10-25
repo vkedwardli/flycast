@@ -26,6 +26,8 @@ extern u32 pal_hash_256[4];
 extern u32 pal_hash_16[64];
 
 void palette_update();
+// gdxsv: converts this palette RAM, whatever pal_needs_update says (render snapshots)
+void palette_update(const u32 *paletteRam, u32 palRamCtrl);
 
 template<typename Pixel>
 class PixelBuffer

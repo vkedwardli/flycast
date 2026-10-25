@@ -236,6 +236,7 @@ private:
 	bool dedicatedAllocationSupported = false;
 	bool provokingVertexSupported = false;
 	bool bufferDeviceAddressSupported = false;
+	bool fifoLatestReadySupported = false; // gdxsv: threaded rendering
 	u32 vendorID = 0;
 	int swapInterval = 1;
 	vk::UniqueDevice device;

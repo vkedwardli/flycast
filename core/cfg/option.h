@@ -28,6 +28,8 @@
 #include <libretro.h>
 #endif
 
+void gdxsv_emu_settings_loaded(); // gdxsv: core/gdxsv/gdxsv_emu_hooks.h
+
 namespace config {
 
 class BaseOption {
@@ -62,6 +64,7 @@ public:
 		}
 		for (const auto& o : options)
 			o->load();
+		gdxsv_emu_settings_loaded(); // gdxsv: options the fork fixes
 	}
 
 	void save() {

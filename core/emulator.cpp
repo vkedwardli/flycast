@@ -40,6 +40,7 @@
 #include "network/net_handshake.h"
 #include "serialize.h"
 #include "hw/pvr/pvr.h"
+#include "hw/pvr/render_snapshot.h" // gdxsv: render snapshots
 #include "profiler/fc_profiler.h"
 #include "oslib/storage.h"
 #include "wsi/context.h"
@@ -451,8 +452,8 @@ void Emulator::dc_reset(bool hard)
 
 static void setPlatform(int platform)
 {
-	if (VRAM_SIZE != 0)
-		addrspace::unprotectVram(0, VRAM_SIZE);
+	// gdxsv: VRAM protection has owners (vram_protect.h)
+	vramprotect::reset();
 	elan::ERAM_SIZE = 0;
 	switch (platform)
 	{
@@ -1003,9 +1004,13 @@ void Emulator::start()
 	}
 	state = Running;
 	SetMemoryHandlers();
-	if (config::GGPOEnable && config::ThreadedRendering)
-		// Not supported with GGPO
+	if (config::ThreadedRendering)
+	{
+		// gdxsv: the render thread renders from snapshots and does not write VRAM (render_snapshot.h)
 		config::EmulateFramebuffer.override(false);
+		config::RenderToTextureBuffer.override(false);
+		rendsnap::reset();
+	}
 	setupPtyPipe();
 
 	memwatch::protect();

@@ -39,8 +39,12 @@ def read_trace(path):
 
 
 def read_pm(path):
+    # PresentMon builds name the 1.x columns msInPresentAPI, QPCTime as well as MsInPresentAPI, TimeInQPC
+    def column(k):
+        return "TimeInQPC" if k == "QPCTime" else "M" + k[1:] if k.startswith("ms") else k
     with open(path, newline="", encoding="utf-8-sig") as f:
-        return [r for r in csv.DictReader(f) if r.get("TimeInQPC", "NA") != "NA"]
+        rows = [{column(k): v for k, v in r.items()} for r in csv.DictReader(f)]
+    return [r for r in rows if r.get("TimeInQPC", "NA") != "NA"]
 
 
 def analyze(trace: str, pm: str = None, settle: int = 180, frames: int = 2100) -> dict:
@@ -118,19 +122,27 @@ def analyze(trace: str, pm: str = None, settle: int = 180, frames: int = 2100) -
 
     # C3: per-frame times
     emul, render, last = [], [], None
-    end_frames = []  # q of end_frame of each real (not rerun) frame, with the GGPO frame
-    frame = None
+    # (q, GGPO frame) of each frame end: the last end_frame before the next frame's next_b. The rollback re-runs end
+    # before it, so they never count.
+    end_frames = []
+    frame = last_end = None
+    for q, t, fr, e, a in W:
+        if e == "end_frame":
+            last_end = q
+        elif e == "next_b":
+            if frame is not None and last_end is not None:
+                end_frames.append((last_end, frame))
+            frame, last_end = fr, None
     saves = [ms(q - b) for (b, e1), (q, e2) in zip(*[iter([(q, e) for q, t, fr, e, a in W if e in ("save_b", "save_e")])] * 2)]
     for q, t, fr, e, a in W:
-        if e == "next_b":
-            frame = fr
         if t == emu_tid and e in ("next_e", "save_e", "load_e", "rerun_e", "rerun_b"):
             last = (e, q)
         elif e == "end_frame" and last and last[0] != "rerun_b":
             emul.append(ms(q - last[1]))
-            end_frames.append((q, frame))
             last = None
     presents = [q for q, t, fr, e, a in W if e == "present"]
+    if not presents:  # builds before the render thread trace a threaded rendering present as ui_rendered
+        presents = [q for q, t, fr, e, a in W if e == "ui_rendered"]
     for q, f in end_frames:
         i = bisect.bisect_right(presents, q)
         if i < len(presents):

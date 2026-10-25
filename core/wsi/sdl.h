@@ -28,6 +28,7 @@ class SDLGLGraphicsContext : public GLGraphicsContext
 public:
 	~SDLGLGraphicsContext();
 	void swap() override;
+	void makeCurrent(bool current) override; // gdxsv: render thread
 	static void Create(void *window, void *display);
 
 private:

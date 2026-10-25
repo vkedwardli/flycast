@@ -28,6 +28,7 @@
 #include "profiler/fc_profiler.h"
 #include "oslib/i18n.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "render_thread.h" // gdxsv: render thread
 
 #include <chrono>
 #include <thread>
@@ -61,6 +62,7 @@ bool mainui_rend_frame()
 		try {
 			const bool rendered = emu.render();
 			gui_loadDeferredState(); // gdxsv: a load-state hotkey polled by the sh4 code
+			gui_runUiTasks(); // gdxsv: headless draws no OSD
 			if (!rendered)
 				return false;
 			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
@@ -96,6 +98,35 @@ void mainui_term()
 	rend_term_renderer();
 }
 
+// gdxsv: the render thread renders while the game runs with threaded rendering and nothing else needs the context
+static bool renderThreadWanted(RenderType currentRenderer)
+{
+	return config::ThreadedRendering && emu.running() && !gui_is_open() && imguiDriver != nullptr && !forceReinit
+			&& config::RendererType == currentRenderer;
+}
+
+// gdxsv: joins the render thread; what it threw is handled as mainui_rend_frame does
+static void stopRenderThread()
+{
+	std::exception_ptr error = renderthread::stop();
+	if (renderthread::takeReinit())
+		forceReinit = true;
+	if (error == nullptr)
+		return;
+	try {
+		std::rethrow_exception(error);
+	} catch (const RendererException& e) {
+		gui_error(i18n::Ts("Renderer error:") + "\n" + e.what() + "\n\n"
+				+ i18n::Ts("The game has been paused but it is recommended to restart Flycast"));
+		rend_term_renderer();
+		if (!rend_init_renderer())
+			ERROR_LOG(RENDERER, "Renderer re-initialization failed");
+		gui_open_settings();
+	} catch (const FlycastException& e) {
+		gui_stop_game(e.what());
+	}
+}
+
 void mainui_loop(bool forceStart)
 {
 	ThreadName _("Flycast-rend");
@@ -110,13 +141,31 @@ void mainui_loop(bool forceStart)
 		fc_profiler::startThread("main");
 
 		// gdxsv: gdxsv_emu_mainui_loop gets whether a frame was rendered
-		const bool rendered = mainui_rend_frame();
-		if (rendered && imguiDriver != nullptr)
+		bool rendered = false;
+		// gdxsv: render thread. This thread then only reads the window events, as they arrive.
+		if (renderthread::finished())
+			stopRenderThread();
+		if (renderThreadWanted(currentRenderer))
 		{
-			try {
-				imguiDriver->present();
-			} catch (const FlycastException& e) {
-				forceReinit = true;
+			renderthread::start();
+			os_DoEvents();
+			os_UpdateInputState();
+			gui_loadDeferredState();
+			gui_runUiTasks();
+			renderthread::waitEvents(16);
+		}
+		else
+		{
+			if (renderthread::started())
+				stopRenderThread();
+			rendered = mainui_rend_frame();
+			if (rendered && imguiDriver != nullptr)
+			{
+				try {
+					imguiDriver->present();
+				} catch (const FlycastException& e) {
+					forceReinit = true;
+				}
 			}
 		}
 		if (imguiDriver == nullptr || gdxsv_emu_mainui_reinit_needed())
@@ -124,6 +173,9 @@ void mainui_loop(bool forceStart)
 
 		if (config::RendererType != currentRenderer || forceReinit)
 		{
+			// gdxsv: the render thread gives the context back first
+			if (renderthread::started())
+				stopRenderThread();
 			mainui_term();
 			int prevApi = isOpenGL(currentRenderer) ? 0 : isVulkan(currentRenderer) ? 1 : currentRenderer == RenderType::DirectX9 ? 2 : 3;
 			int newApi = isOpenGL(config::RendererType) ? 0 : isVulkan(config::RendererType) ? 1 : config::RendererType == RenderType::DirectX9 ? 2 : 3;
@@ -157,6 +209,8 @@ void mainui_loop(bool forceStart)
 		fc_profiler::endThread(config::ProfilerFrameWarningTime);
 	}
 
+	if (renderthread::started())
+		stopRenderThread(); // gdxsv: render thread
 	gdxsv_emu_mainui_loop_end();
 	mainui_term();
 }

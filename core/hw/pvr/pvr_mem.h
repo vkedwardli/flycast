@@ -20,6 +20,8 @@ void YUV_reset();
 
 // 32-bit vram path handlers
 template<typename T> T DYNACALL pvr_read32p(u32 addr);
+// gdxsv: reads a copy of VRAM through the 32-bit area mapping (render snapshots)
+template<typename T> T pvr_read32p(const u8 *vram, u32 addr);
 template<typename T, bool Internal = false> void DYNACALL pvr_write32p(u32 addr, T data);
 // Area 4 handlers
 template<typename T, bool upper> T DYNACALL pvr_read_area4(u32 addr);

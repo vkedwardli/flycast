@@ -96,8 +96,7 @@ static void gui_settings_advanced()
     header(T("Other"));
     {
     	OptionCheckbox(T("HLE BIOS"), config::UseReios, T("Force high-level BIOS emulation"));
-        OptionCheckbox(T("Multi-threaded emulation"), config::ThreadedRendering,
-        		T("Run the emulated CPU and GPU on different threads"));
+        // gdxsv: always on (gdxsv_emu_settings_loaded)
 #if !defined(__ANDROID) && !defined(GDB_SERVER)
         OptionCheckbox(T("Serial Console"), config::SerialConsole,
         		T("Dump the Dreamcast serial console to stdout"));

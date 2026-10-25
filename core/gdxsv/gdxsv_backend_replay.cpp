@@ -67,9 +67,7 @@ std::string formatLocalClock(time_t ts) {
 }
 
 void refreshLiveInputState() {
-	if (!config::ThreadedRendering) {
-		os_UpdateInputState();
-	} else if (config::JoystickPolling) {
+	if (config::JoystickPolling) {
 		gdxsv_input_update_joysticks();
 	}
 }
@@ -279,11 +277,6 @@ void GdxsvBackendReplay::OnMainUiLoop() {
 	}
 
 	if (ui.state <= State::LbsStartBattleFlow) {
-		static int counter = 0;
-		if (++counter % 10 < 5)
-			kcode[0] = ~DC_BTN_A;
-		else
-			kcode[0] = ~0u;
 		if (ctrl_commands_.empty() && ui_commands_.empty() && !lbs_first_skip_) {
 			ui_commands_.emplace_back(ReplayCtrlCommand::SeekForward, ui.bootSeekFrames);
 			lbs_first_skip_ = true;
@@ -661,7 +654,10 @@ constexpr int32_t kPausedStepExtraSlack = 2 * kSyncSubFrames;
 
 
 void GdxsvBackendReplay::UpdateFramePacing() {
-	if (!live_mode_ || !live_following_ || takeover_ || ctrl_pause_ || pause_menu_opend_) {
+	// A held StartMsg waits for the peers in wall time while the game counts its own wait in frames: at the catch-up
+	// rate (the limiter's 1 ms floor, no longer held to the display rate by a Present that waits for vsync) the game
+	// gives up and disconnects before the round start comes. Hold at the nominal rate.
+	if (!live_mode_ || !live_following_ || takeover_ || ctrl_pause_ || pause_menu_opend_ || live_start_msg_pending_) {
 		gdxsv_frame_period_trim_us = 0;
 		pacing_integral_ = 0.0;
 		pacing_rate_time_ = {};
@@ -773,6 +769,7 @@ void GdxsvBackendReplay::UpdateFramePacing() {
 }
 
 void GdxsvBackendReplay::OnNextFrame() {
+	++next_frames_;
 	if (MultiPov())
 		gdxsv_multi_pov_audio_frame(key_msg_count_, start_msg_count_, multi_pov_seek_generation_,
 									ctrl_pause_ || pause_menu_opend_ ? 0 : ctrl_play_speed_,
@@ -792,6 +789,9 @@ void GdxsvBackendReplay::OnNextFrame() {
 		ProcessMcsMessage(McsMessage::Create(McsMessage::MsgType::StartMsg, pov_));
 	}
 	FollowMultiPovHost();
+	// Through the lobby screens before the battle, A is pressed 5 frames out of 10. A seek holds the input as it is.
+	if (state_ <= State::LbsStartBattleFlow && !seeking_)
+		kcode[0] = ++lobby_press_frames_ % 10 < 5 ? ~DC_BTN_A : ~0u;
 	// gdxsv:replay_takeover_frame: what the pause menu's Take Over does, once
 	// playback (not a seek, not a queued jump) has reached that input.
 	if (0 < takeover_frame_ && takeover_frame_ <= key_msg_count_ && state_ == State::McsInBattle && IsInGame() &&
@@ -2547,15 +2547,15 @@ void GdxsvBackendReplay::DeliverKeyMsgBatch() {
 		return;
 	}
 
-	// While following live, keep input intake on the rendered-frame clock.
+	// While following live, keep input intake on the emulated-frame clock.
 	// After a rewind, use ordinary replay delivery: rejecting a buffered
 	// request until the next render can stall the game's input pipeline.
 	//
 	// Steady state only: a skip-render seek runs hundreds of emulator frames
 	// inside one UI frame, so capping during catch-up would stall it.
 	if (live_mode_ && live_following_ && !takeover_ && !seeking_ && !live_catching_up_ && ctrl_play_speed_ == 0) {
-		if (deliver_last_mainui_ != MainFrameCount) {
-			deliver_last_mainui_ = MainFrameCount;
+		if (deliver_last_frame_ != next_frames_) {
+			deliver_last_frame_ = next_frames_;
 			deliver_this_frame_ = 0;
 		}
 

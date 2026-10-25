@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <atomic>
 #include <future>
 #include <mutex>
 #include <set>
@@ -33,6 +34,7 @@ class GdxsvBackendRollback {
 	void Reset();
 	void OnMainUiLoop();
 	void OnNextFrame();
+	void OnVBlank();
 	bool StartLocalTest(const char *param);
 	void Prepare(const proto::P2PMatching &matching, int port);
 	void Open();
@@ -67,6 +69,10 @@ class GdxsvBackendRollback {
 
 	State state_ = State::None;
 	bool is_local_test_ = false;
+	// Local test closing countdown, in vblanks (OnVBlank); OnMainUiLoop saves the replay and exits
+	int local_test_closing_ = 180;
+	std::atomic<bool> local_test_save_{false};
+	std::atomic<bool> local_test_exit_{false};
 	bool error_fast_return_ = false;
 	bool ggpo_game_renderer_reset_ = false;
 	bool osd_network_stat_ = false;

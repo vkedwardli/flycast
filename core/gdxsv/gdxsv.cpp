@@ -304,6 +304,15 @@ void Gdxsv::HookVBlank() {
 	if (disk_ == 2) {
 		slowdown_.OnVBlank();
 	}
+	if (netmode_ == NetMode::McsRollback) {
+		rollback_net_.OnVBlank();
+	}
+	// With neither GGPO nor a replay, the SH4 runs on across frames (threaded rendering), so HookNextFrame only
+	// runs when something stops it. Stop it for a widescreen change: the patch then goes in between SH4 runs, as on
+	// every frame otherwise.
+	if (!ggpo::active() && netmode_ != NetMode::Replay && WidescreenPatchChanged()) {
+		emu.getSh4Executor()->Stop();
+	}
 }
 
 void Gdxsv::HookEndOfFrame() {
@@ -945,23 +954,29 @@ bool Gdxsv::WidescreenSitesKnown() {
 	return true;
 }
 
-void Gdxsv::WriteWidescreenPatch() {
+// The settings or the viewport differ from the ones the patch was last written for.
+// State restoration and payload installation invalidate this host cache.
+bool Gdxsv::WidescreenPatchChanged() const {
 	if (disk_ != 1 && disk_ != 2)
+		return false;
+	const int width = settings.display.width;
+	const int height = settings.display.height;
+	if (width <= 0 || height <= 0)
+		return false; // A minimized window must not replace the last usable aspect.
+	const bool enabled = config::Widescreen && config::WidescreenGameHacks;
+	return enabled != widescreen_enabled_ || width != widescreen_viewport_width_ || height != widescreen_viewport_height_
+		|| config::SuperWidescreen != widescreen_super_ || config::GdxWidescreenHudLayout != widescreen_hud_layout_;
+}
+
+void Gdxsv::WriteWidescreenPatch() {
+	// Unchanged frames need no symbol lookups, guest reads or aspect arithmetic.
+	if (!WidescreenPatchChanged())
 		return;
 	const bool enabled = config::Widescreen && config::WidescreenGameHacks;
 	const int width = settings.display.width;
 	const int height = settings.display.height;
-	if (width <= 0 || height <= 0)
-		return; // A minimized window must not replace the last usable aspect.
-
 	const bool super_widescreen = config::SuperWidescreen;
 	const int hud_layout = config::GdxWidescreenHudLayout;
-	// State restoration and payload installation invalidate this host cache.
-	// Unchanged frames need no symbol lookups, guest reads or aspect arithmetic.
-	if (enabled == widescreen_enabled_ && width == widescreen_viewport_width_ &&
-		height == widescreen_viewport_height_ && super_widescreen == widescreen_super_ &&
-		hud_layout == widescreen_hud_layout_)
-		return;
 	// A savestate can restore an older payload while host symbols stay current.
 	// Wait for WritePatch() to install the current payload.
 	if (symbols_.count("patch_id") == 0 || gdxsv_ReadMem32(symbols_["patch_id"]) != symbols_[":patch_id"])
