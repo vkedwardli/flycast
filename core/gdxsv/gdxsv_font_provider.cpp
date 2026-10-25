@@ -71,13 +71,15 @@ constexpr float kRimFloor = 115 / 255.f;
 constexpr float kTextHeight = 0.96f;
 constexpr float kMediumStem = 27.f / 256 * kEm;
 // BattleName: 85% of the font's size and a dark outline under the white glyph: kNameOutlineWidth game px outside the
-// 0.5 outline, its opacity falling to 0 over the outer kNameOutlineFade px, soft like the HUD's own digits. The
-// background shows through it, as through the arcade's pilot names; the game tints texels with the text colour.
+// 0.5 outline, its opacity falling to 0 over the outer kNameOutlineFade px. The background shows through it, as
+// through the arcade's pilot names. Near black rather than black, it darkens dark backgrounds less, like the rim of
+// the HUD's own digits under their soft edge, so that a name looks as outlined as the clock on any background. The
+// game tints texels with the text colour.
 constexpr float kNameScale = 0.85f;
-constexpr float kNameOutlineWidth = 2.0f;
+constexpr float kNameOutlineWidth = 2.25f;
 constexpr float kNameOutlineFade = 1.5f;
-constexpr float kNameOutlineGrey = 60 / 255.f;
-constexpr float kNameOutlineOpacity = 0.6f;
+constexpr float kNameOutlineGrey = 30 / 255.f;
+constexpr float kNameOutlineOpacity = 0.4f;
 // The game draws each name glyph from its own cell and shows only the cell's top-left 24x24 game px.
 constexpr float kNameBox = 24.f;
 // BattleMessage: the battle-message sheet's 20-texel cells show on screen about as large as a name cell's 24 game px
