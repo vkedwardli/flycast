@@ -540,14 +540,15 @@ static void gui_display_commands()
 	{
 		ImguiStyleVar _{ImGuiStyleVar_ButtonTextAlign, ImVec2(0.f, 0.5f)};	// left aligned
 
-		float columnWidth = std::min(200.f,
-				(ImGui::GetContentRegionAvail().x - uiScaled(100 + 150) - ImGui::GetStyle().FramePadding.x * 2)
+		// gdxsv: wider than upstream's 150 so translated labels fit.
+		float columnWidth = std::min(250.f,
+				(ImGui::GetContentRegionAvail().x - uiScaled(100 + 200) - ImGui::GetStyle().FramePadding.x * 2)
 				/ 2 / uiScaled(1));
-		float buttonWidth = 150.f;	// not scaled
+		float buttonWidth = 200.f;	// not scaled
 		bool lowWidth = ImGui::GetContentRegionAvail().x < uiScaled(100 + buttonWidth * 3)
 				+ ImGui::GetStyle().FramePadding.x * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
 		if (lowWidth)
-			buttonWidth = std::min(150.f,
+			buttonWidth = std::min(200.f,
 					(ImGui::GetContentRegionAvail().x - ImGui::GetStyle().FramePadding.x * 2 - ImGui::GetStyle().ItemSpacing.x * 2)
 					/ 3 / uiScaled(1));
 		bool lowHeight = ImGui::GetContentRegionAvail().y < uiScaled(100 + 50 * 2 + buttonWidth * 3 / 4) + ImGui::GetTextLineHeightWithSpacing() * 2

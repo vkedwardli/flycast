@@ -28,6 +28,7 @@
 #endif
 #include "oslib/directory.h"
 #include "oslib/oslib.h"
+#include "oslib/i18n.h"
 #include "oslib/http_client.h"
 #include "ui/gui_util.h"
 #include "ui/IconsFontAwesome6.h"
@@ -45,6 +46,8 @@
 
 // For macOS
 std::string os_PrecomposedString(std::string string);
+
+using i18n::T;
 
 namespace {
 
@@ -140,11 +143,11 @@ constexpr size_t kMaxPlayerFilters = 4;
 
 const char* player_filter_disabled_hint(const std::vector<std::string>& filters, const std::string& value) {
 	if (value.empty())
-		return "Empty values cannot be used as filters.";
+		return T("Empty values cannot be used as filters.");
 	if (std::find(filters.begin(), filters.end(), value) != filters.end())
-		return "This filter is already applied.";
+		return T("This filter is already applied.");
 	if (filters.size() >= kMaxPlayerFilters)
-		return "Up to four filters per field. Remove one to add another.";
+		return T("Up to four filters per field. Remove one to add another.");
 	return nullptr;
 }
 
@@ -315,14 +318,14 @@ void gdxsv_replay_draw_forces(const bool is_renpo, const std::vector<int>& force
 			}
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
-			ImGui::SetTooltip(server_tab ? "Right-click to copy or filter" : "Right-click to copy or filter on Server");
+			ImGui::SetTooltip("%s", T(server_tab ? "Right-click to copy or filter" : "Right-click to copy or filter on Server"));
 		if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight)) {
 			auto field_menu = [server_tab](const char* name, const std::string& value, std::vector<std::string>& filters) {
-				const std::string label = std::string(name) + ": " + (value.empty() ? "(empty)" : value) + "###" + name;
+				const std::string label = std::string(name) + ": " + (value.empty() ? T("(empty)") : value) + "###" + name;
 				if (ImGui::BeginMenu(label.c_str())) {
-					if (ImGui::MenuItem("Copy"))
+					if (ImGui::MenuItem(T("Copy")))
 						ImGui::SetClipboardText(value.c_str());
-					const std::string filter_label = std::string("Filter by ") + name + (server_tab ? "" : " (Server)");
+					const std::string filter_label = strprintf(T(server_tab ? "Filter by %s" : "Filter by %s (Server)"), name);
 					const char* disabled_hint = player_filter_disabled_hint(filters, value);
 					if (ImGui::MenuItem(filter_label.c_str(), nullptr, false, disabled_hint == nullptr) &&
 						add_player_filter(filters, value)) {
@@ -379,41 +382,40 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 
 	{
 		const ImVec2 button_size = ScaledVec2(300, 50);
-		auto replay_button = [&](const char* label, int pov, bool four_screen, const char* disabled_hint) {
-			const char* disabled_label =
-				four_screen && users_size == kGdxsvMultiPovScreens ? ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable" : disabled_hint;
-			std::string button_label = !playable				  ? std::string("Load ") + disk_display_name(game_disk) + " to replay"
-									   : disabled_hint != nullptr ? disabled_label
-																  : label;
+		auto replay_button = [&](const std::string& label, int pov, bool four_screen, const std::string& disabled_hint) {
+			const std::string disabled_label = four_screen && users_size == kGdxsvMultiPovScreens
+												   ? std::string(ICON_FA_TABLE_CELLS_LARGE "  ") + T("4 screens unavailable")
+												   : disabled_hint;
+			std::string button_label = !playable			   ? strprintf(T("Load %s to replay"), disk_display_name(game_disk))
+									   : !disabled_hint.empty() ? disabled_label
+																: label;
 			// Keep each action's ID stable as the selected player or hint changes.
 			button_label += four_screen ? "###replay-four-screen" : "###replay-single-screen";
-			ImGui::BeginDisabled(!playable || disabled_hint != nullptr);
+			ImGui::BeginDisabled(!playable || !disabled_hint.empty());
 			if (ImGui::ButtonEx(button_label.c_str(), button_size))
 				gdxsv_start_replay(replay_dst, pov, four_screen);
 			ImGui::EndDisabled();
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
 				if (!playable)
-					ImGui::SetTooltip("Load %s to play this replay.", disk_display_name(game_disk));
-				else if (disabled_hint != nullptr)
-					ImGui::SetTooltip("%s", disabled_hint);
+					ImGui::SetTooltip(T("Load %s to play this replay."), disk_display_name(game_disk));
+				else if (!disabled_hint.empty())
+					ImGui::SetTooltip("%s", disabled_hint.c_str());
 			}
 		};
 
 		const bool pov_selected = 0 <= pov_index && pov_index < users_size;
-		char replay_label[64];
-		snprintf(replay_label, sizeof(replay_label), ICON_FA_PLAY "  Replay %dP", pov_index + 1);
-		replay_button(replay_label, pov_index, false,
-			pov_selected ? nullptr : ICON_FA_ARROW_POINTER "  Select a Player");
+		replay_button(std::string(ICON_FA_PLAY "  ") + strprintf(T("Replay %dP"), pov_index + 1), pov_index, false,
+			pov_selected ? "" : std::string(ICON_FA_ARROW_POINTER "  ") + T("Select a Player"));
 		// Four-screen playback does not require a selected player.
-		const char* four_screen_hint = nullptr;
+		std::string four_screen_hint;
 		if (users_size != kGdxsvMultiPovScreens)
-			four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4-player battles only";
-		else
-			four_screen_hint = gdxsv_multi_pov_viewer_unavailable();
-		replay_button(ICON_FA_TABLE_CELLS_LARGE "  Replay (4 screens)", 0, true, four_screen_hint);
+			four_screen_hint = std::string(ICON_FA_TABLE_CELLS_LARGE "  ") + T("4-player battles only");
+		else if (const char* reason = gdxsv_multi_pov_viewer_unavailable())
+			four_screen_hint = T(reason);
+		replay_button(std::string(ICON_FA_TABLE_CELLS_LARGE "  ") + T("Replay (4 screens)"), 0, true, four_screen_hint);
 
 		if (!broken_replay_path.empty() && broken_replay_path == replay_dst) {
-			ImGui::Text("Failed to start replay. The replay file is corrupted or outdated.");
+			ImGui::TextUnformatted(T("Failed to start replay. The replay file is corrupted or outdated."));
 		}
 	}
 
@@ -421,34 +423,34 @@ void gdxsv_replay_draw_info(const std::string& battle_code, const std::string& g
 
 	// Details below
 	if (!filename.empty())
-		ImGui::TextWrapped("Filename: %s", filename.c_str());
-	ImGui::Text("BattleCode: %s", battle_code.c_str());
+		ImGui::TextWrapped(T("Filename: %s"), filename.c_str());
+	ImGui::Text(T("BattleCode: %s"), battle_code.c_str());
 	ImGui::SameLine();
-	if (ImGui::Button(ICON_FA_CLIPBOARD "  Copy")) {
+	if (ImGui::Button((std::string(ICON_FA_CLIPBOARD "  ") + T("Copy")).c_str())) {
 		ImGui::SetClipboardText(battle_code.c_str());
 	}
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -13.0) * scaling);
-	ImGui::Text("Game: %s", disk_display_name(game_disk));
+	ImGui::Text(T("Game: %s"), disk_display_name(game_disk));
 	if (play_count >= 0) {
-		ImGui::Text("Views: %d", play_count);
+		ImGui::Text(T("Views: %d"), play_count);
 	}
 
 	char buf[128] = {0};
 	if (start_time != 0 && std::localtime(&start_time) != nullptr) {
 		std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&start_time));
-		ImGui::Text("StartAt: %s", buf);
+		ImGui::Text(T("StartAt: %s"), buf);
 	}
 	if (end_time != 0 && std::localtime(&end_time) != nullptr) {
 		std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&end_time));
-		ImGui::Text("EndAt: %s", buf);
+		ImGui::Text(T("EndAt: %s"), buf);
 	}
 	if (!close_reason.empty()) {
-		ImGui::Text("CloseReason: %s", close_reason.c_str());
+		ImGui::Text(T("CloseReason: %s"), close_reason.c_str());
 	}
-	OptionCheckbox("Hide name", config::GdxReplayHideName, "Replace player names with generic names");
-	OptionCheckbox("Show Ally HP", config::GdxReplayShowAllyHP, "Hack the total HP field to display Ally HP");
-	OptionCheckbox("Key Display", config::GdxReplayKeyDisplay, "Display controller inputs");
-	OptionCheckbox("Skip MS Selection", config::GdxReplaySkipMsSelection, "Fast-forward through the mobile suit selection screen");
+	OptionCheckbox(T("Hide name"), config::GdxReplayHideName, T("Replace player names with generic names"));
+	OptionCheckbox(T("Show Ally HP"), config::GdxReplayShowAllyHP, T("Hack the total HP field to display Ally HP"));
+	OptionCheckbox(T("Key Display"), config::GdxReplayKeyDisplay, T("Display controller inputs"));
+	OptionCheckbox(T("Skip MS Selection"), config::GdxReplaySkipMsSelection, T("Fast-forward through the mobile suit selection screen"));
 }
 
 void draw_round_detail(const ReplayEntry& entry) {
@@ -461,7 +463,7 @@ void draw_round_detail(const ReplayEntry& entry) {
 	}
 
 	ImGui::Separator();
-	ImGui::TextDisabled("Round Detail");
+	ImGui::TextDisabled("%s", T("Round Detail"));
 
 	for (int r = 0; r < (int)round_wins.size(); r++) {
 		int win_team = round_wins[r];
@@ -596,14 +598,14 @@ void draw_server_favorite_button(const std::string& replay_url, const std::strin
 	const bool favorite = local_favorites.count(filename) != 0;
 	if (downloading && server_favorite_download_name == filename) {
 		ImGui::BeginDisabled();
-		ImGui::Button(ICON_FA_STAR "  Downloading...###favorite");
+		ImGui::Button((std::string(ICON_FA_STAR "  ") + T("Downloading...") + "###favorite").c_str());
 		ImGui::EndDisabled();
 		return;
 	}
 	if (favorite)
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, .8f, .2f, 1.f));
 	ImGui::BeginDisabled(downloading && !favorite);
-	if (ImGui::Button(favorite ? ICON_FA_STAR "  Remove from Favorites###favorite" : ICON_FA_STAR "  Add to Favorites###favorite")) {
+	if (ImGui::Button((std::string(ICON_FA_STAR "  ") + T(favorite ? "Remove from Favorites" : "Add to Favorites") + "###favorite").c_str())) {
 		if (favorite) {
 			local_favorites.erase(filename);
 			save_local_favorites(replay_dir);
@@ -622,10 +624,10 @@ void draw_server_favorite_button(const std::string& replay_url, const std::strin
 	if (favorite)
 		ImGui::PopStyleColor();
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-		ImGui::SetTooltip(favorite ? "The saved file stays in the Local tab." : "Save this replay to the Local tab as a favorite.");
+		ImGui::SetTooltip("%s", T(favorite ? "The saved file stays in the Local tab." : "Save this replay to the Local tab as a favorite."));
 	if (server_favorite_failed_name == filename) {
 		ImGui::SameLine();
-		ImGui::TextUnformatted("Failed to download this replay.");
+		ImGui::TextUnformatted(T("Failed to download this replay."));
 	}
 }
 
@@ -715,8 +717,9 @@ bool draw_replay_entry(const ReplayEntry& entry, int index, bool selected, bool 
 	if (const auto* local = std::localtime(&entry.start_unix))
 		std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", local);
 	char head[256] = {};
-	snprintf(head, sizeof(head), u8"  %s  %s ― Result: %d：%d\n\n", favorite ? ICON_FA_STAR : ICON_FA_FILM, timebuf, entry.renpo_win, entry.zeon_win);
-	std::string row = entry.readable ? head : "Unable to read replay\n\n";
+	snprintf(head, sizeof(head), u8"  %s  %s ― %s %d：%d\n\n", favorite ? ICON_FA_STAR : ICON_FA_FILM, timebuf, T("Result:"), entry.renpo_win,
+			 entry.zeon_win);
+	std::string row = entry.readable ? head : std::string(T("Unable to read replay")) + "\n\n";
 	for (int i = 0; i < entry.users.size(); ++i) {
 		row += entry.users[i].user_name();
 		if (i + 1 < entry.users.size())
@@ -764,7 +767,7 @@ void gdxsv_replay_local_tab() {
 		local_replay_page = local_replays_future.get().page;
 	size_t requested_page = local_replay_page;
 	ImGui::BeginDisabled(!loaded);
-	if (ImGui::Button(ICON_FA_ARROW_ROTATE_RIGHT "  Reload")) {
+	if (ImGui::Button((std::string(ICON_FA_ARROW_ROTATE_RIGHT "  ") + T("Refresh")).c_str())) {
 		local_replay_page = 0;
 		local_replays_future = {};
 		local_favorites_dir.clear();
@@ -774,7 +777,7 @@ void gdxsv_replay_local_tab() {
 		return;
 	}
 	ImGui::SameLine();
-	if (ImGui::Checkbox(ICON_FA_STAR " Favorites only", &local_favorites_only)) {
+	if (ImGui::Checkbox((std::string(ICON_FA_STAR " ") + T("Favorites only")).c_str(), &local_favorites_only)) {
 		local_replay_page = 0;
 		local_replays_future = {};
 		selected_replay_file.clear();
@@ -785,7 +788,7 @@ void gdxsv_replay_local_tab() {
 	ImGui::EndDisabled();
 	ImGui::SameLine();
 #if defined(TARGET_MAC)
-	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Reveal in Finder")) {
+	if (ImGui::Button((std::string(ICON_FA_FOLDER_OPEN "  ") + T("Reveal in Finder")).c_str())) {
 		if (!file_exists(replay_dir))
 			make_directory(replay_dir);
 		char temp[512];
@@ -793,7 +796,7 @@ void gdxsv_replay_local_tab() {
 		system(temp);
 	}
 #elif defined(_WIN32) && !defined(TARGET_UWP)
-	if (ImGui::Button(ICON_FA_FOLDER_OPEN "  Open folder")) {
+	if (ImGui::Button((std::string(ICON_FA_FOLDER_OPEN "  ") + T("Open folder")).c_str())) {
 		// Explorer falls back to Documents when the folder does not exist yet.
 		if (!file_exists(replay_dir))
 			make_directory(replay_dir);
@@ -811,8 +814,8 @@ void gdxsv_replay_local_tab() {
 	ImGui::SameLine();
 	ImGui::TextUnformatted(replay_dir.c_str());
 	if (!config::GdxReplayPath.get().empty() && replay_dir != config::GdxReplayPath.get()) {
-		ImGui::TextColored(ImVec4(1.f, .8f, .2f, 1.f), ICON_FA_TRIANGLE_EXCLAMATION "  Replay folder not found, showing the default folder: %s",
-			config::GdxReplayPath.get().c_str());
+		ImGui::TextColored(ImVec4(1.f, .8f, .2f, 1.f), "%s  %s", ICON_FA_TRIANGLE_EXCLAMATION,
+			strprintf(T("Replay folder not found, showing the default folder: %s"), config::GdxReplayPath.get().c_str()).c_str());
 	}
 
 	ImGui::BeginChild(ImGui::GetID("gdxsv_replay_file_list_paging"), ScaledVec2(450, 0), false, ImGuiWindowFlags_NoDecoration);
@@ -821,11 +824,11 @@ void gdxsv_replay_local_tab() {
 	if (new_page)
 		ImGui::SetScrollY(0);
 	if (!loaded) {
-		ImGui::TextUnformatted("Loading...");
+		ImGui::TextUnformatted(T("Loading..."));
 	} else {
 		const auto& entries = local_replays_future.get().entries;
 		if (entries.empty())
-			ImGui::TextUnformatted(local_favorites_only ? "(No favorite replay found)" : "(No replay found)");
+			ImGui::TextUnformatted(T(local_favorites_only ? "(No favorite replay found)" : "(No replay found)"));
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30));
 		// Custom rows include a filename and are taller. Each clipper must
 		// cover a uniform-height group; sorting keeps custom names together
@@ -857,7 +860,7 @@ void gdxsv_replay_local_tab() {
 	ImGui::EndChild();
 
 	ImGui::BeginDisabled(!loaded || local_replay_page == 0);
-	if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Prev Page"))
+	if (ImGui::Button((std::string(ICON_FA_CHEVRON_LEFT "  ") + T("Prev Page")).c_str()))
 		requested_page = local_replay_page - 1;
 	ImGui::EndDisabled();
 	ImGui::SameLine();
@@ -867,7 +870,7 @@ void gdxsv_replay_local_tab() {
 		ImGui::TextUnformatted("...");
 	ImGui::SameLine();
 	ImGui::BeginDisabled(!loaded || local_replay_page + 1 >= local_replays_future.get().page_count);
-	if (ImGui::Button(ICON_FA_CHEVRON_RIGHT "  Next Page"))
+	if (ImGui::Button((std::string(ICON_FA_CHEVRON_RIGHT "  ") + T("Next Page")).c_str()))
 		requested_page = local_replay_page + 1;
 	ImGui::EndDisabled();
 	ImGui::EndChild();
@@ -884,7 +887,7 @@ void gdxsv_replay_local_tab() {
 			const bool favorite = local_favorites.count(entry.filename) != 0;
 			if (favorite)
 				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, .8f, .2f, 1.f));
-			if (ImGui::Button(favorite ? ICON_FA_STAR "  Remove from Favorites###favorite" : ICON_FA_STAR "  Add to Favorites###favorite")) {
+			if (ImGui::Button((std::string(ICON_FA_STAR "  ") + T(favorite ? "Remove from Favorites" : "Add to Favorites") + "###favorite").c_str())) {
 				if (favorite)
 					local_favorites.erase(entry.filename);
 				else
@@ -899,8 +902,8 @@ void gdxsv_replay_local_tab() {
 					entry.play_count, entry.filename);
 				draw_round_detail(entry);
 			} else {
-				ImGui::TextWrapped("Filename: %s", entry.filename.c_str());
-				ImGui::TextUnformatted("Failed to read this replay file.");
+				ImGui::TextWrapped(T("Filename: %s"), entry.filename.c_str());
+				ImGui::TextUnformatted(T("Failed to read this replay file."));
 			}
 		}
 	}
@@ -1185,7 +1188,7 @@ void draw_add_player_filter_button(std::vector<std::string>& filters, char* inpu
 	const char* disabled_hint = player_filter_disabled_hint(filters, input);
 	ImGui::SameLine();
 	ImGui::BeginDisabled(disabled_hint != nullptr);
-	if (ImGui::Button("Add Filter") && add_player_filter(filters, input)) {
+	if (ImGui::Button(T("Add Filter")) && add_player_filter(filters, input)) {
 		input[0] = '\0';
 		fetch_new_results();
 	}
@@ -1237,12 +1240,12 @@ void draw_filter_label_int(const std::string& label, unsigned int& value) {
 };
 void draw_filter_label_yesno(const std::string& label, int& value) {
 	if (value != -1) {
-		draw_filter_label(label, value ? "Yes" : "No", [&value]() { value = -1; });
+		draw_filter_label(label, T(value ? "Yes" : "No"), [&value]() { value = -1; });
 	}
 };
 void draw_filter_label_bool(const std::string& label, bool& value) {
 	if (value != false) {
-		draw_filter_label(label, "Yes", [&value]() { value = false; });
+		draw_filter_label(label, T("Yes"), [&value]() { value = false; });
 	}
 };
 
@@ -1261,26 +1264,26 @@ void gdxsv_replay_live_tab() {
 		DisabledScope scope(refreshing);
 		// Default size, like every other button in these tabs - so the status
 		// line beside it lands on the same baseline without nudging.
-		if (ImGui::Button(ICON_FA_ARROW_ROTATE_RIGHT "  Refresh") && !scope.isDisabled()) {
+		if (ImGui::Button((std::string(ICON_FA_ARROW_ROTATE_RIGHT "  ") + T("Refresh")).c_str()) && !scope.isDisabled()) {
 			fetch_live_refresh();
 		}
 	}
 	ImGui::SameLine();
 	ImGui::AlignTextToFramePadding();
 	if (refreshing && !live_first_load_) {
-		ImGui::TextDisabled("Battles in progress. Updating...");
+		ImGui::TextDisabled("%s", T("Battles in progress. Updating..."));
 	} else if (fetch_live_entry_http_status != 200 && !live_first_load_) {
-		ImGui::TextDisabled("Battles in progress. Last update failed (HTTP %d).", fetch_live_entry_http_status);
+		ImGui::TextDisabled(T("Battles in progress. Last update failed (HTTP %d)."), fetch_live_entry_http_status);
 	} else {
-		ImGui::TextDisabled("Battles in progress. Updates every %ds.", kLiveRefreshSeconds);
+		ImGui::TextDisabled(T("Battles in progress. Updates every %ds."), kLiveRefreshSeconds);
 	}
 
 	ImGui::BeginChild(ImGui::GetID("gdxsv_live_list"), ScaledVec2(450, 0), true, ImGuiWindowFlags_DragScrolling);
 	{
 		if (live_first_load_) {
-			ImGui::Text("Loading...");
+			ImGui::TextUnformatted(T("Loading..."));
 		} else if (live_entries_.empty()) {
-			ImGui::Text("No battle in progress.");
+			ImGui::TextUnformatted(T("No battle in progress."));
 		} else {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30.0f));
 			for (int i = 0; i < (int)live_entries_.size(); ++i) {
@@ -1291,7 +1294,7 @@ void gdxsv_replay_live_tab() {
 				std::string row = "  ";
 				row += entry.live_spectate ? ICON_FA_TOWER_BROADCAST : ICON_FA_CIRCLE_DOT;
 				row += "  ";
-				row += row_lobby != nullptr ? std::string(row_lobby) : ("Lobby " + std::to_string(entry.lobby_id));
+				row += row_lobby != nullptr ? std::string(row_lobby) : strprintf(T("Lobby %d"), entry.lobby_id);
 				row += "\n\n";
 				for (int u = 0; u < (int)entry.users.size(); u++) {
 					const auto& user = entry.users[u];
@@ -1348,7 +1351,7 @@ void gdxsv_replay_live_tab() {
 		}
 
 		if (selected == nullptr) {
-			ImGui::Text(selected_live_battle_code.empty() ? "Select a battle to watch." : "That battle has ended.");
+			ImGui::TextUnformatted(T(selected_live_battle_code.empty() ? "Select a battle to watch." : "That battle has ended."));
 		} else {
 			// Same blue-renpo / red-zeon cards the replay detail uses, and the
 			// same pov_index, so picking a view works identically in both.
@@ -1359,58 +1362,58 @@ void gdxsv_replay_live_tab() {
 				const ImVec2 button_size = ScaledVec2(300, 50);
 				const bool playable = ("dc" + std::to_string(gdxsv.Disk())) == selected->disk;
 				const bool pov_selected = 0 <= pov_index && pov_index < static_cast<int>(selected->users.size());
-				char live_label[64];
-				snprintf(live_label, sizeof(live_label), ICON_FA_TOWER_BROADCAST "  Watch %dP###live-single-screen", pov_index + 1);
+				const std::string live_label = (pov_selected ? std::string(ICON_FA_TOWER_BROADCAST "  ") + strprintf(T("Watch %dP"), pov_index + 1)
+															 : std::string(ICON_FA_ARROW_POINTER "  ") + T("Select a Player")) +
+											   "###live-single-screen";
 				ImGui::BeginDisabled(!pov_selected || !playable);
-				if (ImGui::ButtonEx(pov_selected ? live_label : ICON_FA_ARROW_POINTER "  Select a Player###live-single-screen", button_size)) {
+				if (ImGui::ButtonEx(live_label.c_str(), button_size)) {
 					gdxsv_start_live_spectate(selected->battle_code, pov_index);
 				}
 				ImGui::EndDisabled();
 
 				// Four-screen viewing does not require a selected player.
-				const char* four_screen_hint = nullptr;
+				std::string four_screen_hint;
 				if (selected->users.size() != kGdxsvMultiPovScreens)
-					four_screen_hint = ICON_FA_TABLE_CELLS_LARGE "  4-player battles only";
-				else
-					four_screen_hint = gdxsv_multi_pov_viewer_unavailable();
-				ImGui::BeginDisabled(!playable || four_screen_hint != nullptr);
+					four_screen_hint = std::string(ICON_FA_TABLE_CELLS_LARGE "  ") + T("4-player battles only");
+				else if (const char* reason = gdxsv_multi_pov_viewer_unavailable())
+					four_screen_hint = T(reason);
+				ImGui::BeginDisabled(!playable || !four_screen_hint.empty());
 				const std::string four_screen_label =
-					std::string(four_screen_hint != nullptr
-									? (selected->users.size() == kGdxsvMultiPovScreens ? ICON_FA_TABLE_CELLS_LARGE "  4 screens unavailable"
-																					   : four_screen_hint)
-									: ICON_FA_TABLE_CELLS_LARGE "  Watch (4 screens)") +
+					(four_screen_hint.empty() ? std::string(ICON_FA_TABLE_CELLS_LARGE "  ") + T("Watch (4 screens)")
+					 : selected->users.size() == kGdxsvMultiPovScreens ? std::string(ICON_FA_TABLE_CELLS_LARGE "  ") + T("4 screens unavailable")
+																	   : four_screen_hint) +
 					"###live-four-screen";
 				if (ImGui::ButtonEx(four_screen_label.c_str(), button_size)) {
 					gdxsv_start_live_spectate(selected->battle_code, 0, true);
 				}
 				ImGui::EndDisabled();
-				if (four_screen_hint != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-					ImGui::SetTooltip("%s", four_screen_hint);
+				if (!four_screen_hint.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+					ImGui::SetTooltip("%s", four_screen_hint.c_str());
 
 				if (!playable) {
 					ImGui::AlignTextToFramePadding();
-					ImGui::TextDisabled("This battle is on %s.", disk_display_name(selected->disk));
+					ImGui::TextDisabled(T("This battle is on %s."), disk_display_name(selected->disk));
 				}
-				OptionCheckbox("Watch the next live battle automatically", config::GdxLiveAutoNext,
-							   "When a battle ends, move on to another live battle, or wait for one to start. "
-							   "Exit from the pause menu to stop.");
+				OptionCheckbox(T("Watch the next live battle automatically"), config::GdxLiveAutoNext,
+							   T("When a battle ends, move on to another live battle, or wait for one to start. "
+								 "Exit from the pause menu to stop."));
 			}
 
 			// Same fields the replay detail lists, so the two read alike.
 			ImGui::NewLine();
 			const char* sel_lobby = lobby_name_by_id(selected->lobby_id);
 			if (sel_lobby != nullptr) {
-				ImGui::Text("Lobby: %s", sel_lobby);
+				ImGui::Text(T("Lobby: %s"), sel_lobby);
 			} else {
-				ImGui::Text("Lobby: %d", selected->lobby_id);
+				ImGui::Text(T("Lobby: %d"), selected->lobby_id);
 			}
-			ImGui::Text("BattleCode: %s", selected->battle_code.c_str());
-			ImGui::Text("Game: %s", disk_display_name(selected->disk));
-			ImGui::Text("Current Viewers: %d", selected->spectators);
+			ImGui::Text(T("BattleCode: %s"), selected->battle_code.c_str());
+			ImGui::Text(T("Game: %s"), disk_display_name(selected->disk));
+			ImGui::Text(T("Current Viewers: %d"), selected->spectators);
 			if (selected->updated_unix != 0) {
 				char timebuf[128] = {};
 				std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&selected->updated_unix));
-				ImGui::Text("StartAt: %s", timebuf);
+				ImGui::Text(T("StartAt: %s"), timebuf);
 			}
 		}
 		scrollWhenDraggingOnVoid();
@@ -1443,18 +1446,18 @@ void gdxsv_replay_server_tab() {
 
 	ImGui::AlignTextToFramePadding();
 
-	ImGui::Text("Filter by");
+	ImGui::TextUnformatted(T("Filter by"));
 
-	const std::array<std::string, 10> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
+	const std::array<const char*, 10> filter_labels{"User ID",	  "User Name", "Pilot Name", "Lobby ID",	 "No. of Players",
 												    "Battle Code", "Ranking",   "Disk",		 "Used MS", "Reverse Order"};
 	static unsigned int filter_selected = 0;
 
 	ImGui::SameLine();
-	ImGui::PushItemWidth(150.0f * scaling);
-	if (ImGui::BeginCombo("##FilterItems", filter_labels[filter_selected].c_str(), ImGuiComboFlags_HeightLargest)) {
+	ImGui::PushItemWidth(200.0f * scaling);
+	if (ImGui::BeginCombo("##FilterItems", T(filter_labels[filter_selected]), ImGuiComboFlags_HeightLargest)) {
 		for (u32 i = 0; i < filter_labels.size(); i++) {
 			bool is_selected = i == filter_selected;
-			if (ImGui::Selectable(filter_labels[i].c_str(), is_selected)) filter_selected = i;
+			if (ImGui::Selectable(T(filter_labels[i]), is_selected)) filter_selected = i;
 			if (is_selected) ImGui::SetItemDefaultFocus();
 		}
 		ImGui::EndCombo();
@@ -1474,10 +1477,10 @@ void gdxsv_replay_server_tab() {
 				{
 					DisabledScope loading_scope(!future_is_ready(fetch_user_entry_future_));
 					ImGui::SameLine();
-					if (ImGui::Button("My IDs")) ImGui::OpenPopup("my_id_popup");
+					if (ImGui::Button(T("My IDs"))) ImGui::OpenPopup("my_id_popup");
 					ImGui::SameLine();
 					if (ImGui::BeginPopup("my_id_popup")) {
-						ImGui::Text("Handle Name");
+						ImGui::TextUnformatted(T("Handle Name"));
 						ImGui::Separator();
 						auto entries = fetch_user_entry_future_.get();
 						for (int i = 0; i < entries.size(); i++)
@@ -1569,7 +1572,7 @@ void gdxsv_replay_server_tab() {
 				ImGui::SliderInt("##no_of_players_input", &no_of_players_input, 2, 4);
 
 				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
+				if (ImGui::Button(T("Add Filter"))) {
 					search_no_of_players = no_of_players_input;
 					fetch_new_results();
 				}
@@ -1588,7 +1591,7 @@ void gdxsv_replay_server_tab() {
 				}
 
 				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
+				if (ImGui::Button(T("Add Filter"))) {
 					search_battle_code = std::string(battle_code_buf);
 					fetch_new_results();
 				}
@@ -1598,12 +1601,12 @@ void gdxsv_replay_server_tab() {
 			case 6:	 // Ranking
 			{
 				ImGui::SameLine();
-				if (ImGui::Button("Yes")) {
+				if (ImGui::Button(T("Yes"))) {
 					search_ranking = 1;
 					fetch_new_results();
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("No")) {
+				if (ImGui::Button(T("No"))) {
 					search_ranking = 0;
 					fetch_new_results();
 				}
@@ -1650,7 +1653,7 @@ void gdxsv_replay_server_tab() {
 			case 9:	 // Reverse
 			{
 				ImGui::SameLine();
-				if (ImGui::Button("Add Filter")) {
+				if (ImGui::Button(T("Add Filter"))) {
 					search_reverse = true;
 					fetch_new_results();
 				}
@@ -1662,19 +1665,19 @@ void gdxsv_replay_server_tab() {
 
 		ImGui::Dummy(ImVec2(0, 0));	 // Newline
 
-		draw_filter_label_list("User ID", search_user_ids);
-		draw_filter_label_list("User Name", search_user_names);
-		draw_filter_label_list("Pilot Name", search_pilot_names);
-		draw_filter_label_string("Lobby ID", search_lobby_id);
-		draw_filter_label_int("Players", search_no_of_players);
-		draw_filter_label_string("Battle Code", search_battle_code);
-		draw_filter_label_yesno("Ranking", search_ranking);
+		draw_filter_label_list(T("User ID"), search_user_ids);
+		draw_filter_label_list(T("User Name"), search_user_names);
+		draw_filter_label_list(T("Pilot Name"), search_pilot_names);
+		draw_filter_label_string(T("Lobby ID"), search_lobby_id);
+		draw_filter_label_int(T("Players"), search_no_of_players);
+		draw_filter_label_string(T("Battle Code"), search_battle_code);
+		draw_filter_label_yesno(T("Ranking"), search_ranking);
 		if (!search_disk.empty()) {
-			draw_filter_label("Disk", disk_display_name(search_disk), [&]() { search_disk = ""; });
+			draw_filter_label(T("Disk"), disk_display_name(search_disk), [&]() { search_disk = ""; });
 		}
-		draw_filter_label_bool("Reverse", search_reverse);
+		draw_filter_label_bool(T("Reverse"), search_reverse);
 		if (search_used_ms != -1) {
-			draw_filter_label("Used MS", std::to_string(search_used_ms), []() { search_used_ms = -1; });
+			draw_filter_label(T("Used MS"), std::to_string(search_used_ms), []() { search_used_ms = -1; });
 		}
 	}
 
@@ -1684,17 +1687,17 @@ void gdxsv_replay_server_tab() {
 						  ImGuiWindowFlags_DragScrolling);
 		{
 			if (replay_results_dirty) {
-				ImGui::Text("Loading...");
+				ImGui::TextUnformatted(T("Loading..."));
 			} else if (!fetch_replay_entry_future_.valid()) {
 				fetch_replay_json();
 			} else if (!future_is_ready(fetch_replay_entry_future_)) {
-				ImGui::Text("Loading...");
+				ImGui::TextUnformatted(T("Loading..."));
 			} else {
 				const auto& entries = fetch_replay_entry_future_.get();
 				if (entries.size() == 0 || fetch_replay_entry_http_status == 204) {
-					ImGui::Text("No result");
+					ImGui::TextUnformatted(T("No result"));
 				} else if (fetch_replay_entry_http_status != 200) {
-					ImGui::Text("Error: HTTP %d", fetch_replay_entry_http_status);
+					ImGui::Text(T("Error: HTTP %d"), fetch_replay_entry_http_status);
 				} else {
 					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(0, 30));
 					for (int i = 0; i < entries.size(); ++i) {
@@ -1716,7 +1719,7 @@ void gdxsv_replay_server_tab() {
 			{
 				{
 					DisabledScope scope(entry_paging == 0);
-					if (ImGui::Button(ICON_FA_CHEVRON_LEFT "  Prev Page") && !scope.isDisabled()) {
+					if (ImGui::Button((std::string(ICON_FA_CHEVRON_LEFT "  ") + T("Prev Page")).c_str()) && !scope.isDisabled()) {
 						entry_paging--;
 						snprintf(page_buf, sizeof(page_buf), "%d", entry_paging + 1);
 						fetch_target_page();
@@ -1734,7 +1737,7 @@ void gdxsv_replay_server_tab() {
 					}
 					ImGui::SameLine();
 					DisabledScope scope(replay_results_ready() && fetch_replay_entry_future_.get().size() < 100);
-					if (ImGui::Button(ICON_FA_CHEVRON_RIGHT "  Next Page")) {
+					if (ImGui::Button((std::string(ICON_FA_CHEVRON_RIGHT "  ") + T("Next Page")).c_str())) {
 						entry_paging++;
 						snprintf(page_buf, sizeof(page_buf), "%d", entry_paging + 1);
 						fetch_target_page();
@@ -2021,15 +2024,15 @@ static void live_autoplay_wait_dialog() {
 	ImguiStyleVar _(ImGuiStyleVar_WindowPadding, ScaledVec2(20, 20));
 	if (ImGui::Begin("##gdxsv_live_autoplay", nullptr,
 					 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::Text(ICON_FA_TOWER_BROADCAST "  Waiting for the next live battle...");
+		ImGui::Text("%s  %s", ICON_FA_TOWER_BROADCAST, T("Waiting for the next live battle..."));
 		ImGui::NewLine();
 		const auto waited = std::chrono::duration_cast<std::chrono::seconds>(now - live_autoplay_.wait_since).count();
-		ImGui::TextDisabled("Battles watched: %d", live_autoplay_.watched);
-		ImGui::TextDisabled("Waiting for %lld:%02lld", (long long)(waited / 60), (long long)(waited % 60));
+		ImGui::TextDisabled(T("Battles watched: %d"), live_autoplay_.watched);
+		ImGui::TextDisabled(T("Waiting for %lld:%02lld"), (long long)(waited / 60), (long long)(waited % 60));
 		if (fetch_live_entry_http_status != 200 && !live_first_load_)
-			ImGui::TextDisabled("Last update failed (HTTP %d).", fetch_live_entry_http_status);
+			ImGui::TextDisabled(T("Last update failed (HTTP %d)."), fetch_live_entry_http_status);
 		ImGui::NewLine();
-		if (ImGui::Button(ICON_FA_XMARK "  Stop", ScaledVec2(120, 40))) {
+		if (ImGui::Button((std::string(ICON_FA_XMARK "  ") + T("Stop")).c_str(), ScaledVec2(120, 40))) {
 			live_autoplay_stop();
 		}
 	}
@@ -2141,28 +2144,28 @@ void gdxsv_replay_select_dialog() {
 	normal_padding = ImGui::GetStyle().FramePadding;
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
-	ImGui::Begin("Live & Replays##gdxsv_emu_replay_menu", nullptr,
+	ImGui::Begin((std::string(T("Live & Replays")) + "###gdxsv_emu_replay_menu").c_str(), nullptr,
 				 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
 
-	if (ImGui::Button(ICON_FA_XMARK  "  Close", ScaledVec2(100, 40))) {
+	if (ImGui::Button((std::string(ICON_FA_XMARK "  ") + T("Close")).c_str(), ScaledVec2(100, 40))) {
 		gui_state = GuiState::Commands;
 	}
 
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16, 6));
 	if (ImGui::BeginTabBar("replays", ImGuiTabBarFlags_NoTooltip)) {
-		if (ImGui::BeginTabItem(ICON_FA_TOWER_BROADCAST "  Live")) {
+		if (ImGui::BeginTabItem((std::string(ICON_FA_TOWER_BROADCAST "  ") + T("Live") + "###live").c_str())) {
 			gdxsv_replay_live_tab();
 			ImGui::EndTabItem();
 		}
 
-		if (ImGui::BeginTabItem(ICON_FA_FOLDER "  Local")) {
+		if (ImGui::BeginTabItem((std::string(ICON_FA_FOLDER "  ") + T("Local") + "###local").c_str())) {
 			gdxsv_replay_local_tab();
 			ImGui::EndTabItem();
 		}
 
 		const ImGuiTabItemFlags server_flags = select_server_tab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
 		select_server_tab = false;
-		if (ImGui::BeginTabItem(ICON_FA_GLOBE "  Server", nullptr, server_flags)) {
+		if (ImGui::BeginTabItem((std::string(ICON_FA_GLOBE "  ") + T("Server") + "###server").c_str(), nullptr, server_flags)) {
 			gdxsv_replay_server_tab();
 			ImGui::EndTabItem();
 		}

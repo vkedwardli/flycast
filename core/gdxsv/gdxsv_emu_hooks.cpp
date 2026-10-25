@@ -40,6 +40,7 @@
 #include "nowide/fstream.hpp"
 #include "oslib/directory.h"
 #include "oslib/http_client.h"
+#include "oslib/i18n.h"
 #include "oslib/oslib.h"
 #include "stdclass.h"
 #include "ui/IconsFontAwesome6.h"
@@ -416,11 +417,11 @@ static void gui_header(const char* title) {
 void gdxsv_emu_gui_display_commands(float buttonWidth) {
 	if (!gdxsv_enabled()) return;
 	DisabledScope scope(gdxsv_is_online());
-	if (ImGui::Button(ICON_FA_TV "  Live & Replays", ScaledVec2(buttonWidth, 50)) && !scope.isDisabled()) {
+	if (IconButton(ICON_FA_TV, i18n::T("Live & Replays"), ScaledVec2(buttonWidth, 50)).realize() && !scope.isDisabled()) {
 		gui_state = GuiState::GdxsvReplay;
 	}
 	if (gdxsv_is_online() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-		ImGui::SetTooltip("Please disconnect from the Gdxsv server first.");
+		ImGui::SetTooltip("%s", i18n::T("Please disconnect from the Gdxsv server first."));
 	}
 }
 
