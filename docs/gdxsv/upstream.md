@@ -194,6 +194,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/log/InMemoryListener.h` |  | upstream 20; the log goes into rollback reports |
 | `core/log/LogManager.cpp` |  | include `gdxsv/gdxsv_multi_pov.h` |
 | `core/log/LogManager.cpp` | `LogManager::UpdateConfig` | `gdxsv_multi_pov_log_file_name` |
+| `core/lua/lua.cpp` | `luaRegister` | these stop the emulator, so they run on the UI thread. |
 | `core/network/ggpo.cpp` |  | pages restored by load_game_state |
 | `core/network/ggpo.cpp` |  | skip frames, rollback seek and extra input of the gdxsv session |
 | `core/network/ggpo.cpp` | `getLocalInput` | `gdxsv_enabled` |
@@ -361,13 +362,15 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `gui_network_start` | the handshake can be gone while this dialog is still drawn |
 | `core/ui/gui.cpp` | `gui_display_ui` | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui.cpp` | `gui_display_ui` | `gdxsv_emu_gui_display` |
-| `core/ui/gui.cpp` | `gui_draw_osd` | `gdxsv_gui_display_osd` |
+| `core/ui/gui.cpp` | `gui_draw_osd` | the main thread runs them while the render thread draws the OSD (gui_runUiTasks) |
 | `core/ui/gui.cpp` | `gui_draw_osd` | on the render thread while the main thread adds input events |
 | `core/ui/gui.cpp` | `gui_error` | a state load requested by a hotkey while the sh4 runs on this thread: 1 slot, 2 in RAM, -1 while it is loaded after the frame |
 | `core/ui/gui.cpp` | `gui_loadState` | without threaded rendering the hotkeys are also polled from inside the running sh4 code (maple DMA), where a state load frees the dynarec block being executed. |
+| `core/ui/gui.cpp` | `gui_runOnUiThread` | main thread, while the render thread runs |
 | `core/ui/gui.h` |  | used by the gdxsv menu |
 | `core/ui/gui.h` |  | used by the replay UI |
 | `core/ui/gui.h` |  | call after a frame, outside the sh4 code |
+| `core/ui/gui.h` |  | `void gui_runUiTasks(); // gdxsv` |
 | `core/ui/gui.h` |  | `GdxsvReplay`, `GdxsvLatencyCheck` |
 | `core/ui/gui_font.cpp` | `gui_loadFonts` | Japanese text is always needed. |
 | `core/ui/mainui.cpp` |  | render thread |

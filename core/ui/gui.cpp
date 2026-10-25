@@ -51,6 +51,7 @@
 #endif
 
 #include "gdxsv/gdxsv_emu_hooks.h"
+#include "render_thread.h" // gdxsv
 
 #include "vgamepad.h"
 #include "settings.h"
@@ -1492,7 +1493,9 @@ void gui_draw_osd()
 	vgamepad::draw();
 	gdxsv_gui_display_osd();
     ImGui::Render();
-	uiThreadRunner.execTasks();
+	// gdxsv: the main thread runs them while the render thread draws the OSD (gui_runUiTasks)
+	if (!renderthread::current())
+		uiThreadRunner.execTasks();
 }
 
 void gui_display_osd() {
@@ -1708,6 +1711,11 @@ std::string gui_getCurGameBoxartUrl()
 
 void gui_runOnUiThread(std::function<void()> function) {
 	uiThreadRunner.runOnThread(function);
+}
+
+// gdxsv: main thread, while the render thread runs
+void gui_runUiTasks() {
+	uiThreadRunner.execTasks();
 }
 
 void gui_takeScreenshot()

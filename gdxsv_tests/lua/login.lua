@@ -37,7 +37,7 @@ local function scene() return e2e.read16(SCENE) end
 
 function main()
   e2e.wait(E2E_PARAMS.boot)
-  flycast.emulator.loadState(E2E_PARAMS.slot)
+  e2e.load_state(E2E_PARAMS.slot)
   e2e.wait(1)
   e2e.log("patch_id_loaded", e2e.read32(PATCH_ID))
   e2e.wait(119)

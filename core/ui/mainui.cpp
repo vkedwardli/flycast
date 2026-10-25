@@ -62,6 +62,7 @@ bool mainui_rend_frame()
 		try {
 			const bool rendered = emu.render();
 			gui_loadDeferredState(); // gdxsv: a load-state hotkey polled by the sh4 code
+			gui_runUiTasks(); // gdxsv: headless draws no OSD
 			if (!rendered)
 				return false;
 			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
@@ -150,6 +151,7 @@ void mainui_loop(bool forceStart)
 			os_DoEvents();
 			os_UpdateInputState();
 			gui_loadDeferredState();
+			gui_runUiTasks();
 			renderthread::waitEvents(16);
 		}
 		else
