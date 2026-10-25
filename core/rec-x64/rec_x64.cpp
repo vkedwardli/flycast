@@ -112,8 +112,13 @@ const std::array<Xbyak::Xmm, 4> call_regsxmm { xmm0, xmm1, xmm2, xmm3 };
 
 #ifdef _WIN32
 constexpr u32 STACK_ALIGN = 0x28;	// 32-byte shadow space + 8 byte alignment
+// gdxsv: blocks allocate SH4 FPU registers to xmm6-xmm15, which are callee-saved on Windows,
+// so the main loop saves them above its shadow space for the C++ code that called emu.run().
+constexpr u32 MAINLOOP_XMM_SAVE = 0x20;
+constexpr u32 MAINLOOP_STACK = STACK_ALIGN + 10 * 16;
 #else
 constexpr u32 STACK_ALIGN = 8;
+constexpr u32 MAINLOOP_STACK = STACK_ALIGN;
 #endif
 
 // Block linking: a block that ends in a static branch keeps the host code of its branch target (and of its
@@ -893,8 +898,16 @@ public:
 		unwinder.pushReg(getSize(), Xbyak::Operand::R14);
 		push(r15);
 		unwinder.pushReg(getSize(), Xbyak::Operand::R15);
-		sub(rsp, STACK_ALIGN);
-		unwinder.allocStack(getSize(), STACK_ALIGN);
+		sub(rsp, MAINLOOP_STACK);
+		unwinder.allocStack(getSize(), MAINLOOP_STACK);
+#ifdef _WIN32
+		for (int i = 6; i <= 15; i++)
+		{
+			const u32 offset = MAINLOOP_XMM_SAVE + (i - 6) * 16;
+			movaps(xword[rsp + offset], Xbyak::Xmm(i));
+			unwinder.saveExtReg(getSize(), i, offset);
+		}
+#endif
 		unwinder.endProlog(getSize());
 
 		mov(qword[rip + &jmp_rsp], rsp);
@@ -928,7 +941,11 @@ public:
 
 	//end_run_loop:
 		L(end_run_loop);
-		add(rsp, STACK_ALIGN);
+#ifdef _WIN32
+		for (int i = 6; i <= 15; i++)
+			movaps(Xbyak::Xmm(i), xword[rsp + MAINLOOP_XMM_SAVE + (i - 6) * 16]);
+#endif
+		add(rsp, MAINLOOP_STACK);
 		pop(r15);
 		pop(r14);
 		pop(r13);
