@@ -148,6 +148,14 @@ bool DX11Context::init(bool keepCurrentWindow)
 		desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 		if (allowTearing)
 			desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+		// gdxsv: threaded rendering presents the newest frame (waitPresentReady, Present)
+		const bool latestFrame = config::ThreadedRendering;
+		if (latestFrame)
+		{
+			desc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+			// a free buffer to render to while one is shown and one waits for the vblank
+			desc.BufferCount = 3;
+		}
 
 #ifdef TARGET_UWP
 		desc.Width = settings.display.width;
@@ -158,6 +166,14 @@ bool DX11Context::init(bool keepCurrentWindow)
 #endif
 		if (SUCCEEDED(hr))
 			swapchain1.as(swapchain);
+		ComPtr<IDXGISwapChain2> swapchain2; // gdxsv: threaded rendering
+		if (SUCCEEDED(hr) && latestFrame && SUCCEEDED(swapchain1.as(swapchain2)))
+		{
+			swapchain2->SetMaximumFrameLatency(1);
+			frameLatencyWaitable = swapchain2->GetFrameLatencyWaitableObject();
+			presentWaited = false;
+			NOTICE_LOG(RENDERER, "DX11: presenting the newest frame");
+		}
 	}
 	else
 	{
@@ -219,6 +235,9 @@ void DX11Context::term()
 	shaders.term();
 	imguiDriver.reset();
 	renderTargetView.reset();
+	if (frameLatencyWaitable != nullptr) // gdxsv: threaded rendering
+		CloseHandle(frameLatencyWaitable);
+	frameLatencyWaitable = nullptr;
 	swapchain1.reset();
 	swapchain.reset();
 	if (pDeviceContext)
@@ -236,6 +255,9 @@ void DX11Context::Present()
 	if (!frameRendered)
 		return;
 	frameRendered = false;
+	// gdxsv: one wait per Present, also for one the render thread did not wait for (the GUI)
+	waitPresentReady();
+	presentWaited = false;
 	bool swapOnVSync = !settings.input.fastForwardMode && config::VSync;
 	HRESULT hr;
 	if (!swapchain) {
@@ -245,7 +267,9 @@ void DX11Context::Present()
 		// gdxsv: only duplicate frames on high refresh rate monitors when asked to
 		float vsyncsPerFrame = config::DupeFrames && settings.display.refreshRate > 60.f ? settings.display.refreshRate / 60.f : 1.f;
 		int swapInterval = std::clamp((int)(vsyncsPerFrame * gameSwapInterval), 1, 4);
-		hr = swapchain->Present(swapInterval, 0);
+		// gdxsv: no wait for the vblank, a newer frame replaces one that waits for it (no tearing without
+		// DXGI_PRESENT_ALLOW_TEARING)
+		hr = swapchain->Present(frameLatencyWaitable != nullptr ? 0 : swapInterval, 0);
 		gdxsv_video_dx11_presented(swapchain, hr, swapInterval);
 	}
 	else {
@@ -259,6 +283,15 @@ void DX11Context::Present()
 	else if (hr != DXGI_ERROR_WAS_STILL_DRAWING && FAILED(hr)) {
 		WARN_LOG(RENDERER, "Present failed %x", hr);
 	}
+}
+
+// gdxsv: render thread. Waits until the last frame is rendered, so that the frame taken next is the newest one
+void DX11Context::waitPresentReady()
+{
+	if (frameLatencyWaitable == nullptr || presentWaited)
+		return;
+	WaitForSingleObjectEx(frameLatencyWaitable, 100, TRUE);
+	presentWaited = true;
 }
 
 void DX11Context::EndImGuiFrame()
@@ -293,7 +326,8 @@ void DX11Context::resize()
 #ifdef TARGET_UWP
 		HRESULT hr = swapchain->ResizeBuffers(2, settings.display.width, settings.display.height, DXGI_FORMAT_R8G8B8A8_UNORM, allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
 #else
-		HRESULT hr = swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | (allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0));
+		HRESULT hr = swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | (allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0)
+				| (frameLatencyWaitable != nullptr ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0)); // gdxsv
 		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 		{
 			handleDeviceLost();

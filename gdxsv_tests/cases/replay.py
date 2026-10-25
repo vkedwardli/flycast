@@ -168,12 +168,17 @@ def replay_round_jump(ctx):
     return result(jump_checks(r, log, 4), **r)
 
 
+def run_log(out: str, name: str) -> str:
+    """The log of the instance play() ran in out/name. Its place depends on the OS (emu.Instance.log_path)."""
+    with open(emu.Instance(os.path.join(out, name), "").log_path, encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
 def jump_run(ctx, name: str, round):
     e = newest_dc2()
     extra = [f"gdxsv:replay_target_round={round}"] if round else []
     r = play(ctx, e, extra=extra, name=name)
-    with open(os.path.join(ctx.out, name, "flycast.log"), encoding="utf-8", errors="replace") as f:
-        return r, f.read()
+    return r, run_log(ctx.out, name)
 
 
 def jump_checks(r: dict, log: str, round: int) -> list:
@@ -200,8 +205,7 @@ def replay_frame_jump(ctx):
 
 
 def frame_jump_checks(r: dict, out: str, name: str, frame: int) -> list:
-    with open(os.path.join(out, name, "flycast.log"), encoding="utf-8", errors="replace") as f:
-        jumps = FRAME_JUMP_RE.findall(f.read())
+    jumps = FRAME_JUMP_RE.findall(run_log(out, name))
     return [{"what": f"one seek, landed on input {frame}", "ok": jumps == [(str(frame), str(frame))], "jumps": jumps},
             {"what": "every round played to the end with the recorded winners", "ok": r["ok"]}]
 
@@ -295,8 +299,7 @@ SEEK_SPEEDUP = 0.85
 def seek_run(ctx, name: str, hack: bool) -> dict:
     r = play(ctx, newest_dc2(), name=name,
              extra=[f"gdxsv:replay_target_frame={SEEK_FRAME}", f"gdxsv:SkipRenderingHack={'yes' if hack else 'no'}"])
-    with open(os.path.join(ctx.out, name, "flycast.log"), encoding="utf-8", errors="replace") as f:
-        seeks = SEEK_RE.findall(f.read())
+    seeks = SEEK_RE.findall(run_log(ctx.out, name))
     r["seek"] = [{"landed": int(k), "ran": int(n), "ms_per_frame": float(ms)} for k, n, ms in seeks]
     return r
 

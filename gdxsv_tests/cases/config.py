@@ -1,8 +1,10 @@
 """gdxsv defaults on a new config file (gdxsv_apply_base_settings, called by config::open);
 settings read from an older release's emu.cfg."""
 
+import os
 import re
 
+from lib import emu
 from lib.case import case, result
 
 # (flycast.config namespace, option, gdxsv default, stock flycast default)
@@ -22,7 +24,8 @@ BASE = [
 
 def base_settings(ctx, name: str, emu_cfg) -> list:
     p = ctx.probe(name, ctx.rom("dc2"), "config.lua",
-                  {"frame": 5, "options": [[ns, o] for ns, o, _, _ in BASE]}, frames=20, emu_cfg=emu_cfg)
+                  {"frame": 5, "options": [[ns, o] for ns, o, _, _ in BASE]}, frames=20, emu_cfg=emu_cfg,
+                  muted=False)
     checks = [{"what": "probe ran", "ok": p.clean, **p.facts()}]
     for ns, o, want, stock in BASE:
         got = p.e2e.get(f"{ns}.{o}")
@@ -54,7 +57,8 @@ OLD_LOG = [("gdxsv.loginkey", r"loginkey:(\S+)", "E2ECFG0001"), ("gdxsv.LocalPor
 
 def old_config(ctx, name: str, emu_cfg: str) -> list:
     p = ctx.probe(name, ctx.rom("dc2"), "config.lua",
-                  {"frame": 30, "options": [[ns, o] for ns, o, _ in OLD_LUA]}, frames=60, emu_cfg=emu_cfg)
+                  {"frame": 30, "options": [[ns, o] for ns, o, _ in OLD_LUA]}, frames=60, emu_cfg=emu_cfg,
+                  muted=False)
     checks = [{"what": "probe ran", "ok": p.clean, **p.facts()}]
     for ns, o, want in OLD_LUA:
         got = p.e2e.get(f"{ns}.{o}")
@@ -91,3 +95,28 @@ def local_port(ctx, name: str, ports: list) -> list:
 @case("C3", "an emu.cfg LocalPort a UDP socket cannot bind (70000, -5): gdxsv uses a port in 1-65535", tier="smoke")
 def config_local_port(ctx):
     return result(local_port(ctx, "C3", BAD_PORTS))
+
+
+# Threaded rendering only: off in emu.cfg and on the command line, it reads on; the copy to VRAM reads off. VSync off
+# on the same command line reads off, so the command line does apply and only these options are overridden.
+THREADED_CFG = "[config]\nrend.ThreadedRendering = no\nrend.RenderToTextureBuffer = yes\n"
+THREADED_LUA = [("video", "ThreadedRendering", "true"), ("video", "RenderToTextureBuffer", "false"),
+                ("video", "VSync", "false")]
+
+
+@case("C4", "threaded rendering only: off in emu.cfg and on the command line, it runs on; the config file keeps off",
+      tier="smoke")
+def config_threaded(ctx):
+    p = ctx.probe("C4", ctx.rom("dc2"), "config.lua",
+                  {"frame": 30, "options": [[ns, o] for ns, o, _ in THREADED_LUA]}, frames=60, emu_cfg=THREADED_CFG,
+                  config=["config:rend.ThreadedRendering=no", "config:rend.vsync=no"])
+    checks = [{"what": "probe ran", "ok": p.clean, **p.facts()}]
+    for ns, o, want in THREADED_LUA:
+        got = p.e2e.get(f"{ns}.{o}")
+        checks.append({"what": f"{ns}.{o}", "want": want, "got": got, "ok": got == want})
+    with open(os.path.join(emu.Instance(os.path.join(ctx.out, "C4"), "").config_dir, "emu.cfg"),
+              encoding="utf-8", errors="replace") as f:
+        saved = re.search(r"rend\.ThreadedRendering\s*=\s*(\S+)", f.read())
+    checks.append({"what": "emu.cfg keeps rend.ThreadedRendering = no", "got": saved and saved.group(1),
+                   "ok": bool(saved) and saved.group(1) == "no"})
+    return result(checks)

@@ -15,6 +15,9 @@ if(NOT LIBRETRO)
             gui_util.cpp
             gui_util.h
             mainui.cpp
+            # gdxsv: render thread
+            render_thread.cpp
+            render_thread.h
             mainui.h
             settings.cpp
             settings.h

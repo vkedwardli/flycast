@@ -506,6 +506,9 @@ bool VulkanContext::InitDevice()
 			// Enable VK_EXT_provoking_vertex if available
 			provokingVertexSupported = tryAddDeviceExtension(vk::EXTProvokingVertexExtensionName);
 			bufferDeviceAddressSupported = tryAddDeviceExtension(vk::KHRBufferDeviceAddressExtensionName);
+			// gdxsv: threaded rendering presents the newest frame when mailbox is not available
+			fifoLatestReadySupported = tryAddDeviceExtension(vk::KHRPresentModeFifoLatestReadyExtensionName)
+					|| tryAddDeviceExtension(vk::EXTPresentModeFifoLatestReadyExtensionName);
 		}
 		bool googleTimingSupported = false;
 #if defined(SWAPPY)
@@ -519,7 +522,8 @@ bool VulkanContext::InitDevice()
 		vk::StructureChain<
 			vk::PhysicalDeviceFeatures2,
 			vk::PhysicalDeviceProvokingVertexFeaturesEXT,
-			vk::PhysicalDeviceBufferDeviceAddressFeaturesKHR
+			vk::PhysicalDeviceBufferDeviceAddressFeaturesKHR,
+			vk::PhysicalDevicePresentModeFifoLatestReadyFeaturesKHR // gdxsv
 		> featuresChainHelper;
 
 		vk::PhysicalDeviceFeatures2& featuresChain = featuresChainHelper.get();
@@ -536,6 +540,10 @@ bool VulkanContext::InitDevice()
 		{
 			featuresChainHelper.unlink<vk::PhysicalDeviceBufferDeviceAddressFeaturesKHR>();
 		}
+		// gdxsv
+		auto& fifoLatestReadyFeatures = featuresChainHelper.get<vk::PhysicalDevicePresentModeFifoLatestReadyFeaturesKHR>();
+		if (!fifoLatestReadySupported)
+			featuresChainHelper.unlink<vk::PhysicalDevicePresentModeFifoLatestReadyFeaturesKHR>();
 		
 		// Get the physical device's features
 		if (getPhysicalDeviceProperties2Supported && featuresChain.pNext)
@@ -557,6 +565,12 @@ bool VulkanContext::InitDevice()
 		{
 			bufferDeviceAddressSupported &= bufferDeviceAddressFeatures.bufferDeviceAddress;
 			NOTICE_LOG(RENDERER, "bufferDeviceAddressSupported %d", bufferDeviceAddressSupported);
+		}
+		// gdxsv
+		if (fifoLatestReadySupported)
+		{
+			fifoLatestReadySupported &= fifoLatestReadyFeatures.presentModeFifoLatestReady;
+			NOTICE_LOG(RENDERER, "fifoLatestReadySupported %d", fifoLatestReadySupported);
 		}
 
 		samplerAnisotropy = features.samplerAnisotropy;
@@ -779,6 +793,17 @@ void VulkanContext::CreateSwapChain()
 					INFO_LOG(RENDERER, "Using immediate present mode");
 					swapchainPresentMode = vk::PresentModeKHR::eImmediate;
 					break;
+				}
+			}
+			// gdxsv: threaded rendering: the newest frame at each vblank, as mailbox does
+			if (swapOnVSync && config::ThreadedRendering && swapchainPresentMode == vk::PresentModeKHR::eFifo
+					&& fifoLatestReadySupported)
+			{
+				const auto modes = physicalDevice.getSurfacePresentModesKHR(GetSurface());
+				if (std::find(modes.begin(), modes.end(), vk::PresentModeKHR::eFifoLatestReady) != modes.end())
+				{
+					NOTICE_LOG(RENDERER, "Using FIFO latest ready present mode");
+					swapchainPresentMode = vk::PresentModeKHR::eFifoLatestReady;
 				}
 			}
 			if (!swapOnVSync && swapchainPresentMode == vk::PresentModeKHR::eFifo && mailboxSupported)

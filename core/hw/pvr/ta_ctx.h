@@ -394,6 +394,8 @@ TA_context *tactx_Alloc();
 void SetCurrentTARC(u32 addr);
 bool QueueRender(TA_context* ctx);
 TA_context* DequeueRender();
+// gdxsv: render snapshots: the copy of the frame DequeueRender returned
+int DequeuedRenderCopy();
 void FinishRender(TA_context* ctx);
 
 //must be moved to proper header

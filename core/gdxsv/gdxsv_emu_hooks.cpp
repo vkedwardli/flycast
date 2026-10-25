@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <locale>
 #include <nowide/cstdio.hpp>
@@ -26,9 +27,11 @@
 #include "gdxsv_platform.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_save_state.h"
+#include "gdxsv_sleep.h"
 #include "gdxsv_update.h"
 #include "gdxsv_video_hooks.h"
 #include "hw/pvr/Renderer_if.h"
+#include "hw/pvr/render_snapshot.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
 #include "json.hpp"
@@ -188,9 +191,20 @@ void gdxsv_emu_vblank() {
 		gdxsv.HookVBlank();
 	}
 	gdxsv_headless_probe_tick();
+	// The emulation thread never waits for the render thread (render snapshots), so the limiter paces it: outside a
+	// rollback battle (its limiter is in gdxsv_emu_frame_end), once per emulated frame, whether the game renders it
+	// or not. Not while a seek runs with the renderer off.
+	if (!ggpo::active() && rend_is_enabled()) gdxsv_frame_limiter_wait();
 }
 
 void gdxsv_emu_end_frame() {
+	// Test: GDXSV_TEST_FRAME_COST_US=<us> makes each emulated frame, rollback re-runs included, that much slower, as
+	// on a slower PC
+	static const int64_t frame_cost_us = [] {
+		const char* us = std::getenv("GDXSV_TEST_FRAME_COST_US");
+		return us != nullptr ? std::atoll(us) : 0;
+	}();
+	if (frame_cost_us > 0) gdxsv_sleep_and_busy_wait(frame_cost_us);
 	GDXSV_PERF_TRACE("end_frame", -1, 0);
 	if (gdxsv.Enabled()) {
 		gdxsv.HookEndOfFrame();
@@ -236,30 +250,30 @@ static void gdxsv_multi_pov_tick() {
 	if (!emu.running()) std::this_thread::sleep_for(std::chrono::milliseconds(16));
 }
 
+// Test: GDXSV_TEST_PRESENT_HZ=<hz> makes each Present return at the next vblank of a display at that rate, as
+// a Present that waits for vsync does (OpenGL, a 59.94 Hz display), with any graphics API and display.
+static void gdxsv_test_present_wait() {
+	static const double period_us = [] {
+		const char* hz = std::getenv("GDXSV_TEST_PRESENT_HZ");
+		return hz != nullptr && std::atof(hz) > 0 ? 1e6 / std::atof(hz) : 0.0;
+	}();
+	if (period_us == 0) return;
+	static const auto epoch = std::chrono::steady_clock::now();
+	const double now_us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - epoch).count();
+	const double vblank_us = std::ceil(now_us / period_us) * period_us;
+	gdxsv_sleep_and_busy_wait((int64_t)(vblank_us - now_us));
+}
+
 void gdxsv_emu_next_frame() {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookNextFrame();
 	}
-	// Without threaded rendering, mainui_loop presents after ggpo::nextFrame: a rollback there
-	// delays the picture. Present the frame rendered at its start of render now instead; mainui_loop
-	// then has nothing left to present. Rollback frames render nothing (renderer disabled).
-	if (!config::ThreadedRendering && RollbackBattle() && rend_is_enabled() && imguiDriver != nullptr) {
-		try {
-			const int64_t waitBegin = gdxsv_wait_begin();
-			imguiDriver->present();
-			gdxsv_wait_end(GdxsvWait::Present, waitBegin);
-			GDXSV_PERF_TRACE("present", -1, 0);
-			gdxsv_net_report_present();
-		} catch (const FlycastException&) {
-			// mainui_loop presents again and recreates the context on failure
-		}
-	}
 }
 
 void gdxsv_emu_frame_end() {
-	// With threaded rendering, a rollback battle paces the emulation thread, after the local input is sent and the
-	// rollback ran; the UI thread renders and presents each queued frame at once.
-	if (config::ThreadedRendering && RollbackBattle()) gdxsv_frame_limiter_wait();
+	// A rollback battle paces the emulation thread after the local input is sent and the rollback ran; the render
+	// thread presents each queued frame at once.
+	if (RollbackBattle()) gdxsv_frame_limiter_wait();
 }
 
 void gdxsv_emu_mainui_loop(bool rendered) {
@@ -276,10 +290,15 @@ void gdxsv_emu_mainui_loop(bool rendered) {
 	gdxsv_multi_pov_tick();
 
 	if (rendered) GDXSV_PERF_TRACE("ui_rendered", -1, 0);
-	// With threaded rendering, mainui_loop presented the frame just now.
-	if (rendered && config::ThreadedRendering && RollbackBattle()) gdxsv_net_report_present();
-	if (rendered && !(config::ThreadedRendering && RollbackBattle()))
-		gdxsv_frame_limiter_wait();
+	// Without the render thread (a renderer change): mainui_loop presented the frame just now.
+	if (rendered && RollbackBattle()) gdxsv_net_report_present();
+}
+
+void gdxsv_emu_render_presented() {
+	gdxsv_test_present_wait();
+	GDXSV_PERF_TRACE("present", -1, 0);
+	GDXSV_PERF_TRACE("ui_rendered", -1, 0);
+	if (RollbackBattle()) gdxsv_net_report_present();
 }
 
 void gdxsv_emu_rpc() {
@@ -463,6 +482,12 @@ void gdxsv_emu_apply_base_settings() {
 	gdxsv_apply_base_settings();
 	// Into the new config file: loading a game resets the options to what the file holds.
 	config::Settings::instance().save();
+}
+
+void gdxsv_emu_settings_loaded() {
+	// Threaded rendering only: the frames render from snapshots on the render thread (docs/gdxsv/features.md).
+	// Overridden, so never saved: the config file keeps the user's value for an older version.
+	config::ThreadedRendering.override(true);
 }
 
 const char* gdxsv_emu_settings_text_for_preparing_font() { return gdxsv_gui_settings_text_for_preparing_font(); }

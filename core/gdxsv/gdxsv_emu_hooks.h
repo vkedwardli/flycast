@@ -62,6 +62,8 @@ inline void gdxsv_wait_end(GdxsvWait wait, int64_t beginTicks) {
 // switch (the FixedFrequency wait when the frame was rendered), at exit.
 void gdxsv_emu_mainui_loop_start();
 void gdxsv_emu_mainui_loop(bool rendered);
+// The render thread (core/ui/render_thread.h): after it presented a frame.
+void gdxsv_emu_render_presented();
 void gdxsv_emu_mainui_loop_end();
 
 // True when a setting changed that needs the graphics context recreated.
@@ -85,6 +87,8 @@ void gdxsv_emu_settings_gdxsv_tab();
 void gdxsv_emu_settings_video();
 
 void gdxsv_emu_apply_base_settings();
+// After each settings load (config::Settings::load)
+void gdxsv_emu_settings_loaded();
 
 // Settings > General > Custom Paths and the gdxsv tab. Not on Android or iOS.
 void gdxsv_emu_settings_replay_folder();

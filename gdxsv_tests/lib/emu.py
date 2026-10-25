@@ -41,9 +41,18 @@ OFFLINE = ["gdxsv:server=127.0.0.1",
            "gdxsv:UdpTestUrl=http://127.0.0.1:1",
            "gdxsv:LatencyHost=127.0.0.1:1",
            "network:EnableUPnP=no"]
+# Silent: tests run on a desktop someone is using. Volume 0, or for a test that reads the configured volume, no
+# audio device.
+MUTE = "config:aica.Volume=0"
+NO_AUDIO_DEVICE = "audio:backend=null"
 # macOS: while the display sleeps, a window's vsync blocks the emulator.
 if IS_MAC:
     OFFLINE.append("config:rend.vsync=no")
+
+# SDL hints from the environment: no real pad. A connected one takes port 0 from the test joystick
+# (GDXSV_TEST_JOYSTICK), and no test uses one.
+NO_REAL_PADS = {"SDL_XINPUT_ENABLED": "0", "SDL_DIRECTINPUT_ENABLED": "0", "SDL_JOYSTICK_RAWINPUT": "0",
+                "SDL_JOYSTICK_HIDAPI": "0", "SDL_JOYSTICK_WGI": "0"}
 
 # Log lines that mean something broke, whatever the test.
 ERROR_RE = re.compile(r"GGPO error|Exception|\[GPF\]|Assertion|Flycast has stopped")
@@ -131,7 +140,7 @@ class Instance:
 def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
            headless: bool = True, state_dir: Optional[str] = None, lua: Optional[str] = None,
            clean: bool = True, emu_cfg: Optional[str] = None,
-           files: Optional[Dict[str, str]] = None, suspended: bool = False) -> Instance:
+           files: Optional[Dict[str, str]] = None, suspended: bool = False, muted: bool = True) -> Instance:
     """Start one instance in dir.
 
     config: "section:key=value" entries, passed as --config.
@@ -140,6 +149,8 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
     emu_cfg: the text of an emu.cfg written before the start; None: no file, flycast creates it.
     files: {path relative to the config dir: text}, written before the start (e.g. mappings/*.cfg).
     suspended: started frozen (Windows: before its first instruction); suspend(pid, False) runs it.
+    muted: volume 0 before the test's own config; False for a test that reads the configured volume: no audio
+    device instead.
     """
     if recheck.ACTIVE:  # the saved instance; Ctx.probe/run read back its exit
         inst = Instance(os.path.abspath(dir), os.path.abspath(exe))
@@ -164,7 +175,7 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
     # Never the production lobby or APIs: a session that ends returns to the lobby (gdxsv:server).
-    cfg = list(OFFLINE) + list(config or [])
+    cfg = list(OFFLINE) + [MUTE if muted else NO_AUDIO_DEVICE] + list(config or [])
     if lua:
         shutil.copy(lua, os.path.join(inst.config_dir, os.path.basename(lua)))
         cfg.append(f"config:LuaFileName={os.path.basename(lua)}")
@@ -176,6 +187,7 @@ def launch(exe: str, rom: str, dir: str, config: Optional[List[str]] = None, env
     if rom:  # none: the main menu (GuiState::Main)
         args.append(rom)
     penv = os.environ.copy()
+    penv.update(NO_REAL_PADS)
     penv.update(inst.env())
     penv.update(env or {})
     flags = 0x4 if suspended and IS_WINDOWS else 0  # CREATE_SUSPENDED

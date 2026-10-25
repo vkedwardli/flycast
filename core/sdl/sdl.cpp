@@ -19,6 +19,7 @@
 #include "sdl_keyboard_mac.h"
 #include "wsi/context.h"
 #include "ui/gui.h"
+#include "ui/render_thread.h" // gdxsv: render thread
 #include "emulator.h"
 #include "stdclass.h"
 #include "imgui.h"
@@ -494,9 +495,8 @@ void input_sdl_handle()
 				if (displayMetricsEvent)
 				{
 					bool scaleChanged = sdl_update_display_metrics(window, windowFlags);
-					GraphicsContext::Instance()->resize();
-					if (scaleChanged)
-						gui_updateStyle();
+					// gdxsv: the render thread may be rendering
+					renderthread::displayChanged(scaleChanged);
 				}
 				else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
 				{

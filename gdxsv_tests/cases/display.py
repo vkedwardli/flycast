@@ -67,8 +67,6 @@ WS_CASES = [
     ("layout1_4x3", True, False, 1, 640, 480),
     ("super_layout2_21x9", True, True, 2, 1120, 480),
 ]
-# The fix is postponed (inada-s/flycast#464): it may move the other patches' timing too.
-WS_THREADED = "widescreen patch not written under the default rend.ThreadedRendering=yes"
 
 
 def ws_run(ctx, name, wide, super_wide, layout, w, h, expect) -> list:
@@ -88,7 +86,6 @@ def ws_run(ctx, name, wide, super_wide, layout, w, h, expect) -> list:
              "got": [g if g is None else round(g, 4) for g in got], "ok": ok}]
 
 
-@case("W1", "widescreen HUD layout: matte edges and HUD offset per layout and viewport",
-      known_failure=WS_THREADED)
+@case("W1", "widescreen HUD layout: matte edges and HUD offset per layout and viewport")
 def widescreen(ctx):
     return result(sum((ws_run(ctx, *c, expect=ws_expected(*c[1:])) for c in WS_CASES), []))

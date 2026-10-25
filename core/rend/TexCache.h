@@ -42,6 +42,8 @@ struct vram_block
 
 bool VramLockedWriteOffset(size_t offset);
 bool VramLockedWrite(u8* address);
+// gdxsv: invalidates the textures of this page without changing its protection (render snapshots)
+void VramInvalidatePage(u32 offset);
 
 void UpscalexBRZ(int factor, u32* source, u32* dest, int width, int height, bool has_alpha);
 
@@ -178,6 +180,20 @@ public:
 	static void SetDirectXColorOrder(bool enabled);
 };
 
+// gdxsv: the emulator state the texture cache and ReadFramebuffer read: VRAM and the registers below. Set by the render
+// thread before it processes a frame.
+struct TexSource
+{
+	u8 *vram;				// VRAM_SIZE bytes, read only
+	u32 textControl;		// TEXT_CONTROL
+	u32 palRamCtrl;			// PAL_RAM_CTRL
+	const u32 *fogTable;	// FOG_TABLE, 128 entries
+
+	// The emulated VRAM and registers
+	static TexSource live();
+};
+extern TexSource texSource;
+
 template<typename Texture>
 class BaseTextureCache
 {
@@ -195,7 +211,7 @@ public:
 				// We also add the palette type to the key to avoid thrashing the cache
 				// when the palette type is changed. If the palette type is changed back in the future,
 				// this texture will stil be available.
-				key |= ((u64)tcw.full << 32) | ((PAL_RAM_CTRL & 3) << 6) | ((tsp.FilterMode != 0) << 8);
+				key |= ((u64)tcw.full << 32) | ((texSource.palRamCtrl & 3) << 6) | ((tsp.FilterMode != 0) << 8);
 		}
 		else
 			key |= (u64)(tcw.full & TCWTextureCacheMask.full) << 32;
@@ -296,7 +312,7 @@ void WriteTextureToVRam(u32 width, u32 height, const u8 *data, u16 *dst, FB_W_CT
 
 static inline void MakeFogTexture(u8 *tex_data)
 {
-	u8 *fog_table = (u8 *)FOG_TABLE;
+	const u8 *fog_table = (const u8 *)texSource.fogTable;
 	for (int i = 0; i < 128; i++)
 	{
 		tex_data[i] = fog_table[i * 4];

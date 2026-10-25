@@ -25,7 +25,7 @@ python gdxsv_tests/rollback/run_suite.py --rom ... --jobs 3                  # c
 - Output goes to `gdxsv_tests/rollback/out/<case>/p1..p4/` (on Windows: `flycast.log`, `data/hashlog.txt`;
   the layout per OS is in `gdxsv_tests/lib/emu.py`). Copied executables (Windows) are deleted after each
   match. `out/summary.json` holds the results.
-- The whole default set takes about 36 minutes. Windowed cases (B2, B3, C1, C3) open four emulator
+- The whole default set takes about 36 minutes. Windowed cases (B2, C1, C3) open four emulator
   windows, and audio is muted. C1 is Windows only.
 - The exit code is 1 if any case fails. `INCONCLUSIVE` means the situation a case looks for did not
   happen in that run (for example, no rollback crossed a timesync skip). Rerun it.
@@ -50,7 +50,6 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | A4 | Mixed with an older release | same as A3 | common checks |
 | B1 | Timesync skip replayed in a rollback | one match, `GGPO_TEST_LOG=1`, `TEST_GGPO_DELAY=1` (deeper rollbacks), `TEST_FAKE_TIMESYNC=20` (peer 0 skips every 20 frames) | at least one rollback re-simulates a skip after its seek frame; every such rollback replays it |
 | B2 | Threaded rendering | windowed, delay 50/16/80/100, 3 rounds | common checks, no stall, rollbacks happened |
-| B3 | Threaded rendering off | windowed, `rend.ThreadedRendering=no` | common checks (the harness gets no rollbacks in this mode, old builds too) |
 | C1 | Peer drops mid-battle | windowed, stat OSD on; peer 4 killed 10 s into the battle, `Process.Responding` of the others sampled for 40 s | no sample not responding; peers 1-3 close the session |
 | C2 | GGPO session start times out | peer 4 killed 5 s into the ping test; 3 runs | peers 1-3 log `StartNetwork timeout` and close, no crash |
 | C3 | Re-battle cancel ends the match | `RAND_MASK=06F6`, `MAXREBATTLE=3`, `GGPO_TEST_LOG=1`; headless and windowed | all peers enter scene 4/3 on the same frame and are in CloseWait at 4/4; common checks |

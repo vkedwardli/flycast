@@ -42,8 +42,7 @@ def session(ctx, tag: str, clients: list, mcs_region: str = "", udp_hello: bool 
     with servers.FakeHttp(body=b"127.0.0.1", udp_hello=udp_hello) as http:
         def run(i, name, key, params):
             battle = params.get("battle", False)
-            cfg = http.config() + ["gdxsv:server=127.0.0.1", f"gdxsv:loginkey={key}",
-                                   "config:rend.ThreadedRendering=no"]
+            cfg = http.config() + ["gdxsv:server=127.0.0.1", f"gdxsv:loginkey={key}"]
             probes[i] = ctx.probe(name, rom, "login.lua", {"boot": BOOT, "slot": assets.LOGIN_SLOT, **params},
                                   frames=BATTLE_FRAMES if battle else LOGIN_FRAMES, config=cfg, loadstate=False,
                                   states=states, timeout=900, until_done=battle)

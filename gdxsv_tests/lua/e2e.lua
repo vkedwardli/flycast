@@ -59,6 +59,15 @@ function e2e.hex(addr, len)
   return table.concat(s)
 end
 
+-- flycast.emulator.loadState returns at once: the UI thread loads the state after the
+-- current frame. Wait for the load (the loadState callback); false after max frames.
+local state_loads = 0
+function e2e.load_state(slot, max)
+  local before = state_loads
+  flycast.emulator.loadState(slot)
+  return e2e.wait_until(function() return state_loads > before end, max or 600)
+end
+
 local co = nil
 
 local function vblank()
@@ -74,4 +83,4 @@ local function vblank()
   end
 end
 
-flycast_callbacks = { vblank = vblank }
+flycast_callbacks = { vblank = vblank, loadState = function() state_loads = state_loads + 1 end }

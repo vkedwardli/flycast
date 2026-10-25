@@ -58,6 +58,7 @@ void gui_togglePause();
 std::string gui_getCurGameBoxartUrl();
 void gui_takeScreenshot();
 void gui_runOnUiThread(std::function<void()> function);
+void gui_runUiTasks(); // gdxsv
 
 enum class GuiState {
 	Closed,
