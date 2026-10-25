@@ -19,6 +19,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | live | spectating a battle while it is played: uplink from a player, downlink to a spectator |
 | POV | point of view: which player's screen a replay shows |
 | hook header | `gdxsv_*_hooks.h`: what an upstream file calls into this directory |
+| battle-message sheet | DC2's texture (hash `eb90a6d4`) of 20-texel cells holding the characters the INFORMATION panel's messages are built from, and the army emblems |
 
 ## Files
 
@@ -57,7 +58,8 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_gui_settings.cpp/.h` | gdxsv settings tab and base settings |
 | `gdxsv_translation.cpp/.h`, `gdxsv_translation_patch.inc` | game translation; the `.inc` is generated from `gdxsv_langmod/` |
 | `gdxsv_custom_texture_source.cpp/.h`, `gdxsv_custom_texture_update.cpp/.h`, `Textures/`, `textures.rc` | bundled custom textures and their download |
-| `gdxsv_font_provider.cpp/.h`, `gdxsv_font_glyphs.inc`, `Fonts/` | DC2 font glyph textures drawn from the embedded GDXGothic Medium (`FontRaster`): a style for text, another for the in-battle pilot names; any JIS X 0208 / Big5-HKSCS character by code point |
+| `gdxsv_font_provider.cpp/.h`, `gdxsv_font_glyphs.inc`, `Fonts/` | DC2 font glyph textures drawn from the embedded GDXGothic Medium (`FontRaster`): a style for text, another for the in-battle pilot names, another for the battle-message sheet's cells; any JIS X 0208 / Big5-HKSCS character by code point |
+| `gdxsv_font_raster_source.cpp` | `FontRaster`'s texture source: the glyph textures, and the battle-message sheet: its characters drawn at the game start over the sheet of a source below it (embedded textures, texture pack), else over the game's own, kept from VRAM |
 | `gdxsv_custom_texture_cells.cpp/.h`, `gdxsv_custom_texture_hooks.h` | DC2 textures made of 32x32 glyph cells (battle name sheet) built from the glyph replacements |
 | `gdxsv_update.cpp/.h`, `gdxsv_update_apple.mm` | client self-update |
 | `gdxsv_platform*.cpp/.h/.mm` | host services; macOS background-worker activation before application launch |

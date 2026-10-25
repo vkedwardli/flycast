@@ -70,16 +70,22 @@ constexpr float kRimFloor = 115 / 255.f;
 // (GDXGothic Medium's stem: 27/256 em).
 constexpr float kTextHeight = 0.96f;
 constexpr float kMediumStem = 27.f / 256 * kEm;
-// BattleName: 90% of the font's size and a dark outline under the white glyph: kNameOutlineWidth game px outside the
+// BattleName: 85% of the font's size and a dark outline under the white glyph: kNameOutlineWidth game px outside the
 // 0.5 outline, its opacity falling to 0 over the outer kNameOutlineFade px, soft like the HUD's own digits. The
 // background shows through it, as through the arcade's pilot names; the game tints texels with the text colour.
-constexpr float kNameScale = 0.9f;
+constexpr float kNameScale = 0.85f;
 constexpr float kNameOutlineWidth = 2.0f;
 constexpr float kNameOutlineFade = 1.5f;
 constexpr float kNameOutlineGrey = 60 / 255.f;
 constexpr float kNameOutlineOpacity = 0.6f;
 // The game draws each name glyph from its own cell and shows only the cell's top-left 24x24 game px.
 constexpr float kNameBox = 24.f;
+// BattleMessage: the battle-message sheet's 20-texel cells show on screen about as large as a name cell's 24 game px
+// (15.1 and 15.0 screen px). A glyph is laid out as a pilot name, scaled by kMessageTexel, with its middle (x 12,
+// kMiddleY) at the cell's middle across and kMessageMiddleY texels down, in line with a name drawn beside it.
+constexpr int kMessageCell = 20;
+constexpr float kMessageTexel = 0.757f / 0.625f;  // name game px per texel on screen
+constexpr float kMessageMiddleY = 10.33f;
 constexpr size_t kCacheEntries = 256;
 
 const GdxsvFontGlyph* find_glyph(u32 hash) {
@@ -140,18 +146,33 @@ void distance_1d(double* f, int n, int step, std::vector<double>& d, std::vector
 	for (int q = 0; q < n; q++) f[q * step] = d[q];
 }
 
-// Euclidean distance (px, between pixel centres) from each pixel to the nearest pixel where target is true.
-std::vector<float> distance_to(const std::vector<bool>& target) {
-	std::vector<double> f(kSize * kSize);
-	for (int i = 0; i < kSize * kSize; i++) f[i] = target[i] ? 0 : 1e20;
-	std::vector<double> d(kSize);
-	std::vector<int> v(kSize);
-	std::vector<double> z(kSize + 1);
-	for (int x = 0; x < kSize; x++) distance_1d(&f[x], kSize, kSize, d, v, z);
-	for (int y = 0; y < kSize; y++) distance_1d(&f[y * kSize], kSize, 1, d, v, z);
-	std::vector<float> out(kSize * kSize);
-	for (int i = 0; i < kSize * kSize; i++) out[i] = (float)std::sqrt(f[i]);
+// Euclidean distance (px, between pixel centres) from each pixel of an n x n image to the nearest pixel where target is
+// true.
+std::vector<float> distance_to(const std::vector<bool>& target, int n) {
+	std::vector<double> f(n * n);
+	for (int i = 0; i < n * n; i++) f[i] = target[i] ? 0 : 1e20;
+	std::vector<double> d(n);
+	std::vector<int> v(n);
+	std::vector<double> z(n + 1);
+	for (int x = 0; x < n; x++) distance_1d(&f[x], n, n, d, v, z);
+	for (int y = 0; y < n; y++) distance_1d(&f[y * n], n, 1, d, v, z);
+	std::vector<float> out(n * n);
+	for (int i = 0; i < n * n; i++) out[i] = (float)std::sqrt(f[i]);
 	return out;
+}
+
+// Where a glyph laid out in its 32x32 game px cell goes in an image of size x size px: scale output px per game px, and
+// the game px point (ux, uy) of the cell (y down) lands on output px (px, py).
+struct GdxsvGlyphFrame {
+	int size;
+	float scale;
+	float ux, uy, px, py;
+};
+
+GdxsvGlyphFrame frame_of(GdxsvFontStyle style) {
+	if (style == GdxsvFontStyle::BattleMessage)
+		return {kMessageCell * kScale, kScale / kMessageTexel, kEm / 2, kMiddleY, kMessageCell * kScale / 2.f, kMessageMiddleY * kScale};
+	return {kSize, (float)kScale, 0, 0, 0, 0};
 }
 
 u8 to_byte(float v) { return (u8)std::lround(std::clamp(v, 0.f, 1.f) * 255); }
@@ -216,7 +237,8 @@ struct GdxsvFontProvider::Impl {
 		cache_index.clear();
 	}
 
-	// Draws the character in a 32x32 game px texture with the pen at the cell's left edge, like the game's glyphs.
+	// Draws the character with the pen at its 32x32 game px cell's left edge, like the game's glyphs, in the style's
+	// frame.
 	bool Draw(u32 code_point, GdxsvFontStyle style, std::vector<u8>& image) {
 		FT_Face face = Open();
 		if (face == nullptr) return false;
@@ -224,19 +246,23 @@ struct GdxsvFontProvider::Impl {
 		if (index == 0 || FT_Load_Glyph(face, index, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING) != 0 ||
 			face->glyph->format != FT_GLYPH_FORMAT_OUTLINE)
 			return false;
-		const bool name = style == GdxsvFontStyle::BattleName;
+		const bool name = style != GdxsvFontStyle::Text;
+		const GdxsvGlyphFrame frame = frame_of(style);
+		const int n = frame.size;
+		// Output px (1/64) of the cell's game px x, or its game px y (down)
+		auto out_x = [&](float x) { return (FT_Pos)std::lround(((x - frame.ux) * frame.scale + frame.px) * 64); };
+		auto out_y = [&](float y) { return (FT_Pos)std::lround((n - (y - frame.uy) * frame.scale - frame.py) * 64); };
 		const float f = name ? kNameScale : 1.f;
 		const float fy = name ? 1.f : kTextHeight;
+		const float m = frame.scale / kScale;  // the outline is loaded at kScale px per game px
 		const bool half = face->glyph->advance.x < kEm * kScale * 64 * 3 / 4;
 		FT_Outline* outline = &face->glyph->outline;
-		FT_Matrix scale = {(FT_Fixed)std::lround(f * 0x10000), 0, 0, (FT_Fixed)std::lround(f * fy * 0x10000)};
+		FT_Matrix scale = {(FT_Fixed)std::lround(f * m * 0x10000), 0, 0, (FT_Fixed)std::lround(f * fy * m * 0x10000)};
 		FT_Outline_Transform(outline, &scale);
-		// Outline coordinates are output px up from the texture's bottom left.
-		const float x = (half ? kEm / 4 : kEm / 2) * (1 - f);
-		const float baseline = 32 - kMiddleY - f * fy * (kBaseline - kMiddleY);
-		FT_Outline_Translate(outline, std::lround(x * kScale * 64), std::lround(baseline * kScale * 64));
+		// Outline coordinates are output px up from the image's bottom left.
+		FT_Outline_Translate(outline, out_x((half ? kEm / 4 : kEm / 2) * (1 - f)), out_y(kMiddleY + f * fy * (kBaseline - kMiddleY)));
 		if (fy != 1.f) {
-			const FT_Pos grow = std::lround(kMediumStem * (1 - fy) * kScale * 64);
+			const FT_Pos grow = std::lround(kMediumStem * (1 - fy) * frame.scale * 64);
 			FT_Outline_EmboldenXY(outline, 0, grow);
 			FT_Outline_Translate(outline, 0, -((grow + 1) / 2));
 		}
@@ -244,41 +270,44 @@ struct GdxsvFontProvider::Impl {
 			// Move the glyph sideways so that its outline fits in the shown box, or else crosses both sides equally
 			FT_BBox box;
 			FT_Outline_Get_BBox(outline, &box);
-			const FT_Pos outline_width = std::lround(kNameOutlineWidth * kScale * 64);
-			const FT_Pos left = box.xMin - outline_width;
-			const FT_Pos right = std::lround(kNameBox * kScale * 64) - box.xMax - outline_width;
+			const FT_Pos outline_width = std::lround(kNameOutlineWidth * frame.scale * 64);
+			const FT_Pos left = box.xMin - outline_width - out_x(0);
+			const FT_Pos right = out_x(kNameBox) - box.xMax - outline_width;
 			const FT_Pos shift = left + right < 0 ? (right - left) / 2 : left < 0 ? -left : right < 0 ? right : 0;
 			FT_Outline_Translate(outline, shift, 0);
 		}
-		std::vector<u8> cov(kSize * kSize, 0);
+		std::vector<u8> cov(n * n, 0);
 		FT_Bitmap bitmap = {};
-		bitmap.rows = kSize;
-		bitmap.width = kSize;
-		bitmap.pitch = kSize;
+		bitmap.rows = n;
+		bitmap.width = n;
+		bitmap.pitch = n;
 		bitmap.buffer = cov.data();
 		bitmap.num_grays = 256;
 		bitmap.pixel_mode = FT_PIXEL_MODE_GRAY;
 		if (FT_Outline_Get_Bitmap(library, outline, &bitmap) != 0) return false;
 
 		// Signed distance from the 0.5 coverage outline, game px, + outside
-		std::vector<bool> inside(kSize * kSize), outside(kSize * kSize);
-		for (int i = 0; i < kSize * kSize; i++) {
+		std::vector<bool> inside(n * n), outside(n * n);
+		for (int i = 0; i < n * n; i++) {
 			inside[i] = cov[i] >= 128;
 			outside[i] = !inside[i];
 		}
-		image.assign(kSize * kSize * 4, 0);
+		image.assign(n * n * 4, 0);
 		if (std::find(inside.begin(), inside.end(), true) == inside.end()) return true;
-		const std::vector<float> to_outside = distance_to(outside);
-		const std::vector<float> to_inside = distance_to(inside);
+		const std::vector<float> to_outside = distance_to(outside, n);
+		const std::vector<float> to_inside = distance_to(inside, n);
 		const float cut = kEdgeScale * edge_where_alpha(kRimCut);
-		for (int i = 0; i < kSize * kSize; i++) {
-			const float d = (inside[i] ? 0.5f - to_outside[i] : to_inside[i] - 0.5f) / kScale;
+		for (int i = 0; i < n * n; i++) {
+			const float d = (inside[i] ? 0.5f - to_outside[i] : to_inside[i] - 0.5f) / frame.scale;
 			float lum, alpha;
 			if (name) {
 				const float a = kNameOutlineOpacity * std::clamp((kNameOutlineWidth - d) / kNameOutlineFade, 0.f, 1.f);
 				const float c = cov[i] / 255.f;
 				alpha = c + a * (1 - c);
-				lum = alpha > 0 ? (c + kNameOutlineGrey * a * (1 - c)) / alpha : 1;
+				lum = alpha > 0 ? (c + kNameOutlineGrey * a * (1 - c)) / alpha : 0;
+				// The INFORMATION panel adds the cells to the background whatever their alpha: the colour fades out with
+				// the outline, to black where the cell is clear like the game's texels, so that no box shows there.
+				lum *= std::min(alpha / kNameOutlineOpacity, 1.f);
 			} else {
 				alpha = std::clamp((cut - d) / kRimFade + 0.5f, 0.f, 1.f);
 				lum = std::max(edge_at(d / kEdgeScale, &GdxsvEdgeRow::luminance), kRimFloor) * alpha;
@@ -333,7 +362,7 @@ u8* GdxsvFontProvider::RenderCodePoint(u32 code_point, GdxsvFontStyle style, int
 	u8* data = (u8*)std::malloc(image.size());
 	if (data == nullptr) return nullptr;
 	memcpy(data, image.data(), image.size());
-	width = height = kSize;
+	width = height = frame_of(style).size;
 	return data;
 }
 

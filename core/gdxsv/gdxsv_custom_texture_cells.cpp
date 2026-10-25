@@ -129,7 +129,16 @@ void gdxsv_custom_texture_cells_remove_source(GdxsvCellTextureSource* source) {
 	}
 }
 
+u8* gdxsv_custom_texture_cells_load_below(const GdxsvCellTextureSource* source, u32 hash, int& width, int& height) {
+	auto it = std::find(state.sources.begin(), state.sources.end(), source);
+	if (it == state.sources.end()) return nullptr;
+	for (++it; it != state.sources.end(); ++it)
+		if (u8* data = (*it)->LoadTexture(hash, width, height)) return data;
+	return nullptr;
+}
+
 void gdxsv_custom_texture_queue_cells(const BaseTextureCacheData* texture) {
+	for (GdxsvCellTextureSource* source : state.sources) source->OnLoadQueued(*texture);
 	if (!is_cell_texture(texture)) {
 		// A copy left by a deleted texture at the same address
 		std::lock_guard<std::mutex> lock(state.kept_mutex);

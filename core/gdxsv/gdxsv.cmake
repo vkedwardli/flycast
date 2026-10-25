@@ -287,6 +287,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_font_glyphs.inc
 		core/gdxsv/gdxsv_font_provider.cpp
 		core/gdxsv/gdxsv_font_provider.h
+		core/gdxsv/gdxsv_font_raster_source.cpp
 		core/gdxsv/gdxsv_frame_limiter.cpp
 		core/gdxsv/gdxsv_frame_limiter.h
 		core/gdxsv/gdxsv_net_report.cpp
