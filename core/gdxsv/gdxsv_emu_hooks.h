@@ -49,7 +49,7 @@ void gdxsv_emu_frame_end();
 
 // Waits of the emulation thread, timed for P2PMatchingReport while a rollback battle runs
 // (gdxsv_net_report.cpp). gdxsv_wait_begin returns 0 when off; gdxsv_wait_end then does nothing.
-enum class GdxsvWait { Present, Render, Rollback, Queue, Count };
+enum class GdxsvWait { Queue, Count };
 extern std::atomic<bool> gdxsv_net_report_on;
 int64_t gdxsv_net_report_ticks();
 void gdxsv_net_report_wait(GdxsvWait wait, int64_t beginTicks);

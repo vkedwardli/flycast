@@ -637,11 +637,7 @@ int rend_end_render(int tag, int cycles, int jitter, void *arg)
 	}
 	// gdxsv: no wait with render snapshots
 	if (pend_rend && config::ThreadedRendering && !rendsnap::enabled())
-	{
-		const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 		renderEnd.Wait();
-		gdxsv_wait_end(GdxsvWait::Render, gdxsvWait);
-	}
 
 	return 0;
 }
@@ -716,12 +712,9 @@ void rend_allow_rollback()
 
 void rend_start_rollback()
 {
+	// gdxsv: no wait with render snapshots
 	if (config::ThreadedRendering && !rendsnap::enabled())
-	{
-		const int64_t gdxsvWait = gdxsv_wait_begin(); // gdxsv: P2PMatchingReport
 		vramRollback.Wait();
-		gdxsv_wait_end(GdxsvWait::Rollback, gdxsvWait);
-	}
 }
 
 void rend_enable_renderer(bool enabled) {

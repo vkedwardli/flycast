@@ -151,29 +151,6 @@ struct Intervals {
 	}
 };
 
-// Least squares of a frame's Present wait (y) on the previous frame's rollback work (x). A vsync wait that the
-// next frame's work absorbs shrinks by that work: slope -1. A GPU or swap wait does not: slope 0.
-struct PresentWaitFit {
-	static constexpr int kMinRollbacks = 16;  // frames with rollback work before the slope is used
-	double n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
-	int rollbacks = 0;
-
-	void Add(int64_t x, int64_t y) {
-		n++;
-		sx += x;
-		sy += y;
-		sxx += double(x) * x;
-		sxy += double(x) * y;
-		if (x > 0) rollbacks++;
-	}
-	// Minus the slope, per mille, 0 to 1000; -1 while there are too few rollbacks to tell.
-	int32_t ElasticityPm() const {
-		const double d = n * sxx - sx * sx;
-		if (rollbacks < kMinRollbacks || d <= 0) return -1;
-		return static_cast<int32_t>(std::clamp(-1000 * (n * sxy - sx * sy) / d, 0.0, 1000.0));
-	}
-};
-
 // Writers: the emulation thread, except present (the UI thread with threaded
 // rendering).
 struct NetReport {
@@ -185,7 +162,6 @@ struct NetReport {
 	std::atomic<int32_t> rollbackCount{0};
 	std::array<std::atomic<int32_t>, kDepthBuckets> depthHist{};
 	Clock::time_point rollbackStart{};
-	Clock::duration rollbackWaitAtStart{};	// the frame's rollback wait when the running rollback started
 	int rollbackToFrame = -1;  // the frame a running rollback ends at; -1: none runs
 	int rollbackReruns = 0;	   // frames the running rollback re-ran so far
 	std::atomic<int32_t> rollbackMaxUs{0};
@@ -198,9 +174,6 @@ struct NetReport {
 	Hist work;
 	Hist rollbackSlack;
 	std::array<Hist, kWaits> waits;
-	PresentWaitFit presentWaitFit;
-	int64_t prevRollbackWork = -1;	// of the last measured frame; -1: none
-	std::atomic<int32_t> elasticityPm{-1};
 	// Deepest rollback since the last Present. Written by the emulation thread, taken by the Present thread: a
 	// rollback ending during the exchange may count for the next Present instead.
 	std::atomic<int32_t> depthSincePresent{0};
@@ -247,9 +220,6 @@ struct NetReport {
 		work.Reset();
 		rollbackSlack.Reset();
 		for (auto& h : waits) h.Reset();
-		presentWaitFit = {};
-		prevRollbackWork = -1;
-		Set(elasticityPm, -1);
 		Set(depthSincePresent, 0);
 		for (auto* hist : {&presentDepthHist, &lateDepthHist, &droppedDepthHist, &displayLateDepthHist})
 			for (auto& c : *hist) Set(c, 0);
@@ -283,7 +253,6 @@ void gdxsv_net_report_reset() { report.Reset(); }
 
 void gdxsv_net_report_rollback_begin(int toFrame) {
 	report.rollbackStart = Clock::now();
-	report.rollbackWaitAtStart = report.waitTime[static_cast<int>(GdxsvWait::Rollback)];
 	report.rollbackToFrame = toFrame;
 	report.rollbackReruns = 0;
 }
@@ -299,11 +268,7 @@ void gdxsv_net_report_rerun_end(int frame) {
 	const int32_t us = SinceUs(report.rollbackStart, Clock::now());
 	if (Get(report.rollbackMaxUs) < us) Set(report.rollbackMaxUs, us);
 	report.rollbackUs += us;
-	// Threaded rendering: the wait for the render thread to release VRAM is not re-run time.
-	const int64_t waitUs = std::chrono::duration_cast<std::chrono::microseconds>(
-							   report.waitTime[static_cast<int>(GdxsvWait::Rollback)] - report.rollbackWaitAtStart)
-							   .count();
-	report.rollbackFrame.Add(ClampUs((us - waitUs) / depth), 0);
+	report.rollbackFrame.Add(us / depth, 0);
 	report.rollbackToFrame = -1;
 }
 
@@ -420,23 +385,9 @@ void gdxsv_net_report_wake(Clock::time_point called, Clock::time_point woke, int
 			r.waits[i].Add(us, 0);
 			waited += us;
 		}
-		// A rollback's VRAM wait is in its time, but it is a wait, not rollback work.
-		const int64_t rollbackWork =
-			r.rollbackUs - std::chrono::duration_cast<std::chrono::microseconds>(r.waitTime[static_cast<int>(GdxsvWait::Rollback)]).count();
 		Set(r.periodUs, period);
 		r.work.Add(busy - waited, 0);
-		// The elastic part of the Present wait is time a rollback could use; the rest is lost.
-		const int i = static_cast<int>(GdxsvWait::Present);
-		const int64_t presentWait = r.waited[i] ? std::chrono::duration_cast<std::chrono::microseconds>(r.waitTime[i]).count() : 0;
-		if (r.waited[i] && 0 <= r.prevRollbackWork) {
-			r.presentWaitFit.Add(r.prevRollbackWork, presentWait);
-			Set(r.elasticityPm, r.presentWaitFit.ElasticityPm());
-		}
-		const int64_t elasticPresentWait = presentWait * std::max(0, Get(r.elasticityPm)) / 1000;
-		r.rollbackSlack.Add(ClampUs(period - (busy - rollbackWork - elasticPresentWait)), 0);
-		r.prevRollbackWork = rollbackWork;
-	} else {
-		r.prevRollbackWork = -1;
+		r.rollbackSlack.Add(ClampUs(period - (busy - r.rollbackUs)), 0);
 	}
 	r.ResetFrame(woke);
 }
@@ -469,16 +420,6 @@ void gdxsv_net_report_fill(proto::P2PMatchingReport* out) {
 	ft->set_period_us(Get(r.periodUs));
 	r.work.Fill(ft->mutable_work());
 	r.rollbackSlack.Fill(ft->mutable_rollback_slack());
-	ft->set_present_wait_elasticity(Get(r.elasticityPm));
-	using W = GdxsvWait;
-	const std::pair<W, proto::TimingStats* (proto::FrameTiming::*)()> waits[] = {
-		{W::Present, &proto::FrameTiming::mutable_present_wait},
-		{W::Render, &proto::FrameTiming::mutable_render_wait},
-		{W::Rollback, &proto::FrameTiming::mutable_rollback_wait},
-		{W::Queue, &proto::FrameTiming::mutable_queue_wait},
-	};
-	for (const auto& [wait, field] : waits) {
-		const Hist& h = r.waits[static_cast<int>(wait)];
-		if (h.Count() != 0) h.Fill((ft->*field)());
-	}
+	const Hist& queue = r.waits[static_cast<int>(GdxsvWait::Queue)];
+	if (queue.Count() != 0) queue.Fill(ft->mutable_queue_wait());
 }
