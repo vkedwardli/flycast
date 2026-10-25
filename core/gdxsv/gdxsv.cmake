@@ -347,9 +347,13 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 set_source_files_properties(core/gdxsv/juice_helper.c PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/core/deps/libjuice/include/juice")
 
+# GDXGothic for FontRaster, embedded on every platform: resource::load("gdxsv/GDXGothic-Medium.otf")
+cmrc_add_resources(flycast-resources WHENCE core/gdxsv/Fonts PREFIX gdxsv
+		core/gdxsv/Fonts/GDXGothic-Medium.otf.zip)
+
 if(WIN32)
 	set(CMAKE_VS_SDK_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES})
-	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/textures.rc core/gdxsv/gdxsv_net_report_dxgi_win.cpp core/gdxsv/fonts.rc)
+	target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/textures.rc core/gdxsv/gdxsv_net_report_dxgi_win.cpp)
 	if(NOT WINDOWS_STORE)
 		target_sources(${PROJECT_NAME} PRIVATE core/gdxsv/gdxsv_https_latency_win.cpp)
 	endif()

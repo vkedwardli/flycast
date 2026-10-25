@@ -13,7 +13,7 @@ HOLD = 3600  # a battle vblank of REPLAY: the HUD shows the pilot name "DRIQ"
 SIZE = (960, 720)
 NAME_BOX = (78, 98, 200, 128)  # client coordinates in a 960x720 window
 NAME_GOLDEN = "fontraster_hud_name.png"
-# Measured on windows-mini at vblanks 3600 and 4800: 1.00 with FontRaster, 0.11 with the game's glyphs.
+# Measured from a macOS window capture scaled to SIZE at vblank 3600: 1.00 with FontRaster, 0.37 with the game's glyphs.
 DRAWN = 0.8
 LOADED_RE = re.compile(r"FontRaster: .+ loaded in \d+ us, (\d+) glyph textures")
 

@@ -9,7 +9,6 @@ Option<std::string> GdxLoginKey("loginkey", "", "gdxsv");
 Option<int> GdxLanguage("language", -1, "gdxsv");
 Option<bool> GdxUseTexturePack("UseTexturePack", false, "gdxsv");
 Option<bool> GdxFontRaster("FontRaster", false, "gdxsv");
-Option<std::string, false> GdxFontRasterFile("FontRasterFile", "", "gdxsv");
 Option<int> GdxWidescreenHudLayout("WidescreenHudLayout", 1, "gdxsv");
 OptionString GdxTexturePackChannel("TexturePackChannel", "", "gdxsv");
 Option<int> GdxLocalPort("LocalPort", 0, "gdxsv");

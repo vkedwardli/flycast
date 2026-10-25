@@ -354,7 +354,7 @@ bool GdxsvTexturePackSource::loadMap() {
 
 u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height) {
 	const auto it = texture_map.find(hash);
-	if (it == texture_map.end()) return config::GdxFontRaster ? font.Render(hash, width, height) : nullptr;
+	if (it == texture_map.end()) return config::GdxFontRaster ? font.Render(hash, GdxsvFontStyle::Text, width, height) : nullptr;
 
 	// Load texture from texture pack file
 	zip_stat_t z_stat;
@@ -390,5 +390,7 @@ bool GdxsvTexturePackSource::isTextureReplaced(u32 hash) {
 }
 
 u8* GdxsvTexturePackSource::LoadCellTexture(u32 hash, int& width, int& height) {
-	return shouldReplace() ? loadCustomTexture(hash, width, height) : nullptr;
+	if (!shouldReplace()) return nullptr;
+	if (texture_map.find(hash) != texture_map.end()) return loadCustomTexture(hash, width, height);
+	return config::GdxFontRaster ? font.Render(hash, GdxsvFontStyle::BattleName, width, height) : nullptr;
 }

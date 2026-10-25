@@ -34,7 +34,7 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource, public GdxsvCellT
    public:
 	GdxsvTexturePackSource();
 	~GdxsvTexturePackSource() override;
-	// The font glyphs drawn from an outline font fill in where the pack has no entry.
+	// The font glyphs drawn from GDXGothic fill in where the pack has no entry.
 	bool shouldReplace() const override { return config::GdxUseTexturePack || config::GdxFontRaster; }
 	bool shouldPreload() const override { return false; }
 	bool loadMap() override;
@@ -43,6 +43,7 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource, public GdxsvCellT
 	void terminate() override;
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override;
+	// The pack's entry, else the glyph drawn in the battle name style.
 	u8* LoadCellTexture(u32 hash, int& width, int& height) override;
 
    private:
