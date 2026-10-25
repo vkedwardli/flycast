@@ -587,7 +587,6 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, rollback_count_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, rollback_depth_hist_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, rollback_max_us_),
-  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, late_frames_1_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, late_frames_1_5_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, late_frames_2_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, dropped_frames_),
@@ -603,8 +602,9 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, late_present_depth_hist_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, dropped_depth_hist_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_stats_presents_),
-  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_miss_depth_hist_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_composed_presents_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_late_depth_hist_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_refresh_period_ns_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -612,11 +612,7 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, period_us_),
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, work_),
-  PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, present_wait_),
-  PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, render_wait_),
-  PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, rollback_wait_),
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, queue_wait_),
-  PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, present_wait_elasticity_),
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, rollback_slack_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::TimingStats, _internal_metadata_),
@@ -652,6 +648,7 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::RenderSettings, threaded_rendering_),
   PROTOBUF_FIELD_OFFSET(::proto::RenderSettings, vsync_),
   PROTOBUF_FIELD_OFFSET(::proto::RenderSettings, renderer_),
+  PROTOBUF_FIELD_OFFSET(::proto::RenderSettings, refresh_rate_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatching, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -888,31 +885,31 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, sizeof(::proto::P2PMatchingReport)},
   { 44, -1, sizeof(::proto::FrameTiming)},
-  { 57, -1, sizeof(::proto::TimingStats)},
-  { 71, -1, sizeof(::proto::RemotePeerReport)},
-  { 83, -1, sizeof(::proto::RenderSettings)},
-  { 91, -1, sizeof(::proto::P2PMatching)},
-  { 107, -1, sizeof(::proto::PlayerAddress)},
-  { 117, -1, sizeof(::proto::RelayServer)},
-  { 127, -1, sizeof(::proto::GamePatch)},
-  { 136, -1, sizeof(::proto::GamePatchCode)},
-  { 145, -1, sizeof(::proto::GamePatchList)},
-  { 151, -1, sizeof(::proto::BattleLogUser)},
-  { 168, -1, sizeof(::proto::BattleLogRound)},
-  { 175, -1, sizeof(::proto::SpectatorInputPush)},
-  { 194, -1, sizeof(::proto::SpectatorInputAck)},
-  { 205, -1, sizeof(::proto::SpectatorSubscribeRequest)},
-  { 213, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
-  { 220, -1, sizeof(::proto::SpectatorRoundEvent)},
-  { 229, -1, sizeof(::proto::SpectatorRoundResult)},
-  { 238, -1, sizeof(::proto::BattleLogFile)},
-  { 259, -1, sizeof(::proto::BattleMessage)},
-  { 267, -1, sizeof(::proto::PingMessage)},
-  { 274, -1, sizeof(::proto::PongMessage)},
-  { 282, -1, sizeof(::proto::HelloServerMessage)},
-  { 290, -1, sizeof(::proto::FinMessage)},
-  { 296, -1, sizeof(::proto::HelloLbsMessage)},
-  { 302, -1, sizeof(::proto::Packet)},
+  { 53, -1, sizeof(::proto::TimingStats)},
+  { 67, -1, sizeof(::proto::RemotePeerReport)},
+  { 79, -1, sizeof(::proto::RenderSettings)},
+  { 88, -1, sizeof(::proto::P2PMatching)},
+  { 104, -1, sizeof(::proto::PlayerAddress)},
+  { 114, -1, sizeof(::proto::RelayServer)},
+  { 124, -1, sizeof(::proto::GamePatch)},
+  { 133, -1, sizeof(::proto::GamePatchCode)},
+  { 142, -1, sizeof(::proto::GamePatchList)},
+  { 148, -1, sizeof(::proto::BattleLogUser)},
+  { 165, -1, sizeof(::proto::BattleLogRound)},
+  { 172, -1, sizeof(::proto::SpectatorInputPush)},
+  { 191, -1, sizeof(::proto::SpectatorInputAck)},
+  { 202, -1, sizeof(::proto::SpectatorSubscribeRequest)},
+  { 210, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
+  { 217, -1, sizeof(::proto::SpectatorRoundEvent)},
+  { 226, -1, sizeof(::proto::SpectatorRoundResult)},
+  { 235, -1, sizeof(::proto::BattleLogFile)},
+  { 256, -1, sizeof(::proto::BattleMessage)},
+  { 264, -1, sizeof(::proto::PingMessage)},
+  { 271, -1, sizeof(::proto::PongMessage)},
+  { 279, -1, sizeof(::proto::HelloServerMessage)},
+  { 287, -1, sizeof(::proto::FinMessage)},
+  { 293, -1, sizeof(::proto::HelloLbsMessage)},
+  { 299, -1, sizeof(::proto::Packet)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -946,7 +943,7 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
 };
 
 const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\013gdxsv.proto\022\005proto\"\356\t\n\021P2PMatchingRepo"
+  "\n\013gdxsv.proto\022\005proto\"\256\n\n\021P2PMatchingRepo"
   "rt\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 "
   "\001(\005\022\024\n\014player_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001"
   "(\005\022\024\n\014close_reason\030\005 \001(\t\022\023\n\013frame_count\030"
@@ -960,44 +957,44 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   "\030\026 \001(\0132\025.proto.RenderSettings\022+\n\017socket_"
   "read_gap\030\027 \001(\0132\022.proto.TimingStats\022\026\n\016ro"
   "llback_count\030\030 \001(\005\022\033\n\023rollback_depth_his"
-  "t\030\031 \003(\005\022\027\n\017rollback_max_us\030\032 \001(\005\022\025\n\rlate"
-  "_frames_1\030\033 \001(\005\022\027\n\017late_frames_1_5\030\034 \001(\005"
-  "\022\025\n\rlate_frames_2\030\035 \001(\005\022\026\n\016dropped_frame"
-  "s\030\036 \001(\005\022-\n\014remote_peers\030\037 \003(\0132\027.proto.Re"
-  "motePeerReport\022\027\n\017relay_forwarded\030  \001(\005\022"
-  "\027\n\017timesync_frames\030! \003(\005\022/\n\023input_read_i"
-  "nterval\030\" \001(\0132\022.proto.TimingStats\022/\n\023inp"
-  "ut_send_interval\030# \001(\0132\022.proto.TimingSta"
-  "ts\022,\n\020present_interval\030$ \001(\0132\022.proto.Tim"
-  "ingStats\022/\n\023rollback_frame_time\030( \001(\0132\022."
-  "proto.TimingStats\022(\n\014frame_timing\030) \001(\0132"
-  "\022.proto.FrameTiming\022\032\n\022present_depth_his"
-  "t\030* \003(\005\022\037\n\027late_present_depth_hist\030+ \003(\005"
-  "\022\032\n\022dropped_depth_hist\030, \003(\005\022\036\n\026display_"
-  "stats_presents\030- \001(\005\022\037\n\027display_miss_dep"
-  "th_hist\030. \003(\005\022!\n\031display_composed_presen"
-  "ts\030/ \001(\005J\004\010%\020(R\017rollback_budgetR\027budget_"
-  "exhausted_framesR\033budget_exhausted_depth"
-  "_hist\"\357\002\n\013FrameTiming\022\021\n\tperiod_us\030\001 \001(\005"
-  "\022 \n\004work\030\002 \001(\0132\022.proto.TimingStats\022(\n\014pr"
-  "esent_wait\030\006 \001(\0132\022.proto.TimingStats\022\'\n\013"
-  "render_wait\030\007 \001(\0132\022.proto.TimingStats\022)\n"
-  "\rrollback_wait\030\010 \001(\0132\022.proto.TimingStats"
-  "\022&\n\nqueue_wait\030\t \001(\0132\022.proto.TimingStats"
-  "\022\037\n\027present_wait_elasticity\030\n \001(\005\022*\n\016rol"
-  "lback_slack\030\013 \001(\0132\022.proto.TimingStatsJ\004\010"
-  "\003\020\006R\rrollback_roomR\013over_periodR\026over_pe"
-  "riod_depth_hist\"\237\001\n\013TimingStats\022\r\n\005count"
-  "\030\001 \001(\005\022\017\n\007mean_us\030\002 \001(\005\022\016\n\006min_us\030\003 \001(\005\022"
-  "\r\n\005p1_us\030\004 \001(\005\022\r\n\005p5_us\030\005 \001(\005\022\016\n\006p99_us\030"
-  "\006 \001(\005\022\016\n\006max_us\030\007 \001(\005\022\022\n\noff_period\030\010 \001("
-  "\005\022\016\n\006p50_us\030\t \001(\005\"\232\001\n\020RemotePeerReport\022\017"
-  "\n\007peer_id\030\001 \001(\005\022\021\n\trecv_loss\030\002 \001(\005\022\021\n\tse"
-  "nd_loss\030\003 \001(\005\022\023\n\013ping_min_ms\030\004 \001(\005\022\026\n\016pi"
-  "ng_median_ms\030\005 \001(\005\022\023\n\013ping_max_ms\030\006 \001(\005\022"
-  "\r\n\005route\030\007 \001(\t\"M\n\016RenderSettings\022\032\n\022thre"
-  "aded_rendering\030\001 \001(\010\022\r\n\005vsync\030\002 \001(\010\022\020\n\010r"
-  "enderer\030\003 \001(\005\"\262\002\n\013P2PMatching\022\023\n\013battle_"
+  "t\030\031 \003(\005\022\027\n\017rollback_max_us\030\032 \001(\005\022\027\n\017late"
+  "_frames_1_5\030\034 \001(\005\022\025\n\rlate_frames_2\030\035 \001(\005"
+  "\022\026\n\016dropped_frames\030\036 \001(\005\022-\n\014remote_peers"
+  "\030\037 \003(\0132\027.proto.RemotePeerReport\022\027\n\017relay"
+  "_forwarded\030  \001(\005\022\027\n\017timesync_frames\030! \003("
+  "\005\022/\n\023input_read_interval\030\" \001(\0132\022.proto.T"
+  "imingStats\022/\n\023input_send_interval\030# \001(\0132"
+  "\022.proto.TimingStats\022,\n\020present_interval\030"
+  "$ \001(\0132\022.proto.TimingStats\022/\n\023rollback_fr"
+  "ame_time\030( \001(\0132\022.proto.TimingStats\022(\n\014fr"
+  "ame_timing\030) \001(\0132\022.proto.FrameTiming\022\032\n\022"
+  "present_depth_hist\030* \003(\005\022\037\n\027late_present"
+  "_depth_hist\030+ \003(\005\022\032\n\022dropped_depth_hist\030"
+  ", \003(\005\022\036\n\026display_stats_presents\030- \001(\005\022!\n"
+  "\031display_composed_presents\030/ \001(\005\022\037\n\027disp"
+  "lay_late_depth_hist\0300 \003(\005\022!\n\031display_ref"
+  "resh_period_ns\0301 \001(\005J\004\010\033\020\034J\004\010%\020(J\004\010.\020/R\r"
+  "late_frames_1R\017rollback_budgetR\027budget_e"
+  "xhausted_framesR\033budget_exhausted_depth_"
+  "histR\027display_miss_depth_hist\"\231\002\n\013FrameT"
+  "iming\022\021\n\tperiod_us\030\001 \001(\005\022 \n\004work\030\002 \001(\0132\022"
+  ".proto.TimingStats\022&\n\nqueue_wait\030\t \001(\0132\022"
+  ".proto.TimingStats\022*\n\016rollback_slack\030\013 \001"
+  "(\0132\022.proto.TimingStatsJ\004\010\003\020\tJ\004\010\n\020\013R\rroll"
+  "back_roomR\013over_periodR\026over_period_dept"
+  "h_histR\014present_waitR\013render_waitR\rrollb"
+  "ack_waitR\027present_wait_elasticity\"\237\001\n\013Ti"
+  "mingStats\022\r\n\005count\030\001 \001(\005\022\017\n\007mean_us\030\002 \001("
+  "\005\022\016\n\006min_us\030\003 \001(\005\022\r\n\005p1_us\030\004 \001(\005\022\r\n\005p5_u"
+  "s\030\005 \001(\005\022\016\n\006p99_us\030\006 \001(\005\022\016\n\006max_us\030\007 \001(\005\022"
+  "\022\n\noff_period\030\010 \001(\005\022\016\n\006p50_us\030\t \001(\005\"\232\001\n\020"
+  "RemotePeerReport\022\017\n\007peer_id\030\001 \001(\005\022\021\n\trec"
+  "v_loss\030\002 \001(\005\022\021\n\tsend_loss\030\003 \001(\005\022\023\n\013ping_"
+  "min_ms\030\004 \001(\005\022\026\n\016ping_median_ms\030\005 \001(\005\022\023\n\013"
+  "ping_max_ms\030\006 \001(\005\022\r\n\005route\030\007 \001(\t\"c\n\016Rend"
+  "erSettings\022\032\n\022threaded_rendering\030\001 \001(\010\022\r"
+  "\n\005vsync\030\002 \001(\010\022\020\n\010renderer\030\003 \001(\005\022\024\n\014refre"
+  "sh_rate\030\004 \001(\002\"\262\002\n\013P2PMatching\022\023\n\013battle_"
   "code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\024\n\014player"
   "_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_te"
   "st_duration\030\006 \001(\005\022\030\n\020is_training_game\030\007 "
@@ -1228,7 +1225,7 @@ P2PMatchingReport::P2PMatchingReport(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   present_depth_hist_(arena),
   late_present_depth_hist_(arena),
   dropped_depth_hist_(arena),
-  display_miss_depth_hist_(arena) {
+  display_late_depth_hist_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
   // @@protoc_insertion_point(arena_constructor:proto.P2PMatchingReport)
@@ -1243,7 +1240,7 @@ P2PMatchingReport::P2PMatchingReport(const P2PMatchingReport& from)
       present_depth_hist_(from.present_depth_hist_),
       late_present_depth_hist_(from.late_present_depth_hist_),
       dropped_depth_hist_(from.dropped_depth_hist_),
-      display_miss_depth_hist_(from.display_miss_depth_hist_) {
+      display_late_depth_hist_(from.display_late_depth_hist_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   battle_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_battle_code().empty()) {
@@ -1367,7 +1364,7 @@ void P2PMatchingReport::Clear() {
   present_depth_hist_.Clear();
   late_present_depth_hist_.Clear();
   dropped_depth_hist_.Clear();
-  display_miss_depth_hist_.Clear();
+  display_late_depth_hist_.Clear();
   battle_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   after_log_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -1580,13 +1577,6 @@ const char* P2PMatchingReport::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // int32 late_frames_1 = 27;
-      case 27:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 216)) {
-          late_frames_1_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
       // int32 late_frames_1_5 = 28;
       case 28:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 224)) {
@@ -1709,20 +1699,27 @@ const char* P2PMatchingReport::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // repeated int32 display_miss_depth_hist = 46;
-      case 46:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 114)) {
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_display_miss_depth_hist(), ptr, ctx);
-          CHK_(ptr);
-        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 112) {
-          _internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
       // int32 display_composed_presents = 47;
       case 47:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 120)) {
           display_composed_presents_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated int32 display_late_depth_hist = 48;
+      case 48:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 130)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedInt32Parser(_internal_mutable_display_late_depth_hist(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 128) {
+          _internal_add_display_late_depth_hist(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // int32 display_refresh_period_ns = 49;
+      case 49:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 136)) {
+          display_refresh_period_ns_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -1904,12 +1901,6 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(26, this->_internal_rollback_max_us(), target);
   }
 
-  // int32 late_frames_1 = 27;
-  if (this->late_frames_1() != 0) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(27, this->_internal_late_frames_1(), target);
-  }
-
   // int32 late_frames_1_5 = 28;
   if (this->late_frames_1_5() != 0) {
     target = stream->EnsureSpace(target);
@@ -2024,19 +2015,25 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(45, this->_internal_display_stats_presents(), target);
   }
 
-  // repeated int32 display_miss_depth_hist = 46;
-  {
-    int byte_size = _display_miss_depth_hist_cached_byte_size_.load(std::memory_order_relaxed);
-    if (byte_size > 0) {
-      target = stream->WriteInt32Packed(
-          46, _internal_display_miss_depth_hist(), byte_size, target);
-    }
-  }
-
   // int32 display_composed_presents = 47;
   if (this->display_composed_presents() != 0) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(47, this->_internal_display_composed_presents(), target);
+  }
+
+  // repeated int32 display_late_depth_hist = 48;
+  {
+    int byte_size = _display_late_depth_hist_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteInt32Packed(
+          48, _internal_display_late_depth_hist(), byte_size, target);
+    }
+  }
+
+  // int32 display_refresh_period_ns = 49;
+  if (this->display_refresh_period_ns() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(49, this->_internal_display_refresh_period_ns(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -2159,17 +2156,17 @@ size_t P2PMatchingReport::ByteSizeLong() const {
     total_size += data_size;
   }
 
-  // repeated int32 display_miss_depth_hist = 46;
+  // repeated int32 display_late_depth_hist = 48;
   {
     size_t data_size = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      Int32Size(this->display_miss_depth_hist_);
+      Int32Size(this->display_late_depth_hist_);
     if (data_size > 0) {
       total_size += 2 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
             static_cast<::PROTOBUF_NAMESPACE_ID::int32>(data_size));
     }
     int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(data_size);
-    _display_miss_depth_hist_cached_byte_size_.store(cached_size,
+    _display_late_depth_hist_cached_byte_size_.store(cached_size,
                                     std::memory_order_relaxed);
     total_size += data_size;
   }
@@ -2335,13 +2332,6 @@ size_t P2PMatchingReport::ByteSizeLong() const {
         this->_internal_rollback_max_us());
   }
 
-  // int32 late_frames_1 = 27;
-  if (this->late_frames_1() != 0) {
-    total_size += 2 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
-        this->_internal_late_frames_1());
-  }
-
   // int32 late_frames_1_5 = 28;
   if (this->late_frames_1_5() != 0) {
     total_size += 2 +
@@ -2368,6 +2358,13 @@ size_t P2PMatchingReport::ByteSizeLong() const {
     total_size += 2 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
         this->_internal_relay_forwarded());
+  }
+
+  // int32 display_refresh_period_ns = 49;
+  if (this->display_refresh_period_ns() != 0) {
+    total_size += 2 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+        this->_internal_display_refresh_period_ns());
   }
 
   // int32 display_stats_presents = 45;
@@ -2423,7 +2420,7 @@ void P2PMatchingReport::MergeFrom(const P2PMatchingReport& from) {
   present_depth_hist_.MergeFrom(from.present_depth_hist_);
   late_present_depth_hist_.MergeFrom(from.late_present_depth_hist_);
   dropped_depth_hist_.MergeFrom(from.dropped_depth_hist_);
-  display_miss_depth_hist_.MergeFrom(from.display_miss_depth_hist_);
+  display_late_depth_hist_.MergeFrom(from.display_late_depth_hist_);
   if (from.battle_code().size() > 0) {
     _internal_set_battle_code(from._internal_battle_code());
   }
@@ -2493,9 +2490,6 @@ void P2PMatchingReport::MergeFrom(const P2PMatchingReport& from) {
   if (from.rollback_max_us() != 0) {
     _internal_set_rollback_max_us(from._internal_rollback_max_us());
   }
-  if (from.late_frames_1() != 0) {
-    _internal_set_late_frames_1(from._internal_late_frames_1());
-  }
   if (from.late_frames_1_5() != 0) {
     _internal_set_late_frames_1_5(from._internal_late_frames_1_5());
   }
@@ -2507,6 +2501,9 @@ void P2PMatchingReport::MergeFrom(const P2PMatchingReport& from) {
   }
   if (from.relay_forwarded() != 0) {
     _internal_set_relay_forwarded(from._internal_relay_forwarded());
+  }
+  if (from.display_refresh_period_ns() != 0) {
+    _internal_set_display_refresh_period_ns(from._internal_display_refresh_period_ns());
   }
   if (from.display_stats_presents() != 0) {
     _internal_set_display_stats_presents(from._internal_display_stats_presents());
@@ -2545,7 +2542,7 @@ void P2PMatchingReport::InternalSwap(P2PMatchingReport* other) {
   present_depth_hist_.InternalSwap(&other->present_depth_hist_);
   late_present_depth_hist_.InternalSwap(&other->late_present_depth_hist_);
   dropped_depth_hist_.InternalSwap(&other->dropped_depth_hist_);
-  display_miss_depth_hist_.InternalSwap(&other->display_miss_depth_hist_);
+  display_late_depth_hist_.InternalSwap(&other->display_late_depth_hist_);
   battle_code_.Swap(&other->battle_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   close_reason_.Swap(&other->close_reason_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   after_log_.Swap(&other->after_log_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -2568,12 +2565,6 @@ void P2PMatchingReport::InternalSwap(P2PMatchingReport* other) {
 void FrameTiming::InitAsDefaultInstance() {
   ::proto::_FrameTiming_default_instance_._instance.get_mutable()->work_ = const_cast< ::proto::TimingStats*>(
       ::proto::TimingStats::internal_default_instance());
-  ::proto::_FrameTiming_default_instance_._instance.get_mutable()->present_wait_ = const_cast< ::proto::TimingStats*>(
-      ::proto::TimingStats::internal_default_instance());
-  ::proto::_FrameTiming_default_instance_._instance.get_mutable()->render_wait_ = const_cast< ::proto::TimingStats*>(
-      ::proto::TimingStats::internal_default_instance());
-  ::proto::_FrameTiming_default_instance_._instance.get_mutable()->rollback_wait_ = const_cast< ::proto::TimingStats*>(
-      ::proto::TimingStats::internal_default_instance());
   ::proto::_FrameTiming_default_instance_._instance.get_mutable()->queue_wait_ = const_cast< ::proto::TimingStats*>(
       ::proto::TimingStats::internal_default_instance());
   ::proto::_FrameTiming_default_instance_._instance.get_mutable()->rollback_slack_ = const_cast< ::proto::TimingStats*>(
@@ -2582,9 +2573,6 @@ void FrameTiming::InitAsDefaultInstance() {
 class FrameTiming::_Internal {
  public:
   static const ::proto::TimingStats& work(const FrameTiming* msg);
-  static const ::proto::TimingStats& present_wait(const FrameTiming* msg);
-  static const ::proto::TimingStats& render_wait(const FrameTiming* msg);
-  static const ::proto::TimingStats& rollback_wait(const FrameTiming* msg);
   static const ::proto::TimingStats& queue_wait(const FrameTiming* msg);
   static const ::proto::TimingStats& rollback_slack(const FrameTiming* msg);
 };
@@ -2592,18 +2580,6 @@ class FrameTiming::_Internal {
 const ::proto::TimingStats&
 FrameTiming::_Internal::work(const FrameTiming* msg) {
   return *msg->work_;
-}
-const ::proto::TimingStats&
-FrameTiming::_Internal::present_wait(const FrameTiming* msg) {
-  return *msg->present_wait_;
-}
-const ::proto::TimingStats&
-FrameTiming::_Internal::render_wait(const FrameTiming* msg) {
-  return *msg->render_wait_;
-}
-const ::proto::TimingStats&
-FrameTiming::_Internal::rollback_wait(const FrameTiming* msg) {
-  return *msg->rollback_wait_;
 }
 const ::proto::TimingStats&
 FrameTiming::_Internal::queue_wait(const FrameTiming* msg) {
@@ -2627,21 +2603,6 @@ FrameTiming::FrameTiming(const FrameTiming& from)
   } else {
     work_ = nullptr;
   }
-  if (from._internal_has_present_wait()) {
-    present_wait_ = new ::proto::TimingStats(*from.present_wait_);
-  } else {
-    present_wait_ = nullptr;
-  }
-  if (from._internal_has_render_wait()) {
-    render_wait_ = new ::proto::TimingStats(*from.render_wait_);
-  } else {
-    render_wait_ = nullptr;
-  }
-  if (from._internal_has_rollback_wait()) {
-    rollback_wait_ = new ::proto::TimingStats(*from.rollback_wait_);
-  } else {
-    rollback_wait_ = nullptr;
-  }
   if (from._internal_has_queue_wait()) {
     queue_wait_ = new ::proto::TimingStats(*from.queue_wait_);
   } else {
@@ -2652,17 +2613,15 @@ FrameTiming::FrameTiming(const FrameTiming& from)
   } else {
     rollback_slack_ = nullptr;
   }
-  ::memcpy(&period_us_, &from.period_us_,
-    static_cast<size_t>(reinterpret_cast<char*>(&present_wait_elasticity_) -
-    reinterpret_cast<char*>(&period_us_)) + sizeof(present_wait_elasticity_));
+  period_us_ = from.period_us_;
   // @@protoc_insertion_point(copy_constructor:proto.FrameTiming)
 }
 
 void FrameTiming::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_FrameTiming_gdxsv_2eproto.base);
   ::memset(&work_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&present_wait_elasticity_) -
-      reinterpret_cast<char*>(&work_)) + sizeof(present_wait_elasticity_));
+      reinterpret_cast<char*>(&period_us_) -
+      reinterpret_cast<char*>(&work_)) + sizeof(period_us_));
 }
 
 FrameTiming::~FrameTiming() {
@@ -2674,9 +2633,6 @@ FrameTiming::~FrameTiming() {
 void FrameTiming::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
   if (this != internal_default_instance()) delete work_;
-  if (this != internal_default_instance()) delete present_wait_;
-  if (this != internal_default_instance()) delete render_wait_;
-  if (this != internal_default_instance()) delete rollback_wait_;
   if (this != internal_default_instance()) delete queue_wait_;
   if (this != internal_default_instance()) delete rollback_slack_;
 }
@@ -2706,18 +2662,6 @@ void FrameTiming::Clear() {
     delete work_;
   }
   work_ = nullptr;
-  if (GetArena() == nullptr && present_wait_ != nullptr) {
-    delete present_wait_;
-  }
-  present_wait_ = nullptr;
-  if (GetArena() == nullptr && render_wait_ != nullptr) {
-    delete render_wait_;
-  }
-  render_wait_ = nullptr;
-  if (GetArena() == nullptr && rollback_wait_ != nullptr) {
-    delete rollback_wait_;
-  }
-  rollback_wait_ = nullptr;
   if (GetArena() == nullptr && queue_wait_ != nullptr) {
     delete queue_wait_;
   }
@@ -2726,9 +2670,7 @@ void FrameTiming::Clear() {
     delete rollback_slack_;
   }
   rollback_slack_ = nullptr;
-  ::memset(&period_us_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&present_wait_elasticity_) -
-      reinterpret_cast<char*>(&period_us_)) + sizeof(present_wait_elasticity_));
+  period_us_ = 0;
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -2754,38 +2696,10 @@ const char* FrameTiming::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // .proto.TimingStats present_wait = 6;
-      case 6:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 50)) {
-          ptr = ctx->ParseMessage(_internal_mutable_present_wait(), ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
-      // .proto.TimingStats render_wait = 7;
-      case 7:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 58)) {
-          ptr = ctx->ParseMessage(_internal_mutable_render_wait(), ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
-      // .proto.TimingStats rollback_wait = 8;
-      case 8:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 66)) {
-          ptr = ctx->ParseMessage(_internal_mutable_rollback_wait(), ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
       // .proto.TimingStats queue_wait = 9;
       case 9:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 74)) {
           ptr = ctx->ParseMessage(_internal_mutable_queue_wait(), ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
-      // int32 present_wait_elasticity = 10;
-      case 10:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 80)) {
-          present_wait_elasticity_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -2838,42 +2752,12 @@ failure:
         2, _Internal::work(this), target, stream);
   }
 
-  // .proto.TimingStats present_wait = 6;
-  if (this->has_present_wait()) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(
-        6, _Internal::present_wait(this), target, stream);
-  }
-
-  // .proto.TimingStats render_wait = 7;
-  if (this->has_render_wait()) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(
-        7, _Internal::render_wait(this), target, stream);
-  }
-
-  // .proto.TimingStats rollback_wait = 8;
-  if (this->has_rollback_wait()) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(
-        8, _Internal::rollback_wait(this), target, stream);
-  }
-
   // .proto.TimingStats queue_wait = 9;
   if (this->has_queue_wait()) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
       InternalWriteMessage(
         9, _Internal::queue_wait(this), target, stream);
-  }
-
-  // int32 present_wait_elasticity = 10;
-  if (this->present_wait_elasticity() != 0) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(10, this->_internal_present_wait_elasticity(), target);
   }
 
   // .proto.TimingStats rollback_slack = 11;
@@ -2907,27 +2791,6 @@ size_t FrameTiming::ByteSizeLong() const {
         *work_);
   }
 
-  // .proto.TimingStats present_wait = 6;
-  if (this->has_present_wait()) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-        *present_wait_);
-  }
-
-  // .proto.TimingStats render_wait = 7;
-  if (this->has_render_wait()) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-        *render_wait_);
-  }
-
-  // .proto.TimingStats rollback_wait = 8;
-  if (this->has_rollback_wait()) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-        *rollback_wait_);
-  }
-
   // .proto.TimingStats queue_wait = 9;
   if (this->has_queue_wait()) {
     total_size += 1 +
@@ -2947,13 +2810,6 @@ size_t FrameTiming::ByteSizeLong() const {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
         this->_internal_period_us());
-  }
-
-  // int32 present_wait_elasticity = 10;
-  if (this->present_wait_elasticity() != 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
-        this->_internal_present_wait_elasticity());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -2990,15 +2846,6 @@ void FrameTiming::MergeFrom(const FrameTiming& from) {
   if (from.has_work()) {
     _internal_mutable_work()->::proto::TimingStats::MergeFrom(from._internal_work());
   }
-  if (from.has_present_wait()) {
-    _internal_mutable_present_wait()->::proto::TimingStats::MergeFrom(from._internal_present_wait());
-  }
-  if (from.has_render_wait()) {
-    _internal_mutable_render_wait()->::proto::TimingStats::MergeFrom(from._internal_render_wait());
-  }
-  if (from.has_rollback_wait()) {
-    _internal_mutable_rollback_wait()->::proto::TimingStats::MergeFrom(from._internal_rollback_wait());
-  }
   if (from.has_queue_wait()) {
     _internal_mutable_queue_wait()->::proto::TimingStats::MergeFrom(from._internal_queue_wait());
   }
@@ -3007,9 +2854,6 @@ void FrameTiming::MergeFrom(const FrameTiming& from) {
   }
   if (from.period_us() != 0) {
     _internal_set_period_us(from._internal_period_us());
-  }
-  if (from.present_wait_elasticity() != 0) {
-    _internal_set_present_wait_elasticity(from._internal_present_wait_elasticity());
   }
 }
 
@@ -3035,8 +2879,8 @@ void FrameTiming::InternalSwap(FrameTiming* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(FrameTiming, present_wait_elasticity_)
-      + sizeof(FrameTiming::present_wait_elasticity_)
+      PROTOBUF_FIELD_OFFSET(FrameTiming, period_us_)
+      + sizeof(FrameTiming::period_us_)
       - PROTOBUF_FIELD_OFFSET(FrameTiming, work_)>(
           reinterpret_cast<char*>(&work_),
           reinterpret_cast<char*>(&other->work_));
@@ -3819,15 +3663,15 @@ RenderSettings::RenderSettings(const RenderSettings& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::memcpy(&threaded_rendering_, &from.threaded_rendering_,
-    static_cast<size_t>(reinterpret_cast<char*>(&renderer_) -
-    reinterpret_cast<char*>(&threaded_rendering_)) + sizeof(renderer_));
+    static_cast<size_t>(reinterpret_cast<char*>(&refresh_rate_) -
+    reinterpret_cast<char*>(&threaded_rendering_)) + sizeof(refresh_rate_));
   // @@protoc_insertion_point(copy_constructor:proto.RenderSettings)
 }
 
 void RenderSettings::SharedCtor() {
   ::memset(&threaded_rendering_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&renderer_) -
-      reinterpret_cast<char*>(&threaded_rendering_)) + sizeof(renderer_));
+      reinterpret_cast<char*>(&refresh_rate_) -
+      reinterpret_cast<char*>(&threaded_rendering_)) + sizeof(refresh_rate_));
 }
 
 RenderSettings::~RenderSettings() {
@@ -3862,8 +3706,8 @@ void RenderSettings::Clear() {
   (void) cached_has_bits;
 
   ::memset(&threaded_rendering_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&renderer_) -
-      reinterpret_cast<char*>(&threaded_rendering_)) + sizeof(renderer_));
+      reinterpret_cast<char*>(&refresh_rate_) -
+      reinterpret_cast<char*>(&threaded_rendering_)) + sizeof(refresh_rate_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -3894,6 +3738,13 @@ const char* RenderSettings::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 24)) {
           renderer_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // float refresh_rate = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 37)) {
+          refresh_rate_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<float>(ptr);
+          ptr += sizeof(float);
         } else goto handle_unusual;
         continue;
       default: {
@@ -3942,6 +3793,12 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(3, this->_internal_renderer(), target);
   }
 
+  // float refresh_rate = 4;
+  if (!(this->refresh_rate() <= 0 && this->refresh_rate() >= 0)) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteFloatToArray(4, this->_internal_refresh_rate(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -3973,6 +3830,11 @@ size_t RenderSettings::ByteSizeLong() const {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
         this->_internal_renderer());
+  }
+
+  // float refresh_rate = 4;
+  if (!(this->refresh_rate() <= 0 && this->refresh_rate() >= 0)) {
+    total_size += 1 + 4;
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -4015,6 +3877,9 @@ void RenderSettings::MergeFrom(const RenderSettings& from) {
   if (from.renderer() != 0) {
     _internal_set_renderer(from._internal_renderer());
   }
+  if (!(from.refresh_rate() <= 0 && from.refresh_rate() >= 0)) {
+    _internal_set_refresh_rate(from._internal_refresh_rate());
+  }
 }
 
 void RenderSettings::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
@@ -4039,8 +3904,8 @@ void RenderSettings::InternalSwap(RenderSettings* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(RenderSettings, renderer_)
-      + sizeof(RenderSettings::renderer_)
+      PROTOBUF_FIELD_OFFSET(RenderSettings, refresh_rate_)
+      + sizeof(RenderSettings::refresh_rate_)
       - PROTOBUF_FIELD_OFFSET(RenderSettings, threaded_rendering_)>(
           reinterpret_cast<char*>(&threaded_rendering_),
           reinterpret_cast<char*>(&other->threaded_rendering_));

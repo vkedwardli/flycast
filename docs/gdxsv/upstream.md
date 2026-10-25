@@ -159,7 +159,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/hw/pvr/Renderer_if.cpp` | `rend_start_render` | render snapshots convert the palette on the render thread |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_end_render` | no wait with render snapshots |
 | `core/hw/pvr/Renderer_if.cpp` | `rend_vblank` | `gdxsv_emu_vblank` |
-| `core/hw/pvr/Renderer_if.cpp` | `rend_start_rollback` | P2PMatchingReport |
+| `core/hw/pvr/Renderer_if.cpp` | `rend_start_rollback` | no wait with render snapshots |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
 | `core/hw/pvr/Renderer_if.h` |  | caches reloaded after a rollback or replay session |
 | `core/hw/pvr/Renderer_if.h` | `rend_updateFogTable` | render snapshots clear the texture cache when switching |

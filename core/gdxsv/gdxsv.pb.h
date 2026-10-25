@@ -328,7 +328,7 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kPresentDepthHistFieldNumber = 42,
     kLatePresentDepthHistFieldNumber = 43,
     kDroppedDepthHistFieldNumber = 44,
-    kDisplayMissDepthHistFieldNumber = 46,
+    kDisplayLateDepthHistFieldNumber = 48,
     kBattleCodeFieldNumber = 1,
     kCloseReasonFieldNumber = 5,
     kAfterLogFieldNumber = 11,
@@ -352,11 +352,11 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kInputDelayFieldNumber = 21,
     kRollbackCountFieldNumber = 24,
     kRollbackMaxUsFieldNumber = 26,
-    kLateFrames1FieldNumber = 27,
     kLateFrames15FieldNumber = 28,
     kLateFrames2FieldNumber = 29,
     kDroppedFramesFieldNumber = 30,
     kRelayForwardedFieldNumber = 32,
+    kDisplayRefreshPeriodNsFieldNumber = 49,
     kDisplayStatsPresentsFieldNumber = 45,
     kDisplayComposedPresentsFieldNumber = 47,
   };
@@ -528,27 +528,27 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
       mutable_dropped_depth_hist();
 
-  // repeated int32 display_miss_depth_hist = 46;
-  int display_miss_depth_hist_size() const;
+  // repeated int32 display_late_depth_hist = 48;
+  int display_late_depth_hist_size() const;
   private:
-  int _internal_display_miss_depth_hist_size() const;
+  int _internal_display_late_depth_hist_size() const;
   public:
-  void clear_display_miss_depth_hist();
+  void clear_display_late_depth_hist();
   private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_miss_depth_hist(int index) const;
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_late_depth_hist(int index) const;
   const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      _internal_display_miss_depth_hist() const;
-  void _internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+      _internal_display_late_depth_hist() const;
+  void _internal_add_display_late_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      _internal_mutable_display_miss_depth_hist();
+      _internal_mutable_display_late_depth_hist();
   public:
-  ::PROTOBUF_NAMESPACE_ID::int32 display_miss_depth_hist(int index) const;
-  void set_display_miss_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
-  void add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
+  ::PROTOBUF_NAMESPACE_ID::int32 display_late_depth_hist(int index) const;
+  void set_display_late_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value);
+  void add_display_late_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value);
   const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-      display_miss_depth_hist() const;
+      display_late_depth_hist() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-      mutable_display_miss_depth_hist();
+      mutable_display_late_depth_hist();
 
   // string battle_code = 1;
   void clear_battle_code();
@@ -848,15 +848,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void _internal_set_rollback_max_us(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 late_frames_1 = 27;
-  void clear_late_frames_1();
-  ::PROTOBUF_NAMESPACE_ID::int32 late_frames_1() const;
-  void set_late_frames_1(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_late_frames_1() const;
-  void _internal_set_late_frames_1(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
   // int32 late_frames_1_5 = 28;
   void clear_late_frames_1_5();
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_1_5() const;
@@ -891,6 +882,15 @@ class P2PMatchingReport PROTOBUF_FINAL :
   private:
   ::PROTOBUF_NAMESPACE_ID::int32 _internal_relay_forwarded() const;
   void _internal_set_relay_forwarded(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 display_refresh_period_ns = 49;
+  void clear_display_refresh_period_ns();
+  ::PROTOBUF_NAMESPACE_ID::int32 display_refresh_period_ns() const;
+  void set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_refresh_period_ns() const;
+  void _internal_set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
   // int32 display_stats_presents = 45;
@@ -932,8 +932,8 @@ class P2PMatchingReport PROTOBUF_FINAL :
   mutable std::atomic<int> _late_present_depth_hist_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > dropped_depth_hist_;
   mutable std::atomic<int> _dropped_depth_hist_cached_byte_size_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > display_miss_depth_hist_;
-  mutable std::atomic<int> _display_miss_depth_hist_cached_byte_size_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 > display_late_depth_hist_;
+  mutable std::atomic<int> _display_late_depth_hist_cached_byte_size_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr battle_code_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr close_reason_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr after_log_;
@@ -957,11 +957,11 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 input_delay_;
   ::PROTOBUF_NAMESPACE_ID::int32 rollback_count_;
   ::PROTOBUF_NAMESPACE_ID::int32 rollback_max_us_;
-  ::PROTOBUF_NAMESPACE_ID::int32 late_frames_1_;
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_1_5_;
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_2_;
   ::PROTOBUF_NAMESPACE_ID::int32 dropped_frames_;
   ::PROTOBUF_NAMESPACE_ID::int32 relay_forwarded_;
+  ::PROTOBUF_NAMESPACE_ID::int32 display_refresh_period_ns_;
   ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents_;
   ::PROTOBUF_NAMESPACE_ID::int32 display_composed_presents_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
@@ -1083,13 +1083,9 @@ class FrameTiming PROTOBUF_FINAL :
 
   enum : int {
     kWorkFieldNumber = 2,
-    kPresentWaitFieldNumber = 6,
-    kRenderWaitFieldNumber = 7,
-    kRollbackWaitFieldNumber = 8,
     kQueueWaitFieldNumber = 9,
     kRollbackSlackFieldNumber = 11,
     kPeriodUsFieldNumber = 1,
-    kPresentWaitElasticityFieldNumber = 10,
   };
   // .proto.TimingStats work = 2;
   bool has_work() const;
@@ -1108,60 +1104,6 @@ class FrameTiming PROTOBUF_FINAL :
   void unsafe_arena_set_allocated_work(
       ::proto::TimingStats* work);
   ::proto::TimingStats* unsafe_arena_release_work();
-
-  // .proto.TimingStats present_wait = 6;
-  bool has_present_wait() const;
-  private:
-  bool _internal_has_present_wait() const;
-  public:
-  void clear_present_wait();
-  const ::proto::TimingStats& present_wait() const;
-  ::proto::TimingStats* release_present_wait();
-  ::proto::TimingStats* mutable_present_wait();
-  void set_allocated_present_wait(::proto::TimingStats* present_wait);
-  private:
-  const ::proto::TimingStats& _internal_present_wait() const;
-  ::proto::TimingStats* _internal_mutable_present_wait();
-  public:
-  void unsafe_arena_set_allocated_present_wait(
-      ::proto::TimingStats* present_wait);
-  ::proto::TimingStats* unsafe_arena_release_present_wait();
-
-  // .proto.TimingStats render_wait = 7;
-  bool has_render_wait() const;
-  private:
-  bool _internal_has_render_wait() const;
-  public:
-  void clear_render_wait();
-  const ::proto::TimingStats& render_wait() const;
-  ::proto::TimingStats* release_render_wait();
-  ::proto::TimingStats* mutable_render_wait();
-  void set_allocated_render_wait(::proto::TimingStats* render_wait);
-  private:
-  const ::proto::TimingStats& _internal_render_wait() const;
-  ::proto::TimingStats* _internal_mutable_render_wait();
-  public:
-  void unsafe_arena_set_allocated_render_wait(
-      ::proto::TimingStats* render_wait);
-  ::proto::TimingStats* unsafe_arena_release_render_wait();
-
-  // .proto.TimingStats rollback_wait = 8;
-  bool has_rollback_wait() const;
-  private:
-  bool _internal_has_rollback_wait() const;
-  public:
-  void clear_rollback_wait();
-  const ::proto::TimingStats& rollback_wait() const;
-  ::proto::TimingStats* release_rollback_wait();
-  ::proto::TimingStats* mutable_rollback_wait();
-  void set_allocated_rollback_wait(::proto::TimingStats* rollback_wait);
-  private:
-  const ::proto::TimingStats& _internal_rollback_wait() const;
-  ::proto::TimingStats* _internal_mutable_rollback_wait();
-  public:
-  void unsafe_arena_set_allocated_rollback_wait(
-      ::proto::TimingStats* rollback_wait);
-  ::proto::TimingStats* unsafe_arena_release_rollback_wait();
 
   // .proto.TimingStats queue_wait = 9;
   bool has_queue_wait() const;
@@ -1208,15 +1150,6 @@ class FrameTiming PROTOBUF_FINAL :
   void _internal_set_period_us(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 present_wait_elasticity = 10;
-  void clear_present_wait_elasticity();
-  ::PROTOBUF_NAMESPACE_ID::int32 present_wait_elasticity() const;
-  void set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_present_wait_elasticity() const;
-  void _internal_set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
   // @@protoc_insertion_point(class_scope:proto.FrameTiming)
  private:
   class _Internal;
@@ -1225,13 +1158,9 @@ class FrameTiming PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::proto::TimingStats* work_;
-  ::proto::TimingStats* present_wait_;
-  ::proto::TimingStats* render_wait_;
-  ::proto::TimingStats* rollback_wait_;
   ::proto::TimingStats* queue_wait_;
   ::proto::TimingStats* rollback_slack_;
   ::PROTOBUF_NAMESPACE_ID::int32 period_us_;
-  ::PROTOBUF_NAMESPACE_ID::int32 present_wait_elasticity_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -1788,6 +1717,7 @@ class RenderSettings PROTOBUF_FINAL :
     kThreadedRenderingFieldNumber = 1,
     kVsyncFieldNumber = 2,
     kRendererFieldNumber = 3,
+    kRefreshRateFieldNumber = 4,
   };
   // bool threaded_rendering = 1;
   void clear_threaded_rendering();
@@ -1816,6 +1746,15 @@ class RenderSettings PROTOBUF_FINAL :
   void _internal_set_renderer(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
+  // float refresh_rate = 4;
+  void clear_refresh_rate();
+  float refresh_rate() const;
+  void set_refresh_rate(float value);
+  private:
+  float _internal_refresh_rate() const;
+  void _internal_set_refresh_rate(float value);
+  public:
+
   // @@protoc_insertion_point(class_scope:proto.RenderSettings)
  private:
   class _Internal;
@@ -1826,6 +1765,7 @@ class RenderSettings PROTOBUF_FINAL :
   bool threaded_rendering_;
   bool vsync_;
   ::PROTOBUF_NAMESPACE_ID::int32 renderer_;
+  float refresh_rate_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -7365,26 +7305,6 @@ inline void P2PMatchingReport::set_rollback_max_us(::PROTOBUF_NAMESPACE_ID::int3
   // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.rollback_max_us)
 }
 
-// int32 late_frames_1 = 27;
-inline void P2PMatchingReport::clear_late_frames_1() {
-  late_frames_1_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_late_frames_1() const {
-  return late_frames_1_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::late_frames_1() const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.late_frames_1)
-  return _internal_late_frames_1();
-}
-inline void P2PMatchingReport::_internal_set_late_frames_1(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  late_frames_1_ = value;
-}
-inline void P2PMatchingReport::set_late_frames_1(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_late_frames_1(value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.late_frames_1)
-}
-
 // int32 late_frames_1_5 = 28;
 inline void P2PMatchingReport::clear_late_frames_1_5() {
   late_frames_1_5_ = 0;
@@ -8127,53 +8047,6 @@ inline void P2PMatchingReport::set_display_stats_presents(::PROTOBUF_NAMESPACE_I
   // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_stats_presents)
 }
 
-// repeated int32 display_miss_depth_hist = 46;
-inline int P2PMatchingReport::_internal_display_miss_depth_hist_size() const {
-  return display_miss_depth_hist_.size();
-}
-inline int P2PMatchingReport::display_miss_depth_hist_size() const {
-  return _internal_display_miss_depth_hist_size();
-}
-inline void P2PMatchingReport::clear_display_miss_depth_hist() {
-  display_miss_depth_hist_.Clear();
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_miss_depth_hist(int index) const {
-  return display_miss_depth_hist_.Get(index);
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_miss_depth_hist(int index) const {
-  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_miss_depth_hist)
-  return _internal_display_miss_depth_hist(index);
-}
-inline void P2PMatchingReport::set_display_miss_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
-  display_miss_depth_hist_.Set(index, value);
-  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_miss_depth_hist)
-}
-inline void P2PMatchingReport::_internal_add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  display_miss_depth_hist_.Add(value);
-}
-inline void P2PMatchingReport::add_display_miss_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_add_display_miss_depth_hist(value);
-  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.display_miss_depth_hist)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-P2PMatchingReport::_internal_display_miss_depth_hist() const {
-  return display_miss_depth_hist_;
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
-P2PMatchingReport::display_miss_depth_hist() const {
-  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.display_miss_depth_hist)
-  return _internal_display_miss_depth_hist();
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-P2PMatchingReport::_internal_mutable_display_miss_depth_hist() {
-  return &display_miss_depth_hist_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
-P2PMatchingReport::mutable_display_miss_depth_hist() {
-  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.display_miss_depth_hist)
-  return _internal_mutable_display_miss_depth_hist();
-}
-
 // int32 display_composed_presents = 47;
 inline void P2PMatchingReport::clear_display_composed_presents() {
   display_composed_presents_ = 0;
@@ -8192,6 +8065,73 @@ inline void P2PMatchingReport::_internal_set_display_composed_presents(::PROTOBU
 inline void P2PMatchingReport::set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_display_composed_presents(value);
   // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_composed_presents)
+}
+
+// repeated int32 display_late_depth_hist = 48;
+inline int P2PMatchingReport::_internal_display_late_depth_hist_size() const {
+  return display_late_depth_hist_.size();
+}
+inline int P2PMatchingReport::display_late_depth_hist_size() const {
+  return _internal_display_late_depth_hist_size();
+}
+inline void P2PMatchingReport::clear_display_late_depth_hist() {
+  display_late_depth_hist_.Clear();
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_late_depth_hist(int index) const {
+  return display_late_depth_hist_.Get(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_late_depth_hist(int index) const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_late_depth_hist)
+  return _internal_display_late_depth_hist(index);
+}
+inline void P2PMatchingReport::set_display_late_depth_hist(int index, ::PROTOBUF_NAMESPACE_ID::int32 value) {
+  display_late_depth_hist_.Set(index, value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_late_depth_hist)
+}
+inline void P2PMatchingReport::_internal_add_display_late_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  display_late_depth_hist_.Add(value);
+}
+inline void P2PMatchingReport::add_display_late_depth_hist(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_add_display_late_depth_hist(value);
+  // @@protoc_insertion_point(field_add:proto.P2PMatchingReport.display_late_depth_hist)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::_internal_display_late_depth_hist() const {
+  return display_late_depth_hist_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >&
+P2PMatchingReport::display_late_depth_hist() const {
+  // @@protoc_insertion_point(field_list:proto.P2PMatchingReport.display_late_depth_hist)
+  return _internal_display_late_depth_hist();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::_internal_mutable_display_late_depth_hist() {
+  return &display_late_depth_hist_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< ::PROTOBUF_NAMESPACE_ID::int32 >*
+P2PMatchingReport::mutable_display_late_depth_hist() {
+  // @@protoc_insertion_point(field_mutable_list:proto.P2PMatchingReport.display_late_depth_hist)
+  return _internal_mutable_display_late_depth_hist();
+}
+
+// int32 display_refresh_period_ns = 49;
+inline void P2PMatchingReport::clear_display_refresh_period_ns() {
+  display_refresh_period_ns_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::_internal_display_refresh_period_ns() const {
+  return display_refresh_period_ns_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 P2PMatchingReport::display_refresh_period_ns() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.display_refresh_period_ns)
+  return _internal_display_refresh_period_ns();
+}
+inline void P2PMatchingReport::_internal_set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  display_refresh_period_ns_ = value;
+}
+inline void P2PMatchingReport::set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_display_refresh_period_ns(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_refresh_period_ns)
 }
 
 // -------------------------------------------------------------------
@@ -8301,255 +8241,6 @@ inline void FrameTiming::set_allocated_work(::proto::TimingStats* work) {
   // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.work)
 }
 
-// .proto.TimingStats present_wait = 6;
-inline bool FrameTiming::_internal_has_present_wait() const {
-  return this != internal_default_instance() && present_wait_ != nullptr;
-}
-inline bool FrameTiming::has_present_wait() const {
-  return _internal_has_present_wait();
-}
-inline void FrameTiming::clear_present_wait() {
-  if (GetArena() == nullptr && present_wait_ != nullptr) {
-    delete present_wait_;
-  }
-  present_wait_ = nullptr;
-}
-inline const ::proto::TimingStats& FrameTiming::_internal_present_wait() const {
-  const ::proto::TimingStats* p = present_wait_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
-      &::proto::_TimingStats_default_instance_);
-}
-inline const ::proto::TimingStats& FrameTiming::present_wait() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.present_wait)
-  return _internal_present_wait();
-}
-inline void FrameTiming::unsafe_arena_set_allocated_present_wait(
-    ::proto::TimingStats* present_wait) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(present_wait_);
-  }
-  present_wait_ = present_wait;
-  if (present_wait) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.present_wait)
-}
-inline ::proto::TimingStats* FrameTiming::release_present_wait() {
-  
-  ::proto::TimingStats* temp = present_wait_;
-  present_wait_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_present_wait() {
-  // @@protoc_insertion_point(field_release:proto.FrameTiming.present_wait)
-  
-  ::proto::TimingStats* temp = present_wait_;
-  present_wait_ = nullptr;
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::_internal_mutable_present_wait() {
-  
-  if (present_wait_ == nullptr) {
-    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
-    present_wait_ = p;
-  }
-  return present_wait_;
-}
-inline ::proto::TimingStats* FrameTiming::mutable_present_wait() {
-  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.present_wait)
-  return _internal_mutable_present_wait();
-}
-inline void FrameTiming::set_allocated_present_wait(::proto::TimingStats* present_wait) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete present_wait_;
-  }
-  if (present_wait) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(present_wait);
-    if (message_arena != submessage_arena) {
-      present_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, present_wait, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  present_wait_ = present_wait;
-  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.present_wait)
-}
-
-// .proto.TimingStats render_wait = 7;
-inline bool FrameTiming::_internal_has_render_wait() const {
-  return this != internal_default_instance() && render_wait_ != nullptr;
-}
-inline bool FrameTiming::has_render_wait() const {
-  return _internal_has_render_wait();
-}
-inline void FrameTiming::clear_render_wait() {
-  if (GetArena() == nullptr && render_wait_ != nullptr) {
-    delete render_wait_;
-  }
-  render_wait_ = nullptr;
-}
-inline const ::proto::TimingStats& FrameTiming::_internal_render_wait() const {
-  const ::proto::TimingStats* p = render_wait_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
-      &::proto::_TimingStats_default_instance_);
-}
-inline const ::proto::TimingStats& FrameTiming::render_wait() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.render_wait)
-  return _internal_render_wait();
-}
-inline void FrameTiming::unsafe_arena_set_allocated_render_wait(
-    ::proto::TimingStats* render_wait) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(render_wait_);
-  }
-  render_wait_ = render_wait;
-  if (render_wait) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.render_wait)
-}
-inline ::proto::TimingStats* FrameTiming::release_render_wait() {
-  
-  ::proto::TimingStats* temp = render_wait_;
-  render_wait_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_render_wait() {
-  // @@protoc_insertion_point(field_release:proto.FrameTiming.render_wait)
-  
-  ::proto::TimingStats* temp = render_wait_;
-  render_wait_ = nullptr;
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::_internal_mutable_render_wait() {
-  
-  if (render_wait_ == nullptr) {
-    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
-    render_wait_ = p;
-  }
-  return render_wait_;
-}
-inline ::proto::TimingStats* FrameTiming::mutable_render_wait() {
-  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.render_wait)
-  return _internal_mutable_render_wait();
-}
-inline void FrameTiming::set_allocated_render_wait(::proto::TimingStats* render_wait) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete render_wait_;
-  }
-  if (render_wait) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(render_wait);
-    if (message_arena != submessage_arena) {
-      render_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, render_wait, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  render_wait_ = render_wait;
-  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.render_wait)
-}
-
-// .proto.TimingStats rollback_wait = 8;
-inline bool FrameTiming::_internal_has_rollback_wait() const {
-  return this != internal_default_instance() && rollback_wait_ != nullptr;
-}
-inline bool FrameTiming::has_rollback_wait() const {
-  return _internal_has_rollback_wait();
-}
-inline void FrameTiming::clear_rollback_wait() {
-  if (GetArena() == nullptr && rollback_wait_ != nullptr) {
-    delete rollback_wait_;
-  }
-  rollback_wait_ = nullptr;
-}
-inline const ::proto::TimingStats& FrameTiming::_internal_rollback_wait() const {
-  const ::proto::TimingStats* p = rollback_wait_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::proto::TimingStats*>(
-      &::proto::_TimingStats_default_instance_);
-}
-inline const ::proto::TimingStats& FrameTiming::rollback_wait() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.rollback_wait)
-  return _internal_rollback_wait();
-}
-inline void FrameTiming::unsafe_arena_set_allocated_rollback_wait(
-    ::proto::TimingStats* rollback_wait) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(rollback_wait_);
-  }
-  rollback_wait_ = rollback_wait;
-  if (rollback_wait) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:proto.FrameTiming.rollback_wait)
-}
-inline ::proto::TimingStats* FrameTiming::release_rollback_wait() {
-  
-  ::proto::TimingStats* temp = rollback_wait_;
-  rollback_wait_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::unsafe_arena_release_rollback_wait() {
-  // @@protoc_insertion_point(field_release:proto.FrameTiming.rollback_wait)
-  
-  ::proto::TimingStats* temp = rollback_wait_;
-  rollback_wait_ = nullptr;
-  return temp;
-}
-inline ::proto::TimingStats* FrameTiming::_internal_mutable_rollback_wait() {
-  
-  if (rollback_wait_ == nullptr) {
-    auto* p = CreateMaybeMessage<::proto::TimingStats>(GetArena());
-    rollback_wait_ = p;
-  }
-  return rollback_wait_;
-}
-inline ::proto::TimingStats* FrameTiming::mutable_rollback_wait() {
-  // @@protoc_insertion_point(field_mutable:proto.FrameTiming.rollback_wait)
-  return _internal_mutable_rollback_wait();
-}
-inline void FrameTiming::set_allocated_rollback_wait(::proto::TimingStats* rollback_wait) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete rollback_wait_;
-  }
-  if (rollback_wait) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(rollback_wait);
-    if (message_arena != submessage_arena) {
-      rollback_wait = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, rollback_wait, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  rollback_wait_ = rollback_wait;
-  // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.rollback_wait)
-}
-
 // .proto.TimingStats queue_wait = 9;
 inline bool FrameTiming::_internal_has_queue_wait() const {
   return this != internal_default_instance() && queue_wait_ != nullptr;
@@ -8631,26 +8322,6 @@ inline void FrameTiming::set_allocated_queue_wait(::proto::TimingStats* queue_wa
   }
   queue_wait_ = queue_wait;
   // @@protoc_insertion_point(field_set_allocated:proto.FrameTiming.queue_wait)
-}
-
-// int32 present_wait_elasticity = 10;
-inline void FrameTiming::clear_present_wait_elasticity() {
-  present_wait_elasticity_ = 0;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::_internal_present_wait_elasticity() const {
-  return present_wait_elasticity_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::int32 FrameTiming::present_wait_elasticity() const {
-  // @@protoc_insertion_point(field_get:proto.FrameTiming.present_wait_elasticity)
-  return _internal_present_wait_elasticity();
-}
-inline void FrameTiming::_internal_set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  
-  present_wait_elasticity_ = value;
-}
-inline void FrameTiming::set_present_wait_elasticity(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _internal_set_present_wait_elasticity(value);
-  // @@protoc_insertion_point(field_set:proto.FrameTiming.present_wait_elasticity)
 }
 
 // .proto.TimingStats rollback_slack = 11;
@@ -9168,6 +8839,26 @@ inline void RenderSettings::_internal_set_renderer(::PROTOBUF_NAMESPACE_ID::int3
 inline void RenderSettings::set_renderer(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_renderer(value);
   // @@protoc_insertion_point(field_set:proto.RenderSettings.renderer)
+}
+
+// float refresh_rate = 4;
+inline void RenderSettings::clear_refresh_rate() {
+  refresh_rate_ = 0;
+}
+inline float RenderSettings::_internal_refresh_rate() const {
+  return refresh_rate_;
+}
+inline float RenderSettings::refresh_rate() const {
+  // @@protoc_insertion_point(field_get:proto.RenderSettings.refresh_rate)
+  return _internal_refresh_rate();
+}
+inline void RenderSettings::_internal_set_refresh_rate(float value) {
+  
+  refresh_rate_ = value;
+}
+inline void RenderSettings::set_refresh_rate(float value) {
+  _internal_set_refresh_rate(value);
+  // @@protoc_insertion_point(field_set:proto.RenderSettings.refresh_rate)
 }
 
 // -------------------------------------------------------------------
