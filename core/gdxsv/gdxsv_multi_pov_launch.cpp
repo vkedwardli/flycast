@@ -125,6 +125,8 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 		guest_renderer = guest_renderer == RenderType::Vulkan_OIT ? RenderType::DirectX11_OIT : RenderType::DirectX11;
 #endif
 	const std::string renderer = "config:pvr.rend=" + std::to_string(static_cast<int>(guest_renderer));
+	// The session's resolution, which gdxsv_multi_pov_viewer_begin set on the host.
+	const std::string resolution = "config:rend.Resolution=" + std::to_string(static_cast<int>(config::RenderResolution));
 
 	std::vector<const char*> args = {
 		"-config", session.c_str(),
@@ -139,6 +141,7 @@ static void SpawnGuest(int screen, const std::string& session_id, const GdxsvMul
 		"-config", fullscreen.c_str(),
 		"-config", sender.c_str(),
 		"-config", renderer.c_str(),
+		"-config", resolution.c_str(),
 		"-config", "config:rend.VideoRouting=yes",
 		"-config", "config:rend.VideoRoutingScale=no",
 	};

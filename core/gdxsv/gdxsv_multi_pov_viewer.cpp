@@ -29,6 +29,8 @@ struct GdxsvViewerState {
 	bool release_requested = false;
 	std::thread::id ui_thread;
 	std::packaged_task<std::string()> prepare;
+	// The host's own render resolution while its session renders at half of it, 0 otherwise.
+	int resolution = 0;
 	// The loader reads only these results, never the graphics context itself.
 	std::atomic<const char*> unavailable{kNotReady};
 	std::atomic<bool> needs_probe{false};
@@ -97,6 +99,12 @@ void gdxsv_multi_pov_viewer_begin(const std::string& session) {
 	std::lock_guard<std::mutex> lock(viewer.mutex);
 	viewer.requested = session;
 	viewer.release_requested = false;
+	// Each screen fills a quadrant, so all four render at half the host's
+	// resolution, never below the lowest setting (Half).
+	if (viewer.resolution == 0) {
+		viewer.resolution = config::RenderResolution;
+		config::RenderResolution.override(std::max(240, viewer.resolution / 2));
+	}
 }
 
 void gdxsv_multi_pov_viewer_end() {
@@ -104,6 +112,13 @@ void gdxsv_multi_pov_viewer_end() {
 	viewer.requested.clear();
 	// A failed start may end before Tick ever displayed its session.
 	viewer.release_requested = true;
+	if (viewer.resolution != 0) {
+		// A transient or per-game value still wins over the one kept here.
+		config::RenderResolution.reset();
+		config::RenderResolution.set(viewer.resolution);
+		config::RenderResolution.load();
+		viewer.resolution = 0;
+	}
 }
 
 bool gdxsv_video_hidden_window() {
