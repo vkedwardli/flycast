@@ -87,7 +87,7 @@ class GdxsvReplayInputTest : public ::testing::Test {
 		replay_.seeking_ = false;
 		replay_.live_catching_up_ = false;
 	}
-	void NewDeliveryFrame() { replay_.deliver_last_mainui_ = 0xffffffffu; }
+	void NewDeliveryFrame() { ++replay_.next_frames_; }
 	bool IsFollowing() const { return replay_.live_following_; }
 	bool IsAtLiveEdge() const { return replay_.live_at_edge_; }
 	bool IsCatchingUp() const { return replay_.live_catching_up_; }
