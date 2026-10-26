@@ -142,6 +142,12 @@ msgstr "高解像度紋理"
 msgid "Use up-scaled textures."
 msgstr "遊戲內使用高品質圖檔"
 
+msgid "Use High-Resolution Font"
+msgstr "高解像度字型"
+
+msgid "Draw the game's text with a high-resolution font. Takes effect at the next game start."
+msgstr "遊戲內文字使用高解像度字型顯示，下次開始遊戲時生效"
+
 msgid ""
 "Run the emulated CPU and GPU on different threads.\n"
 "Can reduce the loading, but it may introduce a delay of 1 frame for input.\n"

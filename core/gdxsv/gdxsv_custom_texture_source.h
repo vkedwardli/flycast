@@ -14,7 +14,7 @@
 #include "../rend/CustomTexture.h"
 // clang-format on
 
-// gdxsv:FontRaster: DC2's text drawn from the embedded GDXGothic (gdxsv_font_raster_source.cpp). Added after the
+// gdxsv:FontRaster: DC1/DC2's text drawn from the embedded GDXGothic (gdxsv_font_raster_source.cpp). Added after the
 // data/textures folder and before the embedded and downloaded textures, so that it wins over them.
 class GdxsvFontRasterSource : public BaseCustomTextureSource, public GdxsvCellTextureSource {
    public:
@@ -54,7 +54,6 @@ class GdxsvEmbedTextureSource : public BaseCustomTextureSource, public GdxsvCell
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override;
 	void preloadTextures(TextureCallback callback, std::atomic<bool>* stop_flag) override;
-	u8* LoadCellTexture(u32 hash, int& width, int& height) override;
 	u8* LoadTexture(u32 hash, int& width, int& height) override {
 		return shouldReplace() && isTextureReplaced(hash) ? loadCustomTexture(hash, width, height) : nullptr;
 	}
@@ -78,7 +77,6 @@ class GdxsvTexturePackSource : public BaseCustomTextureSource, public GdxsvCellT
 	void terminate() override;
 	u8* loadCustomTexture(u32 hash, int& width, int& height) override;
 	bool isTextureReplaced(u32 hash) override;
-	u8* LoadCellTexture(u32 hash, int& width, int& height) override;
 	u8* LoadTexture(u32 hash, int& width, int& height) override {
 		return shouldReplace() && isTextureReplaced(hash) ? loadCustomTexture(hash, width, height) : nullptr;
 	}

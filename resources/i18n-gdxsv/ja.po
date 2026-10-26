@@ -109,6 +109,12 @@ msgstr "高解像度テクスチャを使用"
 msgid "Use up-scaled textures."
 msgstr "ゲーム内で高品質なテクスチャを使用します. "
 
+msgid "Use High-Resolution Font"
+msgstr "高解像度フォントを使用"
+
+msgid "Draw the game's text with a high-resolution font. Takes effect at the next game start."
+msgstr "ゲーム内の文字を高解像度フォントで描画します。次回のゲーム開始から反映されます。"
+
 msgid ""
 "Run the emulated CPU and GPU on different threads.\n"
 "Can reduce the loading, but it may introduce a delay of 1 frame for input.\n"

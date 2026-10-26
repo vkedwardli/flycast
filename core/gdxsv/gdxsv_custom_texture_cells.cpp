@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 gdxsv contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-// DC2 draws some text as one texture made of 32x32 glyph cells (the battle pilot name sheet).
-// A cell hashes like a 32x32 texture of the same format, so the glyph replacements also apply to the cells; the sources
-// may draw them in another style.
+// DC1/DC2 draws some text as one texture made of 32x32 glyph cells (the battle pilot name sheet).
+// A cell hashes like a 32x32 texture of the same format, so FontRaster draws the cells' glyphs too, in the battle name
+// style.
 
 #include "gdxsv_custom_texture_cells.h"
 

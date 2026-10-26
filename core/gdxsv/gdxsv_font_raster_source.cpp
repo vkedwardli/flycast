@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 gdxsv contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gdxsv:FontRaster's texture source: DC2's glyph textures and its battle-message sheet drawn from GDXGothic.
+// gdxsv:FontRaster's texture source: DC1/DC2's glyph textures and its battle-message sheet drawn from GDXGothic.
 
 #include <chrono>
 #include <cstdlib>
@@ -13,7 +13,7 @@
 
 namespace {
 
-// DC2's battle-message sheet: 256x256 texels, a grid of 20-texel cells holding the characters the game builds the
+// DC1/DC2's battle-message sheet: 256x256 texels, a grid of 20-texel cells holding the characters the game builds the
 // INFORMATION panel's messages (命中, 撃破, 地球連邦軍危険...) and the CPU partner's orders from, and the two army
 // emblems. The game shows these messages in Japanese whatever the translation.
 constexpr u32 kMessageSheetHash = 0xeb90a6d4;
