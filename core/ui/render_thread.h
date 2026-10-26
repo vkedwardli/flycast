@@ -22,6 +22,7 @@
 // only while none of them is needed and stops for them.
 #pragma once
 #include <exception>
+#include <functional>
 
 namespace renderthread
 {
@@ -46,5 +47,9 @@ void waitEvents(int timeoutMs);
 // Main thread: the window size or the display scale changed. Applied now, or by the render thread before its next
 // frame.
 void displayChanged(bool scaleChanged);
+
+// Render thread: stops it; the main thread runs task when it has the context back, before it starts the render
+// thread again. For what a graphics API allows only on the thread that created the device (DirectX 9 Reset).
+void runOnMainThread(std::function<void()> task);
 
 } // namespace renderthread

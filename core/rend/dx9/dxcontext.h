@@ -67,6 +67,8 @@ private:
 	bool init(bool keepCurrentWindow = false);
 	void term();
 	void resetDevice();
+	void createDevice(); // gdxsv: render thread
+	void switchVSync();
 
 	WinLibLoader d3d9Library{ "D3D9.DLL" };
 	ComPtr<IDirect3D9> pD3D;
