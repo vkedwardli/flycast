@@ -14,7 +14,7 @@ void gdxsv_custom_texture_queue_cells(const BaseTextureCacheData* texture);
 u8* gdxsv_custom_texture_build_cells(const BaseTextureCacheData* texture, int& width, int& height);
 
 // Render thread, when the load is queued (after custom_load_in_progress++): keeps a copy of the texture's cells from VRAM
-// if it is made of cells.
+// if it is made of cells, and lets the gdxsv sources keep the texels they draw over.
 inline void gdxsv_custom_texture_on_queue(const BaseTextureCacheData* texture) {
 	if (gdxsv_custom_texture_cells_on) gdxsv_custom_texture_queue_cells(texture);
 }

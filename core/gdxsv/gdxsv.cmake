@@ -284,6 +284,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/gdxsv_backend_udp.h
 		core/gdxsv/gdxsv_emu_hooks.cpp
 		core/gdxsv/gdxsv_emu_hooks.h
+		core/gdxsv/gdxsv_font_glyphs.inc
+		core/gdxsv/gdxsv_font_provider.cpp
+		core/gdxsv/gdxsv_font_provider.h
+		core/gdxsv/gdxsv_font_raster_source.cpp
 		core/gdxsv/gdxsv_frame_limiter.cpp
 		core/gdxsv/gdxsv_frame_limiter.h
 		core/gdxsv/gdxsv_net_report.cpp
@@ -343,6 +347,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 		core/gdxsv/mcs_message.h)
 
 set_source_files_properties(core/gdxsv/juice_helper.c PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/core/deps/libjuice/include/juice")
+
+# GDXGothic for FontRaster, embedded on every platform: resource::load("gdxsv/GDXGothic-Medium.otf")
+cmrc_add_resources(flycast-resources WHENCE core/gdxsv/Fonts PREFIX gdxsv
+		core/gdxsv/Fonts/GDXGothic-Medium.otf.zip)
 
 if(WIN32)
 	set(CMAKE_VS_SDK_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES})

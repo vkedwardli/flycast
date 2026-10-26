@@ -223,6 +223,10 @@ u8* GdxsvEmbedTextureSource::LoadExtraTexture(const char* name, bool v_flip, int
 
 GdxsvEmbedTextureSource::~GdxsvEmbedTextureSource() { gdxsv_custom_texture_cells_remove_source(this); }
 
+u8* GdxsvEmbedTextureSource::LoadCellTexture(u32 hash, int& width, int& height) {
+	return shouldReplace() ? loadCustomTexture(hash, width, height) : nullptr;
+}
+
 GdxsvTexturePackSource::GdxsvTexturePackSource() {
 	gdxsv_custom_texture_cells_add_source(this, true);
 }
@@ -380,6 +384,8 @@ u8* GdxsvTexturePackSource::loadCustomTexture(u32 hash, int& width, int& height)
 	return nullptr;
 }
 
-bool GdxsvTexturePackSource::isTextureReplaced(u32 hash) {
-	return texture_map.find(hash) != texture_map.end();
+bool GdxsvTexturePackSource::isTextureReplaced(u32 hash) { return texture_map.find(hash) != texture_map.end(); }
+
+u8* GdxsvTexturePackSource::LoadCellTexture(u32 hash, int& width, int& height) {
+	return shouldReplace() ? loadCustomTexture(hash, width, height) : nullptr;
 }

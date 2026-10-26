@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 // DC2 draws some text as one texture made of 32x32 glyph cells (the battle pilot name sheet).
-// A cell hashes like a 32x32 texture of the same format, so the glyph replacements also apply to the cells.
+// A cell hashes like a 32x32 texture of the same format, so the glyph replacements also apply to the cells; the sources
+// may draw them in another style.
 
 #include "gdxsv_custom_texture_cells.h"
 
@@ -18,7 +19,6 @@
 
 #include "gdxsv_custom_texture_hooks.h"
 #include "hw/pvr/pvr_mem.h"
-#include "rend/CustomTexture.h"
 #include "rend/TexCache.h"
 
 bool gdxsv_custom_texture_cells_on = false;
@@ -39,7 +39,7 @@ struct GdxsvTextureCells {
 
 struct GdxsvTextureCellsState {
 	// Set and cleared on the render thread while no load runs (CustomTexture::init / terminate).
-	std::vector<BaseCustomTextureSource*> sources;
+	std::vector<GdxsvCellTextureSource*> sources;
 
 	// The latest copy per texture, until its last queued load has run or the next load is queued (a load that found the
 	// texture's own replacement leaves it). A texture is not deleted while a load is queued.
@@ -53,9 +53,8 @@ bool is_cell_texture(const BaseTextureCacheData* t) {
 }
 
 u8* load_replacement(u32 hash, int& width, int& height) {
-	for (BaseCustomTextureSource* source : state.sources)
-		if (source->shouldReplace())
-			if (u8* data = source->loadCustomTexture(hash, width, height)) return data;
+	for (GdxsvCellTextureSource* source : state.sources)
+		if (u8* data = source->LoadCellTexture(hash, width, height)) return data;
 	return nullptr;
 }
 
@@ -115,12 +114,12 @@ u8* build(const GdxsvTextureCells& cells, int& width, int& height) {
 
 }  // namespace
 
-void gdxsv_custom_texture_cells_add_source(BaseCustomTextureSource* source, bool turn_on) {
+void gdxsv_custom_texture_cells_add_source(GdxsvCellTextureSource* source, bool turn_on) {
 	state.sources.push_back(source);
 	if (turn_on) gdxsv_custom_texture_cells_on = true;
 }
 
-void gdxsv_custom_texture_cells_remove_source(BaseCustomTextureSource* source) {
+void gdxsv_custom_texture_cells_remove_source(GdxsvCellTextureSource* source) {
 	state.sources.erase(std::remove(state.sources.begin(), state.sources.end(), source), state.sources.end());
 	if (state.sources.empty()) {
 		// terminate drops queued loads: their copies are never taken
@@ -130,7 +129,16 @@ void gdxsv_custom_texture_cells_remove_source(BaseCustomTextureSource* source) {
 	}
 }
 
+u8* gdxsv_custom_texture_cells_load_below(const GdxsvCellTextureSource* source, u32 hash, int& width, int& height) {
+	auto it = std::find(state.sources.begin(), state.sources.end(), source);
+	if (it == state.sources.end()) return nullptr;
+	for (++it; it != state.sources.end(); ++it)
+		if (u8* data = (*it)->LoadTexture(hash, width, height)) return data;
+	return nullptr;
+}
+
 void gdxsv_custom_texture_queue_cells(const BaseTextureCacheData* texture) {
+	for (GdxsvCellTextureSource* source : state.sources) source->OnLoadQueued(*texture);
 	if (!is_cell_texture(texture)) {
 		// A copy left by a deleted texture at the same address
 		std::lock_guard<std::mutex> lock(state.kept_mutex);
