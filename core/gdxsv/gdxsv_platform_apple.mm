@@ -9,8 +9,37 @@
 #endif
 
 #import <AppKit/AppKit.h>
+#import <AudioToolbox/AudioToolbox.h>
 #import <IOKit/IOKitLib.h>
 #import <SystemConfiguration/SystemConfiguration.h>
+
+#include <cstring>
+
+namespace {
+OSStatus RenderSilence(void *, AudioUnitRenderActionFlags *, const AudioTimeStamp *, UInt32, UInt32, AudioBufferList *data) {
+	for (UInt32 i = 0; i < data->mNumberBuffers; ++i) std::memset(data->mBuffers[i].mData, 0, data->mBuffers[i].mDataByteSize);
+	return noErr;
+}
+
+// A guest's sound reaches the host's mixer, not a device. Keeping a silent output running
+// makes it an app playing audio, which macOS does not move to the background role while
+// Game Mode runs the host in full screen. Runs for the life of the process.
+void StartSilentOutput() {
+	AudioComponentDescription description{kAudioUnitType_Output, kAudioUnitSubType_DefaultOutput, kAudioUnitManufacturer_Apple, 0, 0};
+	AudioComponent component = AudioComponentFindNext(nullptr, &description);
+	AudioUnit unit = nullptr;
+	if (component == nullptr || AudioComponentInstanceNew(component, &unit) != noErr) {
+		NSLog(@"multi-pov: no silent audio output");
+		return;
+	}
+	AURenderCallbackStruct callback{RenderSilence, nullptr};
+	if (AudioUnitSetProperty(unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback)) != noErr ||
+		AudioUnitInitialize(unit) != noErr || AudioOutputUnitStart(unit) != noErr) {
+		NSLog(@"multi-pov: silent audio output did not start");
+		AudioComponentInstanceDispose(unit);
+	}
+}
+}  // namespace
 
 bool gdxsv_emu_app_init(int argc, const char *const argv[]) {
 #if defined(VIDEO_ROUTING) && defined(USE_SDL) && !defined(LIBRETRO)
@@ -37,6 +66,7 @@ bool gdxsv_emu_app_init(int argc, const char *const argv[]) {
 	SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");
 	if (![[NSApplication sharedApplication] setActivationPolicy:NSApplicationActivationPolicyAccessory])
 		NSLog(@"multi-pov: could not hide the guest from the Dock");
+	StartSilentOutput();
 	return true;
 #else
 	return false;
