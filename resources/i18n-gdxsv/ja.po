@@ -760,3 +760,45 @@ msgstr "ラウンド %d/%d  %d/%d fr"
 
 msgid "Frame %d"
 msgstr "フレーム %d"
+
+msgid "Updating texture"
+msgstr "テクスチャの更新"
+
+msgid "Updating..."
+msgstr "更新中..."
+
+msgid "Update Completed"
+msgstr "更新が完了しました"
+
+msgid "Continue"
+msgstr "続ける"
+
+msgid "Update Failed"
+msgstr "更新に失敗しました"
+
+msgid "New version"
+msgstr "新しいバージョン"
+
+msgid "%s is available for download!"
+msgstr "%s にアップデートできます"
+
+msgid "Please move Flycast-gdxsv.app to the /Applications folder, then reopen it to use the auto updater. Or download it and update manually."
+msgstr "自動アップデートを使うには、Flycast-gdxsv.app を /Applications フォルダに移動してから開き直してください。または、ダウンロードして手動で更新してください。"
+
+msgid "Update"
+msgstr "アップデート"
+
+msgid "Download"
+msgstr "ダウンロード"
+
+msgid "Download Completed"
+msgstr "ダウンロードが完了しました"
+
+msgid "Please restart the emulator"
+msgstr "エミュレータを再起動してください"
+
+msgid "Download Failed"
+msgstr "ダウンロードに失敗しました"
+
+msgid "Please download the latest version manually"
+msgstr "最新版を手動でダウンロードしてください"
