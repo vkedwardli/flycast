@@ -618,7 +618,7 @@ void uploadCrashes(const std::string& directory)
 			}
 		}
 	}
-	http::term();
+	// gdxsv: no http::term(): it closed the shared WinINet handle under the boxart scraper and the other requests running
 	fclose(f);
 	if (!uploadFailure)
 		nowide::remove((directory + "/" FLYCAST_CRASH_LIST).c_str());
