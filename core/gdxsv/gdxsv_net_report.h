@@ -18,6 +18,9 @@ class P2PMatchingReport;
 
 // Drops the samples of the last session.
 void gdxsv_net_report_reset();
+// The frames of the session with a rollback_slack sample; with some, `median` is the median of rollback_slack in
+// emulated frames: the depth of a rollback that fits in a frame, a rollback frame costing as much as the emulation.
+int gdxsv_net_report_slack_frames(double* median);
 // A frame was presented (vsync blocking included).
 void gdxsv_net_report_present();
 // DXGI frame statistics after a Present: the swap chain Present count, the last Present shown, the vsync it was

@@ -61,6 +61,7 @@ A failed ROM load still exits with code 0, so the suite checks the logs, not the
 | D6 | Relay server across IP families | a dual-stack local relay, `TEST_RELAY=server`, `TEST_RELAY_IPV6=::1` | peers 1-2 get only a reachable IPv6 address for the relay and pick it, peers 3-4 use IPv4 (the relay binds 2 and 2), peer 0 relays to everyone, common checks. The relay listens on all addresses, which may raise a firewall prompt |
 | D7 | Lower RTT wins between relays | a local relay, `TEST_RELAY=fair` | p1 reaches p4 through the relay server (~35 ms) rather than through p2 (50 ms), though the server is less than 16 ms faster; common checks |
 | D8 | Symmetric NAT peer | a local relay, `TEST_RELAY=nat` | p2 reaches only p4 in the ping test, and the way through p4 is slow; p1 and p3 reach p2, and p2 reaches them, through the relay server (`Relay:2`), using the relay RTTs p4 passed on; common checks. With `--old-exe`/`--old-release`, again with p2 on that build: p1 and p3 still pick the relay server and p2 answers through it |
+| E1 | Rollback budget update | one match from fresh directories | every peer uses `rollback_budget=1.00`, logs the update over at least 1800 frames as halfway to clamp(fit − 1, 0, 1.5) and saves it (`emu.cfg` `RollbackBudget`); common checks |
 
 ## Test-only switches (environment variables)
 

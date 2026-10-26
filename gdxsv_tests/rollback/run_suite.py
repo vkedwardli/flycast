@@ -11,6 +11,7 @@ import contextlib
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -452,6 +453,32 @@ def _d8_paths(m: Match) -> Tuple[List[str], List[str]]:
     return bad, picks
 
 
+# --- E. Input delay ------------------------------------------------------------
+
+def e1_rollback_budget(s: Settings) -> Result:
+    """From fresh directories: every peer uses the default budget 1.00, and the session end saves the update."""
+    m = lib.run_match(s, "E1", [s.exe] * 4, DELAYS)
+    bad, notes = common(m), [summary(m)]
+    for p in m.peers:
+        used = re.findall(r"max_rtt=[\d.]+ rollback_budget=([\d.]+) delay=\d+", p.log)
+        update = re.findall(r"rollback budget: fits ([\d.]+) frames \((\d+) frames\), budget ([\d.]+) -> ([\d.]+)", p.log)
+        with open(os.path.join(p.inst.config_dir, "emu.cfg"), encoding="utf-8") as f:
+            saved = re.findall(r"^RollbackBudget\s*=\s*([\d.]+)", f.read(), re.M)
+        notes.append(f"p{p.index}: used {used}, update {update}, saved {saved}")
+        if used != ["1.00"]:
+            bad.append(f"p{p.index}: did not use the default budget 1.00: {used}")
+        if len(update) != 1:
+            bad.append(f"p{p.index}: no budget update at the session end")
+            continue
+        fits, frames, old, new = float(update[0][0]), int(update[0][1]), float(update[0][2]), float(update[0][3])
+        want = 0.5 * old + 0.5 * min(max(fits - 1, 0.0), 1.5)
+        if frames < 1800 or abs(new - want) > 0.01:
+            bad.append(f"p{p.index}: update {update[0]}, expected {want:.2f} over at least 1800 frames")
+        if not saved or abs(float(saved[-1]) - new) > 0.005:
+            bad.append(f"p{p.index}: emu.cfg RollbackBudget {saved}, logged {new:.2f}")
+    return verdict(bad, notes)
+
+
 # Cases that run release builds, which always use the default ports, so they never run alongside each other.
 DEFAULT_PORT_CASES = {"A3", "A4"}
 
@@ -475,6 +502,7 @@ CASES: Dict[str, Tuple[str, Callable[[Settings], Result], int, bool]] = {
     "D6": ("relay server between IPv6 and IPv4 peers", d6_relay_server_ipv6, 1, False),
     "D7": ("relaying peer and relay server: the lower RTT wins", d7_relay_lower_rtt_wins, 1, False),
     "D8": ("symmetric NAT peer reached through the relay server", d8_relay_server_symmetric_nat, 1, False),
+    "E1": ("rollback budget updated and saved at the battle end", e1_rollback_budget, 1, False),
 }
 
 

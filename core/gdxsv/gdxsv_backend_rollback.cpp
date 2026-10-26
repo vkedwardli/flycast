@@ -15,6 +15,7 @@
 #include "gdxsv.pb.h"
 #include "gdxsv_config.h"
 #include "gdxsv_emu_hooks.h"
+#include "gdxsv_ggpo_hooks.h"
 #include "gdxsv_net_report.h"
 #include "gdxsv_press_sweep.h"
 #include "gdxsv_replay_util.h"
@@ -390,17 +391,18 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 		}
 
 		if (ok) {
-			// The one-way latency is split into a rollback budget and an input delay budget.
+			// The one-way latency is split into a rollback budget (by how deep a rollback this PC fits) and an input
+			// delay budget.
 			constexpr double kFrameMs = 1000.0 / 59.94;
-			constexpr double kRollbackBudgetFrames = 1.5;
+			const double rollback_budget_frames = gdxsv_rollback_budget();
 			const double latency_frames = max_rtt / 2.0 / kFrameMs;
-			const double delay_budget_frames = latency_frames - kRollbackBudgetFrames;
+			const double delay_budget_frames = latency_frames - rollback_budget_frames;
 			int delay = std::max<int>({2, config::GdxMinDelay.get(), static_cast<int>(std::ceil(delay_budget_frames))});
 			// Local test only: a fixed input delay, so a large GGPO_NETWORK_DELAY means deep prediction.
 			if (const char* fixed = is_local_test_ ? getenv("TEST_GGPO_DELAY") : nullptr) {
 				delay = atoi(fixed);
 			}
-			NOTICE_LOG(COMMON, "max_rtt=%.2f delay=%d", max_rtt, delay);
+			NOTICE_LOG(COMMON, "max_rtt=%.2f rollback_budget=%.2f delay=%d", max_rtt, rollback_budget_frames, delay);
 			report_.set_input_delay(delay);
 			report_.mutable_render()->set_threaded_rendering(config::ThreadedRendering);
 			report_.mutable_render()->set_vsync(config::VSync);

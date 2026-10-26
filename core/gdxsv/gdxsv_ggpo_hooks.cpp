@@ -4,11 +4,14 @@
 
 #include <xxhash.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <nowide/cstdio.hpp>
 #include <string>
 
 #include "cfg/cfg.h"
+#include "gdxsv_config.h"
+#include "gdxsv_net_report.h"
 #include "log/Log.h"
 #include "stdclass.h"
 
@@ -28,7 +31,26 @@ void CloseHashLog() {
 		hashLogFile = nullptr;
 	}
 }
+
+constexpr float kRollbackBudgetMax = 1.5f;
+constexpr int kRollbackBudgetMinFrames = 1800;
+
+// The session's budget is the rollback depth that fits in a frame, minus the frame the input is sent after the
+// Present; the setting moves halfway to it.
+void UpdateRollbackBudget() {
+	double fits = 0;
+	const int frames = gdxsv_net_report_slack_frames(&fits);
+	if (frames < kRollbackBudgetMinFrames) return;
+	const float session = std::clamp(static_cast<float>(fits - 1), 0.f, kRollbackBudgetMax);
+	const float old = gdxsv_rollback_budget();
+	config::GdxRollbackBudget = 0.5f * old + 0.5f * session;
+	config::GdxRollbackBudget.save();
+	NOTICE_LOG(COMMON, "rollback budget: fits %.2f frames (%d frames), budget %.2f -> %.2f", fits, frames, old,
+			   config::GdxRollbackBudget.get());
+}
 }  // namespace
+
+float gdxsv_rollback_budget() { return std::clamp(config::GdxRollbackBudget.get(), 0.f, kRollbackBudgetMax); }
 
 void gdxsv_ggpo_session_start() {
 	gdxsv_ggpo_state.inputBeforeAdvance = false;
@@ -47,6 +69,7 @@ void gdxsv_ggpo_session_start() {
 void gdxsv_ggpo_session_stop() {
 	CloseHashLog();
 	gdxsv_net_report_session_stop();
+	UpdateRollbackBudget();
 }
 
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len) {

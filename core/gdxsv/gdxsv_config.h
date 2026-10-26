@@ -16,6 +16,8 @@ extern Option<int> GdxWidescreenHudLayout;	// 0: stock 4:3, 1: up to 16:9, 2: vi
 extern OptionString GdxTexturePackChannel;
 extern Option<int> GdxLocalPort;
 extern Option<int> GdxMinDelay;
+// Frames of the one-way latency left to rollback rather than to input delay; updated after each battle
+extern Option<float> GdxRollbackBudget;
 extern Option<bool> GdxSaveReplay;
 extern Option<bool> GdxUploadReplay;
 extern Option<std::string, false> GdxReplayPath;  // empty: data/replays
