@@ -72,7 +72,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | macOS application launch | `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` | `CustomApplicationMain` calls `gdxsv_emu_app_init` before AppKit initialization and skips foreground activation so hidden guests do not take keyboard focus |
 | Network | `core/network/miniupnp.cpp/.h` | UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
-| Textures | `core/rend/CustomTexture.cpp` | text drawn from the embedded font, embedded and downloaded texture packs for the game (`T13306M`); its glyph-cell textures built from the glyph replacements |
+| Textures | `core/rend/CustomTexture.cpp` | text drawn from the embedded font, embedded and downloaded texture packs for the game (`T13306M`); its glyph-cell textures drawn from the embedded font |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
 | Build | `CMakeLists.txt`, `tests/CMakeLists.txt`, `resources/resources.cmake`, `.gitignore` | `include(core/gdxsv/gdxsv.cmake)` (gdxsv sources, protobuf), build options, gdxsv tests and resources |
@@ -281,7 +281,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rec-x64/rec_x64.cpp` |  | block linking |
 | `core/rend/CustomTexture.cpp` |  | include `gdxsv/gdxsv_custom_texture_source.h` |
 | `core/rend/CustomTexture.cpp` | `CustomTexture::loadTexture` | `gdxsv_custom_texture_load_cells` |
-| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC2 text drawn from the embedded font, embedded textures and the downloaded texture pack |
+| `core/rend/CustomTexture.cpp` | `CustomTexture::init` | DC1/DC2 text drawn from the embedded font, embedded textures and the downloaded texture pack |
 | `core/rend/CustomTexture.cpp` | `CustomTexture::loadCustomTextureAsync` | `gdxsv_custom_texture_on_queue` |
 | `core/rend/TexCache.cpp` |  | render snapshots |
 | `core/rend/TexCache.cpp` | `vramlock_list_add` | with render snapshots, the textures of the written pages are invalidated from the snapshot instead |

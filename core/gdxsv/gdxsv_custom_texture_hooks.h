@@ -7,7 +7,7 @@ class BaseTextureCacheData;
 
 // Called by the custom texture loader (core/rend/CustomTexture.cpp).
 
-// On while the gdxsv texture pack source exists (DC2 only): the game draws text as textures made of 32x32 glyph cells.
+// On while the gdxsv FontRaster source exists (T13306M only, both discs): the game draws text as textures made of 32x32 glyph cells.
 extern bool gdxsv_custom_texture_cells_on;
 
 void gdxsv_custom_texture_queue_cells(const BaseTextureCacheData* texture);

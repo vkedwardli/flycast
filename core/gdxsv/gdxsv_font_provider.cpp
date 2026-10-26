@@ -42,7 +42,7 @@ constexpr float kBaseline = 21.12f;
 // A smaller or shorter glyph is scaled about the middle of its cell (x 12, or 6 if half-width), 12 game px below the top.
 constexpr float kMiddleY = 12.f;
 
-// DC2's glyph edge as the GPU draws it, measured from the game font: straight luminance and alpha by signed distance
+// DC1/DC2's glyph edge as the GPU draws it, measured from the game font: straight luminance and alpha by signed distance
 // (game px, + outside) from the 0.5 coverage outline. Before the first row: 1, 1; after the last: 0, 0.
 struct GdxsvEdgeRow {
 	float distance;

@@ -237,6 +237,9 @@ void gdxsv_gui_settings_tab()
 		gdxsv_custom_texture_update.Reset();
 	}
 
+	OptionCheckbox(T("Use High-Resolution Font"), config::GdxFontRaster,
+		T("Draw the game's text with a high-resolution font. Takes effect at the next game start."));
+
 #ifdef _WIN32
 	OptionCheckbox(T("Joystick Polling"), config::JoystickPolling,
 		T("Use polling instead of events for joystick input. May improve input latency in multi-threaded mode."));
