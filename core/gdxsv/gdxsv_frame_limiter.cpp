@@ -14,8 +14,8 @@
 #include "log/Log.h"
 #include "ui/gui.h"
 
-// When the next frame is due.
-static std::chrono::time_point<std::chrono::steady_clock> nextFrame;
+// When the last frame woke.
+static std::chrono::time_point<std::chrono::steady_clock> start;
 static bool currentDupeFrames;
 
 static int64_t gdxsv_frame_period_us() {
@@ -45,7 +45,7 @@ static int64_t gdxsv_trimmed_frame_period_us() {
 void gdxsv_emu_mainui_loop_start() {
 	currentDupeFrames = config::DupeFrames;
 	gdxsv_set_timer_resolution();
-	nextFrame = {};
+	start = {};
 }
 
 void gdxsv_emu_mainui_loop_end() {
@@ -64,7 +64,7 @@ void gdxsv_frame_limiter_wait() {
 	// thread; the native rate stands in for it. Headless has no display: it runs unthrottled, as it did.
 	const bool on = config::FixedFrequency || (!config::LimitFPS && !gdxsv_headless());
 	if (!on || gui_is_open() || settings.input.fastForwardMode) {
-		nextFrame = {};
+		start = {};
 		gdxsv_net_report_limiter_off();
 		return;
 	}
@@ -72,19 +72,14 @@ void gdxsv_frame_limiter_wait() {
 	const auto period = std::chrono::microseconds(gdxsv_trimmed_frame_period_us());
 	int64_t overSlept = 0;
 
+	// A period from the last wake: a late frame is not paid back by shorter ones.
 	const auto called = std::chrono::steady_clock::now();
-	auto now = called;
-	if (nextFrame == decltype(nextFrame){}) nextFrame = now;
-	const auto remaining = std::chrono::duration_cast<std::chrono::microseconds>(nextFrame - now).count();
+	const auto remaining = start == decltype(start){} ? 0 : (period - std::chrono::duration_cast<std::chrono::microseconds>(called - start)).count();
 	if (remaining > 0)
 		overSlept = gdxsv_sleep_and_busy_wait(remaining);
 
-	// The schedule is absolute: a frame late by less than a period is paid back by the next waits.
-	// A frame late by a period or more skips whole periods, so a stall is not followed by a burst
-	// of short frames.
-	now = std::chrono::steady_clock::now();
-	if (now - nextFrame >= period) nextFrame += (now - nextFrame) / period * period;
-	nextFrame += period;
+	const auto now = std::chrono::steady_clock::now();
+	start = now;
 	// arg: the slack waited before this wake, us; negative: the frame was late
 	GDXSV_PERF_TRACE("wake", -1, remaining);
 	gdxsv_net_report_wake(called, now, period.count());
