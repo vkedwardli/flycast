@@ -573,107 +573,94 @@ static void textCentered(const ImVec4& color, const std::string& text) {
 	ImGui::TextColored(color, text.c_str());
 }
 
+static std::string icon_label(const char* icon, const char* label) { return std::string(icon) + "  " + label; }
+
+// Two buttons side by side filling the dialog's width; returns 1 or 2 for the one pressed, 0 for none
+static int dialog_button_pair(const std::string& first, const std::string& second) {
+	const float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2.f;
+	int pressed = 0;
+	if (ImGui::Button(first.c_str(), ImVec2(w, uiScaled(40.f)))) pressed = 1;
+	ImGui::SameLine();
+	if (ImGui::Button(second.c_str(), ImVec2(w, uiScaled(40.f)))) pressed = 2;
+	return pressed;
+}
+
+static void push_update_dialog_style() {
+	ImGui::SetNextWindowSize(ScaledVec2(460, 0));
+	centerNextWindow();
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ScaledVec2(20, 20));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ScaledVec2(12, 16));
+}
+
 static void gdxsv_update_popup() {
 	static bool update_popup_shown = false;
 	static std::shared_future<bool> self_update_result;
 	bool no_popup_opened = !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
 
 	if (gdxsv_update.IsUpdateAvailable() && !update_popup_shown && no_popup_opened) {
-		ImGui::OpenPopup("New version");
+		ImGui::OpenPopup("###NewVersion");
 	}
 
-	if (ImGui::BeginPopupModal("New version", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
-		ImGui::TextWrapped("  %s is available for download!  ", gdxsv_update.GetLatestVersionTag().c_str());
-		ImGui::PopTextWrapPos();
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
-		float currentwidth = ImGui::GetContentRegionAvail().x;
+	push_update_dialog_style();
+	const std::string new_version_title = std::string(i18n::T("New version")) + "###NewVersion";
+	if (ImGui::BeginPopupModal(new_version_title.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+		ImGui::TextWrapped(i18n::T("%s is available for download!"), gdxsv_update.GetLatestVersionTag().c_str());
 		const bool app_translocated = GdxsvUpdate::IsAppTranslocated();
 		if (app_translocated) {
-			ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + uiScaled(400.f));
-			ImGui::TextWrapped("Please move Flycast-gdxsv.app to the /Applications folder, then reopen it to use the auto updater. Or download it and update manually.");
-			ImGui::PopTextWrapPos();
-			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
-			if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
-				gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
-				update_popup_shown = true;
-				ImGui::CloseCurrentPopup();
-			}
-
-			ImGui::SameLine();
-			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
-			if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
-				update_popup_shown = true;
-				ImGui::CloseCurrentPopup();
-			}
-		} else {
-			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x - uiScaled(55.f));
-			if (GdxsvUpdate::IsSupportSelfUpdate()) {
-				if (ImGui::Button("Update", ScaledVec2(100.f, 0.f))) {
-					self_update_result = gdxsv_update.StartSelfUpdate();
-					update_popup_shown = true;
-					ImGui::CloseCurrentPopup();
-				}
-			} else {
-				if (ImGui::Button("Download", ScaledVec2(100.f, 0.f))) {
-					gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
-					update_popup_shown = true;
-					ImGui::CloseCurrentPopup();
-				}
-			}
-
-			ImGui::SameLine();
-			ImGui::SetCursorPosX((currentwidth - uiScaled(100.f)) / 2.f + ImGui::GetStyle().WindowPadding.x + uiScaled(55.f));
-			if (ImGui::Button("Cancel", ScaledVec2(100.f, 0.f))) {
-				update_popup_shown = true;
-				ImGui::CloseCurrentPopup();
-			}
+			ImGui::TextWrapped("%s", i18n::T("Please move Flycast-gdxsv.app to the /Applications folder, then reopen it to use the auto updater. Or download it and update manually."));
 		}
-		ImGui::SetItemDefaultFocus();
-		ImGui::PopStyleVar();
+		const bool self_update = !app_translocated && GdxsvUpdate::IsSupportSelfUpdate();
+		const int pressed = dialog_button_pair(self_update ? icon_label(ICON_FA_CIRCLE_ARROW_UP, i18n::T("Update"))
+														   : icon_label(ICON_FA_DOWNLOAD, i18n::T("Download")),
+											   icon_label(ICON_FA_XMARK, i18n::T("Cancel")));
+		if (pressed == 1) {
+			if (self_update)
+				self_update_result = gdxsv_update.StartSelfUpdate();
+			else
+				gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
+		}
+		if (pressed != 0) {
+			update_popup_shown = true;
+			ImGui::CloseCurrentPopup();
+		}
 		ImGui::EndPopup();
 	}
+	ImGui::PopStyleVar(2);
 
 	if (self_update_result.valid() && no_popup_opened) {
-		ImGui::OpenPopup("Update");
+		ImGui::OpenPopup("###SelfUpdate");
 	}
 
-	ImGui::SetNextWindowSize(ScaledVec2(340, 0));
-	centerNextWindow();
-	ImVec2 padding = ScaledVec2(20, 20);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
-	if (ImGui::BeginPopupModal("Update", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
-
+	push_update_dialog_style();
+	const std::string update_title = std::string(i18n::T("Update")) + "###SelfUpdate";
+	if (ImGui::BeginPopupModal(update_title.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
-				textCentered(ImVec4(0, 0.8, 0, 1), "Download Completed");
-				textCentered("Please restart the emulator");
+				textCentered(ImVec4(0, 0.8, 0, 1), i18n::T("Download Completed"));
+				textCentered(i18n::T("Please restart the emulator"));
 
-				if (ImGui::Button("Exit", ScaledVec2(300, 30))) {
+				if (ImGui::Button(icon_label(ICON_FA_POWER_OFF, i18n::T("Exit")).c_str(), ScaledVec2(-1, 40))) {
 					self_update_result = {};
 					ImGui::CloseCurrentPopup();
 					dc_exit();
 				}
 			} else {
-				textCentered(ImVec4(0.8, 0, 0, 1), "Download Failed");
-				textCentered("Please download the latest version manually");
+				textCentered(ImVec4(0.8, 0, 0, 1), i18n::T("Download Failed"));
+				textCentered(i18n::T("Please download the latest version manually"));
 
-				if (ImGui::Button("Download", ScaledVec2(300, 30))) {
+				if (ImGui::Button(icon_label(ICON_FA_DOWNLOAD, i18n::T("Download")).c_str(), ScaledVec2(-1, 40))) {
 					self_update_result = {};
 					gdxsv_open_url(GdxsvUpdate::DownloadPageURL());
 					ImGui::CloseCurrentPopup();
 				}
 			}
 		} else {
-			ImGui::Text("Updating...");
+			ImGui::TextUnformatted(i18n::T("Updating..."));
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ScaledVec2(-1, 20.f));
+			ImGui::ProgressBar(gdxsv_update.SelfUpdateProgress(), ScaledVec2(-1, 24.f));
 			ImGui::PopStyleColor();
 		}
 		ImGui::SetItemDefaultFocus();
-		ImGui::PopStyleVar();
 		ImGui::EndPopup();
 	}
 	ImGui::PopStyleVar(2);
@@ -690,36 +677,34 @@ static void gdxsv_texture_update_popup() {
 	}
 
 	if (self_update_result.valid() && no_popup_opened) {
-		ImGui::OpenPopup("Updating texture");
+		ImGui::OpenPopup("###UpdatingTexture");
 	}
 
-	ImGui::SetNextWindowSize(ScaledVec2(340, 0));
-	centerNextWindow();
-	ImVec2 padding = ScaledVec2(20, 20);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
-	if (ImGui::BeginPopupModal("Updating texture", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ScaledVec2(16.f, 3.f));
-
+	push_update_dialog_style();
+	const std::string title = std::string(i18n::T("Updating texture")) + "###UpdatingTexture";
+	if (ImGui::BeginPopupModal(title.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
 		if (self_update_result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
 			if (self_update_result.get()) {
-				textCentered(ImVec4(0, 0.8, 0, 1), "Update Completed");
-				if (ImGui::Button("Continue", ScaledVec2(300, 30))) {
+				textCentered(ImVec4(0, 0.8, 0, 1), i18n::T("Update Completed"));
+				if (ImGui::Button(icon_label(ICON_FA_CHECK, i18n::T("Continue")).c_str(), ScaledVec2(-1, 40))) {
 					self_update_result = {};
 					ImGui::CloseCurrentPopup();
 				}
 			} else {
-				textCentered(ImVec4(0.8, 0, 0, 1), "Update Failed");
+				textCentered(ImVec4(0.8, 0, 0, 1), i18n::T("Update Failed"));
+				if (ImGui::Button(icon_label(ICON_FA_XMARK, i18n::T("Close")).c_str(), ScaledVec2(-1, 40))) {
+					self_update_result = {};
+					ImGui::CloseCurrentPopup();
+				}
 			}
 		} else {
-			ImGui::Text("Updating...");
+			ImGui::TextUnformatted(i18n::T("Updating..."));
 			ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.557f, 0.268f, 0.965f, 1.f));
-			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ScaledVec2(-1, 20.f));
+			ImGui::ProgressBar(gdxsv_custom_texture_update.UpdateProgress(), ScaledVec2(-1, 24.f));
 			ImGui::PopStyleColor();
 		}
 
 		ImGui::SetItemDefaultFocus();
-		ImGui::PopStyleVar();
 		ImGui::EndPopup();
 	}
 	ImGui::PopStyleVar(2);
