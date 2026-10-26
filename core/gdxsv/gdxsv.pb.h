@@ -356,9 +356,10 @@ class P2PMatchingReport PROTOBUF_FINAL :
     kLateFrames2FieldNumber = 29,
     kDroppedFramesFieldNumber = 30,
     kRelayForwardedFieldNumber = 32,
-    kDisplayRefreshPeriodNsFieldNumber = 49,
     kDisplayStatsPresentsFieldNumber = 45,
     kDisplayComposedPresentsFieldNumber = 47,
+    kDisplayRefreshPeriodNsFieldNumber = 49,
+    kCfgRollbackBudgetFieldNumber = 50,
   };
   // repeated float fps_history = 15;
   int fps_history_size() const;
@@ -884,15 +885,6 @@ class P2PMatchingReport PROTOBUF_FINAL :
   void _internal_set_relay_forwarded(::PROTOBUF_NAMESPACE_ID::int32 value);
   public:
 
-  // int32 display_refresh_period_ns = 49;
-  void clear_display_refresh_period_ns();
-  ::PROTOBUF_NAMESPACE_ID::int32 display_refresh_period_ns() const;
-  void set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_refresh_period_ns() const;
-  void _internal_set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value);
-  public:
-
   // int32 display_stats_presents = 45;
   void clear_display_stats_presents();
   ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents() const;
@@ -909,6 +901,24 @@ class P2PMatchingReport PROTOBUF_FINAL :
   private:
   ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_composed_presents() const;
   void _internal_set_display_composed_presents(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // int32 display_refresh_period_ns = 49;
+  void clear_display_refresh_period_ns();
+  ::PROTOBUF_NAMESPACE_ID::int32 display_refresh_period_ns() const;
+  void set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_display_refresh_period_ns() const;
+  void _internal_set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // float cfg_rollback_budget = 50;
+  void clear_cfg_rollback_budget();
+  float cfg_rollback_budget() const;
+  void set_cfg_rollback_budget(float value);
+  private:
+  float _internal_cfg_rollback_budget() const;
+  void _internal_set_cfg_rollback_budget(float value);
   public:
 
   // @@protoc_insertion_point(class_scope:proto.P2PMatchingReport)
@@ -961,9 +971,10 @@ class P2PMatchingReport PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::int32 late_frames_2_;
   ::PROTOBUF_NAMESPACE_ID::int32 dropped_frames_;
   ::PROTOBUF_NAMESPACE_ID::int32 relay_forwarded_;
-  ::PROTOBUF_NAMESPACE_ID::int32 display_refresh_period_ns_;
   ::PROTOBUF_NAMESPACE_ID::int32 display_stats_presents_;
   ::PROTOBUF_NAMESPACE_ID::int32 display_composed_presents_;
+  ::PROTOBUF_NAMESPACE_ID::int32 display_refresh_period_ns_;
+  float cfg_rollback_budget_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_gdxsv_2eproto;
 };
@@ -8132,6 +8143,26 @@ inline void P2PMatchingReport::_internal_set_display_refresh_period_ns(::PROTOBU
 inline void P2PMatchingReport::set_display_refresh_period_ns(::PROTOBUF_NAMESPACE_ID::int32 value) {
   _internal_set_display_refresh_period_ns(value);
   // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.display_refresh_period_ns)
+}
+
+// float cfg_rollback_budget = 50;
+inline void P2PMatchingReport::clear_cfg_rollback_budget() {
+  cfg_rollback_budget_ = 0;
+}
+inline float P2PMatchingReport::_internal_cfg_rollback_budget() const {
+  return cfg_rollback_budget_;
+}
+inline float P2PMatchingReport::cfg_rollback_budget() const {
+  // @@protoc_insertion_point(field_get:proto.P2PMatchingReport.cfg_rollback_budget)
+  return _internal_cfg_rollback_budget();
+}
+inline void P2PMatchingReport::_internal_set_cfg_rollback_budget(float value) {
+  
+  cfg_rollback_budget_ = value;
+}
+inline void P2PMatchingReport::set_cfg_rollback_budget(float value) {
+  _internal_set_cfg_rollback_budget(value);
+  // @@protoc_insertion_point(field_set:proto.P2PMatchingReport.cfg_rollback_budget)
 }
 
 // -------------------------------------------------------------------

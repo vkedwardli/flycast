@@ -404,6 +404,7 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 			}
 			NOTICE_LOG(COMMON, "max_rtt=%.2f rollback_budget=%.2f delay=%d", max_rtt, rollback_budget_frames, delay);
 			report_.set_input_delay(delay);
+			report_.set_cfg_rollback_budget(config::GdxRollbackBudget.get());
 			report_.mutable_render()->set_threaded_rendering(config::ThreadedRendering);
 			report_.mutable_render()->set_vsync(config::VSync);
 			report_.mutable_render()->set_renderer(static_cast<int>(config::RendererType.get()));
