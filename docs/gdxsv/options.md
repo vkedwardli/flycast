@@ -26,6 +26,7 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `WidescreenHudLayout` | 1 | HUD in widescreen: 0 stock 4:3, 1 up to 16:9, 2 viewport edges |
 | `LocalPort` | 0 | UDP port for battles; 0 picks a random one |
 | `MinDelay` | 2 | lowest input delay of a rollback battle and of a takeover, in frames |
+| `RollbackBudget` | 1.0 | frames of the one-way latency a rollback battle leaves to rollback rather than to input delay (0 to 1.5); not on the settings page: each battle of 1800 frames or more moves it halfway to the depth of rollback this PC fits in a frame, minus 1 |
 | `SaveReplay` | yes | save every battle as a replay |
 | `UploadReplay` | yes | upload saved replays |
 | `ReplayPath` | empty | replay folder; empty is `data/replays` |

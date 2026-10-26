@@ -605,6 +605,7 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_composed_presents_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_late_depth_hist_),
   PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, display_refresh_period_ns_),
+  PROTOBUF_FIELD_OFFSET(::proto::P2PMatchingReport, cfg_rollback_budget_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::proto::FrameTiming, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -884,32 +885,32 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_gdxsv_2eproto::offsets[] PROTO
 };
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, sizeof(::proto::P2PMatchingReport)},
-  { 44, -1, sizeof(::proto::FrameTiming)},
-  { 53, -1, sizeof(::proto::TimingStats)},
-  { 67, -1, sizeof(::proto::RemotePeerReport)},
-  { 79, -1, sizeof(::proto::RenderSettings)},
-  { 88, -1, sizeof(::proto::P2PMatching)},
-  { 104, -1, sizeof(::proto::PlayerAddress)},
-  { 114, -1, sizeof(::proto::RelayServer)},
-  { 124, -1, sizeof(::proto::GamePatch)},
-  { 133, -1, sizeof(::proto::GamePatchCode)},
-  { 142, -1, sizeof(::proto::GamePatchList)},
-  { 148, -1, sizeof(::proto::BattleLogUser)},
-  { 165, -1, sizeof(::proto::BattleLogRound)},
-  { 172, -1, sizeof(::proto::SpectatorInputPush)},
-  { 191, -1, sizeof(::proto::SpectatorInputAck)},
-  { 202, -1, sizeof(::proto::SpectatorSubscribeRequest)},
-  { 210, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
-  { 217, -1, sizeof(::proto::SpectatorRoundEvent)},
-  { 226, -1, sizeof(::proto::SpectatorRoundResult)},
-  { 235, -1, sizeof(::proto::BattleLogFile)},
-  { 256, -1, sizeof(::proto::BattleMessage)},
-  { 264, -1, sizeof(::proto::PingMessage)},
-  { 271, -1, sizeof(::proto::PongMessage)},
-  { 279, -1, sizeof(::proto::HelloServerMessage)},
-  { 287, -1, sizeof(::proto::FinMessage)},
-  { 293, -1, sizeof(::proto::HelloLbsMessage)},
-  { 299, -1, sizeof(::proto::Packet)},
+  { 45, -1, sizeof(::proto::FrameTiming)},
+  { 54, -1, sizeof(::proto::TimingStats)},
+  { 68, -1, sizeof(::proto::RemotePeerReport)},
+  { 80, -1, sizeof(::proto::RenderSettings)},
+  { 89, -1, sizeof(::proto::P2PMatching)},
+  { 105, -1, sizeof(::proto::PlayerAddress)},
+  { 115, -1, sizeof(::proto::RelayServer)},
+  { 125, -1, sizeof(::proto::GamePatch)},
+  { 134, -1, sizeof(::proto::GamePatchCode)},
+  { 143, -1, sizeof(::proto::GamePatchList)},
+  { 149, -1, sizeof(::proto::BattleLogUser)},
+  { 166, -1, sizeof(::proto::BattleLogRound)},
+  { 173, -1, sizeof(::proto::SpectatorInputPush)},
+  { 192, -1, sizeof(::proto::SpectatorInputAck)},
+  { 203, -1, sizeof(::proto::SpectatorSubscribeRequest)},
+  { 211, -1, sizeof(::proto::SpectatorSubscribeChallenge)},
+  { 218, -1, sizeof(::proto::SpectatorRoundEvent)},
+  { 227, -1, sizeof(::proto::SpectatorRoundResult)},
+  { 236, -1, sizeof(::proto::BattleLogFile)},
+  { 257, -1, sizeof(::proto::BattleMessage)},
+  { 265, -1, sizeof(::proto::PingMessage)},
+  { 272, -1, sizeof(::proto::PongMessage)},
+  { 280, -1, sizeof(::proto::HelloServerMessage)},
+  { 288, -1, sizeof(::proto::FinMessage)},
+  { 294, -1, sizeof(::proto::HelloLbsMessage)},
+  { 300, -1, sizeof(::proto::Packet)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -943,7 +944,7 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
 };
 
 const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\013gdxsv.proto\022\005proto\"\256\n\n\021P2PMatchingRepo"
+  "\n\013gdxsv.proto\022\005proto\"\313\n\n\021P2PMatchingRepo"
   "rt\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 "
   "\001(\005\022\024\n\014player_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001"
   "(\005\022\024\n\014close_reason\030\005 \001(\t\022\023\n\013frame_count\030"
@@ -973,122 +974,123 @@ const char descriptor_table_protodef_gdxsv_2eproto[] PROTOBUF_SECTION_VARIABLE(p
   ", \003(\005\022\036\n\026display_stats_presents\030- \001(\005\022!\n"
   "\031display_composed_presents\030/ \001(\005\022\037\n\027disp"
   "lay_late_depth_hist\0300 \003(\005\022!\n\031display_ref"
-  "resh_period_ns\0301 \001(\005J\004\010\033\020\034J\004\010%\020(J\004\010.\020/R\r"
-  "late_frames_1R\017rollback_budgetR\027budget_e"
-  "xhausted_framesR\033budget_exhausted_depth_"
-  "histR\027display_miss_depth_hist\"\231\002\n\013FrameT"
-  "iming\022\021\n\tperiod_us\030\001 \001(\005\022 \n\004work\030\002 \001(\0132\022"
-  ".proto.TimingStats\022&\n\nqueue_wait\030\t \001(\0132\022"
-  ".proto.TimingStats\022*\n\016rollback_slack\030\013 \001"
-  "(\0132\022.proto.TimingStatsJ\004\010\003\020\tJ\004\010\n\020\013R\rroll"
-  "back_roomR\013over_periodR\026over_period_dept"
-  "h_histR\014present_waitR\013render_waitR\rrollb"
-  "ack_waitR\027present_wait_elasticity\"\237\001\n\013Ti"
-  "mingStats\022\r\n\005count\030\001 \001(\005\022\017\n\007mean_us\030\002 \001("
-  "\005\022\016\n\006min_us\030\003 \001(\005\022\r\n\005p1_us\030\004 \001(\005\022\r\n\005p5_u"
-  "s\030\005 \001(\005\022\016\n\006p99_us\030\006 \001(\005\022\016\n\006max_us\030\007 \001(\005\022"
-  "\022\n\noff_period\030\010 \001(\005\022\016\n\006p50_us\030\t \001(\005\"\232\001\n\020"
-  "RemotePeerReport\022\017\n\007peer_id\030\001 \001(\005\022\021\n\trec"
-  "v_loss\030\002 \001(\005\022\021\n\tsend_loss\030\003 \001(\005\022\023\n\013ping_"
-  "min_ms\030\004 \001(\005\022\026\n\016ping_median_ms\030\005 \001(\005\022\023\n\013"
-  "ping_max_ms\030\006 \001(\005\022\r\n\005route\030\007 \001(\t\"c\n\016Rend"
-  "erSettings\022\032\n\022threaded_rendering\030\001 \001(\010\022\r"
-  "\n\005vsync\030\002 \001(\010\022\020\n\010renderer\030\003 \001(\005\022\024\n\014refre"
-  "sh_rate\030\004 \001(\002\"\262\002\n\013P2PMatching\022\023\n\013battle_"
-  "code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\024\n\014player"
-  "_count\030\003 \001(\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_te"
-  "st_duration\030\006 \001(\005\022\030\n\020is_training_game\030\007 "
-  "\001(\010\022\020\n\010rule_bin\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.p"
-  "roto.BattleLogUser\022(\n\ncandidates\030\n \003(\0132\024"
-  ".proto.PlayerAddress\022\"\n\006relays\030\013 \003(\0132\022.p"
-  "roto.RelayServer\022\030\n\020spectator_uplink\030\014 \001"
-  "(\010\"Y\n\rPlayerAddress\022\017\n\007user_id\030\001 \001(\t\022\017\n\007"
-  "peer_id\030\002 \001(\005\022\n\n\002ip\030\003 \001(\t\022\014\n\004port\030\004 \001(\005\022"
-  "\014\n\004team\030\005 \001(\005\"S\n\013RelayServer\022\016\n\006region\030\001"
-  " \001(\t\022\n\n\002ip\030\002 \001(\t\022\014\n\004port\030\003 \001(\005\022\r\n\005token\030"
-  "\004 \001(\004\022\013\n\003ip6\030\005 \001(\t\"e\n\tGamePatch\022\021\n\tgame_"
-  "disk\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\022\n\nwrite_once\030\004"
-  " \001(\010\022#\n\005codes\030\n \003(\0132\024.proto.GamePatchCod"
-  "e\"Q\n\rGamePatchCode\022\014\n\004size\030\001 \001(\005\022\017\n\007addr"
-  "ess\030\002 \001(\r\022\020\n\010original\030\003 \001(\r\022\017\n\007changed\030\004"
-  " \001(\r\"2\n\rGamePatchList\022!\n\007patches\030\001 \003(\0132\020"
-  ".proto.GamePatch\"\354\001\n\rBattleLogUser\022\017\n\007us"
-  "er_id\030\001 \001(\t\022\021\n\tuser_name\030\002 \001(\t\022\022\n\npilot_"
-  "name\030\003 \001(\t\022\022\n\ngame_param\030\004 \001(\014\022\024\n\014battle"
-  "_count\030\005 \001(\005\022\021\n\twin_count\030\006 \001(\005\022\022\n\nlose_"
-  "count\030\007 \001(\005\022\r\n\005grade\030\010 \001(\005\022\014\n\004team\030\t \001(\005"
-  "\022\020\n\010platform\030\n \001(\t\022\026\n\016user_name_sjis\030\013 \001"
-  "(\014\022\013\n\003pos\030\014 \001(\005\"3\n\016BattleLogRound\022\020\n\010win"
-  "_team\030\001 \001(\005\022\017\n\007used_ms\030\002 \003(\005\"\210\003\n\022Spectat"
-  "orInputPush\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsess"
-  "ion_id\030\002 \001(\005\022\023\n\013start_frame\030\003 \001(\005\022\016\n\006inp"
-  "uts\030\004 \003(\006\022\031\n\021start_msg_indexes\030\005 \003(\005\022\031\n\021"
-  "start_msg_randoms\030\006 \003(\004\022)\n\nround_data\030\007 "
-  "\003(\0132\025.proto.BattleLogRound\022\024\n\014close_reas"
-  "on\030\010 \001(\t\022\035\n\025disconnect_user_index\030\t \001(\005\022"
-  "$\n\006header\030\n \001(\0132\024.proto.BattleLogFile\022!\n"
-  "\007patches\030\013 \003(\0132\020.proto.GamePatch\022\023\n\013patc"
-  "h_start\030\014 \001(\005\022\023\n\013patch_total\030\r \001(\005\022\033\n\023ro"
-  "und_state_version\030\016 \001(\005\"\224\001\n\021SpectatorInp"
-  "utAck\022\023\n\013battle_code\030\001 \001(\t\022\021\n\tack_frame\030"
-  "\002 \001(\005\022\021\n\tpatch_ack\030\003 \001(\005\022\021\n\tround_ack\030\004 "
-  "\001(\005\022\027\n\017round_event_ack\030\005 \003(\005\022\030\n\020round_re"
-  "sult_ack\030\006 \003(\005\"Z\n\031SpectatorSubscribeRequ"
-  "est\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nfrom_frame\030\003"
-  " \001(\005\022\016\n\006cookie\030\004 \001(\014J\004\010\002\020\003\"B\n\033SpectatorS"
-  "ubscribeChallenge\022\023\n\013battle_code\030\001 \001(\t\022\016"
-  "\n\006cookie\030\002 \001(\014\"c\n\023SpectatorRoundEvent\022\023\n"
-  "\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\r"
-  "\n\005frame\030\003 \001(\005\022\024\n\014random_value\030\004 \001(\004\"z\n\024S"
-  "pectatorRoundResult\022\023\n\013battle_code\030\001 \001(\t"
-  "\022\022\n\nsession_id\030\002 \001(\005\022\023\n\013round_index\030\003 \001("
-  "\005\022$\n\005round\030\004 \001(\0132\025.proto.BattleLogRound\""
-  "\300\003\n\rBattleLogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n\030"
-  "gdxsv_version_deprecated\030\002 \001(\t\022\023\n\013battle"
-  "_code\030\003 \001(\t\022\030\n\020log_file_version\030\004 \001(\005\022!\n"
-  "\007patches\030\007 \003(\0132\020.proto.GamePatch\022\020\n\010rule"
-  "_bin\030\n \001(\014\022#\n\005users\030\013 \003(\0132\024.proto.Battle"
-  "LogUser\022)\n\013battle_data\030\014 \003(\0132\024.proto.Bat"
-  "tleMessage\022\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg_"
-  "indexes\030\020 \003(\005\022\031\n\021start_msg_randoms\030\021 \003(\004"
-  "\022)\n\nround_data\030\022 \003(\0132\025.proto.BattleLogRo"
-  "und\022\020\n\010start_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n"
-  "\014close_reason\030\030 \001(\t\022\035\n\025disconnect_user_i"
-  "ndex\030\031 \001(\005\";\n\rBattleMessage\022\017\n\007user_id\030\001"
-  " \001(\t\022\013\n\003seq\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013PingM"
+  "resh_period_ns\0301 \001(\005\022\033\n\023cfg_rollback_bud"
+  "get\0302 \001(\002J\004\010\033\020\034J\004\010%\020(J\004\010.\020/R\rlate_frames"
+  "_1R\017rollback_budgetR\027budget_exhausted_fr"
+  "amesR\033budget_exhausted_depth_histR\027displ"
+  "ay_miss_depth_hist\"\231\002\n\013FrameTiming\022\021\n\tpe"
+  "riod_us\030\001 \001(\005\022 \n\004work\030\002 \001(\0132\022.proto.Timi"
+  "ngStats\022&\n\nqueue_wait\030\t \001(\0132\022.proto.Timi"
+  "ngStats\022*\n\016rollback_slack\030\013 \001(\0132\022.proto."
+  "TimingStatsJ\004\010\003\020\tJ\004\010\n\020\013R\rrollback_roomR\013"
+  "over_periodR\026over_period_depth_histR\014pre"
+  "sent_waitR\013render_waitR\rrollback_waitR\027p"
+  "resent_wait_elasticity\"\237\001\n\013TimingStats\022\r"
+  "\n\005count\030\001 \001(\005\022\017\n\007mean_us\030\002 \001(\005\022\016\n\006min_us"
+  "\030\003 \001(\005\022\r\n\005p1_us\030\004 \001(\005\022\r\n\005p5_us\030\005 \001(\005\022\016\n\006"
+  "p99_us\030\006 \001(\005\022\016\n\006max_us\030\007 \001(\005\022\022\n\noff_peri"
+  "od\030\010 \001(\005\022\016\n\006p50_us\030\t \001(\005\"\232\001\n\020RemotePeerR"
+  "eport\022\017\n\007peer_id\030\001 \001(\005\022\021\n\trecv_loss\030\002 \001("
+  "\005\022\021\n\tsend_loss\030\003 \001(\005\022\023\n\013ping_min_ms\030\004 \001("
+  "\005\022\026\n\016ping_median_ms\030\005 \001(\005\022\023\n\013ping_max_ms"
+  "\030\006 \001(\005\022\r\n\005route\030\007 \001(\t\"c\n\016RenderSettings\022"
+  "\032\n\022threaded_rendering\030\001 \001(\010\022\r\n\005vsync\030\002 \001"
+  "(\010\022\020\n\010renderer\030\003 \001(\005\022\024\n\014refresh_rate\030\004 \001"
+  "(\002\"\262\002\n\013P2PMatching\022\023\n\013battle_code\030\001 \001(\t\022"
+  "\022\n\nsession_id\030\002 \001(\005\022\024\n\014player_count\030\003 \001("
+  "\005\022\017\n\007peer_id\030\004 \001(\005\022\032\n\022ping_test_duration"
+  "\030\006 \001(\005\022\030\n\020is_training_game\030\007 \001(\010\022\020\n\010rule"
+  "_bin\030\010 \001(\014\022#\n\005users\030\t \003(\0132\024.proto.Battle"
+  "LogUser\022(\n\ncandidates\030\n \003(\0132\024.proto.Play"
+  "erAddress\022\"\n\006relays\030\013 \003(\0132\022.proto.RelayS"
+  "erver\022\030\n\020spectator_uplink\030\014 \001(\010\"Y\n\rPlaye"
+  "rAddress\022\017\n\007user_id\030\001 \001(\t\022\017\n\007peer_id\030\002 \001"
+  "(\005\022\n\n\002ip\030\003 \001(\t\022\014\n\004port\030\004 \001(\005\022\014\n\004team\030\005 \001"
+  "(\005\"S\n\013RelayServer\022\016\n\006region\030\001 \001(\t\022\n\n\002ip\030"
+  "\002 \001(\t\022\014\n\004port\030\003 \001(\005\022\r\n\005token\030\004 \001(\004\022\013\n\003ip"
+  "6\030\005 \001(\t\"e\n\tGamePatch\022\021\n\tgame_disk\030\001 \001(\t\022"
+  "\014\n\004name\030\002 \001(\t\022\022\n\nwrite_once\030\004 \001(\010\022#\n\005cod"
+  "es\030\n \003(\0132\024.proto.GamePatchCode\"Q\n\rGamePa"
+  "tchCode\022\014\n\004size\030\001 \001(\005\022\017\n\007address\030\002 \001(\r\022\020"
+  "\n\010original\030\003 \001(\r\022\017\n\007changed\030\004 \001(\r\"2\n\rGam"
+  "ePatchList\022!\n\007patches\030\001 \003(\0132\020.proto.Game"
+  "Patch\"\354\001\n\rBattleLogUser\022\017\n\007user_id\030\001 \001(\t"
+  "\022\021\n\tuser_name\030\002 \001(\t\022\022\n\npilot_name\030\003 \001(\t\022"
+  "\022\n\ngame_param\030\004 \001(\014\022\024\n\014battle_count\030\005 \001("
+  "\005\022\021\n\twin_count\030\006 \001(\005\022\022\n\nlose_count\030\007 \001(\005"
+  "\022\r\n\005grade\030\010 \001(\005\022\014\n\004team\030\t \001(\005\022\020\n\010platfor"
+  "m\030\n \001(\t\022\026\n\016user_name_sjis\030\013 \001(\014\022\013\n\003pos\030\014"
+  " \001(\005\"3\n\016BattleLogRound\022\020\n\010win_team\030\001 \001(\005"
+  "\022\017\n\007used_ms\030\002 \003(\005\"\210\003\n\022SpectatorInputPush"
+  "\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession_id\030\002 \001("
+  "\005\022\023\n\013start_frame\030\003 \001(\005\022\016\n\006inputs\030\004 \003(\006\022\031"
+  "\n\021start_msg_indexes\030\005 \003(\005\022\031\n\021start_msg_r"
+  "andoms\030\006 \003(\004\022)\n\nround_data\030\007 \003(\0132\025.proto"
+  ".BattleLogRound\022\024\n\014close_reason\030\010 \001(\t\022\035\n"
+  "\025disconnect_user_index\030\t \001(\005\022$\n\006header\030\n"
+  " \001(\0132\024.proto.BattleLogFile\022!\n\007patches\030\013 "
+  "\003(\0132\020.proto.GamePatch\022\023\n\013patch_start\030\014 \001"
+  "(\005\022\023\n\013patch_total\030\r \001(\005\022\033\n\023round_state_v"
+  "ersion\030\016 \001(\005\"\224\001\n\021SpectatorInputAck\022\023\n\013ba"
+  "ttle_code\030\001 \001(\t\022\021\n\tack_frame\030\002 \001(\005\022\021\n\tpa"
+  "tch_ack\030\003 \001(\005\022\021\n\tround_ack\030\004 \001(\005\022\027\n\017roun"
+  "d_event_ack\030\005 \003(\005\022\030\n\020round_result_ack\030\006 "
+  "\003(\005\"Z\n\031SpectatorSubscribeRequest\022\023\n\013batt"
+  "le_code\030\001 \001(\t\022\022\n\nfrom_frame\030\003 \001(\005\022\016\n\006coo"
+  "kie\030\004 \001(\014J\004\010\002\020\003\"B\n\033SpectatorSubscribeCha"
+  "llenge\022\023\n\013battle_code\030\001 \001(\t\022\016\n\006cookie\030\002 "
+  "\001(\014\"c\n\023SpectatorRoundEvent\022\023\n\013battle_cod"
+  "e\030\001 \001(\t\022\022\n\nsession_id\030\002 \001(\005\022\r\n\005frame\030\003 \001"
+  "(\005\022\024\n\014random_value\030\004 \001(\004\"z\n\024SpectatorRou"
+  "ndResult\022\023\n\013battle_code\030\001 \001(\t\022\022\n\nsession"
+  "_id\030\002 \001(\005\022\023\n\013round_index\030\003 \001(\005\022$\n\005round\030"
+  "\004 \001(\0132\025.proto.BattleLogRound\"\300\003\n\rBattleL"
+  "ogFile\022\021\n\tgame_disk\030\005 \001(\t\022 \n\030gdxsv_versi"
+  "on_deprecated\030\002 \001(\t\022\023\n\013battle_code\030\003 \001(\t"
+  "\022\030\n\020log_file_version\030\004 \001(\005\022!\n\007patches\030\007 "
+  "\003(\0132\020.proto.GamePatch\022\020\n\010rule_bin\030\n \001(\014\022"
+  "#\n\005users\030\013 \003(\0132\024.proto.BattleLogUser\022)\n\013"
+  "battle_data\030\014 \003(\0132\024.proto.BattleMessage\022"
+  "\016\n\006inputs\030\017 \003(\006\022\031\n\021start_msg_indexes\030\020 \003"
+  "(\005\022\031\n\021start_msg_randoms\030\021 \003(\004\022)\n\nround_d"
+  "ata\030\022 \003(\0132\025.proto.BattleLogRound\022\020\n\010star"
+  "t_at\030\024 \001(\003\022\016\n\006end_at\030\025 \001(\003\022\024\n\014close_reas"
+  "on\030\030 \001(\t\022\035\n\025disconnect_user_index\030\031 \001(\005\""
+  ";\n\rBattleMessage\022\017\n\007user_id\030\001 \001(\t\022\013\n\003seq"
+  "\030\002 \001(\r\022\014\n\004body\030\003 \001(\014\"1\n\013PingMessage\022\021\n\tt"
+  "imestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001(\t\"F\n\013PongM"
   "essage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007user_id\030\002 \001"
-  "(\t\"F\n\013PongMessage\022\021\n\ttimestamp\030\001 \001(\003\022\017\n\007"
-  "user_id\030\002 \001(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022He"
-  "lloServerMessage\022\035\n\025session_id_deprecate"
-  "d\030\001 \001(\t\022\n\n\002ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n\n"
-  "FinMessage\022\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsMe"
-  "ssage\022\017\n\007user_id\030\001 \001(\t\"\354\005\n\006Packet\022 \n\004typ"
-  "e\030\001 \001(\0162\022.proto.MessageType\022\013\n\003seq\030\002 \001(\r"
-  "\022\013\n\003ack\030\003 \001(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021hel"
-  "lo_server_data\030\n \001(\0132\031.proto.HelloServer"
-  "Message\022%\n\tping_data\030\013 \001(\0132\022.proto.PingM"
-  "essage\022%\n\tpong_data\030\014 \001(\0132\022.proto.PongMe"
-  "ssage\022)\n\013battle_data\030\r \003(\0132\024.proto.Battl"
-  "eMessage\022#\n\010fin_data\030\016 \001(\0132\021.proto.FinMe"
-  "ssage\022.\n\016hello_lbs_data\030\017 \001(\0132\026.proto.He"
-  "lloLbsMessage\022<\n\031spectator_input_push_da"
-  "ta\030\024 \001(\0132\031.proto.SpectatorInputPush\022:\n\030s"
-  "pectator_input_ack_data\030\025 \001(\0132\030.proto.Sp"
-  "ectatorInputAck\022>\n\032spectator_round_event"
-  "_data\030\026 \001(\0132\032.proto.SpectatorRoundEvent\022"
-  "@\n\033spectator_round_result_data\030\027 \001(\0132\033.p"
-  "roto.SpectatorRoundResult\022B\n\030spectator_s"
-  "ubscribe_data\030\030 \001(\0132 .proto.SpectatorSub"
-  "scribeRequest\022N\n\"spectator_subscribe_cha"
-  "llenge_data\030\031 \001(\0132\".proto.SpectatorSubsc"
-  "ribeChallenge*\222\002\n\013MessageType\022\010\n\004None\020\000\022"
-  "\017\n\013HelloServer\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006"
-  "Battle\020\004\022\007\n\003Fin\020\005\022\014\n\010HelloLbs\020\n\022\032\n\026Spect"
-  "atorInputPushType\020\024\022\031\n\025SpectatorInputAck"
-  "Type\020\025\022\033\n\027SpectatorRoundEventType\020\026\022\034\n\030S"
-  "pectatorRoundResultType\020\027\022\032\n\026SpectatorSu"
-  "bscribeType\020\030\022#\n\037SpectatorSubscribeChall"
-  "engeType\020\031B\rZ\013gdxsv/protob\006proto3"
+  "(\t\022\023\n\013public_addr\030\003 \001(\t\"P\n\022HelloServerMe"
+  "ssage\022\035\n\025session_id_deprecated\030\001 \001(\t\022\n\n\002"
+  "ok\030\002 \001(\010\022\017\n\007user_id\030\003 \001(\t\"\034\n\nFinMessage\022"
+  "\016\n\006detail\030\001 \001(\t\"\"\n\017HelloLbsMessage\022\017\n\007us"
+  "er_id\030\001 \001(\t\"\354\005\n\006Packet\022 \n\004type\030\001 \001(\0162\022.p"
+  "roto.MessageType\022\013\n\003seq\030\002 \001(\r\022\013\n\003ack\030\003 \001"
+  "(\r\022\022\n\nsession_id\030\005 \001(\t\0224\n\021hello_server_d"
+  "ata\030\n \001(\0132\031.proto.HelloServerMessage\022%\n\t"
+  "ping_data\030\013 \001(\0132\022.proto.PingMessage\022%\n\tp"
+  "ong_data\030\014 \001(\0132\022.proto.PongMessage\022)\n\013ba"
+  "ttle_data\030\r \003(\0132\024.proto.BattleMessage\022#\n"
+  "\010fin_data\030\016 \001(\0132\021.proto.FinMessage\022.\n\016he"
+  "llo_lbs_data\030\017 \001(\0132\026.proto.HelloLbsMessa"
+  "ge\022<\n\031spectator_input_push_data\030\024 \001(\0132\031."
+  "proto.SpectatorInputPush\022:\n\030spectator_in"
+  "put_ack_data\030\025 \001(\0132\030.proto.SpectatorInpu"
+  "tAck\022>\n\032spectator_round_event_data\030\026 \001(\013"
+  "2\032.proto.SpectatorRoundEvent\022@\n\033spectato"
+  "r_round_result_data\030\027 \001(\0132\033.proto.Specta"
+  "torRoundResult\022B\n\030spectator_subscribe_da"
+  "ta\030\030 \001(\0132 .proto.SpectatorSubscribeReque"
+  "st\022N\n\"spectator_subscribe_challenge_data"
+  "\030\031 \001(\0132\".proto.SpectatorSubscribeChallen"
+  "ge*\222\002\n\013MessageType\022\010\n\004None\020\000\022\017\n\013HelloSer"
+  "ver\020\001\022\010\n\004Ping\020\002\022\010\n\004Pong\020\003\022\n\n\006Battle\020\004\022\007\n"
+  "\003Fin\020\005\022\014\n\010HelloLbs\020\n\022\032\n\026SpectatorInputPu"
+  "shType\020\024\022\031\n\025SpectatorInputAckType\020\025\022\033\n\027S"
+  "pectatorRoundEventType\020\026\022\034\n\030SpectatorRou"
+  "ndResultType\020\027\022\032\n\026SpectatorSubscribeType"
+  "\020\030\022#\n\037SpectatorSubscribeChallengeType\020\031B"
+  "\rZ\013gdxsv/protob\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_gdxsv_2eproto_deps[1] = {
 };
@@ -1123,7 +1125,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_gdx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_gdxsv_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_gdxsv_2eproto = {
-  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 5833,
+  false, false, descriptor_table_protodef_gdxsv_2eproto, "gdxsv.proto", 5862,
   &descriptor_table_gdxsv_2eproto_once, descriptor_table_gdxsv_2eproto_sccs, descriptor_table_gdxsv_2eproto_deps, 27, 0,
   schemas, file_default_instances, TableStruct_gdxsv_2eproto::offsets,
   file_level_metadata_gdxsv_2eproto, 27, file_level_enum_descriptors_gdxsv_2eproto, file_level_service_descriptors_gdxsv_2eproto,
@@ -1298,8 +1300,8 @@ P2PMatchingReport::P2PMatchingReport(const P2PMatchingReport& from)
     frame_timing_ = nullptr;
   }
   ::memcpy(&session_id_, &from.session_id_,
-    static_cast<size_t>(reinterpret_cast<char*>(&display_composed_presents_) -
-    reinterpret_cast<char*>(&session_id_)) + sizeof(display_composed_presents_));
+    static_cast<size_t>(reinterpret_cast<char*>(&cfg_rollback_budget_) -
+    reinterpret_cast<char*>(&session_id_)) + sizeof(cfg_rollback_budget_));
   // @@protoc_insertion_point(copy_constructor:proto.P2PMatchingReport)
 }
 
@@ -1310,8 +1312,8 @@ void P2PMatchingReport::SharedCtor() {
   after_log_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   before_log_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   ::memset(&render_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&display_composed_presents_) -
-      reinterpret_cast<char*>(&render_)) + sizeof(display_composed_presents_));
+      reinterpret_cast<char*>(&cfg_rollback_budget_) -
+      reinterpret_cast<char*>(&render_)) + sizeof(cfg_rollback_budget_));
 }
 
 P2PMatchingReport::~P2PMatchingReport() {
@@ -1398,8 +1400,8 @@ void P2PMatchingReport::Clear() {
   }
   frame_timing_ = nullptr;
   ::memset(&session_id_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&display_composed_presents_) -
-      reinterpret_cast<char*>(&session_id_)) + sizeof(display_composed_presents_));
+      reinterpret_cast<char*>(&cfg_rollback_budget_) -
+      reinterpret_cast<char*>(&session_id_)) + sizeof(cfg_rollback_budget_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -1723,6 +1725,13 @@ const char* P2PMatchingReport::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
+      // float cfg_rollback_budget = 50;
+      case 50:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 149)) {
+          cfg_rollback_budget_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<float>(ptr);
+          ptr += sizeof(float);
+        } else goto handle_unusual;
+        continue;
       default: {
       handle_unusual:
         if ((tag & 7) == 4 || tag == 0) {
@@ -2034,6 +2043,12 @@ failure:
   if (this->display_refresh_period_ns() != 0) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(49, this->_internal_display_refresh_period_ns(), target);
+  }
+
+  // float cfg_rollback_budget = 50;
+  if (!(this->cfg_rollback_budget() <= 0 && this->cfg_rollback_budget() >= 0)) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteFloatToArray(50, this->_internal_cfg_rollback_budget(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -2360,13 +2375,6 @@ size_t P2PMatchingReport::ByteSizeLong() const {
         this->_internal_relay_forwarded());
   }
 
-  // int32 display_refresh_period_ns = 49;
-  if (this->display_refresh_period_ns() != 0) {
-    total_size += 2 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
-        this->_internal_display_refresh_period_ns());
-  }
-
   // int32 display_stats_presents = 45;
   if (this->display_stats_presents() != 0) {
     total_size += 2 +
@@ -2379,6 +2387,18 @@ size_t P2PMatchingReport::ByteSizeLong() const {
     total_size += 2 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
         this->_internal_display_composed_presents());
+  }
+
+  // int32 display_refresh_period_ns = 49;
+  if (this->display_refresh_period_ns() != 0) {
+    total_size += 2 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+        this->_internal_display_refresh_period_ns());
+  }
+
+  // float cfg_rollback_budget = 50;
+  if (!(this->cfg_rollback_budget() <= 0 && this->cfg_rollback_budget() >= 0)) {
+    total_size += 2 + 4;
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -2502,14 +2522,17 @@ void P2PMatchingReport::MergeFrom(const P2PMatchingReport& from) {
   if (from.relay_forwarded() != 0) {
     _internal_set_relay_forwarded(from._internal_relay_forwarded());
   }
-  if (from.display_refresh_period_ns() != 0) {
-    _internal_set_display_refresh_period_ns(from._internal_display_refresh_period_ns());
-  }
   if (from.display_stats_presents() != 0) {
     _internal_set_display_stats_presents(from._internal_display_stats_presents());
   }
   if (from.display_composed_presents() != 0) {
     _internal_set_display_composed_presents(from._internal_display_composed_presents());
+  }
+  if (from.display_refresh_period_ns() != 0) {
+    _internal_set_display_refresh_period_ns(from._internal_display_refresh_period_ns());
+  }
+  if (!(from.cfg_rollback_budget() <= 0 && from.cfg_rollback_budget() >= 0)) {
+    _internal_set_cfg_rollback_budget(from._internal_cfg_rollback_budget());
   }
 }
 
@@ -2548,8 +2571,8 @@ void P2PMatchingReport::InternalSwap(P2PMatchingReport* other) {
   after_log_.Swap(&other->after_log_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   before_log_.Swap(&other->before_log_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(P2PMatchingReport, display_composed_presents_)
-      + sizeof(P2PMatchingReport::display_composed_presents_)
+      PROTOBUF_FIELD_OFFSET(P2PMatchingReport, cfg_rollback_budget_)
+      + sizeof(P2PMatchingReport::cfg_rollback_budget_)
       - PROTOBUF_FIELD_OFFSET(P2PMatchingReport, render_)>(
           reinterpret_cast<char*>(&render_),
           reinterpret_cast<char*>(&other->render_));

@@ -27,6 +27,10 @@ constexpr int kOffPeriodUs = 2000;     // an interval further than this from the
 constexpr int kDepthBuckets = 8;	   // rollbacks of 0 to 6 frames; the last bucket: 7 or more
 constexpr int kMaxTimesyncFrames = 32;
 constexpr int kWaits = static_cast<int>(GdxsvWait::Count);
+// rollback_slack in emulated frames (rollback_slack / the frame's emulation time), by steps of kSlackFramesStep;
+// the last bucket: kSlackFramesBuckets - 1 steps or more
+constexpr double kSlackFramesStep = 0.05;
+constexpr int kSlackFramesBuckets = 201;
 
 // Each counter has one writer thread; the report reads them from another
 // thread. A relaxed load and store compiles to plain moves, unlike fetch_add.
@@ -173,6 +177,7 @@ struct NetReport {
 	std::atomic<int32_t> periodUs{0};
 	Hist work;
 	Hist rollbackSlack;
+	std::array<std::atomic<int32_t>, kSlackFramesBuckets> slackFramesHist{};
 	std::array<Hist, kWaits> waits;
 	// Deepest rollback since the last Present. Written by the emulation thread, taken by the Present thread: a
 	// rollback ending during the exchange may count for the next Present instead.
@@ -219,6 +224,7 @@ struct NetReport {
 		Set(periodUs, 0);
 		work.Reset();
 		rollbackSlack.Reset();
+		for (auto& c : slackFramesHist) Set(c, 0);
 		for (auto& h : waits) h.Reset();
 		Set(depthSincePresent, 0);
 		for (auto* hist : {&presentDepthHist, &lateDepthHist, &droppedDepthHist, &displayLateDepthHist})
@@ -250,6 +256,20 @@ void gdxsv_net_report_session_start() {
 void gdxsv_net_report_session_stop() { gdxsv_net_report_on = false; }
 
 void gdxsv_net_report_reset() { report.Reset(); }
+
+int gdxsv_net_report_slack_frames(double* median) {
+	int32_t count = 0;
+	for (const auto& c : report.slackFramesHist) count += Get(c);
+	int32_t below = 0;
+	for (int i = 0; i < kSlackFramesBuckets; i++) {
+		below += Get(report.slackFramesHist[i]);
+		if (count <= below * 2) {
+			*median = (i + 0.5) * kSlackFramesStep;
+			break;
+		}
+	}
+	return count;
+}
 
 void gdxsv_net_report_rollback_begin(int toFrame) {
 	report.rollbackStart = Clock::now();
@@ -387,7 +407,14 @@ void gdxsv_net_report_wake(Clock::time_point called, Clock::time_point woke, int
 		}
 		Set(r.periodUs, period);
 		r.work.Add(busy - waited, 0);
-		r.rollbackSlack.Add(ClampUs(period - (busy - r.rollbackUs)), 0);
+		const int32_t slack = ClampUs(period - (busy - r.rollbackUs));
+		r.rollbackSlack.Add(slack, 0);
+		// A rollback frame is taken to cost as much as the frame's own emulation
+		const int64_t emulation = busy - waited - r.rollbackUs;
+		if (0 < emulation) {
+			const double frames = std::max(0, slack) / static_cast<double>(emulation);
+			Bump(r.slackFramesHist[std::min<int>(kSlackFramesBuckets - 1, static_cast<int>(frames / kSlackFramesStep))]);
+		}
 	}
 	r.ResetFrame(woke);
 }

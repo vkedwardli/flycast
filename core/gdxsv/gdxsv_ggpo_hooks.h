@@ -11,7 +11,10 @@
 // Functions provided to core/network/ggpo.cpp by the gdxsv module.
 
 void gdxsv_ggpo_session_start();
+// Also updates gdxsv:RollbackBudget from the session's frames.
 void gdxsv_ggpo_session_stop();
+// gdxsv:RollbackBudget within its range.
+float gdxsv_rollback_budget();
 // GGPO saved the state of a frame, rollbacks included.
 void gdxsv_ggpo_state_saved(int frame, const unsigned char* buffer, int len);
 // Draws the network stats of the gdxsv session (one block per peer). False when not a gdxsv session.
