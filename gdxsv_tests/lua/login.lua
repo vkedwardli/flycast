@@ -9,8 +9,8 @@
 -- before the lobby; logs wait_file=0 or 1.
 -- E2E_PARAMS.lobby_replay = {trigger, path}: on the plaza map, write path to the file trigger
 -- (GDXSV_TEST_START_REPLAY): the emulator starts that replay from the lobby. Then wait up to
--- 18000 vblanks for the file lobby_back before lobby 2 (logs lobby_back=0 or 1), and after
--- the entry write the trigger again: the emulator refuses it. (Back from a replay in lobby 2,
+-- 18000 vblanks for the file lobby_back before lobby 2 (logs lobby_back=0 or 1), and from the
+-- entry to the mobile suit select write the trigger again every 30 vblanks: the emulator refuses it. (Back from a replay in lobby 2,
 -- the cursor is on the partner search, which the entry path would move off.)
 -- Menu paths from gdxsv-reveng tools/dc2_lobby.py.
 
@@ -83,8 +83,11 @@ function main()
   run(LOBBY)
   run(ENTRY)
   if replay then
-    write_file(replay[1], replay[2])
-    e2e.wait(60)
+    -- Until the mobile suit select, through the match start: the emulator refuses each.
+    e2e.wait_until(function()
+      if e2e.frame % 30 == 0 then write_file(replay[1], replay[2]) end
+      return scene() == 0x0102
+    end, 12000)
   end
   if E2E_PARAMS.chat ~= false then
     e2e.wait(E2E_PARAMS.chat_delay or 0)

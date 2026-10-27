@@ -2132,7 +2132,7 @@ void gdxsv_test_start_replay_tick() {
 	const bool four_screen = path.rfind(four_screen_prefix, 0) == 0;
 	if (four_screen) path.erase(0, four_screen_prefix.size());
 	// As the menu and its Live & Replays button would.
-	if (!gdxsv.HookOpenMenu() || !gdxsv.CanSuspendLobby()) {
+	if (gdxsv.InGame() || !gdxsv.HookOpenMenu() || !gdxsv.CanSuspendLobby()) {
 		NOTICE_LOG(COMMON, "test: menu refused, replay %s not started", path.c_str());
 		return;
 	}

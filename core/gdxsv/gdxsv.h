@@ -72,8 +72,6 @@ class Gdxsv {
 	bool CanSuspendLobby() const;
 	void SuspendLobby();
 	void ResumeLobby();
-	// The game has entered a lobby match and waits for it; the menu does not open.
-	bool MatchingEntered() const { return matching_entered_; }
 	bool StartRollbackTest(const char* param);
 	void WritePatch();
 	int Disk() const { return disk_; }
@@ -107,6 +105,8 @@ class Gdxsv {
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;
 	std::atomic<bool> lobby_suspended_{false};
+	// From the game's lobby match entry until it opens the battle connection (or cancels): the menu does
+	// not open and fast-forward is off.
 	std::atomic<bool> matching_entered_{false};
 	std::mutex lobby_held_mutex_;
 	std::deque<LbsMessage> lobby_held_;

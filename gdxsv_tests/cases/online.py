@@ -213,6 +213,8 @@ TEST_STARTED = "test: starting replay"
 TEST_REFUSED = "test: menu refused"
 SUSPENDED = "lobby: suspended for replay playback"
 RESUMED = re.compile(r"lobby: resumed with (\d+) held messages")
+MATCH_FOUND = "GdxsvBackendRollback.Prepare"  # after lbsReadyBattle, the P2P matching
+BATTLE_OPEN = "GdxsvBackendRollback.Open"  # the battle connection
 
 
 def read_log_file(path: str) -> str:
@@ -270,6 +272,10 @@ def lobby_replay_checks(probes, lbs: str) -> list:
         {"what": "a: lobby resumed after the replay", "held": int(m.group(1)) if m else None, "ok": resumed > started >= 0},
         {"what": "a: back on the plaza map", "ok": probes[0].e2e.get("lobby_back") == "1"},
         {"what": "a: menu refused while waiting for a match", "ok": resumed >= 0 and TEST_REFUSED in a[resumed:]},
+        {"what": "a: no replay started after the entry", "ok": resumed >= 0 and TEST_STARTED not in a[resumed:]},
+        {"what": "a: menu refused between the match and the battle connection",
+         "ok": 0 <= a.find(MATCH_FOUND) < a.find(BATTLE_OPEN)
+         and TEST_REFUSED in a[a.find(MATCH_FOUND):a.find(BATTLE_OPEN)]},
     ] + pair_checks(probes, lbs)
 
 

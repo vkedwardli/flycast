@@ -253,7 +253,6 @@ void Gdxsv::Reset(bool loading_state) {
 			// Reset current patches for no-patched game
 			RestoreOnlinePatch();
 			going_to_battle_ = true;
-			matching_entered_ = false;
 		}
 
 		if (lbs_msg.command == LbsMessage::lbsP2PMatching) {
@@ -391,7 +390,7 @@ bool Gdxsv::HookOpenMenu() {
 	}
 
 	// The game would wait in the menu while the match starts without it.
-	if (netmode_ == NetMode::Lbs && matching_entered_) {
+	if (matching_entered_) {
 		return false;
 	}
 
@@ -446,8 +445,8 @@ void Gdxsv::HookNextFrame() {
 void Gdxsv::HookMainUiLoop() {
 	if (!enabled_) return;
 
-	// Stop fast-forward from lbsReadyBattle on: the P2P ping test that follows would measure an inflated RTT.
-	if (InGame() || going_to_battle_) {
+	// Stop fast-forward from the match entry on: the P2P ping test that follows would measure an inflated RTT.
+	if (InGame() || going_to_battle_ || matching_entered_) {
 		settings.input.fastForwardMode = false;
 	}
 
@@ -649,6 +648,8 @@ void Gdxsv::HandleRPC() {
 	gdx_rpc.param4 = gdxsv_ReadMem32(gdx_rpc_addr + 20);
 
 	if (gdx_rpc.request == GDX_RPC_SOCK_OPEN) {
+		// The game opens the battle connection once its match starts, or the lobby again: either ends the wait.
+		matching_entered_ = false;
 		const u32 tolobby = gdx_rpc.param1;
 		const u32 host_ip = gdx_rpc.param2;
 		const u16 port = gdx_rpc.param3;
