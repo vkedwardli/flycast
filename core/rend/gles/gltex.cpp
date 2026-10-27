@@ -97,7 +97,7 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 	// Texture storage is immutable: recreate it if the dimensions, format or mipmap levels have changed
 	// (a custom texture replaced this one before for example)
 	const std::array<int, 4> uploadStorage { width, height, mipmapLevels, (int)internalFormat };
-	if (texID != 0 && storage != uploadStorage)
+	if (texID != 0 && storage != uploadStorage) // gdxsv: upstream bug fix: new storage for an upload of another size or format
 	{
 		TexCache.DeleteLater(texID);
 		texID = 0;
@@ -107,7 +107,7 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 		texID = glcache.GenTexture();
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
 		glTexStorage2D(GL_TEXTURE_2D, mipmapLevels, internalFormat, width, height);
-		storage = uploadStorage;
+		storage = uploadStorage; // gdxsv: upstream bug fix: texID's storage
 	}
 	else {
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
@@ -279,7 +279,7 @@ void ReadRTTBuffer()
 			glcache.DeleteTextures(1, &texture_data->texID);
 			texture_data->texID = gl.rtt.framebuffer->detachTexture();
 			// not allocated by glTexStorage2D
-			texture_data->storage = {};
+			texture_data->storage = {}; // gdxsv: upstream bug fix: unknown storage after render to texture
 			texture_data->dirty = 0;
 			texture_data->unprotectVRam();
 		}
