@@ -65,8 +65,12 @@ UdpProtocol::UdpProtocol() :
    _send_latency = GGPOPlatform::GetConfigInt("GGPO_NETWORK_DELAY");
    _jam_latency = GGPOPlatform::GetConfigInt("GGPO_NETWORK_JAM_DELAY");
    _oop_percent = GGPOPlatform::GetConfigInt("GGPO_OOP_PERCENT");
+   _send_jitter = GGPOPlatform::GetConfigInt("GGPO_NETWORK_JITTER");
+   _loss_percent = GGPOPlatform::GetConfigInt("GGPO_NETWORK_LOSS");
    _test_log = GGPOPlatform::GetConfigInt("GGPO_TEST_LOG");
    _relay_drops = 0;
+   _loss_packets = 0;
+   _loss_drops = 0;
    _malformed_drops = 0;
 }
 
@@ -343,7 +347,8 @@ UdpProtocol::SendMsg(UdpMsg *msg, sockaddr_storage* to)
           msg->hdr.type = UdpMsg::MsgType::Relay;
        }
 
-	   _send_queue.push(QueueEntry(GGPOPlatform::GetCurrentTimeMS(), to != nullptr ? *to : _peer_addr, msg));
+	   const int send_delay = _send_jitter ? _send_latency + rand() % (_send_jitter + 1) : 0;
+	   _send_queue.push(QueueEntry(GGPOPlatform::GetCurrentTimeMS(), to != nullptr ? *to : _peer_addr, msg, send_delay));
    }
    PumpSendQueue();
 }
@@ -912,7 +917,13 @@ UdpProtocol::PumpSendQueue()
    while (!_send_queue.empty()) {
       QueueEntry &entry = _send_queue.front();
 
-      if (_send_latency) {
+      if (_send_jitter) {
+         // gdxsv: the delay drawn when queued, so it stays within GGPO_NETWORK_DELAY + 0..GGPO_NETWORK_JITTER
+         // (the draw below repeats on every pump, which sends most packets near its low end).
+         if ((int)GGPOPlatform::GetCurrentTimeMS() < entry.queue_time + entry.send_delay) {
+            break;
+         }
+      } else if (_send_latency) {
          // should really come up with a gaussian distributation based on the configured
          // value, but this will do for now.
          int jitter = (_send_latency * 2 / 3) + ((rand() % _send_latency) / 3);
@@ -935,7 +946,17 @@ UdpProtocol::PumpSendQueue()
 		  }
       }
 
-      if (_oop_percent && !_oo_packet.msg && ((rand() % 100) < _oop_percent)) {
+      bool lost = false;
+      if (_loss_percent) {
+         _loss_packets++;
+         lost = (rand() % 100) < _loss_percent;
+      }
+      if (lost) {
+         if (++_loss_drops % 20 == 1) {
+            LogInfo("udpproto%d | GGPO_NETWORK_LOSS drop n=%d of %d packets", _queue, _loss_drops, _loss_packets);
+         }
+         delete entry.msg;
+      } else if (_oop_percent && !_oo_packet.msg && ((rand() % 100) < _oop_percent)) {
          int delay = rand() % (_send_latency * 10 + 1000);
          Log("udpproto%d | creating rogue oop (seq: %d  delay: %d)", _queue, entry.msg->hdr.sequence_number, delay);
          _oo_packet.send_time = GGPOPlatform::GetCurrentTimeMS() + delay;

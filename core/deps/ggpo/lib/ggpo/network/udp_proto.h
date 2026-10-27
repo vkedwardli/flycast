@@ -115,9 +115,10 @@ protected:
       int         queue_time;
       sockaddr_storage dest_addr;
       UdpMsg      *msg;
+      int         send_delay;  /* with GGPO_NETWORK_JITTER: delay drawn once when queued */
 
       QueueEntry() {}
-      QueueEntry(int time, sockaddr_storage &dst, UdpMsg *m) : queue_time(time), dest_addr(dst), msg(m) { }
+      QueueEntry(int time, sockaddr_storage &dst, UdpMsg *m, int delay = 0) : queue_time(time), dest_addr(dst), msg(m), send_delay(delay) { }
    };
 
    bool CreateSocket(int retries);
@@ -159,6 +160,10 @@ protected:
    int            _jam_latency;
    bool           _enable_jam;
    int            _oop_percent;
+   int            _send_jitter;      /* GGPO_NETWORK_JITTER: each packet waits GGPO_NETWORK_DELAY + 0..this ms */
+   int            _loss_percent;     /* GGPO_NETWORK_LOSS: percent of packets dropped instead of sent */
+   int            _loss_packets;     /* packets that went through the GGPO_NETWORK_LOSS draw, and the dropped ones */
+   int            _loss_drops;
    int            _test_log;         /* GGPO_TEST_LOG: count relay and malformed drops for gdxsv_tests/rollback */
    int            _relay_drops;
    int            _malformed_drops;

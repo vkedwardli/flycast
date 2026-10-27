@@ -69,7 +69,9 @@ These do nothing unless set.
 
 | Variable | Effect | Where |
 |---|---|---|
-| `GGPO_NETWORK_DELAY` | Send latency in ms (GGPO, existing) | any session |
+| `GGPO_NETWORK_DELAY` | Send latency in ms (GGPO, existing). Each packet goes at 2/3 to 1 of it, drawn again on every send-queue pump, so most go near 2/3 | any session |
+| `GGPO_NETWORK_JITTER` | Each packet waits `GGPO_NETWORK_DELAY` + 0..N ms, drawn once when queued (packets stay in order) | any session |
+| `GGPO_NETWORK_LOSS` | Drops N percent of GGPO packets instead of sending them; logs `GGPO_NETWORK_LOSS drop n=.. of .. packets` every 20 drops | any session |
 | `VITAL`, `MAXREBATTLE` | Team vitals and number of re-battles (existing) | local test |
 | `RAND_MASK` | Hex kcode mask for the random input. The default leaves out down/right, so the re-battle menu is never cancelled; `06F6` reaches it | local test |
 | `TEST_RELAY` | `single`: peer 0 reaches peer 3 through peer 1. `loop`: peer 1 also reaches peer 3 through peer 0. `server`: peer 0 reaches every peer through the relay server. `server2`: two relay servers, peer 0 picks the second and peer 1 the first. `fair`: peer 0 reaches peer 3 through peer 1 (50 ms) or the relay server, whichever is faster. `nat`: peer 1 hears only from peer 3 in the ping test, and the way through peer 3 is 100 ms | local test |
@@ -84,6 +86,27 @@ These do nothing unless set.
 | `TEST_SPECTATOR_LBS` | Streams the peers' confirmed inputs to a local lbs (`ip:port`) started with `-spectator_test_session` | local test |
 | `TEST_SPECTATOR_UPLINK` | Which peer lbs would ask to stream (peer number, default 1), or `all` as clients from before lbs picked one did | local test |
 | `TEST_UPLINK_ROUND_DELAY` | Sends round starts to lbs N frames late, so spectators reach StartMsg before the round's start index | local test |
+
+## Recorded battle over rollback
+
+`replay_match.py` plays a recorded battle (a replay of a rollback battle, e.g. from production) as a local
+rollback match, for looking at frame pacing with real input. Each peer runs with `gdxsv:rbk_replay=<replay>`:
+it gives GGPO its player's recorded input, and the game reads the recorded inputs of all players by KeyMsg1
+number, as replay playback does. So the battle is the recorded one whatever GGPO predicts, while rollbacks
+and timesync run as in a real match. Users, rule and online patches come from the replay; random input is off.
+
+```
+python gdxsv_tests/rollback/replay_match.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi --delays 30,50,60,80
+python gdxsv_tests/rollback/replay_match.py --rom ... --replay <battle>.pb
+```
+
+Without `--replay` it plays the newest Disc 2 corpus replay (`--corpus <id>` for another one from
+`gdxsv_tests/corpus/replays.json`). Only replays with inputs and round starts work: corpus 1727284586532 and newer.
+
+It reports per peer each round's start RNG against the recording (`RBKREPLAY round N ... match|DESYNC`), the
+round winners against the recording, and how many local inputs GGPO carried that differ from the recording
+(`RBKREPLAY local inputs`; the input added for a frame is guessed by assuming one KeyMsg1 per frame).
+`--window` opens the four windows; a full battle takes about as long as it did.
 
 ## Live spectator rig
 

@@ -64,6 +64,10 @@ class GdxsvBackendRollback {
 	void FlushConfirmedToSpectatorUplink();
 	// Highest frame GGPO can no longer roll back, or -1 without a session.
 	int ConfirmedFrame();
+	// gdxsv:rbk_replay: replay input number of the key_msg-th KeyMsg1 of this match, or -1 outside the replay.
+	int ReplayInputIndex(int key_msg) const;
+	// gdxsv:rbk_replay: this peer's replay input for the GGPO frame its input added at frame is read on.
+	void FeedReplayLocalInput(int frame);
 	void UpdateNetworkStatSnapshot();
 
 	State state_ = State::None;
@@ -110,6 +114,15 @@ class GdxsvBackendRollback {
 	// GGPO_TEST_NO_REBATTLE_CANCEL: the re-battle-cancel scene does not close the match (control of rollback case C3).
 	bool test_no_cancel_ = false;
 	int last_scene_ = -1;
+
+	// gdxsv:rbk_replay=<replay file>: the local test plays this battle. Every peer gives GGPO its player's recorded
+	// input, and the game reads the recorded inputs of all players by KeyMsg1 number, as replay playback does, so
+	// the battle follows the recording whatever GGPO predicts. Kept by Reset, which Prepare calls.
+	proto::BattleLogFile replay_input_;
+	bool replay_input_on_ = false;
+	// Local inputs GGPO delivered that differ from the recording (the frame estimate in FeedReplayLocalInput missed).
+	int replay_input_checked_ = 0;
+	int replay_input_mismatched_ = 0;
 
 	// Network stats copied on the emulation thread for the OSD. The UI thread must not call into GGPO: the emu
 	// thread can hold the GGPO lock for seconds (prediction barrier while a peer drops), freezing the window.
