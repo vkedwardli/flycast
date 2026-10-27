@@ -1,5 +1,5 @@
 """Gamepad input through an SDL virtual gamepad (env GDXSV_TEST_JOYSTICK, gdxsv_input.cpp):
-joystick polling on and off, opposite directions cancel (SOCD)."""
+press and release, opposite directions cancel (SOCD)."""
 
 import os
 
@@ -38,9 +38,8 @@ def first(seen: dict, pred, after: int):
     return next((f for f, s in seen.items() if f >= after and pred(s)), None)
 
 
-def press_release(ctx, name: str, polling: str, late: int = 0) -> dict:
-    r = run(ctx, name, [(300 + late, "b", BTN_A, 1), (360 + late, "b", BTN_A, 0)],
-            [f"input:JoystickPolling={polling}"])
+def press_release(ctx, name: str, late: int = 0) -> dict:
+    r = run(ctx, name, [(300 + late, "b", BTN_A, 1), (360 + late, "b", BTN_A, 0)], [])
     down = first(r["seen"], lambda s: not s[0] & DC_BTN_A, 300)
     up = first(r["seen"], lambda s: s[0] & DC_BTN_A, down or 360)
     return {"attached": r["attached"], "down": down, "up": up, "seen": r["seen"], **r["probe"].facts()}
@@ -52,16 +51,10 @@ def press_checks(r: dict) -> list:
             {"what": f"A up within 3 vblanks of 360 ({r['up']})", "ok": r["up"] is not None and 360 <= r["up"] <= 363}]
 
 
-@case("J1", "joystick polling on: a virtual gamepad's A press and release reach player 1 within 3 vblanks",
+@case("J1", "a virtual gamepad's A press and release reach player 1 within 3 vblanks (SDL events)",
       tier="smoke")
-def polling_on(ctx):
-    r = press_release(ctx, "J1", "yes")
-    return result(press_checks(r), **r)
-
-
-@case("J2", "joystick polling off (SDL events): a virtual gamepad's A press and release reach player 1 within 3 vblanks")
-def polling_off(ctx):
-    r = press_release(ctx, "J2", "no")
+def press(ctx):
+    r = press_release(ctx, "J1")
     return result(press_checks(r), **r)
 
 

@@ -92,7 +92,7 @@ def run_cell(s, name: str, tag: str, out: str, presentmon: str) -> dict:
            "GDXSV_PERF_TRACE": "perf.csv", **NO_REAL_PADS, **(extra[0] if extra else {})}
     peer_env = {1: {"GDXSV_TEST_JOYSTICK": p1_pad, "GDXSV_PRESS_SWEEP": SWEEP},
                 2: {"GDXSV_TEST_JOYSTICK": p2_pad}}
-    cfg = [f"config:rend.ThreadedRendering={tr}", "input:JoystickPolling=yes", f"config:rend.vsync={vs}",
+    cfg = [f"config:rend.ThreadedRendering={tr}", f"config:rend.vsync={vs}",
            "config:rend.DelayFrameSwapping=no", "config:pvr.rend=2"] + (extra[1] if len(extra) > 1 else [])
     pm_csv = os.path.join(out, tag + "_pm.csv")
     pm_proc = []

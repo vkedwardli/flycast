@@ -240,11 +240,6 @@ void gdxsv_gui_settings_tab()
 	OptionCheckbox(T("Use High-Resolution Font"), config::GdxFontRaster,
 		T("Draw the game's text with a high-resolution font. Takes effect at the next game start."));
 
-#ifdef _WIN32
-	OptionCheckbox(T("Joystick Polling"), config::JoystickPolling,
-		T("Use polling instead of events for joystick input. May improve input latency in multi-threaded mode."));
-#endif
-
 	bool widescreen = config::Widescreen.get() && config::WidescreenGameHacks.get();
 	pressed = ImGui::Checkbox(T("Enable 16:9 Widescreen Hack"), &widescreen);
 	if (pressed) {

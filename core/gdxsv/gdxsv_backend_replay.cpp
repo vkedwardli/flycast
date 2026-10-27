@@ -26,7 +26,6 @@
 #include "gdx_rpc.h"
 #include "gdxsv.h"
 #include "gdxsv_emu_hooks.h"
-#include "gdxsv_input_hooks.h"
 #include "gdxsv_translation.h"
 #include "gdxsv_replay_util.h"
 #include "gdxsv_round_counters.h"
@@ -64,12 +63,6 @@ std::string formatLocalClock(time_t ts) {
 		return {};
 	}
 	return buf;
-}
-
-void refreshLiveInputState() {
-	if (config::JoystickPolling) {
-		gdxsv_input_update_joysticks();
-	}
 }
 
 MapleInputState liveInputState() {
@@ -114,7 +107,6 @@ u16 convertInput(MapleInputState input) {
 }
 
 u16 liveTakeoverMcsInput() {
-	refreshLiveInputState();
 	return convertInput(liveInputState());
 }
 

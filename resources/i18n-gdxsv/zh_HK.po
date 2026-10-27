@@ -260,12 +260,6 @@ msgstr ""
 msgid "Enable UPnP"
 msgstr "使用 UPnP"
 
-msgid "Joystick Polling"
-msgstr "搖桿 Polling"
-
-msgid "Use polling instead of events for joystick input. May improve input latency in multi-threaded mode."
-msgstr "使用Polling而非Event Trigger來獲取搖桿輸入。可能會改善多線程模式下的輸入延遲。"
-
 msgid "Federation"
 msgstr "聯邦"
 

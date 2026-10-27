@@ -31,7 +31,6 @@
 
 #include "gdxsv/gdxsv_sleep.h"
 #include "gdxsv/gdxsv_emu_hooks.h"
-#include "gdxsv/gdxsv_input_hooks.h"
 #include "gdxsv/gdxsv_prof.h"
 #include "gdxsv/gdxsv_ggpo_hooks.h"
 #include "gdxsv/gdxsv_perf_trace.h"
@@ -920,8 +919,6 @@ static bool addLocalInput()
 		if (!gdxsv_ggpo_state.useRandInput) {
 			if (!config::ThreadedRendering)
 				os_UpdateInputState();
-			else if (config::JoystickPolling)
-				gdxsv_input_update_joysticks();  // Polling mode: EMU thread can safely poll joystick state
 		}
 		Inputs inputs;
 		inputs.kcode = ~kcode[0];

@@ -29,9 +29,6 @@ class GdxsvReplayInputTest : public ::testing::Test {
 			config::setTransient("gdxsv", "headless", headless_ ? "yes" : "no");
 		}
 		config::ThreadedRendering = threaded_rendering_;
-#ifdef _WIN32
-		config::JoystickPolling = joystick_polling_;
-#endif
 		config::GdxMinDelay = input_delay_;
 		settings.gdxsv.replayModeActive = replay_mode_active_;
 		settings.aica.muteAudio = mute_audio_;
@@ -142,9 +139,6 @@ class GdxsvReplayInputTest : public ::testing::Test {
 		// Supply one delayed controller sample without polling host devices.
 		config::GdxMinDelay = 1;
 		config::ThreadedRendering = true;
-#ifdef _WIN32
-		config::JoystickPolling = false;
-#endif
 	}
 
 	void PrepareTakeoverCountdown(bool retry, u16 target) {
@@ -216,9 +210,6 @@ class GdxsvReplayInputTest : public ::testing::Test {
 	bool multi_pov_session_ = false;
 	const bool headless_ = config::loadBool("gdxsv", "headless", false);
 	const bool threaded_rendering_ = config::ThreadedRendering;
-#ifdef _WIN32
-	const bool joystick_polling_ = config::JoystickPolling;
-#endif
 	const int input_delay_ = config::GdxMinDelay;
 	const bool replay_mode_active_ = settings.gdxsv.replayModeActive;
 	const bool mute_audio_ = settings.aica.muteAudio;
@@ -964,9 +955,6 @@ TEST_F(GdxsvReplayInputTest, HeldStartDuringCountdownDoesNotRetryUntilReleased) 
 	ImGui::GetIO().DisplaySize = ImVec2(640, 480);
 	ImGui::GetIO().Fonts->Build();
 	config::ThreadedRendering = true;
-#ifdef _WIN32
-	config::JoystickPolling = false;
-#endif
 	PrepareTakeoverCountdown(true, McsKeyCode::A);
 	CloseTakeoverMenu();
 	mapleInputState[0] = {};
