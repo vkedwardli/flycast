@@ -44,7 +44,6 @@ void StartSession(const char* sessionCode, int me, const std::vector<std::string
 	s.inputBlockCount.fill(0);
 	s.useExInput = true;
 	ggpo::setExInput(0);
-	ggpo::setExInputFlags(0);
 	*u.analogAxes = 2;
 	*u.inputSize = sizeof(kcode[0]) + sizeof(u16) + *u.analogAxes;	// kcode, exInput, analog axes
 	NOTICE_LOG(NETWORK, "inputSize:%d", *u.inputSize);

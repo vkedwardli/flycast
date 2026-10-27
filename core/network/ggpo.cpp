@@ -47,7 +47,6 @@ bool skipInputOccurred;
 bool skipReplayHeld;
 std::unordered_map<int, int> skippedFrames;
 u16 localExInput;
-u16 localExInputFlags;
 std::atomic<int> timeSyncFrames;
 
 static void getLocalInput(MapleInputState inputState[4])
@@ -962,7 +961,7 @@ static bool addLocalInput()
 
 		if (gdxsv_ggpo_state.useExInput)
 		{
-			inputs.exInput = localExInput | localExInputFlags;
+			inputs.exInput = localExInput;
 		}
 		if (gdxsv_enabled()) {
 			if (lt2[0] >= 64) inputs.kcode |= DC_BTN_A | DC_BTN_X;
