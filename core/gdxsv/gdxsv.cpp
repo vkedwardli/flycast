@@ -125,9 +125,23 @@ const char *Gdxsv::NetModeString() const {
 	return "Unknown";
 }
 
-void Gdxsv::Reset() {
+void Gdxsv::Reset(bool loading_state) {
 	InvalidateWidescreenPatch();
-	lbs_net_.Reset();
+	// Playback from the lobby loads the replay state and then the lobby state
+	// back; the lobby connection has to outlive both.
+	const bool keep_lobby = loading_state && lobby_suspended_;
+	if (!keep_lobby) {
+		if (lobby_suspended_) NOTICE_LOG(COMMON, "lobby: closing the suspended lobby connection");
+		lbs_net_.Reset();
+		lobby_suspended_ = false;
+		matching_entered_ = false;
+		in_room_ = false;
+		{
+			std::lock_guard<std::mutex> lock(lobby_held_mutex_);
+			lobby_held_.clear();
+		}
+		lobby_patch_list_.Clear();
+	}
 	udp_net_.Reset();
 	rollback_net_.Reset();
 	replay_net_.Reset();
@@ -189,6 +203,11 @@ void Gdxsv::Reset() {
 			   config::GdxLoginKey.get().c_str(), config::GdxLocalPort.get());
 
 	lbs_net_.lbs_packet_filter([this](const LbsMessage &lbs_msg) -> bool {
+		if (lobby_suspended_) {
+			HoldLobbyMessage(lbs_msg);
+			return false;
+		}
+
 		if (netmode_ != NetMode::Lbs) {
 			if (lbs_net_.IsConnected()) {
 				// The user is not in lobby but connection is alive
@@ -225,6 +244,16 @@ void Gdxsv::Reset() {
 			if (gui_is_open() || gui_state == GuiState::VJoyEdit) {
 				return false;
 			}
+		}
+
+		if (lbs_msg.command == LbsMessage::lbsLobbyMatchingEntry && lbs_msg.status == LbsMessage::StatusError) {
+			matching_entered_ = false;
+		}
+		// No room: refused, or its owner left and the room is gone.
+		if (((lbs_msg.command == LbsMessage::lbsRoomCreate || lbs_msg.command == LbsMessage::lbsRoomEntry) &&
+			 lbs_msg.status == LbsMessage::StatusError) ||
+			lbs_msg.command == LbsMessage::lbsRoomRemove) {
+			in_room_ = false;
 		}
 
 		if (lbs_msg.command == LbsMessage::lbsReadyBattle) {
@@ -266,6 +295,103 @@ void Gdxsv::Reset() {
 
 		return true;
 	});
+	lbs_net_.lbs_sent_observer([this](const LbsMessage &lbs_msg) {
+		// The game's own match entry (1) or its cancel (0).
+		if (lbs_msg.command == LbsMessage::lbsLobbyMatchingEntry && !lbs_msg.body.empty()) {
+			matching_entered_ = lbs_msg.body[0] == 1;
+			NOTICE_LOG(COMMON, "lobby: match entry %d", lbs_msg.body[0]);
+		}
+		// A room of its own or another's; a member leaves it with a room match cancel (0).
+		if (lbs_msg.command == LbsMessage::lbsRoomCreate || lbs_msg.command == LbsMessage::lbsRoomEntry) {
+			in_room_ = true;
+			room_owner_ = lbs_msg.command == LbsMessage::lbsRoomCreate;
+			NOTICE_LOG(COMMON, "lobby: in a room (%s)", room_owner_ ? "owner" : "member");
+		}
+		if (lbs_msg.command == LbsMessage::lbsRoomExit ||
+			(lbs_msg.command == LbsMessage::lbsMatchingEntry && !room_owner_ && !lbs_msg.body.empty() && lbs_msg.body[0] == 0)) {
+			in_room_ = false;
+			NOTICE_LOG(COMMON, "lobby: left the room");
+		}
+		if (lbs_msg.command == LbsMessage::lbsLobbyExit) {
+			matching_entered_ = false;
+			in_room_ = false;
+		}
+	});
+}
+
+// Notices that resend a whole count or state: only the latest one per key matters.
+static bool LatestOnlyKey(const LbsMessage &msg, u32 &key) {
+	if (msg.category != LbsMessage::CategoryNotice) return false;
+	switch (msg.command) {
+		case LbsMessage::lbsBattleUserCount:
+			key = u32(msg.command) << 16;
+			return true;
+		case LbsMessage::lbsPlazaJoin:			// per lobby
+		case LbsMessage::lbsLobbyJoin:			// per team
+		case LbsMessage::lbsLobbyMatchingJoin:	// per team
+		case LbsMessage::lbsRoomTitle:			// per room
+		case LbsMessage::lbsRoomStatus:			// per room
+			if (msg.body.size() < 2) return false;
+			key = u32(msg.command) << 16 | u32(msg.body[0]) << 8 | msg.body[1];
+			return true;
+		default:
+			return false;
+	}
+}
+
+void Gdxsv::HoldLobbyMessage(const LbsMessage &lbs_msg) {
+	if (lbs_msg.command == LbsMessage::lbsLineCheck) {
+		std::vector<u8> buf;
+		LbsMessage::ClAnswer(lbs_msg).Serialize(buf);
+		lbs_net_.Send(buf);
+		return;
+	}
+	std::lock_guard<std::mutex> lock(lobby_held_mutex_);
+	u32 key;
+	if (LatestOnlyKey(lbs_msg, key)) {
+		auto it = std::find_if(lobby_held_.begin(), lobby_held_.end(), [key](const LbsMessage &held) {
+			u32 held_key;
+			return LatestOnlyKey(held, held_key) && held_key == key;
+		});
+		if (it != lobby_held_.end()) lobby_held_.erase(it);
+	} else if (lbs_msg.command == LbsMessage::lbsChatMessage) {
+		// Older lines would scroll out of the chat log anyway.
+		constexpr int kHeldChatLines = 32;
+		const auto is_chat = [](const LbsMessage &held) { return held.command == LbsMessage::lbsChatMessage; };
+		if (kHeldChatLines <= std::count_if(lobby_held_.begin(), lobby_held_.end(), is_chat))
+			lobby_held_.erase(std::find_if(lobby_held_.begin(), lobby_held_.end(), is_chat));
+	}
+	lobby_held_.push_back(lbs_msg);
+}
+
+bool Gdxsv::CanSuspendLobby() const {
+	return netmode_ == NetMode::Lbs && lbs_net_.IsConnected() && !going_to_battle_ && !LobbyWaiting();
+}
+
+void Gdxsv::SuspendLobby() {
+	if (!CanSuspendLobby()) return;
+	NOTICE_LOG(COMMON, "lobby: suspended for replay playback");
+	// Saving the state restores the original code and forgets the patches.
+	lobby_patch_list_ = patch_list_;
+	lobby_suspended_ = true;
+	netmode_ = NetMode::Offline;
+}
+
+void Gdxsv::ResumeLobby() {
+	if (!lobby_suspended_) return;
+	std::deque<LbsMessage> held;
+	{
+		std::lock_guard<std::mutex> lock(lobby_held_mutex_);
+		held.swap(lobby_held_);
+	}
+	NOTICE_LOG(COMMON, "lobby: resumed with %d held messages", (int)held.size());
+	lobby_suspended_ = false;
+	netmode_ = NetMode::Lbs;
+	patch_list_ = lobby_patch_list_;
+	lobby_patch_list_.Clear();
+	ApplyOnlinePatch(true);
+	// Through the lobby filter, which now writes guest memory as usual.
+	for (const auto &msg : held) lbs_net_.Inject(msg);
 }
 
 bool Gdxsv::HookOpenMenu() {
@@ -280,6 +406,11 @@ bool Gdxsv::HookOpenMenu() {
 
 	if (netmode_ == NetMode::Replay) {
 		return replay_net_.OnOpenMenu();
+	}
+
+	// The game would wait in the menu while the match starts without it.
+	if (LobbyWaiting()) {
+		return false;
 	}
 
 	return true;
@@ -333,8 +464,8 @@ void Gdxsv::HookNextFrame() {
 void Gdxsv::HookMainUiLoop() {
 	if (!enabled_) return;
 
-	// Stop fast-forward from lbsReadyBattle on: the P2P ping test that follows would measure an inflated RTT.
-	if (InGame() || going_to_battle_) {
+	// Stop fast-forward from the match entry on: the P2P ping test that follows would measure an inflated RTT.
+	if (InGame() || going_to_battle_ || LobbyWaiting()) {
 		settings.input.fastForwardMode = false;
 	}
 
@@ -347,7 +478,7 @@ void Gdxsv::HookMainUiLoop() {
 	}
 
 	if (gui_is_open() || gui_state == GuiState::VJoyEdit) {
-		if (netmode_ == NetMode::Lbs && lbs_net_.IsConnected()) {
+		if ((netmode_ == NetMode::Lbs || lobby_suspended_) && lbs_net_.IsConnected()) {
 			// Prevent disconnection from lobby server
 			lbs_net_.OnSockPoll();
 		}
@@ -536,6 +667,9 @@ void Gdxsv::HandleRPC() {
 	gdx_rpc.param4 = gdxsv_ReadMem32(gdx_rpc_addr + 20);
 
 	if (gdx_rpc.request == GDX_RPC_SOCK_OPEN) {
+		// The game opens the battle connection once its match starts, or the lobby again: either ends the wait.
+		matching_entered_ = false;
+		in_room_ = false;
 		const u32 tolobby = gdx_rpc.param1;
 		const u32 host_ip = gdx_rpc.param2;
 		const u16 port = gdx_rpc.param3;

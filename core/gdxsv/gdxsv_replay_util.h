@@ -29,4 +29,9 @@ void gdxsv_live_autoplay_begin(const std::string& battle_code, int pov, bool fou
 int gdxsv_live_viewer_count(const std::string& battle_code, bool force_refresh = false);
 // user_exit: the viewer left from the pause menu, which also ends Live autoplay.
 void gdxsv_end_replay(std::string error = {}, bool user_exit = false);
+// Test switch for gdxsv_tests O7, O8: GDXSV_TEST_START_REPLAY names a file. Once it appears while the
+// game is online, the replay whose path it holds ("four_screen <path>": on four screens) starts as
+// from the menu and the replay browser, or is refused where the menu would not open or the button is
+// disabled.
+void gdxsv_test_start_replay_tick();
 void gdxsv_replay_select_dialog();

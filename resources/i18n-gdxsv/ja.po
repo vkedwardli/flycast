@@ -380,8 +380,11 @@ msgstr "対戦中のHUDを配置する横方向の範囲を選びます:\n    4:
 msgid "Live & Replays"
 msgstr "ライブ & リプレイ"
 
-msgid "Please disconnect from the Gdxsv server first."
-msgstr "先にGdxsvサーバーから切断してください。"
+msgid "Not available while waiting for a match or in a battle."
+msgstr "マッチング待ちと対戦中は使えません。"
+
+msgid "Not available while online."
+msgstr "オンライン中は使えません。"
 
 msgid "Live"
 msgstr "ライブ"

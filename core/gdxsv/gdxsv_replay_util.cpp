@@ -1941,13 +1941,28 @@ void gdxsv_live_autoplay_begin(const std::string& battle_code, int pov, bool fou
 	live_autoplay_.watched = 1;
 }
 
-// Starts one live battle from the lobby state. A four-screen host opens the
-// session for the first battle and moves the open one on for later battles.
-static bool start_live_battle(const std::string& battle_code, int pov, bool four_screen) {
+// Saves the state playback returns to, slot 90. From the online lobby, the
+// connection stays open and loading slot 90 resumes it.
+static void save_return_state() {
+	gdxsv.SuspendLobby();
 	if (gdxsv.IsSaveStateAllowed()) {
 		dc_savestate(90);
 	}
-	if (!gdxsv_ensure_replay_savestate(gdxsv.Disk())) return false;
+}
+
+// Playback did not start: the game is still where save_return_state() left it.
+static void cancel_return_state() {
+	gdxsv.ResumeLobby();
+}
+
+// Starts one live battle from the lobby state. A four-screen host opens the
+// session for the first battle and moves the open one on for later battles.
+static bool start_live_battle(const std::string& battle_code, int pov, bool four_screen) {
+	save_return_state();
+	if (!gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+		cancel_return_state();
+		return false;
+	}
 
 	if (four_screen) {
 		std::string video_error;
@@ -1955,6 +1970,7 @@ static bool start_live_battle(const std::string& battle_code, int pov, bool four
 														 : gdxsv_multi_pov_begin_live_host_session(battle_code, &video_error);
 		if (!moved_on) {
 			if (!video_error.empty()) gui_error(video_error);
+			cancel_return_state();
 			return false;
 		}
 		pov = 0;
@@ -2063,11 +2079,11 @@ static void gdxsv_notify_replay_played(const std::string& replay_file) {
 
 void gdxsv_start_replay(const std::string& replay_file, int pov, bool four_screen) {
 	live_autoplay_stop();
-	if (gdxsv.IsSaveStateAllowed()) {
-		dc_savestate(90);
-	}
+	save_return_state();
 
-	if (gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+	if (!gdxsv_ensure_replay_savestate(gdxsv.Disk())) {
+		cancel_return_state();
+	} else {
 		// Report video-sharing failures without loading a single-screen replay.
 		std::vector<uint8_t> hosted_replay;
 		std::string video_error;
@@ -2085,6 +2101,7 @@ void gdxsv_start_replay(const std::string& replay_file, int pov, bool four_scree
 		}
 		if (!video_error.empty()) {
 			gui_error(video_error);
+			cancel_return_state();
 			return;
 		}
 
@@ -2097,6 +2114,32 @@ void gdxsv_start_replay(const std::string& replay_file, int pov, bool four_scree
 			broken_replay_path = replay_file;
 		}
 	}
+}
+
+void gdxsv_test_start_replay_tick() {
+	static const char* trigger = getenv("GDXSV_TEST_START_REPLAY");
+	if (trigger == nullptr || !gdxsv.IsOnline()) return;
+	FILE* f = std::fopen(trigger, "r");
+	if (f == nullptr) return;
+	char buf[1024];
+	const size_t n = std::fread(buf, 1, sizeof(buf) - 1, f);
+	std::fclose(f);
+	std::string path(buf, n);
+	while (!path.empty() && std::isspace((unsigned char)path.back())) path.pop_back();
+	if (path.empty()) return;  // still being written
+	std::remove(trigger);
+	const std::string four_screen_prefix = "four_screen ";
+	const bool four_screen = path.rfind(four_screen_prefix, 0) == 0;
+	if (four_screen) path.erase(0, four_screen_prefix.size());
+	// As the menu and its Live & Replays button would.
+	if (gdxsv.InGame() || !gdxsv.HookOpenMenu() || !gdxsv.CanSuspendLobby()) {
+		NOTICE_LOG(COMMON, "test: menu refused, replay %s not started", path.c_str());
+		return;
+	}
+	NOTICE_LOG(COMMON, "test: starting replay %s from the lobby%s", path.c_str(), four_screen ? " (4 screens)" : "");
+	emu.stop();
+	gdxsv_start_replay(path, 0, four_screen);
+	if (gui_state == GuiState::Closed) emu.start();
 }
 
 void gdxsv_end_replay(std::string error, bool user_exit) {
@@ -2115,6 +2158,13 @@ void gdxsv_end_replay(std::string error, bool user_exit) {
 		return;
 	}
 	live_autoplay_stop();
+
+	// Started from the online lobby: back to the lobby game.
+	if (gdxsv.IsOnline() && error.empty()) {
+		gui_state = GuiState::Closed;
+		emu.start();
+		return;
+	}
 
 	// Reopen the browser; ImGui retains the tab that launched playback.
 	gui_state = GuiState::GdxsvReplay;

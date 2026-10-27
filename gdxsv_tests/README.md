@@ -75,8 +75,8 @@ python gdxsv_tests/precheck.py --exe build/flycast.exe --old-exe <last release>/
 | `GDXSV_REPLAY_DIR` | corpus replays, downloaded on first use and checked against `corpus/replays.json` (default `out/replay`) |
 | `GDXSV_REPLAY_JOBS` | replays R1 plays in parallel (default 4) |
 | `GDXSV_RELEASE_ROOT` | R4, S3, S4: releases downloaded with `gh` to `<dir>/releases/<tag>` (default `out`) |
-| `GDXSV_SERVER_EXE` | O1-O6, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
-| `GDXSV_LOGIN_STATE` | O1-O6: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
+| `GDXSV_SERVER_EXE` | O1-O8, S1: `gdxsv` from inada-s/gdxsv, built with `-ldflags "-X main.requiredFlycastVersion="`; S1 needs `-spectator_test_session` (gdxsv `master`) |
+| `GDXSV_LOGIN_STATE` | O1-O8: a Disc 2 savestate at the network game menu (通信ゲームシステム) with a registered VMU |
 | `GDXSV_FP_OFF_EXE` | D1c: a build with `-DGDXSV_FP_COMPAT=OFF` |
 
 The ROM, BIOS, savestates and replays are not in the repository.
@@ -133,6 +133,8 @@ send the public IP, P2P and latency checks to a local fake server and turn UPnP 
 | O2 | full | O1, then a training lobby entry, chat force start, mobile suit select and battle: one player on the UDP backend through the local battle server | 170 s |
 | O3 | full | as O2 in a P2P lobby (`mcs_region` `p2p`): lobby sends the P2P matching, one-peer GGPO session, battle loads on the rollback backend | 170 s |
 | O4 | full | two clients (two login keys, same savestate) in one P2P lobby: both enter, one force-starts; P2P matching to both, two-peer GGPO session, each peer answers the other, both reach the battle | 190 s |
+| O7 | full | two clients in one P2P lobby: a, on the plaza map, plays the last round of the newest Disc 2 corpus replay from the lobby (`GDXSV_TEST_START_REPLAY`, `replay_target_round`; a in a window: a headless replay end exits the process). a's log: suspended, state loaded, resumed after it; then a joins lobby 2 and enters; from the entry to the mobile suit select the start is refused (`test: menu refused`), also between the match (`GdxsvBackendRollback.Prepare`) and the battle connection (`.Open`), and no replay starts; b joins, enters and force-starts: the O4 pair checks | not measured |
+| O8 | full | O7 with the replay on four screens (`four_screen <path>` in the trigger file): a's session has 3 guests, each plays the host's replay and closes when it ends (`flycast-<n>P.log`); then O7's checks | not measured |
 | O5 | full | O1, and the network payload (`gdxsv_patch/`) is in RAM: its install logged, current `patch_id` at the network menu, connection not refused | 85 s |
 | R3 | full | 4-peer local rollback match with `RBK_SAVE_REPLAY=1`: each peer saves one replay, the four hold the same inputs but the last (the battle-end frame each peer disconnects on: a remote disconnect can arrive before its input there), peer 1's plays to the end with the match's winner | 80 s |
 | R4 / R4c | full | 4-peer local rollback match with `RBK_SAVE_REPLAY=1`; the previous release (`cases/compat.py`) plays peer 1's replay: exit 0, every round started, the recorded winners (releases log no stop line) (R4c: inputs cut halfway through the last round, no winner) | 77 s |

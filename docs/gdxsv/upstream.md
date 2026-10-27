@@ -130,7 +130,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/emulator.cpp` | `Emulator::loadGame` | `gdxsv_emu_start` |
 | `core/emulator.cpp` | `Emulator::unloadGame` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::stop` | the rollback backend starts the GGPO session without NetworkHandshake |
-| `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
+| `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset(true)`: keeps a lobby suspended for replay playback |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
 | `core/emulator.cpp` | `Emulator::start` | the render thread renders from snapshots and does not write VRAM (render_snapshot.h) |
 | `core/emulator.cpp` | `Emulator::start` | `gdxsv_emu_thread_start` |
@@ -368,6 +368,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/gui.cpp` | `delayedKeysUp` | not static, the replay UI calls it |
 | `core/ui/gui.cpp` | `gui_open_settings` | gdxsv_emu_menu_open() can take the key (replay pause menu, in-game stats) |
 | `core/ui/gui.cpp` | `gui_display_commands` | wider than upstream's 150 so translated labels fit. |
+| `core/ui/gui.cpp` | `gui_display_commands` | no disk eject online, the game reboots to the BIOS |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_enabled` |
 | `core/ui/gui.cpp` | `gui_display_commands` | `gdxsv_emu_gui_display_commands` |

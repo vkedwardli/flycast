@@ -183,10 +183,6 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 	}
 	*/
 
-	if (state_ == State::StartLocalTest) {
-		kcode[0] = ~0x0004;
-	}
-
 	if (state_ == State::StopEmulator) {
 		NOTICE_LOG(COMMON, "StopEmulator");
 		emu.stop();
