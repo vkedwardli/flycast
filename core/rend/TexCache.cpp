@@ -22,6 +22,8 @@
 #include "hw/pvr/render_snapshot.h" // gdxsv: render snapshots
 
 #include <mutex>
+#include <set>
+#include <tuple>
 #include <xxhash.h>
 
 #ifdef _OPENMP
@@ -89,6 +91,64 @@ TexSource texSource;
 TexSource TexSource::live()
 {
 	return { &::vram[0], TEXT_CONTROL, PAL_RAM_CTRL, (const u32 *)FOG_TABLE };
+}
+
+// texdbg
+bool texdbgAllow(TexdbgKind kind)
+{
+	static std::atomic<u32> counts[(int)TexdbgKind::Count];
+	const u32 n = counts[(int)kind]++;
+	return n < 300 || n % 100 == 0;
+}
+
+void texdbgRtt(const char *renderer, BaseTextureCacheData *texture, u32 width, u32 height)
+{
+	texture->dbg_rtt = true;
+	// Render thread only. Each address, size and format once.
+	static std::set<std::tuple<u32, u32, u32, u32>> seen;
+	if (seen.insert({ texture->startAddress, width, height, texture->tcw.full }).second && texdbgAllow(TexdbgKind::Rtt))
+		TEXDBG_LOG("%s render to texture: %s result %ux%u", renderer, texture->TexdbgName().c_str(), width, height);
+}
+
+std::string BaseTextureCacheData::TexdbgName()
+{
+	char buf[192];
+	snprintf(buf, sizeof(buf), "addr=%06x %ux%u %s%s%s %s tcw=%08x tsp=%08x upd=%u custom=%d loads=%d",
+			startAddress, width, height, GetPixelFormatName(), tcw.VQ_Comp ? " vq" : "", tcw.MipMapped ? " mip" : "",
+			tcw.ScanOrder ? "planar" : "twiddled", tcw.full, tsp.full, Updates, (int)is_custom_replaced,
+			(int)custom_load_in_progress);
+	return buf;
+}
+
+u32 BaseTextureCacheData::TexdbgContentHash() const
+{
+	const u32 end = mmStartAddress + size;
+	if (startAddress >= end || end > VRAM_SIZE)
+		return 0;
+	return XXH32(&texSource.vram[startAddress], end - startAddress, 0);
+}
+
+// Every 60th rendered frame, a texture used without an update must still match the VRAM it was decoded from:
+// a difference means VRAM changed without invalidating the texture.
+void BaseTextureCacheData::TexdbgVerify()
+{
+	if (FrameCount % 60 != 0 || dbg_checked_frame == FrameCount)
+		return;
+	dbg_checked_frame = FrameCount;
+	if (custom_load_in_progress < 0 && texdbgAllow(TexdbgKind::LoadCount))
+		TEXDBG_LOG("negative custom load count: %s", TexdbgName().c_str());
+	if (dbg_reported || Updates == 0)
+		return;
+	if (TexdbgContentHash() == dbg_hash)
+		return;
+	dbg_reported = true;
+	if (lock_block == nullptr || dbg_rtt)
+	{
+		if (texdbgAllow(TexdbgKind::Unlocked))
+			TEXDBG_LOG("unlocked texture differs from VRAM (rtt=%d): %s", (int)dbg_rtt, TexdbgName().c_str());
+	}
+	else if (texdbgAllow(TexdbgKind::Stale))
+		TEXDBG_LOG("STALE texture, VRAM changed without invalidation: %s", TexdbgName().c_str());
 }
 
 static void invalidatePage(size_t offset)
@@ -273,6 +333,8 @@ bool BaseTextureCacheData::NeedsUpdate() {
 		else if (tcw.PixelFmt == PixelPal8 && palette_hash != pal_hash_256[tcw.PalSelect >> 4])
 			rc = true;
 	}
+	if (!rc)
+		TexdbgVerify(); // texdbg
 
 	return rc;
 }
@@ -479,6 +541,12 @@ bool BaseTextureCacheData::Update()
 	dirty = 0;
 	gpuPalette = false;
 	tex_type = tex->type;
+	// texdbg
+	dbg_hash = TexdbgContentHash();
+	dbg_reported = false;
+	if (dbg_rtt && texdbgAllow(TexdbgKind::NativeAfterRtt))
+		TEXDBG_LOG("decoded from VRAM after render to texture: %s", TexdbgName().c_str());
+	dbg_rtt = false;
 
 	bool has_alpha = false;
 	if (IsPaletted())
@@ -559,6 +627,9 @@ bool BaseTextureCacheData::Update()
 			size = originalSize;
 			return true;
 		}
+		// texdbg: the GPU texture holds a custom image, of another size and format than this decode
+		if (is_custom_replaced && texdbgAllow(TexdbgKind::NativeAfterCustom))
+			TEXDBG_LOG("decoded from VRAM after a custom image: %s hash %08x -> %08x", TexdbgName().c_str(), oldHash, texture_hash);
 		custom_texture.loadCustomTextureAsync(this);
 	}
 	is_custom_replaced = false;
@@ -734,6 +805,18 @@ void BaseTextureCacheData::CheckCustomTexture()
 {
 	if (IsCustomTextureAvailable())
 	{
+		// texdbg
+		const bool ownHash = custom_hash == texture_hash || custom_hash == old_texture_hash
+				|| (old_vqtexture_hash != 0 && custom_hash == old_vqtexture_hash);
+		if (!ownHash)
+		{
+			if (texdbgAllow(TexdbgKind::CustomHash))
+				TEXDBG_LOG("custom image of another hash: %s image %ux%u found for %08x, texture %08x old %08x",
+						TexdbgName().c_str(), custom_width, custom_height, custom_hash, texture_hash, old_texture_hash);
+		}
+		else if (texdbgAllow(TexdbgKind::Custom))
+			TEXDBG_LOG("custom image: %s image %ux%u hash %08x", TexdbgName().c_str(), custom_width, custom_height, custom_hash);
+		dbg_rtt = false;
 		tex_type = TextureType::_8888;
 		gpuPalette = false;
 		is_custom_replaced = true;

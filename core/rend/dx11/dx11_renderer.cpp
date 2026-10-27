@@ -1170,6 +1170,7 @@ void DX11Renderer::readRttRenderTarget(u32 texAddress)
 
 			texture->dirty = 0;
 			texture->unprotectVRam();
+			texdbgRtt("DX11", texture, w, h); // texdbg
 		}
 	}
 }

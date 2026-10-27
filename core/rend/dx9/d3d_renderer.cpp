@@ -947,6 +947,7 @@ void D3DRenderer::readRttRenderTarget(u32 texAddress)
 			texture->texture = rttTexture;
 			texture->dirty = 0;
 			texture->unprotectVRam();
+			texdbgRtt("DX9", texture, w, h); // texdbg
 		}
 	}
 }

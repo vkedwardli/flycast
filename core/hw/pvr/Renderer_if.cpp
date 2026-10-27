@@ -493,6 +493,11 @@ bool rend_init_renderer()
 	if (renderer == nullptr)
 		rend_create_renderer();
 	bool success = renderer != nullptr && renderer->Init();
+	// texdbg
+	TEXDBG_LOG("renderer %d init %s: threaded %d rtt to vram %d upscale %d mipmaps %d resolution %d",
+			(int)config::RendererType.get(), success ? "ok" : "failed", (int)config::ThreadedRendering,
+			(int)config::RenderToTextureBuffer, (int)config::TextureUpscale, (int)config::UseMipmaps,
+			(int)config::RenderResolution);
 	if (!success) {
 		delete renderer;
 		renderer = rend_norend();

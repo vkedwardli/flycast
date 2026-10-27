@@ -143,15 +143,20 @@ void CustomTexture::loadTexture(BaseTextureCacheData *texture)
 	if (!texture->dirty)
 	{
 		int width, height;
-		u8 *image_data = loadTexture(texture->texture_hash, width, height);
+		u32 hash = texture->texture_hash; // texdbg: the hash the image is found for
+		u8 *image_data = loadTexture(hash, width, height);
 		if (image_data == nullptr && texture->old_vqtexture_hash != 0)
-			image_data = loadTexture(texture->old_vqtexture_hash, width, height);
+			image_data = loadTexture(hash = texture->old_vqtexture_hash, width, height);
 		if (image_data == nullptr)
-			image_data = loadTexture(texture->old_texture_hash, width, height);
+			image_data = loadTexture(hash = texture->old_texture_hash, width, height);
 		if (image_data == nullptr)
+		{
+			hash = texture->texture_hash;
 			image_data = gdxsv_custom_texture_load_cells(texture, width, height);
+		}
 		if (image_data != nullptr)
 		{
+			texture->custom_hash = hash; // texdbg
 			texture->custom_width = width;
 			texture->custom_height = height;
 			texture->custom_image_data = image_data;
@@ -229,6 +234,7 @@ void CustomTexture::addSource(std::unique_ptr<BaseCustomTextureSource> source)
 		if (!loaderThread && ptr->shouldReplace())
 		{
 			loaderThread = std::make_unique<WorkerThread>("CustomTexLoader");
+			TEXDBG_LOG("custom textures on: source %d of the game", (int)sources.size()); // texdbg
 		}
 		if (loaderThread)
 		{
@@ -249,7 +255,10 @@ void CustomTexture::terminate()
 {
 	stop_preload = true;
 	if (loaderThread)
+	{
+		TEXDBG_LOG("custom textures off"); // texdbg
 		loaderThread->stop();
+	}
 	loaderThread.reset();
 	for (auto& source : sources)
 		source->terminate();

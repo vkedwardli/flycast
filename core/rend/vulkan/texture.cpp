@@ -185,7 +185,13 @@ void Texture::UploadToGPU(int width, int height, const u8 *data, bool mipmapped,
 	bool isNew = true;
 	if (width != (int)extent.width || height != (int)extent.height
 			|| format != this->format || !this->image)
+	{
+		// texdbg
+		if (this->image && texdbgAllow(TexdbgKind::Recreate))
+			TEXDBG_LOG("Vulkan recreates texture: %s image %ux%u fmt %d, upload %dx%d fmt %d", TexdbgName().c_str(),
+					extent.width, extent.height, (int)this->format, width, height, (int)format);
 		Init(width, height, format, dataSize, mipmapped, mipmapsIncluded);
+	}
 	else
 		isNew = false;
 	SetImage(dataSize, data, isNew, mipmapped && !mipmapsIncluded);

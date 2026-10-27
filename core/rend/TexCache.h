@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cstdio>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -46,6 +47,15 @@ bool VramLockedWrite(u8* address);
 void VramInvalidatePage(u32 offset);
 
 void UpscalexBRZ(int factor, u32* source, u32* dest, int width, int height, bool has_alpha);
+
+// texdbg: texture cache diagnostics (debug branch), "TEXDBG" lines in flycast.log
+#define TEXDBG_LOG(fmt, ...) NOTICE_LOG(RENDERER, "TEXDBG f=%u " fmt, FrameCount, ##__VA_ARGS__)
+enum class TexdbgKind { StorageSize, StorageFormat, Recreate, Rtt, Custom, CustomHash, NativeAfterCustom, NativeAfterRtt,
+	Stale, Unlocked, LoadCount, Stride, Count };
+// Rate limit per kind: the first 300 events, then one in 100
+bool texdbgAllow(TexdbgKind kind);
+// A render-to-texture result became the GPU texture of this entry
+void texdbgRtt(const char *renderer, BaseTextureCacheData *texture, u32 width, u32 height);
 
 class BaseTextureCacheData
 {
@@ -80,6 +90,11 @@ public:
 		custom_load_in_progress = 0;
 		gpuPalette = other.gpuPalette;
 		area = other.area;
+		custom_hash = other.custom_hash; // texdbg
+		dbg_hash = other.dbg_hash;
+		dbg_checked_frame = other.dbg_checked_frame;
+		dbg_reported = other.dbg_reported;
+		dbg_rtt = other.dbg_rtt;
 	}
 
 	TSP tsp;        	//dreamcast texture parameters
@@ -115,6 +130,16 @@ public:
 	bool is_custom_replaced;	// True if the texture currently on the GPU is the custom replacement
 	bool gpuPalette;
 	u8 area;
+
+	// texdbg
+	u32 custom_hash = 0;		// the hash the loaded custom image was found for
+	u32 dbg_hash = 0;			// hash of the VRAM the texture was last decoded from
+	u32 dbg_checked_frame = 0;
+	bool dbg_reported = false;	// a difference from VRAM was logged since the last decode
+	bool dbg_rtt = false;		// the GPU texture is a render-to-texture result
+	std::string TexdbgName();
+	u32 TexdbgContentHash() const;
+	void TexdbgVerify();
 
 	void PrintTextureName();
 	virtual std::string GetId() = 0;
@@ -222,6 +247,9 @@ public:
 		if (it != cache.end())
 		{
 			texture = &it->second;
+			// texdbg: a planar texture decoded with one stride and used with another
+			if (texture->tcw.ScanOrder && texture->tcw.StrideSel != tcw.StrideSel && texdbgAllow(TexdbgKind::Stride))
+				TEXDBG_LOG("stride select %d -> %d without update: %s", texture->tcw.StrideSel, tcw.StrideSel, texture->TexdbgName().c_str());
 			// Needed if the texture is updated
 			texture->tcw.StrideSel = tcw.StrideSel;
 		}
@@ -281,8 +309,14 @@ public:
 
 	void Clear()
 	{
+		int loading = 0; // texdbg
 		for (auto& [id, texture] : cache)
+		{
+			if (texture.custom_load_in_progress != 0)
+				loading++;
 			texture.Delete();
+		}
+		TEXDBG_LOG("cache clear: %d textures, %d with custom loads in flight", (int)cache.size(), loading);
 
 		cache.clear();
 		INFO_LOG(RENDERER, "Texture cache cleared");

@@ -56,6 +56,21 @@ void D3DTexture::UploadToGPU(int width, int height, const u8* temp_tex_buffer, b
 		}
 	}
 
+	// texdbg: an upload into a texture of another size or format (a default-pool texture is recreated below)
+	if (texture != nullptr)
+	{
+		D3DSURFACE_DESC desc;
+		if (SUCCEEDED(texture->GetLevelDesc(0, &desc))
+				&& (desc.Width != (UINT)width || desc.Height != (UINT)height || desc.Format != d3dFormat))
+		{
+			const bool sizeDiffers = desc.Width != (UINT)width || desc.Height != (UINT)height;
+			if (texdbgAllow(sizeDiffers ? TexdbgKind::StorageSize : TexdbgKind::StorageFormat))
+				TEXDBG_LOG("DX9 upload into %s texture: %s texture %ux%u fmt %d pool %d levels %u, upload %dx%d fmt %d mipmaps %d/%d",
+						sizeDiffers ? "MISMATCHED" : "other format", TexdbgName().c_str(), (unsigned)desc.Width,
+						(unsigned)desc.Height, (int)desc.Format, (int)desc.Pool, (unsigned)texture->GetLevelCount(),
+						width, height, (int)d3dFormat, (int)mipmapped, (int)mipmapsIncluded);
+		}
+	}
 	D3DLOCKED_RECT rect;
 	while (true)
 	{

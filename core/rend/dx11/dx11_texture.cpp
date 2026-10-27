@@ -73,6 +73,12 @@ void DX11Texture::UploadToGPU(int width, int height, const u8* temp_tex_buffer, 
 		texture->GetDesc(&curDesc);
 		if (desc.Width != curDesc.Width || desc.Height != curDesc.Height || desc.Format != curDesc.Format || desc.MipLevels != curDesc.MipLevels)
 		{
+			// texdbg: recreated (mip count changes alone are not logged)
+			if ((desc.Width != curDesc.Width || desc.Height != curDesc.Height || desc.Format != curDesc.Format)
+					&& texdbgAllow(TexdbgKind::Recreate))
+				TEXDBG_LOG("DX11 recreates texture: %s texture %ux%u fmt %d mips %u, upload %ux%u fmt %d mips %u",
+						TexdbgName().c_str(), curDesc.Width, curDesc.Height, (int)curDesc.Format, curDesc.MipLevels,
+						desc.Width, desc.Height, (int)desc.Format, desc.MipLevels);
 			textureView.reset();
 			texture.reset();
 		}

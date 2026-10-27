@@ -75,6 +75,28 @@ void TextureCacheData::UploadToGPUGl2(int width, int height, const u8 *temp_tex_
 	}
 }
 
+#if !defined(GLES2) && (!defined(__APPLE__) || defined(TARGET_IPHONE))
+// texdbg: the bound texture's level 0, when it is not the size or format of an upload into it
+static std::string texdbgGlStorageMismatch(int width, int height, GLuint internalFormat, bool& sizeDiffers)
+{
+	sizeDiffers = false;
+	if (gl.is_gles)
+		return "";
+	GLint w = 0, h = 0, fmt = 0, immutable = 0;
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &fmt);
+	glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_IMMUTABLE_FORMAT, &immutable);
+	sizeDiffers = w != width || h != height;
+	if (!sizeDiffers && (GLuint)fmt == internalFormat)
+		return "";
+	char buf[128];
+	snprintf(buf, sizeof(buf), "storage %dx%d fmt %x%s, upload %dx%d fmt %x", w, h, fmt, immutable ? " immutable" : "",
+			width, height, internalFormat);
+	return buf;
+}
+#endif
+
 void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_buffer, bool mipmapped, bool mipmapsIncluded)
 {
 #if !defined(GLES2) && (!defined(__APPLE__) || defined(TARGET_IPHONE))
@@ -94,6 +116,8 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 			dim >>= 1;
 		}
 	}
+	std::string texdbgMismatch; // texdbg
+	bool texdbgSize = false;
 	if (texID == 0)
 	{
 		texID = glcache.GenTexture();
@@ -102,6 +126,10 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 	}
 	else {
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
+		texdbgMismatch = texdbgGlStorageMismatch(width, height, internalFormat, texdbgSize);
+		// clear older errors (bounded: a lost context returns one forever)
+		for (int i = 0; !texdbgMismatch.empty() && i < 8 && glGetError() != GL_NO_ERROR; i++)
+			;
 	}
 	if (mipmapsIncluded)
 	{
@@ -116,6 +144,10 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 		if (mipmapped)
 			glGenerateMipmap(GL_TEXTURE_2D);
 	}
+	// texdbg
+	if (!texdbgMismatch.empty() && texdbgAllow(texdbgSize ? TexdbgKind::StorageSize : TexdbgKind::StorageFormat))
+		TEXDBG_LOG("GL4 upload into %s storage: %s %s mipmaps %d/%d glError %x", texdbgSize ? "MISMATCHED" : "other format",
+				TexdbgName().c_str(), texdbgMismatch.c_str(), (int)mipmapped, (int)mipmapsIncluded, glGetError());
 #endif
 }
 
@@ -133,6 +165,11 @@ void TextureCacheData::setUploadToGPUFlavor()
 			|| (gl.is_gles && gl.gl_major >= 3))
 		uploadToGpu = &TextureCacheData::UploadToGPUGl4;
 #endif
+	// texdbg
+	const char *glRenderer = (const char *)glGetString(GL_RENDERER);
+	TEXDBG_LOG("OpenGL %d.%d%s on %s: texture upload %s", gl.gl_major, gl.gl_minor, gl.is_gles ? " ES" : "",
+			glRenderer != nullptr ? glRenderer : "?",
+			uploadToGpu == &TextureCacheData::UploadToGPUGl2 ? "Gl2 (glTexImage2D)" : "Gl4 (glTexStorage2D once)");
 }
 
 bool TextureCacheData::Delete()
@@ -271,6 +308,7 @@ void ReadRTTBuffer()
 			texture_data->texID = gl.rtt.framebuffer->detachTexture();
 			texture_data->dirty = 0;
 			texture_data->unprotectVRam();
+			texdbgRtt("GL", texture_data, w, h); // texdbg
 		}
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, gl.ofbo.origFbo);

@@ -703,6 +703,7 @@ void OITTextureDrawer::EndFrame()
 
 		texture->dirty = 0;
 		texture->unprotectVRam();
+		texdbgRtt("Vulkan OIT", texture, texture->extent.width, texture->extent.height); // texdbg
 	}
 }
 

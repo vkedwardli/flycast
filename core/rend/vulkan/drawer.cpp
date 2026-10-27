@@ -572,6 +572,7 @@ void TextureDrawer::EndRenderPass()
 
 		texture->dirty = 0;
 		texture->unprotectVRam();
+		texdbgRtt("Vulkan", texture, texture->extent.width, texture->extent.height); // texdbg
 	}
 	Drawer::EndRenderPass();
 }
