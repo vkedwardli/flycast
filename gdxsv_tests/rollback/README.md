@@ -69,7 +69,9 @@ These do nothing unless set.
 
 | Variable | Effect | Where |
 |---|---|---|
-| `GGPO_NETWORK_DELAY` | Send latency in ms (GGPO, existing) | any session |
+| `GGPO_NETWORK_DELAY` | Send latency in ms (GGPO, existing). Each packet goes at 2/3 to 1 of it, drawn again on every send-queue pump, so most go near 2/3 | any session |
+| `GGPO_NETWORK_JITTER` | Each packet waits `GGPO_NETWORK_DELAY` + 0..N ms, drawn once when queued (packets stay in order) | any session |
+| `GGPO_NETWORK_LOSS` | Drops N percent of GGPO packets instead of sending them; logs `GGPO_NETWORK_LOSS drop n=.. of .. packets` every 20 drops | any session |
 | `VITAL`, `MAXREBATTLE` | Team vitals and number of re-battles (existing) | local test |
 | `RAND_MASK` | Hex kcode mask for the random input. The default leaves out down/right, so the re-battle menu is never cancelled; `06F6` reaches it | local test |
 | `TEST_RELAY` | `single`: peer 0 reaches peer 3 through peer 1. `loop`: peer 1 also reaches peer 3 through peer 0. `server`: peer 0 reaches every peer through the relay server. `server2`: two relay servers, peer 0 picks the second and peer 1 the first. `fair`: peer 0 reaches peer 3 through peer 1 (50 ms) or the relay server, whichever is faster. `nat`: peer 1 hears only from peer 3 in the ping test, and the way through peer 3 is 100 ms | local test |

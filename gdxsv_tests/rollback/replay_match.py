@@ -73,6 +73,8 @@ def main():
     ap.add_argument("--out", default=os.path.join(lib.HERE, "out"))
     ap.add_argument("--tag", default="replay")
     ap.add_argument("--delays", default="16,16,16,16", help="GGPO_NETWORK_DELAY per peer, ms")
+    ap.add_argument("--jitter", default="", help="GGPO_NETWORK_JITTER: each packet waits --delays + 0..this ms")
+    ap.add_argument("--loss", default="", help="GGPO_NETWORK_LOSS: percent of GGPO packets dropped")
     ap.add_argument("--input-delay", default="", help="TEST_GGPO_DELAY: fixed input delay frames, so latency means prediction")
     ap.add_argument("--window", action="store_true", help="open the four windows instead of running headless")
     ap.add_argument("--window-peers", default="", help="comma separated peers (1-4) opened in a window, the others headless")
@@ -103,6 +105,10 @@ def main():
     env = {"RBK_SAVE_REPLAY": "1"}
     if a.input_delay:
         env["TEST_GGPO_DELAY"] = a.input_delay
+    if a.jitter:
+        env["GGPO_NETWORK_JITTER"] = a.jitter
+    if a.loss:
+        env["GGPO_NETWORK_LOSS"] = a.loss
     timeout = a.timeout or int(len(rec.inputs) / 59.94) + 300
     windowed = [int(x) for x in a.window_peers.split(",") if x]
     pm_csv = os.path.join(s.out, a.tag + "_pm.csv")
