@@ -36,6 +36,11 @@ struct LbsMessage {
 	static constexpr u16 lbsRoomTitle = 0x6402;
 	static constexpr u16 lbsRoomStatus = 0x6404;
 	static constexpr u16 lbsLobbyExit = 0x6408;
+	static constexpr u16 lbsRoomEntry = 0x6406;
+	static constexpr u16 lbsRoomCreate = 0x6407;
+	static constexpr u16 lbsRoomExit = 0x6501;
+	static constexpr u16 lbsMatchingEntry = 0x6504;
+	static constexpr u16 lbsRoomRemove = 0x6505;
 	static constexpr u16 lbsLobbyMatchingEntry = 0x640e;
 	static constexpr u16 lbsLobbyMatchingJoin = 0x640f;
 	static constexpr u16 lbsChatMessage = 0x6702;

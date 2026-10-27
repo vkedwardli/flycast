@@ -135,6 +135,7 @@ void Gdxsv::Reset(bool loading_state) {
 		lbs_net_.Reset();
 		lobby_suspended_ = false;
 		matching_entered_ = false;
+		in_room_ = false;
 		{
 			std::lock_guard<std::mutex> lock(lobby_held_mutex_);
 			lobby_held_.clear();
@@ -248,6 +249,12 @@ void Gdxsv::Reset(bool loading_state) {
 		if (lbs_msg.command == LbsMessage::lbsLobbyMatchingEntry && lbs_msg.status == LbsMessage::StatusError) {
 			matching_entered_ = false;
 		}
+		// No room: refused, or its owner left and the room is gone.
+		if (((lbs_msg.command == LbsMessage::lbsRoomCreate || lbs_msg.command == LbsMessage::lbsRoomEntry) &&
+			 lbs_msg.status == LbsMessage::StatusError) ||
+			lbs_msg.command == LbsMessage::lbsRoomRemove) {
+			in_room_ = false;
+		}
 
 		if (lbs_msg.command == LbsMessage::lbsReadyBattle) {
 			// Reset current patches for no-patched game
@@ -294,8 +301,20 @@ void Gdxsv::Reset(bool loading_state) {
 			matching_entered_ = lbs_msg.body[0] == 1;
 			NOTICE_LOG(COMMON, "lobby: match entry %d", lbs_msg.body[0]);
 		}
+		// A room of its own or another's; a member leaves it with a room match cancel (0).
+		if (lbs_msg.command == LbsMessage::lbsRoomCreate || lbs_msg.command == LbsMessage::lbsRoomEntry) {
+			in_room_ = true;
+			room_owner_ = lbs_msg.command == LbsMessage::lbsRoomCreate;
+			NOTICE_LOG(COMMON, "lobby: in a room (%s)", room_owner_ ? "owner" : "member");
+		}
+		if (lbs_msg.command == LbsMessage::lbsRoomExit ||
+			(lbs_msg.command == LbsMessage::lbsMatchingEntry && !room_owner_ && !lbs_msg.body.empty() && lbs_msg.body[0] == 0)) {
+			in_room_ = false;
+			NOTICE_LOG(COMMON, "lobby: left the room");
+		}
 		if (lbs_msg.command == LbsMessage::lbsLobbyExit) {
 			matching_entered_ = false;
+			in_room_ = false;
 		}
 	});
 }
@@ -346,7 +365,7 @@ void Gdxsv::HoldLobbyMessage(const LbsMessage &lbs_msg) {
 }
 
 bool Gdxsv::CanSuspendLobby() const {
-	return netmode_ == NetMode::Lbs && lbs_net_.IsConnected() && !going_to_battle_ && !matching_entered_;
+	return netmode_ == NetMode::Lbs && lbs_net_.IsConnected() && !going_to_battle_ && !LobbyWaiting();
 }
 
 void Gdxsv::SuspendLobby() {
@@ -390,7 +409,7 @@ bool Gdxsv::HookOpenMenu() {
 	}
 
 	// The game would wait in the menu while the match starts without it.
-	if (matching_entered_) {
+	if (LobbyWaiting()) {
 		return false;
 	}
 
@@ -446,7 +465,7 @@ void Gdxsv::HookMainUiLoop() {
 	if (!enabled_) return;
 
 	// Stop fast-forward from the match entry on: the P2P ping test that follows would measure an inflated RTT.
-	if (InGame() || going_to_battle_ || matching_entered_) {
+	if (InGame() || going_to_battle_ || LobbyWaiting()) {
 		settings.input.fastForwardMode = false;
 	}
 
@@ -650,6 +669,7 @@ void Gdxsv::HandleRPC() {
 	if (gdx_rpc.request == GDX_RPC_SOCK_OPEN) {
 		// The game opens the battle connection once its match starts, or the lobby again: either ends the wait.
 		matching_entered_ = false;
+		in_room_ = false;
 		const u32 tolobby = gdx_rpc.param1;
 		const u32 host_ip = gdx_rpc.param2;
 		const u16 port = gdx_rpc.param3;

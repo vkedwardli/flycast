@@ -632,15 +632,21 @@ static void gui_display_commands()
 
 		// Insert/Eject Disk
 		std::string disk_label = gdr::isOpen() ? T("Insert Disk") : T("Eject Disk");
-		if (IconButton(ICON_FA_COMPACT_DISC, disk_label, ScaledVec2(buttonWidth, 50)).realize())
 		{
-			if (gdr::isOpen()) {
-				gui_setState(GuiState::SelectDisk);
+			// gdxsv: no disk eject online, the game reboots to the BIOS
+			DisabledScope _{gdxsv_is_online() && !gdr::isOpen()};
+			if (IconButton(ICON_FA_COMPACT_DISC, disk_label, ScaledVec2(buttonWidth, 50)).realize() && !_.isDisabled())
+			{
+				if (gdr::isOpen()) {
+					gui_setState(GuiState::SelectDisk);
+				}
+				else {
+					emu.openGdrom();
+					gui_setState(GuiState::Closed);
+				}
 			}
-			else {
-				emu.openGdrom();
-				gui_setState(GuiState::Closed);
-			}
+			if (_.isDisabled() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+				ImGui::SetTooltip("%s", i18n::T("Not available while online."));
 		}
 		// Settings
 		if (IconButton(ICON_FA_GEAR, T("Settings"), ScaledVec2(buttonWidth, 50)).realize())

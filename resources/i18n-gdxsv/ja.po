@@ -383,6 +383,9 @@ msgstr "ライブ & リプレイ"
 msgid "Not available while waiting for a match or in a battle."
 msgstr "マッチング待ちと対戦中は使えません。"
 
+msgid "Not available while online."
+msgstr "オンライン中は使えません。"
+
 msgid "Live"
 msgstr "ライブ"
 

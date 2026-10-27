@@ -105,9 +105,12 @@ class Gdxsv {
 	proto::GamePatchList patch_list_;
 	bool going_to_battle_ = false;
 	std::atomic<bool> lobby_suspended_{false};
-	// From the game's lobby match entry until it opens the battle connection (or cancels): the menu does
-	// not open and fast-forward is off.
+	// From the game's lobby match entry, or from creating or entering a room (partner search), until it
+	// opens the battle connection, or cancels or leaves: the menu does not open and fast-forward is off.
 	std::atomic<bool> matching_entered_{false};
+	std::atomic<bool> in_room_{false};
+	bool room_owner_ = false;
+	bool LobbyWaiting() const { return matching_entered_ || in_room_; }
 	std::mutex lobby_held_mutex_;
 	std::deque<LbsMessage> lobby_held_;
 	// The savestate restores the original code; these are applied again on resume.
