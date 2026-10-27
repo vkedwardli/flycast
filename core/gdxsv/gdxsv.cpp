@@ -114,8 +114,6 @@ void Gdxsv::DisplayOSD() {
 	rollback_net_.DisplayOSD();
 	replay_net_.DisplayOSD();
 	key_display_.DisplayOSD();
-	projectile_view_.DisplayOSD();
-	slowdown_.DisplayOSD();
 }
 
 const char *Gdxsv::NetModeString() const {
@@ -300,9 +298,6 @@ void Gdxsv::HookVBlank() {
 	if (!ggpo::active()) {
 		// Don't edit memory at vsync if ggpo::active
 		WritePatch();
-	}
-	if (disk_ == 2) {
-		slowdown_.OnVBlank();
 	}
 	if (netmode_ == NetMode::McsRollback) {
 		rollback_net_.OnVBlank();

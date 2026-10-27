@@ -37,7 +37,6 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `ReplayShowAllyHP` | yes | replay: the total HP field shows the ally's HP |
 | `ReplayKeyDisplay` | yes | replay: show the inputs |
 | `ReplaySkipMsSelection` | yes | replay: fast-forward the mobile suit selection |
-| `ProjectileView` | no | debug overlay of projectiles (Disc 2); not on the settings page |
 | `LiveAutoNext` | no | spectating: move on to the next live battle |
 
 ## Settings in other sections

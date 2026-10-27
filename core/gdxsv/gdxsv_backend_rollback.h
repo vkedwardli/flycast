@@ -3,7 +3,6 @@
 #include <atomic>
 #include <future>
 #include <mutex>
-#include <set>
 
 #include "gdxsv_ggpo.h"
 #include "gdxsv_network.h"
@@ -81,9 +80,6 @@ class GdxsvBackendRollback {
 	int recv_delay_ = 0;
 	int port_ = 0;
 	std::deque<u8> recv_buf_;
-	// GGPO frames whose battle input the slowdown dropped (the next frame delivers instead).
-	std::set<int> slowdown_stall_frames_;
-	int slowdown_last_frame_ = -1;
 	LbsMessageReader lbs_tx_reader_;
 	proto::P2PMatching matching_;
 	proto::P2PMatchingReport report_;

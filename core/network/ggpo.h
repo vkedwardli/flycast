@@ -58,11 +58,5 @@ static inline void setExInput(u16 exInput) {
 	localExInput = exInput;
 }
 
-// Flag bits sent ORed into exInput; setExInput leaves them alone.
-static inline void setExInputFlags(u16 flags) {
-	extern u16 localExInputFlags;
-	localExInputFlags = flags;
-}
-
 extern std::atomic<int> timeSyncFrames;
 }

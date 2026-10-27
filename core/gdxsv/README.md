@@ -52,8 +52,6 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_multi_pov_viewer*.cpp/.h/.mm`, `gdxsv_video_hooks.h` | four views in the original window; Syphon and Spout receivers, Vulkan import of Metal/DirectX textures, shared Vulkan sampling resources, final presentation rectangle and sender names |
 | `gdxsv_multi_pov_audio.cpp/.h` | Four-screen PCM capture through the audio-backend interface; delayed mixing into the host's selected output device |
 | `gdxsv_round_counters.h` | round and win counts of a battle |
-| `gdxsv_slowdown.cpp/.h` | experimental arcade slowdown in DX battles |
-| `gdxsv_projectile_view.cpp/.h` | debug overlay of DX projectiles |
 | `gdxsv_key_display.cpp/.h` | on-screen input display |
 | `gdxsv_gui_settings.cpp/.h` | gdxsv settings tab and base settings |
 | `gdxsv_translation.cpp/.h`, `gdxsv_translation_patch.inc` | game translation; the `.inc` is generated from `gdxsv_langmod/` |

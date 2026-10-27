@@ -2101,9 +2101,6 @@ u32 GdxsvBackendReplay::OnSockRead(u32 addr, u32 size) {
 		return 0;
 	}
 
-	if (gdxsv.slowdown_.Stalling() && !seeking_) {
-		return 0;
-	}
 	if (gdxsv_multi_pov_audio_input_pending() && recv_buf_.empty()) DeliverKeyMsgBatch();
 
 	int n = std::min<int>(recv_buf_.size(), size);

@@ -104,8 +104,6 @@ does not run extra emulated frames to catch up that sound playback.
 | Game font glyphs drawn from GDXGothic (DC1/DC2): text with the game's edge, in-battle pilot names (cells) smaller with a dark outline, the battle-message sheet's characters at the names' size over the sheet of the embedded textures or the texture pack when one has it, else over the game's own sheet read from VRAM (its emblems and labels) | setting `FontRaster` (Use High-Resolution Font) | T1 (Disc 2): the font loads and the battle HUD pilot name matches the outline-font golden; table from `gdxsv_langmod/gen_font_glyphs.py`; the battle-message sheet: no committed test, manual: a replay's INFORMATION panel (命中, 撃破) in GDXGothic, with and without a texture pack; Disc 1: no committed test, manual: menus, in-battle pilot names and the INFORMATION panel in GDXGothic | T1c: `FontRaster=no`: no font loaded, the name check fails |
 | Widescreen HUD layout | setting `WidescreenHudLayout` | W1 (under the default `rend.ThreadedRendering=yes`: a change stops the SH4 once so that the patch goes in between SH4 runs) | – |
 | Slow idle loop hack | setting `SlowIdleLoopHack` | H1: unthrottled, over 2 x the fps without the hack | H1c |
-| Projectile view (debug overlay, Disc 2) | setting `ProjectileView` (ini only) | none | none |
-| Arcade slowdown (Disc 2) | compiled off (`GdxsvSlowdown::kEnabled`) | none | none |
 
 ## Frame pacing and input
 
