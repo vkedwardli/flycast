@@ -3,6 +3,7 @@
 #pragma once
 #include <array>
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <random>
 
@@ -55,6 +56,8 @@ struct GdxsvGgpoState {
 	bool useRandInput;
 	u32 randInputMask;
 	std::mt19937 randSource;
+	// Local test: sets this peer's next local input (kcode, lt, rt) instead of the pad; the input is added at frame.
+	std::function<void(int frame)> localInputSource;
 	bool inputBeforeAdvance;  // gdxsv rollback battle: the local input is added before ggpo_advance_frame
 };
 extern GdxsvGgpoState gdxsv_ggpo_state;

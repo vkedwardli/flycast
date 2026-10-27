@@ -85,6 +85,27 @@ These do nothing unless set.
 | `TEST_SPECTATOR_UPLINK` | Which peer lbs would ask to stream (peer number, default 1), or `all` as clients from before lbs picked one did | local test |
 | `TEST_UPLINK_ROUND_DELAY` | Sends round starts to lbs N frames late, so spectators reach StartMsg before the round's start index | local test |
 
+## Recorded battle over rollback
+
+`replay_match.py` plays a recorded battle (a replay of a rollback battle, e.g. from production) as a local
+rollback match, for looking at frame pacing with real input. Each peer runs with `gdxsv:rbk_replay=<replay>`:
+it gives GGPO its player's recorded input, and the game reads the recorded inputs of all players by KeyMsg1
+number, as replay playback does. So the battle is the recorded one whatever GGPO predicts, while rollbacks
+and timesync run as in a real match. Users, rule and online patches come from the replay; random input is off.
+
+```
+python gdxsv_tests/rollback/replay_match.py --rom D:\rom\gdx-disc2\gdx-disc2.gdi --delays 30,50,60,80
+python gdxsv_tests/rollback/replay_match.py --rom ... --replay <battle>.pb
+```
+
+Without `--replay` it plays the newest Disc 2 corpus replay (`--corpus <id>` for another one from
+`gdxsv_tests/corpus/replays.json`). Only replays with inputs and round starts work: corpus 1727284586532 and newer.
+
+It reports per peer each round's start RNG against the recording (`RBKREPLAY round N ... match|DESYNC`), the
+round winners against the recording, and how many local inputs GGPO carried that differ from the recording
+(`RBKREPLAY local inputs`; the input added for a frame is guessed by assuming one KeyMsg1 per frame).
+`--window` opens the four windows; a full battle takes about as long as it did.
+
 ## Live spectator rig
 
 `live_rig.py` runs a match through a local lbs to live spectators, the same path as production: the

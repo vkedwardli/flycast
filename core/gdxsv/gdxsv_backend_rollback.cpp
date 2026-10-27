@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include <nowide/cstdio.hpp>
+
 #include "emulator.h"
 #include "gdx_rpc.h"
 #include "gdxsv.h"
@@ -73,6 +75,21 @@ u16 convertInput(MapleInputState input) {
 	return r;
 }
 
+// mcs pad input to the maple kcode bits convertInput reads back. C and Z share the LT and RT bits: given as triggers.
+u32 mcsInputToKcode(u16 input) {
+	u32 k = 0;
+	if (input & McsKeyCode::A) k |= DC_BTN_A;
+	if (input & McsKeyCode::B) k |= DC_BTN_B;
+	if (input & McsKeyCode::X) k |= DC_BTN_X;
+	if (input & McsKeyCode::Y) k |= DC_BTN_Y;
+	if (input & McsKeyCode::UP) k |= DC_DPAD_UP;
+	if (input & McsKeyCode::DOWN) k |= DC_DPAD_DOWN;
+	if (input & McsKeyCode::RIGHT) k |= DC_DPAD_RIGHT;
+	if (input & McsKeyCode::LEFT) k |= DC_DPAD_LEFT;
+	if (input & McsKeyCode::START) k |= DC_BTN_START;
+	return k;
+}
+
 void drawConnectionDiagram(int elapsed, const uint8_t matrix[4][4], const std::map<int, int>& pos_to_id);
 void drawNetworkStat(const proto::P2PMatching& matching, const std::array<GdxsvGgpoNetworkStats, 4>& stats,
 					 const std::array<bool, 4>& is_connected);
@@ -132,6 +149,8 @@ void GdxsvBackendRollback::Reset() {
 	start_network_ = std::future<bool>();
 
 	start_at_ = 0;
+	replay_input_checked_ = 0;
+	replay_input_mismatched_ = 0;
 	input_logs_.clear();
 	start_msg_indexes_.clear();
 	start_msg_randoms_.clear();
@@ -525,6 +544,10 @@ void GdxsvBackendRollback::OnMainUiLoop() {
 							|| reason == "cl_error" || reason.empty();
 			NOTICE_LOG(COMMON, "RollbackNet local test %s: close_reason=%s", broke ? "failed" : "finished",
 					   reason.c_str());
+			if (replay_input_on_) {
+				NOTICE_LOG(COMMON, "RBKREPLAY local inputs %d, differing from the recording %d", replay_input_checked_,
+						   replay_input_mismatched_);
+			}
 			const int code = broke ? 3 : 0;
 			if (gdxsv_headless()) {
 				// A finished headless test has nothing to release; exit hard so
@@ -549,7 +572,47 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 		n = args[2] - '0';
 	}
 
-	if (const u64 seed = config::loadInt64("gdxsv", "rand_input", 0)) {
+	const auto replay_path = config::loadStr("gdxsv", "rbk_replay", "");
+	replay_input_on_ = !replay_path.empty();
+	if (replay_input_on_) {
+		replay_input_.Clear();
+		FILE* fp = nowide::fopen(replay_path.c_str(), "rb");
+		const bool ok = fp != nullptr && replay_input_.ParseFromFileDescriptor(fileno(fp));
+		if (fp != nullptr) fclose(fp);
+		if (!ok || replay_input_.users_size() <= me || 4 < replay_input_.users_size() || replay_input_.inputs_size() == 0) {
+			ERROR_LOG(COMMON, "RollbackNet rbk_replay: cannot use %s", replay_path.c_str());
+			replay_input_on_ = false;
+			return false;
+		}
+		if (n != replay_input_.users_size()) {
+			WARN_LOG(COMMON, "RollbackNet rbk_replay: %d players in the replay, not %d", replay_input_.users_size(), n);
+			n = replay_input_.users_size();
+		}
+		NOTICE_LOG(COMMON, "RollbackNet rbk_replay %s: battle %s, disk %s, %d inputs, %d rounds", replay_path.c_str(),
+				   replay_input_.battle_code().c_str(), replay_input_.game_disk().c_str(), replay_input_.inputs_size(),
+				   replay_input_.start_msg_indexes_size());
+		gdxsv_ggpo_state.localInputSource = [this](int frame) { FeedReplayLocalInput(frame); };
+
+		// The recording's online patches, as lbsGamePatch applies them. Older recordings were played with cost 300
+		// forced to 295 by the emulator itself (GdxsvBackendReplay::ApplyPatch).
+		gdxsv.RestoreOnlinePatch();
+		for (const auto& patch : replay_input_.patches()) {
+			*gdxsv.patch_list_.add_patches() = patch;
+		}
+		if (replay_input_.log_file_version() < 20261023) {
+			auto* patch = gdxsv.patch_list_.add_patches();
+			patch->set_name("rbk_replay legacy cost 295");
+			const auto addrs = gdxsv.Disk() == 1 ? std::vector<u32>{0x0c1b0fd0} : std::vector<u32>{0x0c21bfec, 0x0c21bff4, 0x0c21c034};
+			for (const u32 addr : addrs) {
+				auto* code = patch->add_codes();
+				code->set_size(16);
+				code->set_address(addr);
+				code->set_original(300);
+				code->set_changed(295);
+			}
+		}
+		gdxsv.ApplyOnlinePatch(true);
+	} else if (const u64 seed = config::loadInt64("gdxsv", "rand_input", 0)) {
 		// The default mask leaves out down/right, so the re-battle menu is never cancelled.
 		// RAND_MASK (hex kcode bits) overrides it, e.g. 06F6 to reach the re-battle-cancel scene.
 		u32 mask = 0x0004 | 0x0400 | 0x0200 | 0x0010 | 0x0040;
@@ -573,7 +636,10 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 	proto::P2PMatching matching;
 	matching.set_battle_code("0123456");
 	// Saved with the replay, which sends it back as the rule; Disc 1 crashes on an empty rule.
-	matching.set_rule_bin(DummyRuleData, sizeof(DummyRuleData));
+	if (replay_input_on_)
+		matching.set_rule_bin(replay_input_.rule_bin());
+	else
+		matching.set_rule_bin(DummyRuleData, sizeof(DummyRuleData));
 	matching.set_peer_id(me);
 	matching.set_session_id(12345);
 	matching.set_ping_test_duration(getenv("TEST_PING_MS") ? atoi(getenv("TEST_PING_MS")) : 7500);
@@ -592,10 +658,13 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 		player.set_port(port_base + i);
 		player.set_user_id("USER0" + std::to_string(i));
 		player.set_peer_id(i);
-		player.set_team(i / 2 + 1);
+		player.set_team(replay_input_on_ ? replay_input_.users(i).team() : i / 2 + 1);
 		matching.mutable_candidates()->Add(std::move(player));
 	}
-	for (int i = 0; i < n; i++) {
+	for (int i = 0; i < n && replay_input_on_; i++) {
+		*matching.mutable_users()->Add() = replay_input_.users(i);
+	}
+	for (int i = 0; i < n && !replay_input_on_; i++) {
 		// Mirror the lbsAskPlayerInfo answer below, so a saved replay feeds the
 		// game the same player info and plays back in sync.
 		const std::string id = "USER0" + std::to_string(i + 1);
@@ -649,7 +718,8 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 	state_ = State::StartLocalTest;
 	is_local_test_ = true;
 	gdxsv.maxlag_ = 0;
-	gdxsv.maxrebattle_ = 1;
+	// rbk_replay: as in a lobby battle (Gdxsv::Reset), so the recorded re-battle choices play out the same.
+	gdxsv.maxrebattle_ = replay_input_on_ ? 5 : 1;
 
 	if (getenv("MAXREBATTLE")) {
 		gdxsv.maxrebattle_ = atoi(getenv("MAXREBATTLE"));
@@ -657,6 +727,30 @@ bool GdxsvBackendRollback::StartLocalTest(const char* param) {
 
 	NOTICE_LOG(COMMON, "RollbackNet StartLocalTest %d", me);
 	return true;
+}
+
+int GdxsvBackendRollback::ReplayInputIndex(int key_msg) const {
+	// Counted from the round's start, as replay playback jumps to the recorded round start at StartMsg.
+	int index = key_msg;
+	if (!start_msg_indexes_.empty()) {
+		const int round = start_msg_indexes_.size() - 1;
+		if (replay_input_.start_msg_indexes_size() <= round) return -1;
+		index = replay_input_.start_msg_indexes(round) + key_msg - start_msg_indexes_.back().second;
+	}
+	return 0 <= index && index < replay_input_.inputs_size() ? index : -1;
+}
+
+void GdxsvBackendRollback::FeedReplayLocalInput(int frame) {
+	// The input added at frame is read on frame + delay. Each frame until then is assumed to read one KeyMsg1;
+	// the game reads the recording itself (appendKeyMsg1Inputs), so a miss only changes what GGPO carries.
+	const int read_frame = frame + gdxsv_ggpo_frame_delay(config::GGPODelay.get());
+	int key_msg = input_logs_.size();
+	if (!input_logs_.empty()) key_msg += std::max(0, read_frame - input_logs_.back().first - 1);
+	const int index = ReplayInputIndex(key_msg);
+	const u16 input = 0 <= index ? static_cast<u16>(replay_input_.inputs(index) >> (matching_.peer_id() * 16)) : 0;
+	kcode[0] = ~mcsInputToKcode(input);
+	lt[0] = input & McsKeyCode::LT ? 0xffff : 0;
+	rt[0] = input & McsKeyCode::RT ? 0xffff : 0;
 }
 
 void GdxsvBackendRollback::Prepare(const proto::P2PMatching& matching, int port) {
@@ -942,10 +1036,23 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 		}
 	}
 	const auto appendKeyMsg1Inputs = [&]() {
+		while (!input_logs_.empty() && frame <= input_logs_.back().first) {
+			input_logs_.pop_back();
+		}
+		const int replay_index = replay_input_on_ ? ReplayInputIndex(input_logs_.size()) : -1;
+		const u64 replay_inputs = 0 <= replay_index ? replay_input_.inputs(replay_index) : 0;
 		u64 inputs = 0;
 		for (int i = 0; i < matching_.player_count(); ++i) {
 			auto [body] = McsMessage::Create(McsMessage::KeyMsg1, i);
-			const auto input = convertInput(inputState[i]);
+			auto input = convertInput(inputState[i]);
+			if (replay_input_on_) {
+				const u16 recorded = static_cast<u16>(replay_inputs >> (i * 16));
+				if (i == matching_.peer_id() && !ggpo::rollbacking()) {
+					++replay_input_checked_;
+					if (input != recorded) ++replay_input_mismatched_;
+				}
+				input = recorded;
+			}
 			body[2] = input >> 8 & 0xff;
 			body[3] = input & 0xff;
 			std::copy(body.begin(), body.end(), std::back_inserter(recv_buf_));
@@ -953,9 +1060,6 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			if (matching_.is_training_game() && !ggpo::rollbacking()) {
 				gdxsv.key_display_.AppendInput(i, input);
 			}
-		}
-		while (!input_logs_.empty() && frame <= input_logs_.back().first) {
-			input_logs_.pop_back();
 		}
 		if (!matching_.is_training_game()) {
 			// Runs on every simulation pass, speculative and rollback alike.
@@ -1158,6 +1262,15 @@ u32 GdxsvBackendRollback::OnSockRead(u32 addr, u32 size) {
 			start_msg_indexes_.emplace_back(frame, input_logs_.size());
 			start_msg_randoms_.emplace_back(frame, rand_value);
 			round_data_.resize(start_msg_indexes_.size());
+			if (replay_input_on_) {
+				const int round = start_msg_indexes_.size();
+				const int recorded = round <= replay_input_.start_msg_randoms_size()
+										 ? static_cast<int>(replay_input_.start_msg_randoms(round - 1) & 0xffff)
+										 : -1;
+				NOTICE_LOG(COMMON, "RBKREPLAY round %d start frame=%d key_msg=%d rng=%04x recorded=%04x %s rollback=%d", round,
+						   frame, (int)input_logs_.size(), rand_value, recorded, rand_value == recorded ? "match" : "DESYNC",
+						   (int)ggpo::rollbacking());
+			}
 			// Deferred like input_logs_ above - this can re-fire during a
 			// rollback re-simulation of this same frame, and LBS dedups
 			// SpectatorRoundEvent by frame with "first arrival wins", so an
@@ -1262,7 +1375,31 @@ void GdxsvBackendRollback::ProcessLbsMessage() {
 			LbsMessage::SvAnswer(msg).Write8(matching_.peer_id() + 1)->Serialize(recv_buf_);
 		}
 
-		if (msg.command == LbsMessage::lbsAskPlayerInfo || msg.command == LbsMessage::lbsAskPlayerInfo32) {
+		if (replay_input_on_ && (msg.command == LbsMessage::lbsAskPlayerInfo || msg.command == LbsMessage::lbsAskPlayerInfo32)) {
+			// From the recording, as GdxsvBackendReplay answers it.
+			const int pos = msg.Read8();
+			const auto& user = matching_.users(std::clamp(pos, 1, matching_.users_size()) - 1);
+			const bool extended_reply = msg.command == LbsMessage::lbsAskPlayerInfo32;
+			const u32 battles = std::max(0, user.battle_count());
+			const u32 wins = std::max(0, user.win_count());
+			const u32 losses = std::max(0, user.lose_count());
+			const u32 other = u32(std::max<int64_t>(0, int64_t(battles) - wins - losses));
+			auto reply = LbsMessage::SvAnswer(msg);
+			reply.Write8(pos)
+				->WriteString(user.user_id())
+				->WriteBytes(user.user_name_sjis().data(), user.user_name_sjis().size())
+				->WriteBytes(user.game_param().data(), user.game_param().size())
+				->Write16(user.grade())
+				->Write16(extended_reply ? std::min(wins, 65535u) : user.win_count())
+				->Write16(extended_reply ? std::min(losses, 65535u) : user.lose_count())
+				->Write16(0)
+				->Write16(extended_reply ? std::min(other, 65535u) : user.battle_count() - user.win_count() - user.lose_count())
+				->Write16(0)
+				->Write16(user.team())
+				->Write16(0);
+			if (extended_reply) reply.Write32(battles)->Write32(wins)->Write32(losses);
+			reply.Serialize(recv_buf_);
+		} else if (msg.command == LbsMessage::lbsAskPlayerInfo || msg.command == LbsMessage::lbsAskPlayerInfo32) {
 			int pos = msg.Read8();
 			DummyGameParam[16] = '0' + pos;
 			DummyGameParam[17] = 0;
@@ -1285,11 +1422,11 @@ void GdxsvBackendRollback::ProcessLbsMessage() {
 		}
 
 		if (msg.command == LbsMessage::lbsAskRuleData) {
-			LbsMessage::SvAnswer(msg).WriteBytes((char*)DummyRuleData, sizeof(DummyRuleData))->Serialize(recv_buf_);
+			LbsMessage::SvAnswer(msg).WriteBytes(matching_.rule_bin())->Serialize(recv_buf_);
 		}
 
 		if (msg.command == LbsMessage::lbsAskBattleCode) {
-			LbsMessage::SvAnswer(msg).WriteString("012345")->Serialize(recv_buf_);
+			LbsMessage::SvAnswer(msg).WriteString(replay_input_on_ ? replay_input_.battle_code() : "012345")->Serialize(recv_buf_);
 		}
 
 		if (msg.command == LbsMessage::lbsAskMcsVersion) {

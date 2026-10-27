@@ -898,6 +898,11 @@ bool nextFrame()
 			kcode[0] = ~(gdxsv_ggpo_state.randSource() & gdxsv_ggpo_state.randInputMask);
 		}
 	}
+	if (gdxsv_ggpo_state.localInputSource) {
+		int frame;
+		ggpo::getCurrentFrame(&frame);
+		gdxsv_ggpo_state.localInputSource(frame);
+	}
 
 	// gdxsv: gdxsv rollback battles added the input before the advance
 	if (!gdxsv_ggpo_state.inputBeforeAdvance && !addLocalInput())
@@ -917,7 +922,7 @@ static bool addLocalInput()
 	do {
 		GDXSV_PERF_TRACE("input_read", -1, loop_count);
 		if (gdxsv_net_report_on) gdxsv_net_report_input_read();
-		if (!gdxsv_ggpo_state.useRandInput) {
+		if (!gdxsv_ggpo_state.useRandInput && !gdxsv_ggpo_state.localInputSource) {
 			if (!config::ThreadedRendering)
 				os_UpdateInputState();
 			else if (config::JoystickPolling)
