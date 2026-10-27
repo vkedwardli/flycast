@@ -111,7 +111,8 @@ def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: i
               env: Optional[Dict[str, str]] = None, headless: bool = True, config: Optional[List[str]] = None,
               lua=None, timeout: int = 900, stall_sec: int = 20, on_start=None,
               keep_exe: bool = False, peer_env: Optional[Dict[int, Dict[str, str]]] = None,
-              peer_config: Optional[Dict[int, List[str]]] = None) -> Match:
+              peer_config: Optional[Dict[int, List[str]]] = None,
+              windowed: Optional[List[int]] = None) -> Match:
     """Run one 4-player local match and wait for it to end.
 
     A peer whose hashlog frame stops moving for stall_sec, before it reports
@@ -119,7 +120,8 @@ def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: i
     called with the Match once every peer has been launched. config: more
     "section:key=value" entries; lua: a script every peer loads, or
     {peer index (1-based): script} for some peers only. peer_env, peer_config:
-    {peer index: env or config} added for that peer only (its config after config).
+    {peer index: env or config} added for that peer only (its config after config). windowed: peer indexes
+    opened in a window although headless.
     """
     base = os.path.join(s.out, tag)
     match = Match(tag)
@@ -133,7 +135,8 @@ def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: i
                f"gdxsv:rand_input={seed}",
                "log:Verbosity=3",
                "log:LogToFile=1"]
-        if not headless:
+        peer_headless = headless and i + 1 not in (windowed or [])
+        if not peer_headless:
             cfg += [f"window:left={40 + (i % 2) * 660}", f"window:top={40 + (i // 2) * 520}",
                     "window:width=640", "window:height=480"]
         cfg += (config or []) + (peer_config or {}).get(i + 1, [])
@@ -142,7 +145,7 @@ def run_match(s: Settings, tag: str, exes: List[str], delays: List[int], seed: i
         if port_base() != DEFAULT_PORT_BASE:
             penv["TEST_PORT_BASE"] = str(port_base())
         inst = emu.launch(exes[i], s.rom, os.path.join(base, f"p{i + 1}"), config=cfg, env=penv,
-                          headless=headless, state_dir=s.state_dir,
+                          headless=peer_headless, state_dir=s.state_dir,
                           lua=lua.get(i + 1) if isinstance(lua, dict) else lua)
         match.peers.append(Peer(i + 1, inst))
 
