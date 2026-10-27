@@ -72,6 +72,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | macOS application launch | `shell/apple/emulator-osx/emulator-osx/SDLApplicationDelegate.mm` | `CustomApplicationMain` calls `gdxsv_emu_app_init` before AppKit initialization and skips foreground activation so hidden guests do not take keyboard focus |
 | Network | `core/network/miniupnp.cpp/.h` | UPnP mapping details |
 | HTTP | `core/oslib/http_client.cpp/.h`, `shell/apple/common/http_client.mm` | thread-local URL buffers on Windows (concurrent requests mixed hosts) |
+| Texture upload | `core/rend/gles/gltex.cpp`, `core/rend/gles/gles.h`, `core/rend/dx9/d3d_texture.cpp` | upstream bug fix: OpenGL 4.2+ and DirectX 9 reused a texture's GPU storage for an upload of another size or format, so after a larger custom texture the rest of it stayed on screen; they allocate it again, as DirectX 11 and Vulkan do |
 | Textures | `core/rend/CustomTexture.cpp` | text drawn from the embedded font, embedded and downloaded texture packs for the game (`T13306M`); its glyph-cell textures drawn from the embedded font |
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
@@ -305,6 +306,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/dx11/dx11context.cpp` | `DX11Context::resize` | `\| (frameLatencyWaitable != nullptr ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0)); // gd` |
 | `core/rend/dx11/dx11context.h` |  | render thread |
 | `core/rend/dx11/dx11context.h` |  | threaded rendering |
+| `core/rend/dx9/d3d_texture.cpp` | `D3DTexture::UploadToGPU` | a texture of another size, format or mipmap count than the upload (a custom texture was there) is created again, else the part the upload does not cover keeps the previous image. |
 | `core/rend/dx9/dxcontext.cpp` |  | render thread |
 | `core/rend/dx9/dxcontext.cpp` | `DXContext::Present` | the device is created and reset on the main thread: Reset fails on another thread than the one that created the device. |
 | `core/rend/dx9/dxcontext.cpp` | `DXContext::Present` | render thread |
@@ -316,6 +318,11 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | scale the final game image into the host's quadrant, before UI. |
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | final presentation rectangle |
 | `core/rend/gles/gldraw.cpp` | `OpenGLRenderer::renderLastFrame` | final presentation rectangle |
+| `core/rend/gles/gles.h` |  | texID's storage |
+| `core/rend/gles/gles.h` |  | texID's storage from glTexStorage2D: width, height, mipmap levels, internal format. |
+| `core/rend/gles/gltex.cpp` | `TextureCacheData::UploadToGPUGl4` | an upload of another size or format than the immutable storage (a custom texture was there) gets new storage, else the part it does not cover keeps the previous image. |
+| `core/rend/gles/gltex.cpp` | `TextureCacheData::UploadToGPUGl4` | texID's storage |
+| `core/rend/gles/gltex.cpp` | `ReadRTTBuffer` | not from glTexStorage2D, the next upload allocates storage |
 | `core/rend/norend/norend.cpp` |  | present once per rendered frame, as the real renderers do; a second Present (frame swap after an immediate one) would pace headless runs at half speed. |
 | `core/rend/norend/norend.cpp` |  | a framebuffer frame is presented once too |
 | `core/rend/norend/norend.cpp` |  | Render or RenderFramebuffer since the last Present |

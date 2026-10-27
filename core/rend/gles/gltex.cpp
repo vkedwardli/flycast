@@ -118,11 +118,25 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 	}
 	std::string texdbgMismatch; // texdbg
 	bool texdbgSize = false;
+	// gdxsv: an upload of another size or format than the immutable storage (a custom texture was there) gets new
+	// storage, else the part it does not cover keeps the previous image.
+	const std::array<int, 4> uploadStorage { width, height, mipmapLevels, (int)internalFormat };
+	if (texID != 0 && storage != uploadStorage)
+	{
+		// texdbg: storage 0x0 is a render-to-texture result
+		if (texdbgAllow(storage[0] != width || storage[1] != height ? TexdbgKind::StorageSize : TexdbgKind::StorageFormat))
+			TEXDBG_LOG("GL4 storage replaced by the fix: %s storage %dx%d levels %d fmt %x, upload %dx%d levels %d fmt %x",
+					TexdbgName().c_str(), storage[0], storage[1], storage[2], storage[3], width, height, mipmapLevels,
+					internalFormat);
+		TexCache.DeleteLater(texID);
+		texID = 0;
+	}
 	if (texID == 0)
 	{
 		texID = glcache.GenTexture();
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
 		glTexStorage2D(GL_TEXTURE_2D, mipmapLevels, internalFormat, width, height);
+		storage = uploadStorage; // gdxsv: texID's storage
 	}
 	else {
 		glcache.BindTexture(GL_TEXTURE_2D, texID);
@@ -146,7 +160,7 @@ void TextureCacheData::UploadToGPUGl4(int width, int height, const u8 *temp_tex_
 	}
 	// texdbg
 	if (!texdbgMismatch.empty() && texdbgAllow(texdbgSize ? TexdbgKind::StorageSize : TexdbgKind::StorageFormat))
-		TEXDBG_LOG("GL4 upload into %s storage: %s %s mipmaps %d/%d glError %x", texdbgSize ? "MISMATCHED" : "other format",
+		TEXDBG_LOG("GL4 upload into %s storage, MISSED by the fix: %s %s mipmaps %d/%d glError %x", texdbgSize ? "MISMATCHED" : "other format",
 				TexdbgName().c_str(), texdbgMismatch.c_str(), (int)mipmapped, (int)mipmapsIncluded, glGetError());
 #endif
 }
@@ -306,6 +320,7 @@ void ReadRTTBuffer()
 			TextureCacheData *texture_data = TexCache.getRTTexture(tex_addr, fb_packmode, wpo2, hpo2);
 			glcache.DeleteTextures(1, &texture_data->texID);
 			texture_data->texID = gl.rtt.framebuffer->detachTexture();
+			texture_data->storage = {}; // gdxsv: not from glTexStorage2D, the next upload allocates storage
 			texture_data->dirty = 0;
 			texture_data->unprotectVRam();
 			texdbgRtt("GL", texture_data, w, h); // texdbg

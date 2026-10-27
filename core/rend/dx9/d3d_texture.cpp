@@ -56,20 +56,30 @@ void D3DTexture::UploadToGPU(int width, int height, const u8* temp_tex_buffer, b
 		}
 	}
 
-	// texdbg: an upload into a texture of another size or format (a default-pool texture is recreated below)
+	// texdbg: what the fix below recreates
 	if (texture != nullptr)
 	{
 		D3DSURFACE_DESC desc;
 		if (SUCCEEDED(texture->GetLevelDesc(0, &desc))
-				&& (desc.Width != (UINT)width || desc.Height != (UINT)height || desc.Format != d3dFormat))
+				&& (desc.Width != (UINT)width || desc.Height != (UINT)height || desc.Format != d3dFormat
+					|| texture->GetLevelCount() != (DWORD)mipmapLevels))
 		{
 			const bool sizeDiffers = desc.Width != (UINT)width || desc.Height != (UINT)height;
 			if (texdbgAllow(sizeDiffers ? TexdbgKind::StorageSize : TexdbgKind::StorageFormat))
-				TEXDBG_LOG("DX9 upload into %s texture: %s texture %ux%u fmt %d pool %d levels %u, upload %dx%d fmt %d mipmaps %d/%d",
-						sizeDiffers ? "MISMATCHED" : "other format", TexdbgName().c_str(), (unsigned)desc.Width,
+				TEXDBG_LOG("DX9 recreated by the fix (%s): %s texture %ux%u fmt %d pool %d levels %u, upload %dx%d fmt %d mipmaps %d/%d",
+						sizeDiffers ? "size" : "format or levels", TexdbgName().c_str(), (unsigned)desc.Width,
 						(unsigned)desc.Height, (int)desc.Format, (int)desc.Pool, (unsigned)texture->GetLevelCount(),
 						width, height, (int)d3dFormat, (int)mipmapped, (int)mipmapsIncluded);
 		}
+	}
+	// gdxsv: a texture of another size, format or mipmap count than the upload (a custom texture was there) is created
+	// again, else the part the upload does not cover keeps the previous image. An autogen mipmap texture counts 1 level.
+	if (texture != nullptr)
+	{
+		D3DSURFACE_DESC desc;
+		if (FAILED(texture->GetLevelDesc(0, &desc)) || desc.Width != (UINT)width || desc.Height != (UINT)height
+				|| desc.Format != d3dFormat || texture->GetLevelCount() != (DWORD)mipmapLevels)
+			texture.reset();
 	}
 	D3DLOCKED_RECT rect;
 	while (true)
