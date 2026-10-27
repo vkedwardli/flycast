@@ -235,7 +235,7 @@ class GdxsvBackendReplay {
 	uint64_t timeline_revision_ = 0;
 	int audio_fade_frames_ = 0;
 
-	// Mapped buttons can arrive from joystick polling on the emulation thread.
+	// Mapped buttons arrive on the main thread.
 	std::atomic<bool> fast_forward_pending_{false};
 
 	// UI-thread owned presentation/input state, reset before playback starts.

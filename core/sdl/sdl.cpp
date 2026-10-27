@@ -513,7 +513,6 @@ void input_sdl_handle()
 
 			case SDL_JOYBUTTONDOWN:
 			case SDL_JOYBUTTONUP:
-				if (!config::JoystickPolling) // gdxsv: polled in gdxsv_input_poll_joysticks
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jbutton.which);
 					if (device != NULL)
@@ -521,7 +520,6 @@ void input_sdl_handle()
 				}
 				break;
 			case SDL_JOYAXISMOTION:
-				if (!config::JoystickPolling) // gdxsv: polled in gdxsv_input_poll_joysticks
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jaxis.which);
 					if (device != NULL)
@@ -529,7 +527,6 @@ void input_sdl_handle()
 				}
 				break;
 			case SDL_JOYHATMOTION:
-				if (!config::JoystickPolling) // gdxsv: polled in gdxsv_input_poll_joysticks
 				{
 					std::shared_ptr<SDLGamepad> device = SDLGamepad::GetSDLGamepad((SDL_JoystickID)event.jhat.which);
 					if (device != NULL)
@@ -687,9 +684,6 @@ void input_sdl_handle()
 		}
 	}
 
-	// gdxsv: when polling mode is enabled, poll joystick state here (main thread)
-	if (config::JoystickPolling)
-		gdxsv_input_poll_joysticks();
 }
 
 void sdlReceiveSlaveKeyboardEvent(u16 scancode, bool pressed)

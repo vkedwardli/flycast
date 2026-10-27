@@ -125,15 +125,6 @@ msgstr ""
 "低スペックCPUを使用している場合、有効を推奨\n"
 "高スペックCPUを使用している場合、無効を推奨"
 
-msgid "Joystick Polling"
-msgstr "ジョイスティックポーリング"
-
-msgid ""
-"Use polling instead of events for joystick input. May improve input latency "
-"in multi-threaded mode."
-msgstr ""
-"ジョイスティック入力をイベントではなくポーリングで取得します。マルチスレッドモードでの入力遅延を改善する可能性があります。"
-
 msgid "Enable 16:9 Widescreen Hack"
 msgstr "16:9 ワイドモニター対応"
 

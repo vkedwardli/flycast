@@ -236,10 +236,9 @@ std::array<std::array<Option<int>, 2>, 4> NetworkExpansionDevices{{
 Option<bool> PerGameVmu("PerGameVmu", true, "config");
 #ifdef _WIN32
 Option<bool, false> UseRawInput("RawInput", false, "input");
-// gdxsv: XInput and DirectInput switches; joystick polling from the emulation thread
+// gdxsv: XInput and DirectInput switches
 Option<bool, false> UseXInput("UseXInput", true, "input");
 Option<bool, false> UseDirectInput("UseDirectInput", true, "input");
-Option<bool, false> JoystickPolling("JoystickPolling", false, "input");
 #endif
 Option<bool> UsePhysicalVmuMemory("UsePhysicalVmuMemory", false);
 

@@ -62,7 +62,7 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Threaded rendering only | `core/cfg/option.h`, `core/ui/settings.cpp`, `core/ui/settings_video.cpp` | `Settings::load` calls `gdxsv_emu_settings_loaded` (overrides `ThreadedRendering` on); the Multi-threaded emulation, Full Framebuffer Emulation and Copy Rendered Textures to VRAM checkboxes are hidden |
 | Frame pacing | `core/ui/mainui.cpp` (hooks into `core/gdxsv/gdxsv_frame_limiter.cpp`), `core/cfg/option.cpp/.h` | `FixedFrequency` limiter with precise sleep and a replay trim; context recreated when `DupeFrames` changes; `LimitFPS` an option, not a constant |
 | Audio | `core/audio/audiostream.cpp/.h` (hooks into `core/gdxsv/gdxsv_audio.cpp`), `audiobackend_coreaudio.cpp`, `audiobackend_directsound.cpp`, `audiobackend_sdl2.cpp`, `core/hw/aica/sgc_if.cpp` | rate control for replay and spectating (backends report their queue level); per-instance volume (four-screen replay) and fade; a muted replay seek or rollback rerun steps the channels without mixing |
-| Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | joystick polling from the emulation thread; XInput / DirectInput switches; opposite directions cancel for the game; mapped Fast-forward uses gdxsv playback speed during replays |
+| Input | `core/input/gamepad_device.cpp/.h`, `core/sdl/sdl.cpp/.h` | XInput / DirectInput switches; opposite directions cancel for the game; mapped Fast-forward uses gdxsv playback speed during replays |
 | Crash reports | `core/oslib/oslib.cpp/.h` | own crash list file; gdxsv log, tags and `emu.cfg` attached to a report; four-screen replay guests do not upload; the upload leaves the HTTP client initialized |
 | Window | `core/sdl/sdl.cpp`, `core/wsi/sdl.cpp`, `core/rend/dx11/dx11context.cpp`, `core/wsi/switcher.cpp`, `core/linux-dist/main.cpp` | headless (no graphics API), borderless, hidden rendering guests, window position for several instances, four-screen grid; frames duplicated on a monitor over 60 Hz only with `DupeFrames` (OpenGL, DirectX 11) |
 | Video routing | `core/wsi/switcher.cpp`, `core/rend/vulkan/vulkan_context.cpp`, `core/rend/gles/gldraw.cpp`, `core/rend/dx11/dx11_renderer.cpp`, `core/windows/winmain.cpp`, `shell/apple/emulator-osx/emulator-osx/osx-main.mm` | Spout / Syphon sender names; the unified replay scales the final host image before UI drawing, receives guest video in gdxsv, and releases receivers before graphics shutdown |
@@ -116,12 +116,12 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/cfg/cfg.cpp` | `open` | `gdxsv_emu_apply_base_settings` |
 | `core/cfg/option.cpp` |  | an option, not a constant: replay and rollback turn it off |
 | `core/cfg/option.cpp` |  | fixed frame rate limiter (core/gdxsv/gdxsv_frame_limiter.cpp) |
-| `core/cfg/option.cpp` |  | XInput and DirectInput switches; joystick polling from the emulation thread |
+| `core/cfg/option.cpp` |  | XInput and DirectInput switches |
 | `core/cfg/option.h` |  | core/gdxsv/gdxsv_emu_hooks.h |
 | `core/cfg/option.h` |  | options the fork fixes |
 | `core/cfg/option.h` |  | an option, not a constant |
 | `core/cfg/option.h` |  | fixed frame rate limiter |
-| `core/cfg/option.h` |  | XInput and DirectInput switches; joystick polling from the emulation thread |
+| `core/cfg/option.h` |  | XInput and DirectInput switches |
 | `core/emulator.cpp` |  | render snapshots |
 | `core/emulator.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/emulator.cpp` | `Emulator::dc_reset` | `gdxsv_emu_reset` |
@@ -350,10 +350,6 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | the render thread may be rendering |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | `settings.gdxsv.replayModeActive` |
 | `core/sdl/sdl.cpp` | `input_sdl_handle` | actual flag |
-| `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
-| `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
-| `core/sdl/sdl.cpp` | `input_sdl_handle` | polled in gdxsv_input_poll_joysticks |
-| `core/sdl/sdl.cpp` | `input_sdl_handle` | when polling mode is enabled, poll joystick state here (main thread) |
 | `core/sdl/sdl.cpp` | `get_window_state` | actual flag |
 | `core/sdl/sdl.cpp` | `sdl_recreate_window` | a capture rig tiles instances edge to edge, so it wants no border. |
 | `core/sdl/sdl.cpp` | `sdl_get_window` | hidden replay guests follow the host window |
@@ -402,7 +398,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/ui/settings.cpp` | `gui_settings_advanced` | always on (gdxsv_emu_settings_loaded) |
 | `core/ui/settings.cpp` | `gui_settings_advanced` | `gdxsv_emu_settings_advanced` |
 | `core/ui/settings.cpp` | `gui_display_settings` | `Gdxsv`, `gdxsv_emu_settings_gdxsv_tab` |
-| `core/ui/settings_controls.cpp` | `gui_settings_controls` | XInput and DirectInput switches, joystick polling |
+| `core/ui/settings_controls.cpp` | `gui_settings_controls` | XInput and DirectInput switches |
 | `core/ui/settings_general.cpp` |  | include `gdxsv/gdxsv_emu_hooks.h` |
 | `core/ui/settings_general.cpp` | `manageSinglePath` | not static, the gdxsv replay folder setting uses it |
 | `core/ui/settings_general.cpp` | `gui_settings_general` | `gdxsv_emu_settings_replay_folder` |

@@ -48,7 +48,6 @@ Upstream options it changes are in [upstream.md](upstream.md).
 | `config:rend.FixedFrequency` | 0 | frame limiter: 0 off, 1 by cable and broadcast, 2 59.94 Hz, 3 60 Hz, 4 50 Hz, 5 30 Hz |
 | `input:UseXInput` | yes | Windows: use XInput devices |
 | `input:UseDirectInput` | yes | Windows: use DirectInput devices |
-| `input:JoystickPolling` | no | poll the joystick from the emulation thread |
 
 ## Command-line keys, section `gdxsv`
 

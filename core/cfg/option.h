@@ -563,12 +563,10 @@ extern std::array<std::array<Option<int>, 2>, 4> NetworkExpansionDevices;
 extern Option<bool> PerGameVmu;
 #ifdef _WIN32
 extern Option<bool, false> UseRawInput;
-// gdxsv: XInput and DirectInput switches; joystick polling from the emulation thread
+// gdxsv: XInput and DirectInput switches
 extern Option<bool, false> UseXInput;
 extern Option<bool, false> UseDirectInput;
-extern Option<bool, false> JoystickPolling;
 #else
-constexpr bool JoystickPolling = false;
 constexpr bool UseRawInput = false;
 #endif
 extern Option<bool> UsePhysicalVmuMemory;
