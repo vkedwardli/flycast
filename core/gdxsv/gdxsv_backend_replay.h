@@ -220,7 +220,6 @@ class GdxsvBackendReplay {
 	int recv_delay_ = 0;
 	bool end_of_frame_ = false;
 	bool seeking_ = false;
-	int lobby_press_frames_ = 0;  // emulation thread: frames pressing A through the lobby screens
 	bool emu_started_ = false;  // the emulator has run since this backend was created
 	int target_round_ = 0;
 	int target_frame_ = 0;

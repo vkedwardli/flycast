@@ -125,7 +125,9 @@ void gdxsv_emu_start() {
 					NOTICE_LOG(COMMON, "waiting until SyncStartTime %d to load state", sync_at);
 					std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(sync_at));
 				}
-				if (gdxsv.IsSaveStateAllowed()) {
+				// A guest shares the host's data directory and never returns to slot 90: saving its boot
+				// state there would replace the state the host goes back to.
+				if (gdxsv.IsSaveStateAllowed() && !multi_pov_guest) {
 					dc_savestate(90);
 				}
 				dc_loadstate(99);
@@ -156,8 +158,8 @@ void gdxsv_emu_start() {
 	}
 }
 
-void gdxsv_emu_reset() {
-	gdxsv.Reset();
+void gdxsv_emu_reset(bool loading_state) {
+	gdxsv.Reset(loading_state);
 }
 
 void gdxsv_emu_state_restored() {
@@ -286,6 +288,7 @@ void gdxsv_emu_frame_end() {
 void gdxsv_emu_mainui_loop(bool rendered) {
 	if (gdxsv.Enabled()) {
 		gdxsv.HookMainUiLoop();
+		gdxsv_test_start_replay_tick();
 	}
 	// Window calls must happen on the UI thread.
 	if (const char* error = gdxsv_multi_pov_viewer_tick(); error && gui_state != GuiState::Loading) {
@@ -322,6 +325,9 @@ void gdxsv_emu_savestate(int slot) {
 
 void gdxsv_emu_loadstate(int slot) {
 	if (gdxsv.Enabled()) {
+		// Back from a replay watched from the lobby.
+		if (slot == 90) gdxsv.ResumeLobby();
+
 		auto replay = config::loadStr("gdxsv", "replay", "");
 		auto spectate = config::loadStr("gdxsv", "spectate", "");
 
@@ -422,12 +428,13 @@ static void gui_header(const char* title) {
 
 void gdxsv_emu_gui_display_commands(float buttonWidth) {
 	if (!gdxsv_enabled()) return;
-	DisabledScope scope(gdxsv_is_online());
+	// The lobby is suspended while a replay plays; not while waiting for a match or in a battle.
+	DisabledScope scope(gdxsv_is_online() && !gdxsv.CanSuspendLobby());
 	if (IconButton(ICON_FA_TV, i18n::T("Live & Replays"), ScaledVec2(buttonWidth, 50)).realize() && !scope.isDisabled()) {
 		gui_state = GuiState::GdxsvReplay;
 	}
-	if (gdxsv_is_online() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-		ImGui::SetTooltip("%s", i18n::T("Please disconnect from the Gdxsv server first."));
+	if (scope.isDisabled() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+		ImGui::SetTooltip("%s", i18n::T("Not available while waiting for a match or in a battle."));
 	}
 }
 

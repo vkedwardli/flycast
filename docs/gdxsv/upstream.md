@@ -130,7 +130,7 @@ every spot is marked and the list is current (`--write` updates it).
 | `core/emulator.cpp` | `Emulator::loadGame` | `gdxsv_emu_start` |
 | `core/emulator.cpp` | `Emulator::unloadGame` | `gdxsv_emu_reset` |
 | `core/emulator.cpp` | `Emulator::stop` | the rollback backend starts the GGPO session without NetworkHandshake |
-| `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset` |
+| `core/emulator.cpp` | `Emulator::loadstate` | `gdxsv_emu_reset(true)`: keeps a lobby suspended for replay playback |
 | `core/emulator.cpp` | `Emulator::run` | `gdxsv_emu_next_frame` |
 | `core/emulator.cpp` | `Emulator::start` | the render thread renders from snapshots and does not write VRAM (render_snapshot.h) |
 | `core/emulator.cpp` | `Emulator::start` | `gdxsv_emu_thread_start` |

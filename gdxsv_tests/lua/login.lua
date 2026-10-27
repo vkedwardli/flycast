@@ -5,6 +5,13 @@
 -- E2E_PARAMS.chat = false: enter, but leave the force start to another client;
 -- chat_delay: vblanks after the entry before the chat (until the other client's entry,
 -- which cancels a running countdown).
+-- E2E_PARAMS.wait_file: after the login, wait up to wait_file_max vblanks for this file
+-- before the lobby; logs wait_file=0 or 1.
+-- E2E_PARAMS.lobby_replay = {trigger, path}: on the plaza map, write path to the file trigger
+-- (GDXSV_TEST_START_REPLAY): the emulator starts that replay from the lobby. Then wait up to
+-- 18000 vblanks for the file lobby_back before lobby 2 (logs lobby_back=0 or 1), and after
+-- the entry write the trigger again: the emulator refuses it. (Back from a replay in lobby 2,
+-- the cursor is on the partner search, which the entry path would move off.)
 -- Menu paths from gdxsv-reveng tools/dc2_lobby.py.
 
 local B = e2e.BTN
@@ -15,10 +22,9 @@ local LOGIN = {  -- {buttons, vblanks held, vblanks to wait after the release}
   {B.DOWN, 20, 20}, {B.A, 20, 240}, {B.UP, 20, 20}, {B.A, 20, 240}, {B.LEFT, 20, 20}, {B.A, 20, 300},
   {B.UP, 20, 20}, {B.A, 20, 1500}, {B.A, 20, 200}, {B.A, 20, 180}, {B.UP, 20, 20}, {B.A, 20, 600},
 }
--- Plaza map, cursor on the info desk -> lobby 2 -> entry for team Federation (auto partner).
-local LOBBY = {
-  {B.UP, 38, 10}, {B.LEFT, 6, 30}, {B.A, 20, 300}, {B.A, 20, 120}, {B.UP, 20, 20}, {B.A, 20, 180},
-}
+-- Plaza map, cursor on the info desk -> lobby 2; then entry for team Federation (auto partner).
+local LOBBY = { {B.UP, 38, 10}, {B.LEFT, 6, 30}, {B.A, 20, 300}, {B.A, 20, 120} }
+local ENTRY = { {B.UP, 20, 20}, {B.A, 20, 180} }
 -- Start, Y = on-screen keyboard; R, A = "あ"; 6 x Down, 2 x Right = OK; A commits, A sends.
 local CHAT = { {B.START, 10, 60}, {B.Y, 10, 60}, {B.RIGHT, 15, 15}, {B.A, 15, 20} }
 for _ = 1, 6 do CHAT[#CHAT + 1] = {B.DOWN, 15, 15} end
@@ -35,6 +41,23 @@ end
 
 local function scene() return e2e.read16(SCENE) end
 
+-- Written whole: the emulator may read path while it is being written.
+local function write_file(path, text)
+  local f = io.open(path .. ".tmp", "w")
+  f:write(text)
+  f:close()
+  os.remove(path)
+  os.rename(path .. ".tmp", path)
+end
+
+local function wait_file(path, max)
+  return e2e.wait_until(function()
+    local f = e2e.frame % 30 == 0 and io.open(path, "r")
+    if f then f:close() end
+    return f
+  end, max)
+end
+
 function main()
   e2e.wait(E2E_PARAMS.boot)
   e2e.load_state(E2E_PARAMS.slot)
@@ -44,7 +67,25 @@ function main()
   e2e.log("patch_id_menu", e2e.read32(PATCH_ID))
   run(LOGIN)
   if not E2E_PARAMS.battle then return end
+  if E2E_PARAMS.wait_file then
+    local found = wait_file(E2E_PARAMS.wait_file, E2E_PARAMS.wait_file_max)
+    e2e.log("wait_file", found and 1 or 0)
+    if not found then return end
+  end
+  local replay = E2E_PARAMS.lobby_replay
+  if replay then
+    write_file(replay[1], replay[2])
+    local back = wait_file(E2E_PARAMS.lobby_back, 18000)
+    e2e.log("lobby_back", back and 1 or 0)
+    if not back then return end
+    e2e.wait(60)
+  end
   run(LOBBY)
+  run(ENTRY)
+  if replay then
+    write_file(replay[1], replay[2])
+    e2e.wait(60)
+  end
   if E2E_PARAMS.chat ~= false then
     e2e.wait(E2E_PARAMS.chat_delay or 0)
     run(CHAT)
