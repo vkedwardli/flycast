@@ -546,20 +546,34 @@ void os_VideoRoutingPublishFrameTexture(ID3D11Texture2D* pTexture)
 			ID3D11Device* pDevice = nullptr;
 			resource->GetDevice(&pDevice);
 			resource->Release();
-			spoutDXSender->OpenDirectX11(pDevice);
+			const bool dbgOpened = spoutDXSender->OpenDirectX11(pDevice); // TEMPDBG
+			NOTICE_LOG(RENDERER, "TEMPDBG dx11 sender OpenDirectX11 ok=%d featureLevel=%x", dbgOpened ? 1 : 0, pDevice->GetFeatureLevel());
 			pDevice->Release();
 			int boardID = config::loadInt("naomi", "BoardId");
 			char buf[32] = { 0 };
 			vsnprintf(buf, sizeof(buf), (boardID == 0 ? "Flycast - Video Content" : "Flycast - Video Content - %d"), std::va_list(&boardID));
 			const std::string name = gdxsv_video_sender_name();
 			spoutDXSender->SetSenderName(name.empty() ? buf : name.c_str());
+			NOTICE_LOG(RENDERER, "TEMPDBG dx11 sender name '%s'", name.empty() ? buf : name.c_str());
 		}
 		else
 		{
+			WARN_LOG(RENDERER, "TEMPDBG dx11 sender no ID3D11Resource hr=%x", hr);
 			return;
 		}
 	}
-	spoutDXSender->SendTexture(pTexture);
+	// TEMPDBG: the first sends, each change of result, and a heartbeat
+	static int dbgSends = 0;
+	static bool dbgLastSent = true;
+	const bool dbgSent = spoutDXSender->SendTexture(pTexture);
+	if (dbgSends < 3 || dbgSent != dbgLastSent || dbgSends % 1800 == 0)
+	{
+		D3D11_TEXTURE2D_DESC dbgDesc{};
+		pTexture->GetDesc(&dbgDesc);
+		NOTICE_LOG(RENDERER, "TEMPDBG dx11 send %d ok=%d format=%d size=%ux%u samples=%u", dbgSends, dbgSent ? 1 : 0, (int)dbgDesc.Format, dbgDesc.Width, dbgDesc.Height, dbgDesc.SampleDesc.Count);
+	}
+	dbgSends++;
+	dbgLastSent = dbgSent;
 }
 
 void os_VideoRoutingTermDX()
