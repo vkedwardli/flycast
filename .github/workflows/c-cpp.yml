@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'gdxsv-master'
+      - 'fix/four-screen-guest-game-mode-build-win-only' # Windows build of this branch on push
     tags:
       - 'gdxsv-*'
   pull_request:
@@ -30,8 +31,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - {name: apple-darwin, os: macos-latest, shell: sh, cmakeArgs: -G Xcode -DMOLTENVK_DYLIB=$MOLTENVK_DYLIB, destDir: osx, buildType: RelWithDebInfo, packageName: flycast-gdxsv-macos-x86_64.zip}
-          - {name: x86_64-pc-linux-gnu, os: ubuntu-22.04, shell: sh, cmakeArgs: -G Ninja, destDir: linux, buildType: RelWithDebInfo, packageName: flycast-gdxsv-linux-x86_64.zip}
+          # Windows only
           - {name: x86_64-w64-mingw32, os: windows-2022, shell: 'msys2 {0}', cmakeArgs: -G Ninja, destDir: win, buildType: RelWithDebInfo, packageName: flycast-gdxsv-windows.zip}
 
     steps:
