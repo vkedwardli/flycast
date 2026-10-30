@@ -190,6 +190,23 @@ static void gdxsv_headless_probe_tick() {
 }
 
 void gdxsv_emu_vblank() {
+	// TEMPDBG: whether the emulation thread keeps its pace while the render thread blocks
+	{
+		using Clock = std::chrono::steady_clock;
+		static Clock::time_point windowStart = Clock::now(), last = windowStart;
+		static double maxMs = 0;
+		static int count = 0;
+		const auto now = Clock::now();
+		maxMs = std::max(maxMs, std::chrono::duration<double, std::milli>(now - last).count());
+		last = now;
+		if (++count >= 600) {
+			NOTICE_LOG(COMMON, "TEMPDBG emu vblank n=%d avg=%.2f max=%.2f ms online=%d", count,
+					   std::chrono::duration<double, std::milli>(now - windowStart).count() / count, maxMs, settings.network.online ? 1 : 0);
+			windowStart = now;
+			maxMs = 0;
+			count = 0;
+		}
+	}
 	if (gdxsv.Enabled()) {
 		gdxsv.HookVBlank();
 	}

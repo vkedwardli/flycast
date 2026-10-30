@@ -6,12 +6,25 @@
 
 #include "gdxsv_net_report.h"
 #include "gdxsv_video_hooks.h"
+#include "log/Log.h"
 
 void gdxsv_video_dx11_presented_stats(IDXGISwapChain* swapchain, long presentResult) {
 	if (swapchain == nullptr || FAILED(presentResult) || presentResult == DXGI_STATUS_OCCLUDED) return;
 	UINT presentCount;
 	DXGI_FRAME_STATISTICS stats;
-	if (FAILED(swapchain->GetLastPresentCount(&presentCount)) || FAILED(swapchain->GetFrameStatistics(&stats))) return;
+	// TEMPDBG: whether this path works on the system: the first results and each change (bounded)
+	const HRESULT dbgCountHr = swapchain->GetLastPresentCount(&presentCount);
+	const HRESULT dbgStatsHr = SUCCEEDED(dbgCountHr) ? swapchain->GetFrameStatistics(&stats) : E_FAIL;
+	{
+		static int dbgLogged = 0;
+		static HRESULT dbgLast = S_OK;
+		if (dbgLogged < 5 || (dbgStatsHr != dbgLast && dbgLogged < 30)) {
+			NOTICE_LOG(RENDERER, "TEMPDBG dx11 frame stats countHr=%x statsHr=%x", dbgCountHr, dbgStatsHr);
+			dbgLogged++;
+		}
+		dbgLast = dbgStatsHr;
+	}
+	if (FAILED(dbgCountHr) || FAILED(dbgStatsHr)) return;
 	// A DWM-composed window gets S_OK with all counts 0.
 	const bool composed = stats.PresentCount == 0 && stats.SyncRefreshCount == 0;
 	static const int64_t freq = [] {

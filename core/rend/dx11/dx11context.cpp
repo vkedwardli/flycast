@@ -36,7 +36,7 @@
 #include "nowide/stackstring.hpp"
 
 #ifndef TARGET_UWP
-// TEMPDBG: Windows 7 swap chain diagnostics, not for merging
+// TEMPDBG: final verification logs, not for merging
 namespace {
 const char *dbgEffect(DXGI_SWAP_EFFECT effect)
 {
@@ -60,44 +60,17 @@ int dbgHas(IUnknown *object)
 	return 1;
 }
 
-void dbgLogModule(const wchar_t *name)
-{
-	wchar_t path[MAX_PATH] = L"(not loaded)";
-	if (HMODULE module = GetModuleHandleW(name))
-		GetModuleFileNameW(module, path, MAX_PATH);
-	nowide::stackstring s;
-	s.convert(path);
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 module %s", s.get());
-}
-
-void dbgLogEnvironment(HWND window, IDXGIFactory1 *factory, ID3D11Device *device, IDXGIAdapter *adapter, D3D_FEATURE_LEVEL featureLevel, bool allowTearing)
+void dbgLogEnvironment(HWND window, IDXGIFactory1 *factory, ID3D11Device *device, IDXGIAdapter *adapter, D3D_FEATURE_LEVEL featureLevel)
 {
 	OSVERSIONINFOW os{};
 	os.dwOSVersionInfoSize = sizeof(os);
 	auto rtlGetVersion = (LONG (WINAPI *)(OSVERSIONINFOW *))(void *)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion");
 	if (rtlGetVersion != nullptr)
 		rtlGetVersion(&os);
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 os %lu.%lu build %lu", os.dwMajorVersion, os.dwMinorVersion, os.dwBuildNumber);
-	dbgLogModule(L"dxgi.dll");
-	dbgLogModule(L"d3d11.dll");
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 factory2=%d factory3=%d factory4=%d factory5=%d factory6=%d",
-			dbgHas<IDXGIFactory2>(factory), dbgHas<IDXGIFactory3>(factory), dbgHas<IDXGIFactory4>(factory),
-			dbgHas<IDXGIFactory5>(factory), dbgHas<IDXGIFactory6>(factory));
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 device featureLevel=%x flags=%x device1=%d dxgiDevice2=%d", featureLevel, device->GetCreationFlags(),
-			dbgHas<ID3D11Device1>(device), dbgHas<IDXGIDevice2>(device));
-
 	DXGI_ADAPTER_DESC desc{};
 	adapter->GetDesc(&desc);
-	LARGE_INTEGER umd{};
-	HRESULT umdHr = adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &umd);
-	int outputs = 0;
-	for (ComPtr<IDXGIOutput> output; SUCCEEDED(adapter->EnumOutputs(outputs, &output.get())); output.reset())
-		outputs++;
 	nowide::stackstring name;
 	name.convert(desc.Description);
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 adapter '%s' vendor=%x device=%x driver=%d.%d.%d.%d (hr=%x) outputs=%d", name.get(), desc.VendorId, desc.DeviceId,
-			HIWORD(umd.HighPart), LOWORD(umd.HighPart), HIWORD(umd.LowPart), LOWORD(umd.LowPart), umdHr, outputs);
-
 	BOOL composition = FALSE;
 	HRESULT dwmHr = E_FAIL;
 	if (HMODULE dwm = LoadLibraryW(L"dwmapi.dll"))
@@ -109,76 +82,9 @@ void dbgLogEnvironment(HWND window, IDXGIFactory1 *factory, ID3D11Device *device
 	}
 	RECT client{};
 	GetClientRect(window, &client);
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 dwm composition=%d (hr=%x) window isWindow=%d visible=%d style=%lx exStyle=%lx classStyle=%lx client=%ldx%ld sameThread=%d threaded=%d tearing=%d",
-			composition, dwmHr, IsWindow(window) ? 1 : 0, IsWindowVisible(window) ? 1 : 0, (unsigned long)GetWindowLongPtrW(window, GWL_STYLE),
-			(unsigned long)GetWindowLongPtrW(window, GWL_EXSTYLE), (unsigned long)GetClassLongPtrW(window, GCL_STYLE), client.right, client.bottom,
-			GetWindowThreadProcessId(window, nullptr) == GetCurrentThreadId() ? 1 : 0, config::ThreadedRendering ? 1 : 0, allowTearing ? 1 : 0);
-}
-
-// Each case gets a new window: a window that already had a swap chain rejects some others.
-void dbgProbeSwapChains(IDXGIFactory1 *factory, IDXGIFactory2 *factory2, ID3D11Device *device, ID3D11DeviceContext *context)
-{
-	WNDCLASSW wc{};
-	wc.style = CS_OWNDC | CS_BYTEALIGNCLIENT;
-	wc.lpfnWndProc = DefWindowProcW;
-	wc.hInstance = GetModuleHandleW(nullptr);
-	wc.lpszClassName = L"FlycastDx11Probe";
-	RegisterClassW(&wc);
-	auto newWindow = [&]() {
-		return CreateWindowExW(0, wc.lpszClassName, L"", WS_OVERLAPPEDWINDOW, 0, 0, 320, 240, nullptr, nullptr, wc.hInstance, nullptr);
-	};
-	const DXGI_SWAP_EFFECT effects[] = { DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, DXGI_SWAP_EFFECT_FLIP_DISCARD, DXGI_SWAP_EFFECT_SEQUENTIAL, DXGI_SWAP_EFFECT_DISCARD };
-	const DXGI_ALPHA_MODE alphas[] = { DXGI_ALPHA_MODE_IGNORE, DXGI_ALPHA_MODE_UNSPECIFIED };
-	const UINT bufferCounts[] = { 1, 2, 3 };
-	for (DXGI_SWAP_EFFECT effect : effects)
-		for (int waitable = 0; waitable < 2; waitable++)
-			for (UINT buffers : bufferCounts)
-			{
-				const UINT flags = waitable != 0 ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0;
-				if (factory2 != nullptr)
-					for (DXGI_ALPHA_MODE alpha : alphas)
-					{
-						HWND hwnd = newWindow();
-						DXGI_SWAP_CHAIN_DESC1 desc{};
-						desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-						desc.SwapEffect = effect;
-						desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-						desc.BufferCount = buffers;
-						desc.SampleDesc.Count = 1;
-						desc.AlphaMode = alpha;
-						desc.Flags = flags;
-						ComPtr<IDXGISwapChain1> sc;
-						HRESULT hr = factory2->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &sc.get());
-						NOTICE_LOG(RENDERER, "TEMPDBG dx11 probe api=hwnd effect=%s buffers=%u alpha=%s waitable=%d window=%d hr=%x", dbgEffect(effect), buffers,
-								alpha == DXGI_ALPHA_MODE_IGNORE ? "IGNORE" : "UNSPECIFIED", waitable, hwnd != nullptr ? 1 : 0, hr);
-						sc.reset();
-						context->ClearState();
-						context->Flush();
-						if (hwnd != nullptr)
-							DestroyWindow(hwnd);
-					}
-				HWND hwnd = newWindow();
-				DXGI_SWAP_CHAIN_DESC desc{};
-				desc.BufferCount = buffers;
-				desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-				desc.BufferDesc.RefreshRate.Numerator = 60;
-				desc.BufferDesc.RefreshRate.Denominator = 1;
-				desc.OutputWindow = hwnd;
-				desc.Windowed = TRUE;
-				desc.SwapEffect = effect;
-				desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-				desc.SampleDesc.Count = 1;
-				desc.Flags = flags;
-				ComPtr<IDXGISwapChain> sc;
-				HRESULT hr = factory->CreateSwapChain(device, &desc, &sc.get());
-				NOTICE_LOG(RENDERER, "TEMPDBG dx11 probe api=legacy effect=%s buffers=%u waitable=%d window=%d hr=%x", dbgEffect(effect), buffers, waitable, hwnd != nullptr ? 1 : 0, hr);
-				sc.reset();
-				context->ClearState();
-				context->Flush();
-				if (hwnd != nullptr)
-					DestroyWindow(hwnd);
-			}
-	UnregisterClassW(wc.lpszClassName, wc.hInstance);
+	NOTICE_LOG(RENDERER, "TEMPDBG dx11 os %lu.%lu build %lu adapter '%s' featureLevel=%x factory2=%d factory3=%d dwm composition=%d (hr=%x) visible=%d client=%ldx%ld",
+			os.dwMajorVersion, os.dwMinorVersion, os.dwBuildNumber, name.get(), featureLevel, dbgHas<IDXGIFactory2>(factory), dbgHas<IDXGIFactory3>(factory),
+			composition, dwmHr, IsWindowVisible(window) ? 1 : 0, client.right, client.bottom);
 }
 }
 #endif
@@ -285,14 +191,7 @@ bool DX11Context::init(bool keepCurrentWindow)
 	dxgiFactory.as(dxgiFactory2);
 
 #ifndef TARGET_UWP
-	// TEMPDBG
-	dbgLogEnvironment((HWND)window, dxgiFactory, pDevice, dxgiAdapter, featureLevel, allowTearing);
-	static bool dbgProbed = false;
-	if (!dbgProbed)
-	{
-		dbgProbed = true;
-		dbgProbeSwapChains(dxgiFactory, dxgiFactory2, pDevice, pDeviceContext);
-	}
+	dbgLogEnvironment((HWND)window, dxgiFactory, pDevice, dxgiAdapter, featureLevel); // TEMPDBG
 #endif
 
 	if (dxgiFactory2)
@@ -308,7 +207,7 @@ bool DX11Context::init(bool keepCurrentWindow)
 		if (allowTearing)
 			desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 		// gdxsv: threaded rendering presents the newest frame (waitPresentReady, Present)
-		const bool latestFrame = config::ThreadedRendering;
+		bool latestFrame = config::ThreadedRendering;
 		if (latestFrame)
 		{
 			desc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
@@ -322,6 +221,15 @@ bool DX11Context::init(bool keepCurrentWindow)
 		hr = dxgiFactory2->CreateSwapChainForCoreWindow(pDevice, (IUnknown *)window, &desc, nullptr, &swapchain1.get());
 #else
 		hr = dxgiFactory2->CreateSwapChainForHwnd(pDevice, (HWND)window, &desc, nullptr, nullptr, &swapchain1.get());
+		if (FAILED(hr) && latestFrame)
+		{
+			// gdxsv: Windows 7 rejects the waitable object flag and the swap chain with it
+			NOTICE_LOG(RENDERER, "DX11: no waitable swap chain (%x), presenting without it", hr);
+			latestFrame = false;
+			desc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+			desc.BufferCount = 2;
+			hr = dxgiFactory2->CreateSwapChainForHwnd(pDevice, (HWND)window, &desc, nullptr, nullptr, &swapchain1.get());
+		}
 #endif
 		if (SUCCEEDED(hr))
 			swapchain1.as(swapchain);
@@ -359,36 +267,7 @@ bool DX11Context::init(bool keepCurrentWindow)
 		hr = dxgiFactory->CreateSwapChain(pDevice, &desc, &swapchain.get());
 	}
 #ifndef TARGET_UWP
-	// TEMPDBG: the normal request's result, then a swap chain this OS accepts, to see how far the renderer gets
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 normal swap chain factory2=%d threaded=%d hr=%x", dxgiFactory2 ? 1 : 0, config::ThreadedRendering ? 1 : 0, hr);
-	if (FAILED(hr) && dxgiFactory2)
-	{
-		const struct { DXGI_SWAP_EFFECT effect; UINT buffers; DXGI_ALPHA_MODE alpha; } tries[] = {
-			{ DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, DXGI_ALPHA_MODE_IGNORE },
-			{ DXGI_SWAP_EFFECT_DISCARD, 2, DXGI_ALPHA_MODE_UNSPECIFIED },
-			{ DXGI_SWAP_EFFECT_SEQUENTIAL, 2, DXGI_ALPHA_MODE_UNSPECIFIED },
-			{ DXGI_SWAP_EFFECT_DISCARD, 1, DXGI_ALPHA_MODE_UNSPECIFIED },
-			{ DXGI_SWAP_EFFECT_DISCARD, 2, DXGI_ALPHA_MODE_IGNORE },
-		};
-		for (const auto& t : tries)
-		{
-			DXGI_SWAP_CHAIN_DESC1 desc{};
-			desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-			desc.SwapEffect = t.effect;
-			desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-			desc.BufferCount = t.buffers;
-			desc.SampleDesc.Count = 1;
-			desc.AlphaMode = t.alpha;
-			swapchain1.reset();
-			hr = dxgiFactory2->CreateSwapChainForHwnd(pDevice, (HWND)window, &desc, nullptr, nullptr, &swapchain1.get());
-			NOTICE_LOG(RENDERER, "TEMPDBG dx11 fallback effect=%s buffers=%u hr=%x", dbgEffect(t.effect), t.buffers, hr);
-			if (SUCCEEDED(hr))
-			{
-				swapchain1.as(swapchain);
-				break;
-			}
-		}
-	}
+	// TEMPDBG
 	if (SUCCEEDED(hr) && swapchain)
 	{
 		DXGI_SWAP_CHAIN_DESC used{};
@@ -420,7 +299,6 @@ bool DX11Context::init(bool keepCurrentWindow)
 	shaders.init(pDevice, &D3DCompile);
 	overlay.init(pDevice, pDeviceContext, &shaders, &samplers);
 	bool success = checkTextureSupport();
-	NOTICE_LOG(RENDERER, "TEMPDBG dx11 init done success=%d perPixel=%d", success ? 1 : 0, hasPerPixel() ? 1 : 0); // TEMPDBG
 	if (!success)
 		term();
 	return success;
@@ -476,18 +354,34 @@ void DX11Context::Present()
 		gdxsv_video_dx11_presented(swapchain, hr);
 	}
 #ifndef TARGET_UWP
-	// TEMPDBG: the first presents, each change of result (bounded), and a heartbeat
+	// TEMPDBG: the first presents, each change of result or path (bounded), and result counts
 	{
 		static int dbgPresents = 0;
 		static int dbgChanges = 0;
 		static HRESULT dbgLastHr = S_OK;
-		const bool changed = hr != dbgLastHr && dbgChanges < 50;
+		static bool dbgLastVSync = true;
+		static int dbgOk = 0, dbgStillDrawing = 0, dbgOccluded = 0, dbgFailed = 0;
+		const bool changed = (hr != dbgLastHr || swapOnVSync != dbgLastVSync) && dbgChanges < 100;
 		if (changed)
 			dbgChanges++;
-		if (dbgPresents < 5 || changed || dbgPresents % 1800 == 0)
-			NOTICE_LOG(RENDERER, "TEMPDBG dx11 present %d vsync=%d hr=%x", dbgPresents, swapOnVSync ? 1 : 0, hr);
-		dbgPresents++;
+		if (dbgPresents < 5 || changed)
+			NOTICE_LOG(RENDERER, "TEMPDBG dx11 present %d vsync=%d fastForward=%d waitable=%d hr=%x", dbgPresents, swapOnVSync ? 1 : 0,
+					settings.input.fastForwardMode ? 1 : 0, frameLatencyWaitable != nullptr ? 1 : 0, hr);
+		if (hr == S_OK)
+			dbgOk++;
+		else if (hr == DXGI_ERROR_WAS_STILL_DRAWING)
+			dbgStillDrawing++;
+		else if (hr == DXGI_STATUS_OCCLUDED)
+			dbgOccluded++;
+		else
+			dbgFailed++;
+		if (++dbgPresents % 600 == 0)
+		{
+			NOTICE_LOG(RENDERER, "TEMPDBG dx11 present results total=%d ok=%d stillDrawing=%d occluded=%d failed=%d vsync=%d", dbgPresents, dbgOk, dbgStillDrawing, dbgOccluded, dbgFailed, swapOnVSync ? 1 : 0);
+			dbgOk = dbgStillDrawing = dbgOccluded = dbgFailed = 0;
+		}
 		dbgLastHr = hr;
+		dbgLastVSync = swapOnVSync;
 	}
 #endif
 	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {

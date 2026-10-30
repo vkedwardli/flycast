@@ -98,14 +98,24 @@ static void loop()
 	onRenderThread = true;
 	INFO_LOG(RENDERER, "Render thread started");
 	makeCurrent(true);
+	// TEMPDBG: where the render thread spends its time, for any renderer
+	using DbgClock = std::chrono::steady_clock;
+	const auto dbgMs = [](DbgClock::time_point from, DbgClock::time_point to) { return std::chrono::duration<double, std::milli>(to - from).count(); };
+	DbgClock::time_point dbgWindow = DbgClock::now(), dbgLastFrame = dbgWindow;
+	int dbgFrames = 0;
+	double dbgReadySum = 0, dbgRenderSum = 0, dbgRenderMax = 0, dbgPresentSum = 0, dbgPresentMax = 0, dbgPeriodMax = 0;
+	bool dbgVSync = config::VSync && !settings.input.fastForwardMode;
 	try {
 		while (!stopRequested && emu.running() && !gui_is_open())
 		{
 			applyDisplayChange();
+			const auto dbgStart = DbgClock::now();
 			if (GraphicsContext::Instance() != nullptr)
 				GraphicsContext::Instance()->waitPresentReady();
+			const auto dbgReady = DbgClock::now();
 			if (!emu.render())
 				continue;
+			const auto dbgRendered = DbgClock::now();
 			if (config::ProfilerEnabled && config::ProfilerDrawToGUI)
 				gui_display_profiler();
 			try {
@@ -116,6 +126,27 @@ static void loop()
 			}
 			MainFrameCount++;
 			gdxsv_emu_render_presented();
+			// TEMPDBG
+			const auto dbgPresented = DbgClock::now();
+			dbgFrames++;
+			dbgReadySum += dbgMs(dbgStart, dbgReady);
+			dbgRenderSum += dbgMs(dbgReady, dbgRendered);
+			dbgRenderMax = std::max(dbgRenderMax, dbgMs(dbgReady, dbgRendered));
+			dbgPresentSum += dbgMs(dbgRendered, dbgPresented);
+			dbgPresentMax = std::max(dbgPresentMax, dbgMs(dbgRendered, dbgPresented));
+			dbgPeriodMax = std::max(dbgPeriodMax, dbgMs(dbgLastFrame, dbgPresented));
+			dbgLastFrame = dbgPresented;
+			const bool vsyncNow = config::VSync && !settings.input.fastForwardMode;
+			if (dbgFrames >= 600 || vsyncNow != dbgVSync)
+			{
+				NOTICE_LOG(RENDERER, "TEMPDBG render thread renderer=%d vsync=%d frames=%d period avg=%.1f max=%.1f ready avg=%.1f render avg=%.1f max=%.1f present avg=%.1f max=%.1f ms",
+						(int)config::RendererType.get(), dbgVSync ? 1 : 0, dbgFrames, dbgMs(dbgWindow, dbgPresented) / dbgFrames, dbgPeriodMax, dbgReadySum / dbgFrames,
+						dbgRenderSum / dbgFrames, dbgRenderMax, dbgPresentSum / dbgFrames, dbgPresentMax);
+				dbgWindow = dbgPresented;
+				dbgFrames = 0;
+				dbgReadySum = dbgRenderSum = dbgRenderMax = dbgPresentSum = dbgPresentMax = dbgPeriodMax = 0;
+				dbgVSync = vsyncNow;
+			}
 		}
 	} catch (...) {
 		error = std::current_exception();

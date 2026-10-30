@@ -812,6 +812,13 @@ void VulkanContext::CreateSwapChain()
 				INFO_LOG(RENDERER, "Using mailbox present mode");
 				swapchainPresentMode = vk::PresentModeKHR::eMailbox;
 			}
+			// TEMPDBG: the present modes this driver offers and the one in use
+			{
+				std::string dbgModes;
+				for (auto& mode : physicalDevice.getSurfacePresentModesKHR(GetSurface()))
+					dbgModes += vk::to_string(mode) + " ";
+				NOTICE_LOG(RENDERER, "TEMPDBG vk present modes offered: %s| using %s vsync=%d", dbgModes.c_str(), vk::to_string(swapchainPresentMode).c_str(), swapOnVSync ? 1 : 0);
+			}
 #ifndef SWAPPY
 			if (swapOnVSync && config::DupeFrames && settings.display.refreshRate > 60.f)
 				swapInterval = settings.display.refreshRate / 60.f;
