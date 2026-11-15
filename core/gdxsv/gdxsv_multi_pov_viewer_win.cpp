@@ -3,6 +3,7 @@
 #include "gdxsv_multi_pov_viewer.h"
 
 #if defined(VIDEO_ROUTING) && !defined(LIBRETRO)
+#include <algorithm>
 #include <array>
 #include <memory>
 
@@ -12,11 +13,17 @@
 #include "cfg/option.h"
 #include "gdxsv_multi_pov.h"
 #include "imgui_impl_dx11.h"
+#include "log/Log.h"  // TEMPDBG
 #include "rend/dx11/dx11context.h"
 #include "sdl/sdl.h"
 #ifdef USE_VULKAN
 #include "rend/vulkan/vulkan_context.h"
 #endif
+
+// TEMPDBG: in opengl_driver.cpp
+void gdxsv_tempdbg_gl(const char* where);
+void gdxsv_tempdbg_glcache_reset();
+extern int gdxsv_tempdbg_gui_frames;
 
 namespace {
 struct GdxsvSpoutReceiver {
@@ -27,6 +34,7 @@ struct GdxsvSpoutReceiver {
 	ComPtr<ID3D11ShaderResourceView> view;
 	ImTextureDX11 dx_image{};
 	GdxsvMultiPovVideoFrame frame;
+	bool tempdbg_connected = false;  // TEMPDBG
 };
 struct GdxsvSpoutViewer {
 	std::array<GdxsvSpoutReceiver, kGdxsvMultiPovScreens> receivers;
@@ -48,6 +56,10 @@ GdxsvViewerBackend CurrentBackend() {
 
 GdxsvMultiPovVideoFrame ReceiveGL(GdxsvSpoutReceiver& receiver, const std::string& name) {
 	if (!receiver.gl) {
+		// TEMPDBG: Spout's own log, %APPDATA%\Spout\flycast-host-spout.log
+		static const bool spout_log = (spoututils::EnableSpoutLogFile("flycast-host-spout.log"),
+									   spoututils::SetSpoutLogLevel(spoututils::SPOUT_LOG_VERBOSE), true);
+		(void)spout_log;
 		receiver.gl = std::make_unique<SpoutReceiver>();
 		receiver.gl->SetReceiverName(name.c_str());
 	}
@@ -55,6 +67,13 @@ GdxsvMultiPovVideoFrame ReceiveGL(GdxsvSpoutReceiver& receiver, const std::strin
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &fbo);
 	glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
 	const bool connected = receiver.gl->ReceiveTexture(receiver.texture, GL_TEXTURE_2D, false, fbo);
+	// TEMPDBG
+	if (connected != receiver.tempdbg_connected) {
+		NOTICE_LOG(RENDERER, "TEMPDBG receive %s: connected %d -> %d, fbo %d, texture %d, own texture %u", name.c_str(), receiver.tempdbg_connected,
+				   connected, fbo, texture, receiver.texture);
+		receiver.tempdbg_connected = connected;
+		gdxsv_tempdbg_gl("after receive change");
+	}
 	const bool updated = receiver.gl->IsUpdated();
 	if (connected && updated) {
 		const auto width = receiver.gl->GetSenderWidth();
@@ -158,6 +177,9 @@ void gdxsv_multi_pov_viewer_term(bool reset_device) {
 #ifdef USE_VULKAN
 	gdxsv_multi_pov_viewer_vulkan_term(reset_device);
 #endif
+	// TEMPDBG
+	const bool tempdbg = CurrentBackend() == GdxsvViewerBackend::OpenGL && std::any_of(viewer.receivers.begin(), viewer.receivers.end(), [](const auto& r) { return r.gl != nullptr; });
+	if (tempdbg) gdxsv_tempdbg_gl("term before");
 	for (auto& receiver : viewer.receivers) {
 		if (receiver.gl) receiver.gl->ReleaseReceiver();
 		if (receiver.texture) glDeleteTextures(1, &receiver.texture);
@@ -166,6 +188,11 @@ void gdxsv_multi_pov_viewer_term(bool reset_device) {
 			receiver.dx->CloseDirectX11();
 		}
 		receiver = {};
+	}
+	if (tempdbg) {
+		gdxsv_tempdbg_gl("term after");
+		gdxsv_tempdbg_glcache_reset();
+		gdxsv_tempdbg_gui_frames = 5;
 	}
 }
 #endif

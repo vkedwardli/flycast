@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - 'gdxsv-master'
-      - 'temp/spout-only-windows'
+      - 'temp/spout-dark-debug-windows'
     tags:
       - 'gdxsv-*'
   pull_request:

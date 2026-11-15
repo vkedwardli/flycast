@@ -211,6 +211,12 @@ public:
 		_disable_cache = true;
 		Reset();
 	}
+	// TEMPDBG
+	GLuint TempDbgTexture() const { return _texture; }
+	GLuint TempDbgProgram() const { return _program; }
+	GLboolean TempDbgBlend() const { return _en_blend; }
+	GLboolean TempDbgScissor() const { return _en_scissor_test; }
+
 	void EnableCache()
 	{
 	   _disable_cache = false;
