@@ -4,6 +4,7 @@ on:
   push:
     branches-ignore:
       - 'l10n_**'
+      - 'temp/**'
   pull_request:
 
 jobs:
