@@ -18,6 +18,15 @@ def git(*args):
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True)
 
 
+def resolve_baseline(revision):
+    # Avoid caret/brace revision syntax when invoking MSYS Git from native Python.
+    object_id = git("rev-parse", "--verify", "--end-of-options", revision).strip()
+    commit = git("rev-list", "--no-walk", "--max-count=1", object_id, "--").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
+        raise ValueError("--baseline must identify a commit or a tag pointing to one")
+    return commit
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", required=True, help="Commit whose unmodified Windows helper is the baseline")
@@ -27,7 +36,7 @@ def main():
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    baseline = git("rev-parse", "--verify", args.baseline + "^{commit}").strip()
+    baseline = resolve_baseline(args.baseline)
     commit = git("rev-parse", "HEAD").strip()
     if git("status", "--porcelain", "--", "core/gdxsv", "gdxsv_tests/rollback/https_latency_probe_win.cpp", "gdxsv_tests/rollback/windows_https_latency.py").strip():
         commit += "-dirty"
