@@ -86,6 +86,9 @@ GdxsvHttpsLatencyResult measureGdxsvHttpsLatency(const std::string& host, const 
 
 	DWORD timeout = 5000;
 	InternetSetOptionA(internet, INTERNET_OPTION_CONNECT_TIMEOUT, &timeout, sizeof(timeout));
+	DWORD protocols = HTTP_PROTOCOL_FLAG_HTTP2;
+	const DWORD protocol_enable_error =
+		InternetSetOptionA(internet, INTERNET_OPTION_ENABLE_HTTP_PROTOCOL, &protocols, sizeof(protocols)) ? ERROR_SUCCESS : GetLastError();
 
 	HINTERNET connection =
 		InternetConnectA(internet, host.c_str(), INTERNET_DEFAULT_HTTPS_PORT, nullptr, nullptr, INTERNET_SERVICE_HTTP, 0, 0);
@@ -98,8 +101,10 @@ GdxsvHttpsLatencyResult measureGdxsvHttpsLatency(const std::string& host, const 
 	int status = 0;
 	std::string error;
 	int rtt = -1;
-	NOTICE_LOG(COMMON, "HTTPS_LATENCY begin host=%s path=%s attempts=%d backend=WinINet timing=headers", host.c_str(), path.c_str(),
-			   attempts);
+	NOTICE_LOG(
+		COMMON,
+		"HTTPS_LATENCY begin host=%s path=%s attempts=%d backend=WinINet timing=headers allowed_protocols=%lu protocol_enable_error=%lu",
+		host.c_str(), path.c_str(), attempts, static_cast<unsigned long>(protocols), static_cast<unsigned long>(protocol_enable_error));
 	if (!performHead(connection, host, path, 0, status, error, rtt, traces) || !gdxsv_https_latency_answered(status)) {
 		result.status = status;
 		result.error = error.empty() ? "warmup failed" : error;

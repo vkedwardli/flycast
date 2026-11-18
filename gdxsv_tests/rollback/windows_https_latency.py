@@ -38,8 +38,10 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     baseline = resolve_baseline(args.baseline)
     commit = git("rev-parse", "HEAD").strip()
-    if git("status", "--porcelain", "--", "core/gdxsv", "gdxsv_tests/rollback/https_latency_probe_win.cpp", "gdxsv_tests/rollback/windows_https_latency.py").strip():
+    changes = git("status", "--porcelain", "--", "core/gdxsv", "gdxsv_tests/rollback/https_latency_probe_win.cpp", "gdxsv_tests/rollback/windows_https_latency.py").strip()
+    if changes:
         commit += "-dirty"
+        print("Probe source changes:\n" + changes, flush=True)
     source = "core/gdxsv/gdxsv_https_latency_win.cpp"
     baseline_source = git("show", baseline + ":" + source)
     (out / "baseline_win.cpp").write_text(baseline_source, encoding="utf-8")

@@ -96,7 +96,7 @@ std::string gdxsv_probe_cell(const GdxsvProbeResults& results, size_t variant) {
 	const int a = results.rounds[0][variant].min_ms;
 	const int b = results.rounds[1][variant].min_ms;
 	if (a == b) return std::to_string(a);
-	return std::to_string(std::min(a, b)) + "–" + std::to_string(std::max(a, b));
+	return std::to_string(std::min(a, b)) + "-" + std::to_string(std::max(a, b));
 }
 
 }  // namespace
@@ -125,7 +125,8 @@ int main(int argc, char** argv) {
 		std::printf("Windows HTTPS latency comparison: commit=%s baseline=%s\n", gdxsv_probe_commit, gdxsv_probe_baseline);
 		std::printf(
 			"Four variants; two rounds in opposite orders; one warmup and three measured attempts per variant; six region workers.\n");
-		std::printf("New timing ends when HttpSendRequest returns; protocol defaults are unchanged. No game or credentials required.\n");
+		std::printf("New timing ends when HttpSendRequest returns and allows HTTP/2; the baseline keeps its protocol defaults.\n");
+		std::printf("No game or credentials required.\n");
 		std::fflush(stdout);
 		std::vector<GdxsvProbeResults> results(regions.size());
 		std::atomic<size_t> next{0};
@@ -147,6 +148,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		std::printf("\nSUMMARY commit=%s baseline=%s serial_retries=%zu\n", gdxsv_probe_commit, gdxsv_probe_baseline, retried);
+		std::printf("New: WinINet with HTTP/2 enabled, timed through HttpSendRequest. Old: unmodified baseline helper.\n");
 		std::printf("Milliseconds: range of the two per-round minima. FAILED means incomplete measurements, not a timing regression.\n\n");
 		std::printf("| Region | Location | Old / (400) | New / (400) | Old /storage/v1 (404) | New /storage/v1 (404) |\n");
 		std::printf("|---|---|---:|---:|---:|---:|\n");

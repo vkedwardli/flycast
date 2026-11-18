@@ -76,8 +76,8 @@ Hooks into `core/gdxsv` (`gdxsv_emu_*` in `gdxsv_emu_hooks.h`) unless stated.
 | Logs | `core/log/LogManager.cpp`, `core/log/InMemoryListener.h`, `core/profiler/fc_profiler.h` | one log file per instance; 100 lines kept in memory (was 20); a missing include |
 | Settings struct | `core/types.h` | `settings.gdxsv` runtime state |
 | Build | `CMakeLists.txt`, `tests/CMakeLists.txt`, `resources/resources.cmake`, `.gitignore` | `include(core/gdxsv/gdxsv.cmake)` (gdxsv sources, protobuf), build options, gdxsv tests and resources |
-| CI | `.github/workflows/c-cpp.yml` | the diagnostic branch builds desktop Windows and runs the native HTTPS latency comparison; downloadable application, standalone probe and logs |
-| CI | `.github/workflows/android.yml`, `switch.yml`, `bsd.yml`, `uwp.yml` | push filters exclude the Windows diagnostic branch so it only builds desktop Windows |
+| CI | `.github/workflows/c-cpp.yml` | the diagnostic branch builds and runs only the standalone native Windows HTTPS latency comparison; downloadable probe and logs |
+| CI | `.github/workflows/android.yml`, `switch.yml`, `bsd.yml`, `uwp.yml` | push filters exclude the Windows diagnostic branch so it only runs the standalone latency probe |
 | CI | `.github/workflows/crowdin_translate.yml` | gdxsv translation updates |
 
 ## Changed spots

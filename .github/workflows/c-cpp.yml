@@ -1,4 +1,4 @@
-# gdxsv: temporary Windows-only build and HTTPS latency comparison.
+# gdxsv: temporary standalone Windows HTTPS latency comparison only.
 name: Windows latency diagnostics
 
 on:
@@ -47,42 +47,3 @@ jobs:
             build/windows-https-latency/run-latency.cmd
             build/windows-https-latency/latency.log
             build/windows-https-latency/summary.md
-
-  build:
-    name: Windows Flycast
-    runs-on: windows-2022
-    timeout-minutes: 60
-    defaults:
-      run:
-        shell: 'msys2 {0}'
-    env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          submodules: recursive
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          install: git make mingw-w64-x86_64-ccache mingw-w64-x86_64-cmake mingw-w64-x86_64-lua mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-toolchain mingw-w64-x86_64-libcdio
-      - uses: actions/cache@v5
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-windows-latency-${{ github.sha }}
-          restore-keys: |
-            ccache-windows-latency-
-            ccache-x86_64-w64-mingw32-
-      - name: Build Windows application
-        run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifact
-          cmake --build build --target install
-      - name: Package Windows application
-        run: |
-          mv artifact/bin/flycast.exe artifact/bin/flycast-gdxsv.exe
-          strip artifact/bin/flycast-gdxsv.exe
-          powershell Compress-Archive artifact/bin/flycast-gdxsv.exe artifact/bin/flycast-gdxsv-windows.zip
-      - uses: actions/upload-artifact@v7
-        with:
-          name: flycast-windows-latency
-          path: artifact/bin/flycast-gdxsv-windows.zip
