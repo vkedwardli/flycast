@@ -15,7 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def git(*args):
-    return subprocess.check_output(["git", *args], cwd=ROOT, text=True)
+    # Git for Windows checkout and MSYS Git can disagree on line endings and executable bits.
+    return subprocess.check_output(["git", "-c", "core.autocrlf=true", "-c", "core.filemode=false", *args], cwd=ROOT, text=True)
 
 
 def resolve_baseline(revision):
