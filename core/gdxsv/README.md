@@ -72,6 +72,7 @@ options and changed upstream files: `docs/gdxsv/`.
 | `gdxsv_update.cpp/.h`, `gdxsv_update_apple.mm` | client self-update |
 | `gdxsv_platform*.cpp/.h/.mm` | host services; macOS background-worker activation before application launch |
 | `gdxsv_https_latency*.cpp/.h/.mm` | HTTPS latency to each server region, per platform (`_win`, `_curl`, `_apple`) |
+| `gdxsv_https_latency_trace_win.cpp/.h` | Windows HTTPS request phase timings, protocol and buffered WinINet callback diagnostics |
 | `gdxsv_prof.cpp/.h` | named timers for profiling |
 | `gdxsv_frame_limiter.cpp/.h` | FixedFrequency frame limiter of the main UI loop (period, replay trim) |
 | `gdxsv_perf_trace.cpp/.h` | event trace for the pre-release perf check, on with env `GDXSV_PERF_TRACE` |

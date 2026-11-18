@@ -1,249 +1,88 @@
-name: Linux, macOS, Windows
+# gdxsv: temporary Windows-only build and HTTPS latency comparison.
+name: Windows latency diagnostics
 
 on:
   push:
     branches:
-      - 'gdxsv-master'
-    tags:
-      - 'gdxsv-*'
-  pull_request:
-    branches:
-      - '**'
+      - 'temp/windows-latency-headers'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
-
+  latency:
+    name: Windows four-way latency probe
+    runs-on: windows-2022
+    timeout-minutes: 25
     defaults:
       run:
-        shell: ${{ matrix.config.shell }}
-
-    env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-
-    # For google could SDK needs permissions
-    permissions:
-      contents: write
-      id-token: write
-
-    strategy:
-      matrix:
-        config:
-          - {name: apple-darwin, os: macos-latest, shell: sh, cmakeArgs: -G Xcode -DMOLTENVK_DYLIB=$MOLTENVK_DYLIB, destDir: osx, buildType: RelWithDebInfo, packageName: flycast-gdxsv-macos-x86_64.zip}
-          - {name: x86_64-pc-linux-gnu, os: ubuntu-22.04, shell: sh, cmakeArgs: -G Ninja, destDir: linux, buildType: RelWithDebInfo, packageName: flycast-gdxsv-linux-x86_64.zip}
-          - {name: x86_64-w64-mingw32, os: windows-2022, shell: 'msys2 {0}', cmakeArgs: -G Ninja, destDir: win, buildType: RelWithDebInfo, packageName: flycast-gdxsv-windows.zip}
-
+        shell: 'msys2 {0}'
     steps:
-      - name: Set up build environment (macOS)
-        run: |
-          # Unlink and re-link to prevent errors when github mac runner images install python outside of brew. See https://github.com/actions/setup-python/issues/577
-          brew list -1 | grep python | while read formula; do brew unlink $formula; brew link --overwrite $formula; done
-          brew update || :
-          brew install libao ldid pulseaudio
-
-          moltenvk_tag="v1.4.2"
-          moltenvk_root="$RUNNER_TEMP/MoltenVK-$moltenvk_tag"
-          rm -rf "$moltenvk_root"
-          mkdir -p "$moltenvk_root"
-          aria2c "https://github.com/KhronosGroup/MoltenVK/releases/download/$moltenvk_tag/MoltenVK-macos.tar" -d "$RUNNER_TEMP" -o "MoltenVK-macos-$moltenvk_tag.tar"
-          tar -xf "$RUNNER_TEMP/MoltenVK-macos-$moltenvk_tag.tar" -C "$moltenvk_root"
-          moltenvk_dylib="$(find "$moltenvk_root" -type f -path '*/macOS/*' -name libMoltenVK.dylib | head -n 1)"
-          if [ -z "$moltenvk_dylib" ]; then
-            echo "MoltenVK $moltenvk_tag was downloaded, but macOS libMoltenVK.dylib was not found." >&2
-            exit 1
-          fi
-          echo "MOLTENVK_DYLIB=$moltenvk_dylib" >> $GITHUB_ENV
-        if: runner.os == 'macOS'
-
-      - name: Set up build environment (Linux)
-        run: |
-          # the launchpad PPA often answers 503 for a minute or more
-          retry() { for i in 1 2 3 4 5; do "$@" && return 0; sleep $((i * 30)); done; return 1; }
-          retry sudo add-apt-repository -y ppa:christianrauch/libdecoration
-          retry sudo apt-get update
-          retry sudo apt-get -y install ccache libao-dev libasound2-dev libevdev-dev libgl1-mesa-dev liblua5.3-dev libminiupnpc-dev libpulse-dev libsdl2-dev libudev-dev libzip-dev ninja-build libcurl4-openssl-dev libcdio-dev libfuse2 locales
-          retry sudo apt-get -y install libwayland-dev libdecor-0-dev libaudio-dev libjack-dev libsndio-dev libsamplerate0-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev libdrm-dev libgbm-dev libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev fcitx-libs-dev
-          sudo sed -i 's/# fr_FR.UTF-8 UTF-8/fr_FR.UTF-8 UTF-8/g' /etc/locale.gen
-          sudo locale-gen
-        if: runner.os == 'Linux'
-
-      - name: Set up build environment (Windows, MinGW)
-        uses: msys2/setup-msys2@v2
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: git make mingw-w64-x86_64-ccache mingw-w64-x86_64-cmake mingw-w64-x86_64-lua mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-toolchain mingw-w64-x86_64-libcdio
-        if: matrix.config.shell == 'msys2 {0}'
-
-      - name: Set up build environment (Windows, Visual Studio)
+          install: git mingw-w64-x86_64-gcc mingw-w64-x86_64-python
+      - name: Build and run all four variants in all enabled regions
+        run: >-
+          python gdxsv_tests/rollback/windows_https_latency.py
+          --baseline 18d3e802cd1e86fd3f380ce6ab9d90f573576728
+      - name: Add table to job summary
+        if: always()
+        shell: bash
         run: |
-          choco install ccache directx-sdk ninja
-          echo DXSDK_DIR=C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)>> %GITHUB_ENV%
-        if: matrix.config.shell == 'cmd'
-
-      - uses: ilammy/msvc-dev-cmd@v1
+          if [ -f build/windows-https-latency/summary.md ]; then
+            cat build/windows-https-latency/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save standalone probe and console log
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          arch: ${{ matrix.config.arch }}
-        if: matrix.config.shell == 'cmd'
+          name: windows-https-latency
+          path: |
+            build/windows-https-latency/windows-https-latency.exe
+            build/windows-https-latency/run-latency.cmd
+            build/windows-https-latency/latency.log
+            build/windows-https-latency/summary.md
 
+  build:
+    name: Windows Flycast
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: 'msys2 {0}'
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
-
-      - name: Compile universal dependencies (macOS)
-        run: |
-          # Homebrew no longer installs a formula from a file path: the formulae go into a local tap.
-          brew tap-new --no-git local/flycast
-          tap_formula_dir="$(brew --repo local/flycast)/Formula"
-          for formula in ./shell/apple/libomp.rb ./shell/apple/libpng-flycast.rb; do
-            libname=$(basename "$formula" .rb)
-            cp "$formula" "$tap_formula_dir/"
-            # A homebrew/core keg of the same name would block the tap's one.
-            brew uninstall --ignore-dependencies --formula "$libname" 2>/dev/null || true
-            HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_DEVELOPER=1 brew install --build-from-source --formula "local/flycast/$libname" || \
-            HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_DEVELOPER=1 brew reinstall --build-from-source --formula "local/flycast/$libname"
-
-            prefix=$(brew --prefix "local/flycast/$libname")
-            # Find and verify the static library
-            libfile=$(find "$prefix/lib" -name "*.a" | head -n1)
-            lipo -info "$libfile"
-            
-            # Export prefix for subsequent CMake steps
-            if [ -z "$CMAKE_PREFIX_PATH" ]; then
-              CMAKE_PREFIX_PATH="$prefix"
-            else
-              CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH:$prefix"
-            fi
-          done
-          echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
-          # After the last brew download: brew's own curl links brew's zstd
-          brew uninstall --ignore-dependencies zstd
-        if: matrix.config.name == 'apple-darwin'
-
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: git make mingw-w64-x86_64-ccache mingw-w64-x86_64-cmake mingw-w64-x86_64-lua mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-toolchain mingw-w64-x86_64-libcdio
       - uses: actions/cache@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ matrix.config.name }}-${{ github.sha }}
-          restore-keys: ccache-${{ matrix.config.name }}-
-        if: runner.os != 'macOS'
-
-      - name: CMake
+          key: ccache-windows-latency-${{ github.sha }}
+          restore-keys: |
+            ccache-windows-latency-
+            ccache-x86_64-w64-mingw32-
+      - name: Build Windows application
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_INSTALL_PREFIX=artifact ${{ matrix.config.cmakeArgs }} -DSENTRY_UPLOAD_URL=${{ env.SENTRY_UPLOAD_URL }} -DGDXSV_TEXTURE_PACK_PASS=${{ env.GDXSV_TEXTURE_PACK_PASS }}
-          cmake --build build --config ${{ matrix.config.buildType }} --target install
-        env:
-          SENTRY_UPLOAD_URL: "${{ startsWith(github.ref, 'refs/tags/gdxsv-') && secrets.SENTRY_UPLOAD_URL_PUBLIC || secrets.SENTRY_UPLOAD_URL_DEV }}"
-          GDXSV_TEXTURE_PACK_PASS: ${{ secrets.GDXSV_TEXTURE_PACK_PASS }}
-
-      - name: Unit Tests
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.config.buildType }} -DCMAKE_INSTALL_PREFIX=artifact -DENABLE_CTEST=ON ${{ matrix.config.cmakeArgs }}
-          cmake --build build --config ${{ matrix.config.buildType }}
-          ./build/flycast
-        if: matrix.config.name == 'x86_64-pc-linux-gnu'
-
-      - name: Dump symbols
-        run: |
-          mkdir -p symbols
-          core/deps/breakpad/bin/dump_syms artifact/bin/flycast.exe > symbols/flycast.sym 2>/dev/null
-          sed -i symbols/flycast.sym -e 's#D:\\a\\flycast\\flycast\\build/##' -e 's#D:\\a\\flycast\\flycast\\core\\deps\\breakpad/##'
-          strip artifact/bin/flycast.exe
-        if: matrix.config.name == 'x86_64-w64-mingw32'
-
-      - name: Build breakpad (linux)
-        working-directory: core/deps/breakpad
-        run: |
-          ./configure
-          make
-          sudo make install
-        if: matrix.config.name == 'x86_64-pc-linux-gnu'
-
-      - name: Dump symbols and make AppImage (linux)
-        run: |
-          mkdir -p symbols
-          dump_syms artifact/bin/flycast > symbols/flycast.sym 2>/dev/null
-          strip artifact/bin/flycast
-          shell/linux/make-appimage.sh . artifact/bin appimage
-          mv flycast-x86_64.AppImage artifact/bin
-          rm artifact/bin/flycast
-        if: matrix.config.name == 'x86_64-pc-linux-gnu'
-
-      - name: Package app (macos)
-        run: |
-          cp shell/apple/HowToOpen.pdf artifact/bin/
-          cd artifact/bin
-          mv Flycast.app Flycast-gdxsv.app
-          zip -y -rm ${{ matrix.config.packageName }} Flycast-gdxsv.app HowToOpen.pdf
-        if: matrix.config.name == 'apple-darwin'
-
-      - name: Package app (windows)
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=artifact
+          cmake --build build --target install
+      - name: Package Windows application
         run: |
           mv artifact/bin/flycast.exe artifact/bin/flycast-gdxsv.exe
-          powershell Compress-Archive artifact/bin/flycast-gdxsv.exe artifact/bin/${{ matrix.config.packageName }} 
-          rm artifact/bin/flycast-gdxsv.exe
-        if: matrix.config.name == 'x86_64-w64-mingw32' || endsWith(matrix.config.name, 'msvc')
-
-      - name: Package app (linux)
-        run: |
-          cd artifact/bin
-          mv flycast-x86_64.AppImage flycast-gdxsv-x86_64.AppImage
-          zip ${{ matrix.config.packageName }} flycast-gdxsv-x86_64.AppImage
-          rm flycast-gdxsv-x86_64.AppImage
-        if: matrix.config.name == 'x86_64-pc-linux-gnu'
-
+          strip artifact/bin/flycast-gdxsv.exe
+          powershell Compress-Archive artifact/bin/flycast-gdxsv.exe artifact/bin/flycast-gdxsv-windows.zip
       - uses: actions/upload-artifact@v7
         with:
-          name: flycast-${{ matrix.config.name }}
-          archive: ${{ !matrix.config.packagePath }}
-          path: |
-            ${{ matrix.config.packagePath || 'artifact/bin' }}
-            ${{ !matrix.config.packagePath && 'artifact/lib/libretro' || '' }}
-
-      - name: Setup Rclone
-        uses: AnimMouse/setup-rclone@v1
-        with:
-          rclone_config: ${{ secrets.RCLONE_CONFIG }}
-
-      - name: Upload to S3
-        run: rclone copy artifact/bin scaleway:flycast-builds/${{ matrix.config.destDir }}/${GITHUB_REF#refs/}-$GITHUB_SHA
-        shell: bash
-        if: github.repository == 'flyinghead/flycast' && github.event_name == 'push' && matrix.config.destDir != ''
-
-      - name: Setup Sentry CLI
-        uses: mathieu-bour/setup-sentry-cli@v2
-        env:
-          SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
-          SENTRY_PROJECT: "${{ startsWith(github.ref, 'refs/tags/gdxsv-') && 'public' || 'dev' }}"
-        with:
-          url: https://sentry.io
-          token: ${{ env.SENTRY_TOKEN }}
-          organization: gdxsv-project
-          project: ${{ env.SENTRY_PROJECT }}
-          version: 2.21.2
-        if: ${{ env.SENTRY_TOKEN != '' }}
-      
-      - name: Upload symbols to Sentry (Windows, macOS, Linux)
-        run: |
-          VERSION=$(git describe --tags --always --match "gdxsv-*" | sed -E "s/-([0-9]+)-g(.+)$/-dev.\\1+\\2/g")
-          # Auto increment semver if it is prelease, since 1.2.3-beta.1 < 1.2.3
-          if [[ "$VERSION" =~ \.([0-9]+)-dev.[0-9]+\+ ]]; then
-            PATCH_VERSION="${BASH_REMATCH[1]}"
-            PATCH_VERSION=$((PATCH_VERSION + 1))
-            VERSION=$(echo "$VERSION" | sed -E "s/.[0-9]-dev/.${PATCH_VERSION}-dev/")
-          fi
-          sentry-cli releases new "$VERSION"
-          sentry-cli releases set-commits "$VERSION" --auto
-          sentry-cli debug-files upload symbols
-        shell: bash
-        env:
-          SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
-        if: ${{ env.SENTRY_TOKEN != '' && (matrix.config.name == 'x86_64-pc-windows-msvc' || matrix.config.name == 'x86_64-w64-mingw32' || matrix.config.name == 'apple-darwin' || matrix.config.name == 'x86_64-pc-linux-gnu') && github.event_name == 'push' }}
-
-      - name: Release flycast-gdxsv
-        uses: softprops/action-gh-release@v1
-        with:
-          files: artifact/bin/${{ matrix.config.packageName }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: github.repository == 'inada-s/flycast' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/gdxsv-') && matrix.config.packageName != ''
+          name: flycast-windows-latency
+          path: artifact/bin/flycast-gdxsv-windows.zip

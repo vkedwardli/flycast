@@ -4,6 +4,8 @@ on:
   push:
     branches-ignore:
       - 'l10n_**'
+      # gdxsv: this diagnostic branch only builds desktop Windows.
+      - 'temp/windows-latency-headers'
   pull_request:
 
 jobs:
